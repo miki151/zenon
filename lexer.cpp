@@ -23,9 +23,9 @@ Tokens lex(const string& input) {
   }
   keywords.pop_back();
   vector<pair<string, function<optional<Token>(const string&)>>> v {
-      {"#.+\n", [](const string&) -> optional<Token> { return none;}},
+      {"#.*\n", [](const string&) -> optional<Token> { return none;}},
       {keywords, [](const string& s) -> optional<Token> { return Token(Keyword::get(s));}},
-      {"\\-|\\+|\\<|\\>", [](const string& s) -> optional<Token> { return Token(Operator{s.front()});}},
+      {"\\-|\\+|\\<|\\>|\\=", [](const string& s) -> optional<Token> { return Token(Operator{s.front()});}},
       {"[0-9]+" , [](const string& s) -> optional<Token> { return Token(Number{s}); } } ,
       {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(Identifier{}); }},
   };

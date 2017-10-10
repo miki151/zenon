@@ -43,7 +43,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
   );
 }
 
-int getPrecedence(Operator op) {
+static int getPrecedence(Operator op) {
   switch (op.type) {
     case '<':
     case '>':
@@ -59,6 +59,15 @@ int getPrecedence(Operator op) {
   }
 }
 
+bool isRightAssociative(Operator op) {
+  switch (op.type) {
+    case '=':
+      return true;
+    default:
+      return false;
+  }
+}
+
 unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression> lhs, int minPrecedence) {
   auto token = tokens.peek("arithmetic operator");
   while (1) {
@@ -71,7 +80,8 @@ unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression
       token = tokens.peek("arithmetic operator");
       while (1) {
         if (auto op2 = token.getReferenceMaybe<Operator>()) {
-          if (getPrecedence(*op2) <= getPrecedence(*op1))
+          if (getPrecedence(*op2) <= getPrecedence(*op1) &&
+              (!isRightAssociative(*op2) || getPrecedence(*op2) < getPrecedence(*op1)))
             break;
           rhs = parseExpressionImpl(tokens, std::move(rhs), getPrecedence(*op2));
           token = tokens.peek("arithmetic operator");
@@ -126,6 +136,12 @@ unique_ptr<StatementBlock> parseBlock(Tokens& tokens) {
 
 unique_ptr<Statement> parseStatement(Tokens& tokens) {
   auto token = tokens.popNext("statement");
+  auto rewindAndParseExpression = [&] {
+    tokens.rewind();
+    auto ret = parseExpression(tokens);
+    tokens.eat(Keyword::SEMICOLON);
+    return unique<ExpressionStatement>(std::move(ret));
+  };
   return token.visit(
       [&](const Keyword& k) -> unique_ptr<Statement> {
         switch (k.type) {
@@ -171,23 +187,10 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
           tokens.eat(Keyword::SEMICOLON);
           return unique<VariableDecl>(token.codeLoc, token.value, token2.value);
         } else
-        if (auto keyword = token2.getReferenceMaybe<Keyword>())
-          if (keyword->type == Keyword::ASSIGNMENT) {
-            tokens.popNext();
-            auto ret = unique<Assignment>(token.codeLoc, token.value, parseExpression(tokens));
-            tokens.eat(Keyword::SEMICOLON);
-            return ret;
-          }
-        tokens.rewind();
-        auto ret = parseExpression(tokens);
-        tokens.eat(Keyword::SEMICOLON);
-        return ret;
+          return rewindAndParseExpression();
       },
       [&](const auto&) -> unique_ptr<Statement> {
-        tokens.rewind();
-        auto ret = parseExpression(tokens);
-        tokens.eat(Keyword::SEMICOLON);
-        return ret;
+        return rewindAndParseExpression();
       }
   );
 }

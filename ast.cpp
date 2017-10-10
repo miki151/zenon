@@ -1,4 +1,5 @@
 #include "ast.h"
+#include "type.h"
 
 using namespace std;
 
@@ -16,7 +17,7 @@ IfStatement::IfStatement(CodeLoc loc, unique_ptr<Expression> c, unique_ptr<State
 }
 
 Constant::Constant(CodeLoc l, ArithmeticType t, string v) : Expression(l), type(t), value(v) {
-  INFO << "Created constant \"" << v << "\" of type " << getName(t);
+  INFO << "Created constant \"" << v << "\" of type " << getName(Type(t));
 }
 
 Variable::Variable(CodeLoc l, string n) : Expression(l), name(n) {}
@@ -29,36 +30,28 @@ VariableDecl::VariableDecl(CodeLoc l, string t, string id) : Statement(l), type(
 
 FunctionDefinition::FunctionDefinition(CodeLoc l, string r, string n) : TopLevelStatement(l), returnType(r), name(n) {}
 
-ArithmeticType getType(CodeLoc loc, const string& name) {
-  if (auto type = getType(name))
+ArithmeticType getArithmeticType(CodeLoc loc, const string& name) {
+  if (auto type = getArithmeticType(name))
     return *type;
   else
     loc.error("Unrecognized type: " + name);
-  return {};
+  return ArithmeticType{ArithmeticType::INT};
 }
 
-ArithmeticType Constant::getType(const State&) const {
+Type Constant::getType(const State&) const {
   return type;
 }
 
-ArithmeticType Variable::getType(const State& state) const {
-  if (auto type = state.getType(name))
-    return type->visit(
-        [&](const FunctionType&) {
-          codeLoc.error("Function name found in expression");
-          return ArithmeticType::INT;
-        },
-        [&](const ArithmeticType t) {
-          return t;
-        }
-    );
+Type Variable::getType(const State& state) const {
+  if (auto ret = state.getType(name))
+    return ReferenceType(*ret);
   else
     codeLoc.error("Undefined variable: " + name);
-  return ArithmeticType::INT;
+  return {};
 }
 
 
-ArithmeticType FunctionCall::getType(const State& state) const {
+Type FunctionCall::getType(const State& state) const {
   if (auto type = state.getType(name))
     return type->visit(
         [&](const FunctionType& t) {
@@ -68,14 +61,14 @@ ArithmeticType FunctionCall::getType(const State& state) const {
           for (int i = 0; i < numParams; ++i) {
             auto argType = arguments[i]->getType(state);
             auto paramType = t.params[i];
-            arguments[i]->codeLoc.check(argType == paramType,
+            arguments[i]->codeLoc.check(canAssign(ReferenceType(paramType), argType),
                 "Function call argument " + to_string(i + 1) + " mismatch: expected \""s + getName(paramType) +
                 "\", got \""s + getName(argType) + "\"");
           }
-          return t.retVal;
+          return *t.retVal;
         },
-        [&](const ArithmeticType&) -> ArithmeticType {
-          codeLoc.error("Trying to call an arithmetic type");
+        [&](const auto&) -> Type {
+          codeLoc.error("Trying to a non-function type");
           return {};
         }
     );
@@ -84,22 +77,13 @@ ArithmeticType FunctionCall::getType(const State& state) const {
   return {};
 }
 
-ArithmeticType BinaryExpression::getType(const State& state) const {
-  switch (op) {
-    case '+':
-    case '-':
-      e1->codeLoc.check(e1->getType(state) == ArithmeticType::INT, "Expected expression type: int");
-      e2->codeLoc.check(e2->getType(state) == ArithmeticType::INT, "Expected expression type: int");
-      return ArithmeticType::INT;
-    case '<':
-    case '>':
-      e1->codeLoc.check(e1->getType(state) == ArithmeticType::INT, "Expected expression type: int");
-      e2->codeLoc.check(e2->getType(state) == ArithmeticType::INT, "Expected expression type: int");
-      return ArithmeticType::BOOL;
-    default:
-      FATAL << "Unrecognized operator: " + string(1, op);
-      return ArithmeticType::INT;
-  }
+Type BinaryExpression::getType(const State& state) const {
+  auto leftType = e1->getType(state);
+  auto rightType = e2->getType(state);
+  auto ret = getOperationResult(op, leftType, rightType);
+  e1->codeLoc.check(!!ret, "Unsupported operator: \"" + getName(leftType) + " " + string(1, op)
+      + " \"" + getName(rightType) + "\"");
+  return *ret;
 }
 
 void StatementBlock::check(State& state) const {
@@ -117,16 +101,16 @@ void IfStatement::check(State& state) const {
 }
 
 void VariableDecl::check(State& state) const {
-  state.setType(identifier, getType(codeLoc, type));
+  state.setType(identifier, ReferenceType(getArithmeticType(codeLoc, type)));
 }
 
 void ReturnStatement::check(State& state) const {
   if (!expr)
-    codeLoc.check(state.getReturnType() == ArithmeticType::VOID,
+    codeLoc.check(state.getReturnType() && *state.getReturnType() == ArithmeticType::VOID,
         "Expected an expression in return statement in a function returning non-void");
   else {
     auto returnType = expr->getType(state);
-    codeLoc.check(*state.getReturnType() == returnType,
+    codeLoc.check(canAssign(ReferenceType(*state.getReturnType()), returnType),
         "Attempting to return value of type \""s + getName(returnType) +
          "\" in a function returning \""s + getName(*state.getReturnType()) + "\"");
   }
@@ -153,10 +137,10 @@ bool ReturnStatement::hasReturnStatement(const State&) const {
 
 void FunctionDefinition::check(State& state) const {
   State stateCopy = state;
-  if (auto returnType = getType(this->returnType)) {
-    vector<ArithmeticType> params;
+  if (auto returnType = getArithmeticType(this->returnType)) {
+    vector<Type> params;
     for (auto& p : parameters)
-      if (auto paramType = getType(p->type)) {
+      if (auto paramType = getArithmeticType(p->type)) {
         stateCopy.setType(p->identifier, *paramType);
         params.push_back(*paramType);
       } else
@@ -178,26 +162,8 @@ void correctness(const AST& ast) {
   }
 }
 
-void Expression::check(State& s) const {
-  getType(s);
-}
+ExpressionStatement::ExpressionStatement(unique_ptr<Expression> e) : Statement(e->codeLoc), expr(std::move(e)) {}
 
-Assignment::Assignment(CodeLoc l, string v, unique_ptr<Expression> e) : Statement(l), variable(v), expr(std::move(e)) {
-  INFO << "Assigning to variable \"" + v + "\"";
-}
-
-void Assignment::check(State& state) const {
-  if (auto varType = state.getType(variable))
-    varType->visit(
-        [&](ArithmeticType t) {
-          auto exprType = expr->getType(state);
-          codeLoc.check(t == exprType, "Assigning expression of type \""s + getName(exprType)
-              + "\" to variable of type \"" + getName(t) + "\"");
-        },
-        [&](const FunctionType&) {
-          codeLoc.error("Trying to assign to a function type");
-        }
-    );
-  else
-    codeLoc.error("Variable not found: \"" + variable + "\"");
+void ExpressionStatement::check(State& state) const {
+  expr->getType(state);
 }

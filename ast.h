@@ -21,30 +21,29 @@ struct Statement : Node {
   virtual void codegen(Accu&) const = 0;
 };
 
-struct Expression : Statement {
-  using Statement::Statement;
-  virtual ArithmeticType getType(const State&) const = 0;
-  virtual void check(State&) const override;
+struct Expression : Node {
+  using Node::Node;
+  virtual Type getType(const State&) const = 0;
 };
 
 struct Constant : Expression {
   Constant(CodeLoc, ArithmeticType, string value);
-  virtual ArithmeticType getType(const State&) const override;
+  virtual Type getType(const State&) const override;
   virtual void codegen(Accu&) const override;
-  ArithmeticType type;
+  Type type;
   string value;
 };
 
 struct Variable : Expression {
   Variable(CodeLoc, string name);
-  virtual ArithmeticType getType(const State&) const override;
+  virtual Type getType(const State&) const override;
   virtual void codegen(Accu&) const override;
   string name;
 };
 
 struct BinaryExpression : Expression {
   BinaryExpression(CodeLoc, char op, unique_ptr<Expression>, unique_ptr<Expression>);
-  virtual ArithmeticType getType(const State&) const override;
+  virtual Type getType(const State&) const override;
   virtual void codegen(Accu&) const override;
   char op;
   unique_ptr<Expression> e1, e2;
@@ -52,7 +51,7 @@ struct BinaryExpression : Expression {
 
 struct FunctionCall : Expression {
   FunctionCall(CodeLoc, string name);
-  virtual ArithmeticType getType(const State&) const override;
+  virtual Type getType(const State&) const override;
   virtual void codegen(Accu&) const override;
   string name;
   vector<unique_ptr<Expression>> arguments;
@@ -62,14 +61,6 @@ struct VariableDecl : Statement {
   VariableDecl(CodeLoc, string type, string identifier);
   string type;
   string identifier;
-  virtual void check(State&) const override;
-  virtual void codegen(Accu&) const override;
-};
-
-struct Assignment : Statement {
-  Assignment(CodeLoc, string variable, unique_ptr<Expression>);
-  string variable;
-  unique_ptr<Expression> expr;
   virtual void check(State&) const override;
   virtual void codegen(Accu&) const override;
 };
@@ -96,6 +87,13 @@ struct ReturnStatement : Statement {
   using Statement::Statement;
   unique_ptr<Expression> expr;
   virtual bool hasReturnStatement(const State&) const override;
+  virtual void check(State&) const override;
+  virtual void codegen(Accu&) const override;
+};
+
+struct ExpressionStatement : Statement {
+  ExpressionStatement(unique_ptr<Expression>);
+  unique_ptr<Expression> expr;
   virtual void check(State&) const override;
   virtual void codegen(Accu&) const override;
 };

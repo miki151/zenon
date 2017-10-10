@@ -33,7 +33,7 @@ void BinaryExpression::codegen(Accu& accu) const {
   accu.add("(");
   e1->codegen(accu);
   accu.add(") ");
-  accu.add(string(1, op) + "(");
+  accu.add(string(1, op) + " (");
   e2->codegen(accu);
   accu.add(")");
 }
@@ -117,8 +117,7 @@ string codegen(const AST& ast) {
   return accu.buf;
 }
 
-void Assignment::codegen(Accu& accu) const {
-  accu.add(variable + " = ");
+void ExpressionStatement::codegen(Accu& accu) const {
   expr->codegen(accu);
   accu.add(";");
 }

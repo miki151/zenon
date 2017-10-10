@@ -26,7 +26,6 @@ struct Keyword {
     RETURN,
     TRUE,
     FALSE,
-    ASSIGNMENT
   } type;
   Keyword(Type);
   static Token get(const string&);
