@@ -97,7 +97,7 @@ ArithmeticType BinaryExpression::getType(const State& state) const {
       e2->codeLoc.check(e2->getType(state) == ArithmeticType::INT, "Expected expression type: int");
       return ArithmeticType::BOOL;
     default:
-      codeLoc.error("Unrecognized operator: " + string(1, op));
+      FATAL << "Unrecognized operator: " + string(1, op);
       return ArithmeticType::INT;
   }
 }
@@ -176,4 +176,28 @@ void correctness(const AST& ast) {
   for (auto& elem : ast.elems) {
     elem->check(state);
   }
+}
+
+void Expression::check(State& s) const {
+  getType(s);
+}
+
+Assignment::Assignment(CodeLoc l, string v, unique_ptr<Expression> e) : Statement(l), variable(v), expr(std::move(e)) {
+  INFO << "Assigning to variable \"" + v + "\"";
+}
+
+void Assignment::check(State& state) const {
+  if (auto varType = state.getType(variable))
+    varType->visit(
+        [&](ArithmeticType t) {
+          auto exprType = expr->getType(state);
+          codeLoc.check(t == exprType, "Assigning expression of type \""s + getName(exprType)
+              + "\" to variable of type \"" + getName(t) + "\"");
+        },
+        [&](const FunctionType&) {
+          codeLoc.error("Trying to assign to a function type");
+        }
+    );
+  else
+    codeLoc.error("Variable not found: \"" + variable + "\"");
 }

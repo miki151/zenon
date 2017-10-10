@@ -10,14 +10,28 @@
 using namespace std;
 
 Tokens lex(const string& input) {
+  string idLetterFirst = "_a-zA-Z";
+  string idLetter = idLetterFirst + "0-9";
+  string keywords;
+  for (auto& k : Keyword::getAll()) {
+    if (k.size() == 1)
+      keywords.append("\\");
+    keywords.append(k);
+    if (all_of(k.begin(), k.end(), [](char c) { return isalpha(c); }))
+      keywords.append("\\b");
+    keywords.append("|");
+  }
+  keywords.pop_back();
   vector<pair<string, function<optional<Token>(const string&)>>> v {
       {"#.+\n", [](const string&) -> optional<Token> { return none;}},
-      {"if|else|return|\\(|\\)|\\{|\\}|;|\\,|true|false",
-           [](const string& s) -> optional<Token> { return Token(Keyword::get(s));}},
+      {keywords, [](const string& s) -> optional<Token> { return Token(Keyword::get(s));}},
       {"\\-|\\+|\\<|\\>", [](const string& s) -> optional<Token> { return Token(Operator{s.front()});}},
       {"[0-9]+" , [](const string& s) -> optional<Token> { return Token(Number{s}); } } ,
-      {"[_|a-z|A-Z][_|a-z|A-Z|0-9]*" , [](const string&) -> optional<Token> { return Token(Identifier{}); }},
+      {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(Identifier{}); }},
   };
+  INFO << "Lexing expressions:";
+  for (auto& elem : v)
+    INFO << elem.first;
   vector<int> lines(input.size());
   vector<int> columns(input.size());
   int currentLine = 1;
@@ -49,14 +63,15 @@ Tokens lex(const string& input) {
       if (!it->str(index + 1).empty()) { // determine which submatch was matched
         string matched = it->str();
         string skipped = input.substr(lastPos, it->position() - lastPos);
-        if (it->position() > lastPos && !all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); }))
-          FATAL << "Unrecognized input: \"" << skipped << "\"";
         lastPos += matched.size() + skipped.size();
         if (auto token = v[index].second(matched))
           ret.push_back(*token);
-        ret.back().codeLoc = CodeLoc(lines[lastPos - 1], columns[lastPos - 1]);
+        auto codeLoc = CodeLoc(lines[lastPos - 1], columns[lastPos - 1]);
+        ret.back().codeLoc = codeLoc;
+        if (!all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); }))
+          codeLoc.error("Unrecognized input: \"" + skipped + "\"");
         ret.back().value = matched;
-        INFO << "Matched " << matched;
+        INFO << "Matched \"" << matched << "\" with rule " << index;
         break;
       }
   }

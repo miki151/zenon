@@ -14,10 +14,17 @@ struct Node {
   virtual ~Node() {}
 };
 
-struct Expression : Node {
+struct Statement : Node {
   using Node::Node;
-  virtual ArithmeticType getType(const State&) const = 0;
+  virtual void check(State&) const = 0;
+  virtual bool hasReturnStatement(const State&) const;
   virtual void codegen(Accu&) const = 0;
+};
+
+struct Expression : Statement {
+  using Statement::Statement;
+  virtual ArithmeticType getType(const State&) const = 0;
+  virtual void check(State&) const override;
 };
 
 struct Constant : Expression {
@@ -51,17 +58,18 @@ struct FunctionCall : Expression {
   vector<unique_ptr<Expression>> arguments;
 };
 
-struct Statement : Node {
-  using Node::Node;
-  virtual void check(State&) const = 0;
-  virtual bool hasReturnStatement(const State&) const;
-  virtual void codegen(Accu&) const = 0;
-};
-
 struct VariableDecl : Statement {
   VariableDecl(CodeLoc, string type, string identifier);
   string type;
   string identifier;
+  virtual void check(State&) const override;
+  virtual void codegen(Accu&) const override;
+};
+
+struct Assignment : Statement {
+  Assignment(CodeLoc, string variable, unique_ptr<Expression>);
+  string variable;
+  unique_ptr<Expression> expr;
   virtual void check(State&) const override;
   virtual void codegen(Accu&) const override;
 };

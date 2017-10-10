@@ -9,6 +9,7 @@ static const unordered_map<string, Keyword::Type> keywords {
   {"return", Keyword::RETURN},
   {"true", Keyword::TRUE},
   {"false", Keyword::FALSE},
+  {"=", Keyword::ASSIGNMENT},
   {"(", Keyword::OPEN_BRACKET},
   {")", Keyword::CLOSE_BRACKET},
   {"{", Keyword::OPEN_BLOCK},
@@ -17,7 +18,12 @@ static const unordered_map<string, Keyword::Type> keywords {
   {",", Keyword::COMMA},
 };
 
-
+vector<string> Keyword::getAll() {
+  vector<string> ret;
+  for (auto& elem : keywords)
+    ret.push_back(elem.first);
+  return ret;
+}
 
 Keyword::Keyword(Keyword::Type t) : type(t) { }
 

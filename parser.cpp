@@ -3,7 +3,6 @@
 #include "token.h"
 #include "ast.h"
 
-
 unique_ptr<Expression> parseExpression(Tokens&);
 unique_ptr<FunctionCall> parseFunctionCall(Tokens&);
 
@@ -21,7 +20,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
           case Keyword::TRUE:
             return unique<Constant>(token.codeLoc, ArithmeticType::BOOL, token.value);
           default:
-            ERROR << "Expected primary expression, got: " << token.value;
+            token.codeLoc.error("Expected primary expression, got: \"" + token.value + "\"");
             return {};
         }
       },
@@ -38,7 +37,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
         return unique<Constant>(token.codeLoc, ArithmeticType::INT, n.value);
       },
       [&](const auto&) -> unique_ptr<Expression> {
-        ERROR << "Expected primary expression, got: " << token.value;
+        token.codeLoc.error("Expected primary expression, got: \"" + token.value + "\"");
         return {};
       }
   );
@@ -52,6 +51,8 @@ int getPrecedence(Operator op) {
     case '+':
     case '-':
       return 2;
+    case '=':
+      return 3;
     default:
       FATAL << "Unrecognized operator: " << op.type;
       return 0;
@@ -159,7 +160,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return ret;
           }
           default:
-            ERROR << "Unexpected keyword: " << token.value;
+            tokens.error("Unexpected keyword: \"" + token.value + "\"");
             return {};
         }
       },
@@ -169,19 +170,25 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
           tokens.popNext("identifier");
           tokens.eat(Keyword::SEMICOLON);
           return unique<VariableDecl>(token.codeLoc, token.value, token2.value);
-        }
-/*        if (auto keyword = token2.getReferenceMaybe<Keyword>())
-          if (keyword->type == Keyword::OPEN_BRACKET) {
-            tokens.rewind();
-            auto ret = parseFunctionCall(tokens);
-            //if (eatSemicolon)
-              tokens.eat(Keyword::SEMICOLON);
+        } else
+        if (auto keyword = token2.getReferenceMaybe<Keyword>())
+          if (keyword->type == Keyword::ASSIGNMENT) {
+            tokens.popNext();
+            auto ret = unique<Assignment>(token.codeLoc, token.value, parseExpression(tokens));
+            tokens.eat(Keyword::SEMICOLON);
             return ret;
-          }*/
-        tokens.error("Expected identifier, got \"" + token2.value + "\"");
-        return {};
+          }
+        tokens.rewind();
+        auto ret = parseExpression(tokens);
+        tokens.eat(Keyword::SEMICOLON);
+        return ret;
       },
-      [&](const auto&) -> unique_ptr<Statement> { ERROR << "Unexpected token: \"" << token.value << "\""; return {};}
+      [&](const auto&) -> unique_ptr<Statement> {
+        tokens.rewind();
+        auto ret = parseExpression(tokens);
+        tokens.eat(Keyword::SEMICOLON);
+        return ret;
+      }
   );
 }
 

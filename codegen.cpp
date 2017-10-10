@@ -116,3 +116,9 @@ string codegen(const AST& ast) {
   }
   return accu.buf;
 }
+
+void Assignment::codegen(Accu& accu) const {
+  accu.add(variable + " = ");
+  expr->codegen(accu);
+  accu.add(";");
+}
