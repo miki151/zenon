@@ -130,3 +130,7 @@ void StructDeclaration::codegen(Accu& accu) const {
   --accu.indent;
   accu.newLine("};");
 }
+
+void MemberAccessType::codegen(Accu& accu) const {
+  accu.add(name);
+}

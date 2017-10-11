@@ -35,6 +35,13 @@ struct Variable : Expression {
   string name;
 };
 
+struct MemberAccessType : Expression {
+  MemberAccessType(CodeLoc, string name);
+  virtual Type getType(const State&) const override;
+  virtual void codegen(Accu&) const override;
+  string name;
+};
+
 struct BinaryExpression : Expression {
   BinaryExpression(CodeLoc, BinaryOperator, unique_ptr<Expression>, unique_ptr<Expression>);
   virtual Type getType(const State&) const override;

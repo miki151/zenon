@@ -18,6 +18,9 @@ string getName(const Type& t) {
       [&](const FunctionType&) {
         return "function"s;
       },
+      [&](const MemberAccess& m) {
+        return "member \"" + m.memberName + "\"";
+      },
       [&](const ReferenceType& t) {
         return "reference("s + getName(*t.underlying) + ")";
       },
@@ -73,13 +76,30 @@ static optional<Type> getOperationResult(BinaryOperator op, const Type& underlyi
   }
 }
 
-optional<Type> getOperationResult(BinaryOperator op, const Type& left, const Type& right) {
+Type getOperationResult(CodeLoc codeLoc, BinaryOperator op, const Type& left, const Type& right) {
   switch (op) {
+    case BinaryOperator::MEMBER_ACCESS:
+      if (auto memberInfo = right.getReferenceMaybe<MemberAccess>()) {
+        auto leftUnderlying = getUnderlying(left);
+        if (auto structInfo = leftUnderlying.getReferenceMaybe<StructType>()) {
+          for (auto& member : structInfo->members) {
+            INFO << "Looking for member " << memberInfo->memberName << " in " << member.name;
+            if (member.name == memberInfo->memberName)
+              return Type(ReferenceType(*member.type));
+          }
+          codeLoc.error("No member named \"" + memberInfo->memberName + " in struct \"" + getName(*structInfo) + "\"");
+          return {};
+        }
+      }
+      codeLoc.error("Bad use of operator \".\"");
+      return {};
     case BinaryOperator::ASSIGNMENT:
       if (getUnderlying(left) == getUnderlying(right) && left.contains<ReferenceType>())
         return left;
-      else
-        return none;
+      else {
+        codeLoc.error("Can't assign \"" + getName(right) + " to \"" + getName(left) + "\"");
+        return {};
+      }
     case BinaryOperator::LESS_THAN:
     case BinaryOperator::MORE_THAN:
     case BinaryOperator::PLUS:
@@ -87,9 +107,11 @@ optional<Type> getOperationResult(BinaryOperator op, const Type& left, const Typ
     case BinaryOperator::MINUS: {
       auto operand = getUnderlying(left);
       if (operand == getUnderlying(right))
-        return getOperationResult(op, operand);
-      else
-        return none;
+        if (auto res = getOperationResult(op, operand))
+          return *res;
+      codeLoc.error("Unsupported operator: \"" + getName(left) + " " + getString(op)
+          + " \"" + getName(right) + "\"");
+      return {};
     }
   }
 }
@@ -111,4 +133,14 @@ StructType::StructType(string n) : name(n), id(++idCounter) {}
 
 bool StructType::operator == (const StructType& o) const {
   return id == o.id;
+}
+
+MemberAccess::MemberAccess(const string& m) : memberName(m), id(idCounter) {}
+
+bool MemberAccess::operator == (const MemberAccess& a) const {
+  return id == a.id;
+}
+
+bool canConvert(const Type& from, const Type& to) {
+  return getUnderlying(from) == to;
 }

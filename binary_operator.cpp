@@ -6,7 +6,8 @@ const static unordered_map<string, BinaryOperator> operators {
   {"==", BinaryOperator::EQUALS},
   {"+", BinaryOperator::PLUS},
   {"-", BinaryOperator::MINUS},
-  {"=", BinaryOperator::ASSIGNMENT}
+  {"=", BinaryOperator::ASSIGNMENT},
+  {".", BinaryOperator::MEMBER_ACCESS}
 };
 
 optional<BinaryOperator> getBinaryOperator(const string& s) {
@@ -33,15 +34,17 @@ const char* getString(BinaryOperator op) {
 
 int getPrecedence(BinaryOperator op) {
   switch (op) {
+    case BinaryOperator::ASSIGNMENT:
+      return 1;
     case BinaryOperator::EQUALS:
     case BinaryOperator::LESS_THAN:
     case BinaryOperator::MORE_THAN:
-      return 1;
+      return 2;
     case BinaryOperator::PLUS:
     case BinaryOperator::MINUS:
-      return 2;
-    case BinaryOperator::ASSIGNMENT:
       return 3;
+    case BinaryOperator::MEMBER_ACCESS:
+      return 4;
   }
 }
 

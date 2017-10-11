@@ -6,7 +6,7 @@
 unique_ptr<Expression> parseExpression(Tokens&);
 unique_ptr<FunctionCall> parseFunctionCall(Tokens&);
 
-unique_ptr<Expression> parsePrimary(Tokens& tokens) {
+unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<BinaryOperator> precedingOp) {
   auto token = tokens.popNext("primary expression");
   return token.visit(
       [&](const Keyword& k) -> unique_ptr<Expression> {
@@ -31,7 +31,10 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
             tokens.rewind();
             return parseFunctionCall(tokens);
           }
-        return unique<Variable>(token.codeLoc, token.value);
+        if (precedingOp != BinaryOperator::MEMBER_ACCESS)
+          return unique<Variable>(token.codeLoc, token.value);
+        else
+          return unique<MemberAccessType>(token.codeLoc, token.value);
       },
       [&](const Number& n) -> unique_ptr<Expression> {
         return unique<Constant>(token.codeLoc, ArithmeticType::INT, n.value);
@@ -46,15 +49,15 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
 unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression> lhs, int minPrecedence) {
   auto token = tokens.peek("arithmetic operator");
   while (1) {
-    if (auto op1 = token.getReferenceMaybe<Operator>()) {
-      auto opSym = op1->type;
+    if (auto op1 = token.getValueMaybe<Operator>()) {
       if (getPrecedence(op1->type) < minPrecedence)
         break;
       tokens.popNext("arithmetic operator");
-      auto rhs = parsePrimary(tokens);
+      auto rhs = parsePrimary(tokens, op1->type);
       token = tokens.peek("arithmetic operator");
       while (1) {
         if (auto op2 = token.getReferenceMaybe<Operator>()) {
+          INFO << "Comparing operators op1 " << getString(op1->type) << " and op2 " << getString(op2->type);
           if (getPrecedence(op2->type) <= getPrecedence(op1->type) &&
               (!isRightAssociative(op2->type) || getPrecedence(op2->type) < getPrecedence(op1->type)))
             break;
@@ -62,9 +65,9 @@ unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression
           token = tokens.peek("arithmetic operator");
         } else
           break;
-          //ERROR << "2 Expected operator, got: \"" << token.value << "\"";
+          //token.codeLoc.error("2 Expected operator, got: \"" + token.value + "\"");
       }
-      lhs = unique<BinaryExpression>(token.codeLoc, opSym, std::move(lhs), std::move(rhs));
+      lhs = unique<BinaryExpression>(token.codeLoc, op1->type, std::move(lhs), std::move(rhs));
     } else
       break;
       //ERROR << "3 Expected operator, got: \"" << token.value << "\"";
@@ -73,7 +76,7 @@ unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression
 }
 
 unique_ptr<Expression> parseExpression(Tokens& tokens) {
-  return parseExpressionImpl(tokens, parsePrimary(tokens), 0);
+  return parseExpressionImpl(tokens, parsePrimary(tokens, none), 0);
 }
 
 unique_ptr<FunctionCall> parseFunctionCall(Tokens& tokens) {

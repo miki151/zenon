@@ -72,10 +72,7 @@ Type FunctionCall::getType(const State& state) const {
 Type BinaryExpression::getType(const State& state) const {
   auto leftType = e1->getType(state);
   auto rightType = e2->getType(state);
-  auto ret = getOperationResult(op, leftType, rightType);
-  e1->codeLoc.check(!!ret, "Unsupported operator: \"" + getName(leftType) + " " + getString(op)
-      + " \"" + getName(rightType) + "\"");
-  return *ret;
+  return getOperationResult(e1->codeLoc, op, leftType, rightType);
 }
 
 void StatementBlock::check(State& state) const {
@@ -86,7 +83,9 @@ void StatementBlock::check(State& state) const {
 }
 
 void IfStatement::check(State& state) const {
-  codeLoc.check(cond->getType(state) == ArithmeticType::BOOL, "Expected type bool inside if statement");
+  auto condType = cond->getType(state);
+  codeLoc.check(canConvert(condType, ArithmeticType::BOOL), "Expected a type convertible to bool inside if statement, got \""
+      + getName(condType) + "\"");
   ifTrue->check(state);
   if (ifFalse)
     ifFalse->check(state);
@@ -182,4 +181,10 @@ void StructDeclaration::check(State& s) const {
       member.codeLoc.error("Type \"" + member.type + "\" not recognized");
   }
   s.addType(name, std::move(type));
+}
+
+MemberAccessType::MemberAccessType(CodeLoc l, string n) : Expression(l), name(n) {}
+
+Type MemberAccessType::getType(const State&) const {
+  return MemberAccess(name);
 }

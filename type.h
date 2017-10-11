@@ -3,6 +3,7 @@
 #include "stdafx.h"
 #include "util.h"
 #include "binary_operator.h"
+#include "code_loc.h"
 
 struct Type;
 
@@ -25,6 +26,13 @@ struct ReferenceType {
   bool operator == (const ReferenceType&) const;
 };
 
+struct MemberAccess {
+  MemberAccess(const string& memberName);
+  string memberName;
+  int id;
+  bool operator == (const MemberAccess&) const;
+};
+
 struct StructType {
   StructType(string name);
   string name;
@@ -37,10 +45,11 @@ struct StructType {
   bool operator == (const StructType&) const;
 };
 
-struct Type : variant<ArithmeticType, FunctionType, ReferenceType, StructType> {
+struct Type : variant<ArithmeticType, FunctionType, ReferenceType, StructType, MemberAccess> {
   using variant::variant;
 };
 
 extern string getName(const Type&);
 extern bool canAssign(const Type& to, const Type& from);
-extern optional<Type> getOperationResult(BinaryOperator op, const Type& from, const Type& to);
+extern Type getOperationResult(CodeLoc, BinaryOperator op, const Type& from, const Type& to);
+extern bool canConvert(const Type& from, const Type& to);

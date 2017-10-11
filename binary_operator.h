@@ -9,6 +9,7 @@ enum class BinaryOperator {
   PLUS,
   MINUS,
   ASSIGNMENT,
+  MEMBER_ACCESS,
 };
 
 extern optional<BinaryOperator> getBinaryOperator(const string&);
