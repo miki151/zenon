@@ -43,47 +43,22 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
   );
 }
 
-static int getPrecedence(Operator op) {
-  switch (op.type) {
-    case '<':
-    case '>':
-      return 1;
-    case '+':
-    case '-':
-      return 2;
-    case '=':
-      return 3;
-    default:
-      FATAL << "Unrecognized operator: " << op.type;
-      return 0;
-  }
-}
-
-bool isRightAssociative(Operator op) {
-  switch (op.type) {
-    case '=':
-      return true;
-    default:
-      return false;
-  }
-}
-
 unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression> lhs, int minPrecedence) {
   auto token = tokens.peek("arithmetic operator");
   while (1) {
     if (auto op1 = token.getReferenceMaybe<Operator>()) {
-      char opSym = op1->type;
-      if (getPrecedence(*op1) < minPrecedence)
+      auto opSym = op1->type;
+      if (getPrecedence(op1->type) < minPrecedence)
         break;
       tokens.popNext("arithmetic operator");
       auto rhs = parsePrimary(tokens);
       token = tokens.peek("arithmetic operator");
       while (1) {
         if (auto op2 = token.getReferenceMaybe<Operator>()) {
-          if (getPrecedence(*op2) <= getPrecedence(*op1) &&
-              (!isRightAssociative(*op2) || getPrecedence(*op2) < getPrecedence(*op1)))
+          if (getPrecedence(op2->type) <= getPrecedence(op1->type) &&
+              (!isRightAssociative(op2->type) || getPrecedence(op2->type) < getPrecedence(op1->type)))
             break;
-          rhs = parseExpressionImpl(tokens, std::move(rhs), getPrecedence(*op2));
+          rhs = parseExpressionImpl(tokens, std::move(rhs), getPrecedence(op2->type));
           token = tokens.peek("arithmetic operator");
         } else
           break;

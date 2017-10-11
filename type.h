@@ -2,6 +2,7 @@
 
 #include "stdafx.h"
 #include "util.h"
+#include "binary_operator.h"
 
 struct Type;
 
@@ -32,4 +33,4 @@ struct Type : variant<ArithmeticType, FunctionType, ReferenceType> {
 
 extern string getName(const Type&);
 extern bool canAssign(const Type& to, const Type& from);
-extern optional<Type> getOperationResult(char op, const Type& from, const Type& to);
+extern optional<Type> getOperationResult(BinaryOperator op, const Type& from, const Type& to);

@@ -33,7 +33,7 @@ void BinaryExpression::codegen(Accu& accu) const {
   accu.add("(");
   e1->codegen(accu);
   accu.add(") ");
-  accu.add(string(1, op) + " (");
+  accu.add(getString(op) + " ("s);
   e2->codegen(accu);
   accu.add(")");
 }

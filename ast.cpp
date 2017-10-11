@@ -6,7 +6,7 @@ using namespace std;
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
 
-BinaryExpression::BinaryExpression(CodeLoc loc, char o, unique_ptr<Expression> u1, unique_ptr<Expression> u2)
+BinaryExpression::BinaryExpression(CodeLoc loc, BinaryOperator o, unique_ptr<Expression> u1, unique_ptr<Expression> u2)
     : Expression(loc), op(o) {
   e1 = std::move(u1);
   e2 = std::move(u2);
@@ -81,7 +81,7 @@ Type BinaryExpression::getType(const State& state) const {
   auto leftType = e1->getType(state);
   auto rightType = e2->getType(state);
   auto ret = getOperationResult(op, leftType, rightType);
-  e1->codeLoc.check(!!ret, "Unsupported operator: \"" + getName(leftType) + " " + string(1, op)
+  e1->codeLoc.check(!!ret, "Unsupported operator: \"" + getName(leftType) + " " + getString(op)
       + " \"" + getName(rightType) + "\"");
   return *ret;
 }

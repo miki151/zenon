@@ -3,6 +3,7 @@
 #include <deque>
 #include "variant.h"
 #include "code_loc.h"
+#include "binary_operator.h"
 
 class Token;
 
@@ -34,7 +35,7 @@ struct Keyword {
 };
 
 struct Operator {
-  char type;
+  BinaryOperator type;
 };
 
 class Token : public variant<Number, Identifier, Keyword, Operator> {

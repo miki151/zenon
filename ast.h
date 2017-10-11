@@ -4,6 +4,7 @@
 #include "variant.h"
 #include "code_loc.h"
 #include "state.h"
+#include "binary_operator.h"
 
 struct Accu;
 
@@ -42,10 +43,10 @@ struct Variable : Expression {
 };
 
 struct BinaryExpression : Expression {
-  BinaryExpression(CodeLoc, char op, unique_ptr<Expression>, unique_ptr<Expression>);
+  BinaryExpression(CodeLoc, BinaryOperator, unique_ptr<Expression>, unique_ptr<Expression>);
   virtual Type getType(const State&) const override;
   virtual void codegen(Accu&) const override;
-  char op;
+  BinaryOperator op;
   unique_ptr<Expression> e1, e2;
 };
 

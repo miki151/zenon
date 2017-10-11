@@ -6,15 +6,14 @@
 #include <algorithm>
 #include "token.h"
 #include "debug.h"
+#include "binary_operator.h"
 
 using namespace std;
 
-Tokens lex(const string& input) {
-  string idLetterFirst = "_a-zA-Z";
-  string idLetter = idLetterFirst + "0-9";
+static string getKeywords() {
   string keywords;
   for (auto& k : Keyword::getAll()) {
-    if (k.size() == 1)
+    if (!isalpha(k[0]))
       keywords.append("\\");
     keywords.append(k);
     if (all_of(k.begin(), k.end(), [](char c) { return isalpha(c); }))
@@ -22,10 +21,30 @@ Tokens lex(const string& input) {
     keywords.append("|");
   }
   keywords.pop_back();
+  return keywords;
+}
+
+static string getOperators() {
+  string ret;
+  auto ops = getAllOperators();
+  sort(ops.begin(), ops.end(), [](const string& o1, const string& o2) { return o1.size() > o2.size(); });
+  for (auto& k : ops) {
+    ret.append("\\");
+    ret.append(k);
+    ret.append("|");
+  }
+  ret.pop_back();
+  return ret;
+}
+
+Tokens lex(const string& input) {
+  string idLetterFirst = "_a-zA-Z";
+  string idLetter = idLetterFirst + "0-9";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
       {"#.*\n", [](const string&) -> optional<Token> { return none;}},
-      {keywords, [](const string& s) -> optional<Token> { return Token(Keyword::get(s));}},
-      {"\\-|\\+|\\<|\\>|\\=", [](const string& s) -> optional<Token> { return Token(Operator{s.front()});}},
+      {getKeywords(), [](const string& s) -> optional<Token> { return Token(Keyword::get(s));}},
+      {getOperators(), [](const string& s) -> optional<Token> {
+          return Token(Operator{*getBinaryOperator(s)});}},
       {"[0-9]+" , [](const string& s) -> optional<Token> { return Token(Number{s}); } } ,
       {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(Identifier{}); }},
   };

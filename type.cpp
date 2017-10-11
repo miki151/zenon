@@ -56,28 +56,45 @@ bool ReferenceType::operator == (const ReferenceType& o) const {
   return underlying == o.underlying;
 }
 
-optional<Type> getOperationResult(char op, const Type& left, const Type& right) {
+static optional<Type> getOperationResult(BinaryOperator op, const Type& underlyingOperands) {
   switch (op) {
-    case '=':
+    case BinaryOperator::PLUS:
+    case BinaryOperator::MINUS:
+      if (underlyingOperands == ArithmeticType::INT)
+        return Type(ArithmeticType::INT);
+      return none;
+    case BinaryOperator::LESS_THAN:
+    case BinaryOperator::MORE_THAN:
+      if (underlyingOperands == ArithmeticType::INT)
+        return Type(ArithmeticType::BOOL);
+      return none;
+    case BinaryOperator::EQUALS:
+      if (underlyingOperands == ArithmeticType::INT || underlyingOperands == ArithmeticType::BOOL)
+        return Type(ArithmeticType::BOOL);
+      return none;
+    default:
+      return none;
+  }
+}
+
+optional<Type> getOperationResult(BinaryOperator op, const Type& left, const Type& right) {
+  switch (op) {
+    case BinaryOperator::ASSIGNMENT:
       if (getUnderlying(left) == getUnderlying(right) && left.contains<ReferenceType>())
         return left;
       else
         return none;
-    case '+':
-    case '-':
-      if (getUnderlying(left) == ArithmeticType::INT && getUnderlying(right) == ArithmeticType::INT)
-        return Type(ArithmeticType::INT);
+    case BinaryOperator::LESS_THAN:
+    case BinaryOperator::MORE_THAN:
+    case BinaryOperator::PLUS:
+    case BinaryOperator::EQUALS:
+    case BinaryOperator::MINUS: {
+      auto operand = getUnderlying(left);
+      if (operand == getUnderlying(right))
+        return getOperationResult(op, operand);
       else
         return none;
-    case '<':
-    case '>':
-      if (getUnderlying(left) == ArithmeticType::INT && getUnderlying(right) == ArithmeticType::INT)
-        return Type(ArithmeticType::BOOL);
-      else
-        return none;
-    default:
-      FATAL << "Unrecognized operator: " + string(1, op);
-      return {};
+    }
   }
 }
 
