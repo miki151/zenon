@@ -15,13 +15,6 @@ struct Node {
   virtual ~Node() {}
 };
 
-struct Statement : Node {
-  using Node::Node;
-  virtual void check(State&) const = 0;
-  virtual bool hasReturnStatement(const State&) const;
-  virtual void codegen(Accu&) const = 0;
-};
-
 struct Expression : Node {
   using Node::Node;
   virtual Type getType(const State&) const = 0;
@@ -58,8 +51,16 @@ struct FunctionCall : Expression {
   vector<unique_ptr<Expression>> arguments;
 };
 
-struct VariableDecl : Statement {
-  VariableDecl(CodeLoc, string type, string identifier);
+struct Statement : Node {
+  using Node::Node;
+  virtual void check(State&) const = 0;
+  virtual bool hasReturnStatement(const State&) const;
+  virtual void codegen(Accu&) const = 0;
+  virtual bool allowTopLevel() const { return false; }
+};
+
+struct VariableDeclaration : Statement {
+  VariableDeclaration(CodeLoc, string type, string identifier);
   string type;
   string identifier;
   virtual void check(State&) const override;
@@ -99,22 +100,31 @@ struct ExpressionStatement : Statement {
   virtual void codegen(Accu&) const override;
 };
 
-struct TopLevelStatement : Node {
-  using Node::Node;
-  virtual void check(State&) const = 0;
-  virtual void codegen(Accu&) const = 0;
+struct StructDeclaration : Statement {
+  StructDeclaration(CodeLoc, string name);
+  string name;
+  struct Member {
+    string type;
+    string name;
+    CodeLoc codeLoc;
+  };
+  vector<Member> members;
+  virtual void check(State&) const override;
+  virtual void codegen(Accu&) const override;
+  virtual bool allowTopLevel() const override { return true; }
 };
 
-struct FunctionDefinition : TopLevelStatement {
+struct FunctionDefinition : Statement {
   FunctionDefinition(CodeLoc, string returnType, string name);
   string returnType;
   string name;
-  vector<unique_ptr<VariableDecl>> parameters;
+  vector<unique_ptr<VariableDeclaration>> parameters;
   unique_ptr<StatementBlock> body;
   virtual void check(State&) const override;
   virtual void codegen(Accu&) const override;
+  virtual bool allowTopLevel() const override { return true; }
 };
 
 struct AST {
-  vector<unique_ptr<TopLevelStatement>> elems;
+  vector<unique_ptr<Statement>> elems;
 };

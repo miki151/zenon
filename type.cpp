@@ -20,15 +20,11 @@ string getName(const Type& t) {
       },
       [&](const ReferenceType& t) {
         return "reference("s + getName(*t.underlying) + ")";
+      },
+      [&](const StructType& t) {
+        return t.name;
       }
   );
-}
-
-optional<ArithmeticType> getArithmeticType(const string& s) {
-  if (arithmeticTypes.count(s))
-    return ArithmeticType{arithmeticTypes.at(s)};
-  else
-    return none;
 }
 
 FunctionType::FunctionType(Type returnType, vector<Type> p) : retVal(std::move(returnType)), params(std::move(p)) {
@@ -107,4 +103,12 @@ bool canAssign(const Type& to, const Type& from) {
         return false;
       }
   );
+}
+
+static int idCounter = 0;
+
+StructType::StructType(string n) : name(n), id(++idCounter) {}
+
+bool StructType::operator == (const StructType& o) const {
+  return id == o.id;
 }

@@ -24,26 +24,18 @@ Variable::Variable(CodeLoc l, string n) : Expression(l), name(n) {}
 
 FunctionCall::FunctionCall(CodeLoc l, string n) : Expression(l), name(n) {}
 
-VariableDecl::VariableDecl(CodeLoc l, string t, string id) : Statement(l), type(t), identifier(id) {
+VariableDeclaration::VariableDeclaration(CodeLoc l, string t, string id) : Statement(l), type(t), identifier(id) {
   INFO << "Declared variable \"" << id << "\" of type \"" << t << "\"";
 }
 
-FunctionDefinition::FunctionDefinition(CodeLoc l, string r, string n) : TopLevelStatement(l), returnType(r), name(n) {}
-
-ArithmeticType getArithmeticType(CodeLoc loc, const string& name) {
-  if (auto type = getArithmeticType(name))
-    return *type;
-  else
-    loc.error("Unrecognized type: " + name);
-  return ArithmeticType{ArithmeticType::INT};
-}
+FunctionDefinition::FunctionDefinition(CodeLoc l, string r, string n) : Statement(l), returnType(r), name(n) {}
 
 Type Constant::getType(const State&) const {
   return type;
 }
 
 Type Variable::getType(const State& state) const {
-  if (auto ret = state.getType(name))
+  if (auto ret = state.getTypeOfVariable(name))
     return ReferenceType(*ret);
   else
     codeLoc.error("Undefined variable: " + name);
@@ -52,7 +44,7 @@ Type Variable::getType(const State& state) const {
 
 
 Type FunctionCall::getType(const State& state) const {
-  if (auto type = state.getType(name))
+  if (auto type = state.getTypeOfVariable(name))
     return type->visit(
         [&](const FunctionType& t) {
           int numParams = (int) t.params.size();
@@ -100,8 +92,12 @@ void IfStatement::check(State& state) const {
     ifFalse->check(state);
 }
 
-void VariableDecl::check(State& state) const {
-  state.setType(identifier, ReferenceType(getArithmeticType(codeLoc, type)));
+void VariableDeclaration::check(State& state) const {
+  codeLoc.check(!state.getTypeFromString(identifier), "Variable \"" + identifier + "\" conflicts with an existing type");
+  if (auto typeId = state.getTypeFromString(type)) {
+    state.setType(identifier, ReferenceType(*typeId));
+  } else
+    codeLoc.error("Type \"" + type + "\" not recognized");
 }
 
 void ReturnStatement::check(State& state) const {
@@ -137,10 +133,10 @@ bool ReturnStatement::hasReturnStatement(const State&) const {
 
 void FunctionDefinition::check(State& state) const {
   State stateCopy = state;
-  if (auto returnType = getArithmeticType(this->returnType)) {
+  if (auto returnType = state.getTypeFromString(this->returnType)) {
     vector<Type> params;
     for (auto& p : parameters)
-      if (auto paramType = getArithmeticType(p->type)) {
+      if (auto paramType = state.getTypeFromString(p->type)) {
         stateCopy.setType(p->identifier, *paramType);
         params.push_back(*paramType);
       } else
@@ -157,6 +153,9 @@ void FunctionDefinition::check(State& state) const {
 
 void correctness(const AST& ast) {
   State state;
+  state.addType("int", ArithmeticType::INT);
+  state.addType("bool", ArithmeticType::BOOL);
+  state.addType("void", ArithmeticType::VOID);
   for (auto& elem : ast.elems) {
     elem->check(state);
   }
@@ -166,4 +165,21 @@ ExpressionStatement::ExpressionStatement(unique_ptr<Expression> e) : Statement(e
 
 void ExpressionStatement::check(State& state) const {
   expr->getType(state);
+}
+
+StructDeclaration::StructDeclaration(CodeLoc l, string n) : Statement(l), name(n) {
+}
+
+void StructDeclaration::check(State& s) const {
+  codeLoc.check(!s.getTypeOfVariable(name), "Type \"" + name + "\" conflicts with an existing variable");
+  codeLoc.check(!s.getTypeFromString(name), "Type \"" + name + "\" conflicts with an existing type");
+  StructType type(name);
+  for (auto& member : members) {
+    INFO << "Struct member " << member.name << " " << member.type << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
+    if (auto memberType = s.getTypeFromString(member.type))
+      type.members.push_back({member.name, *memberType});
+    else
+      member.codeLoc.error("Type \"" + member.type + "\" not recognized");
+  }
+  s.addType(name, std::move(type));
 }

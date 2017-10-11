@@ -1,6 +1,6 @@
 #include "state.h"
 
-optional<Type> State::getType(const string& ident) const {
+optional<Type> State::getTypeOfVariable(const string& ident) const {
   if (vars.count(ident))
     return vars.at(ident);
   else
@@ -18,4 +18,15 @@ const optional<Type>& State::getReturnType() const {
 void State::setReturnType(Type t) {
   CHECK(!returnType) << "Attempted to overwrite return type";
   returnType = t;
+}
+
+void State::addType(const string& name, Type t) {
+  types[name] = t;
+}
+
+optional<Type> State::getTypeFromString(const string& ident) const {
+  if (types.count(ident))
+    return types.at(ident);
+  else
+    return none;
 }

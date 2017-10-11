@@ -9,6 +9,7 @@ static const unordered_map<string, Keyword::Type> keywords {
   {"return", Keyword::RETURN},
   {"true", Keyword::TRUE},
   {"false", Keyword::FALSE},
+  {"struct", Keyword::STRUCT},
   {"(", Keyword::OPEN_BRACKET},
   {")", Keyword::CLOSE_BRACKET},
   {"{", Keyword::OPEN_BLOCK},

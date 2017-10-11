@@ -27,11 +27,15 @@ struct Keyword {
     RETURN,
     TRUE,
     FALSE,
+    STRUCT
   } type;
   Keyword(Type);
   static Token get(const string&);
   const char* getString() const;
   static vector<string> getAll();
+  bool operator == (const Keyword& o) const {
+    return type == o.type;
+  }
 };
 
 struct Operator {

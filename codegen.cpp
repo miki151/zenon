@@ -49,7 +49,7 @@ void StatementBlock::codegen(Accu& accu) const {
   accu.newLine("}");
 }
 
-void VariableDecl::codegen(Accu& accu) const {
+void VariableDeclaration::codegen(Accu& accu) const {
   accu.add(type + " " + identifier + ";");
 }
 
@@ -120,4 +120,13 @@ string codegen(const AST& ast) {
 void ExpressionStatement::codegen(Accu& accu) const {
   expr->codegen(accu);
   accu.add(";");
+}
+
+void StructDeclaration::codegen(Accu& accu) const {
+  accu.add("struct " + name + " {");
+  ++accu.indent;
+  for (auto& member : members)
+    accu.newLine(member.type + " " + member.name + ";");
+  --accu.indent;
+  accu.newLine("};");
 }

@@ -12,8 +12,6 @@ enum class ArithmeticType {
   VOID
 };
 
-extern optional<ArithmeticType> getArithmeticType(const string&);
-
 struct FunctionType {
   FunctionType(Type returnType, vector<Type> params);
   HeapAllocated<Type> retVal;
@@ -27,7 +25,19 @@ struct ReferenceType {
   bool operator == (const ReferenceType&) const;
 };
 
-struct Type : variant<ArithmeticType, FunctionType, ReferenceType> {
+struct StructType {
+  StructType(string name);
+  string name;
+  int id;
+  struct Member {
+    string name;
+    HeapAllocated<Type> type;
+  };
+  vector<Member> members;
+  bool operator == (const StructType&) const;
+};
+
+struct Type : variant<ArithmeticType, FunctionType, ReferenceType, StructType> {
   using variant::variant;
 };
 

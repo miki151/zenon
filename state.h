@@ -7,13 +7,15 @@
 class State {
   public:
 
-  optional<Type> getType(const string& ident) const;
+  optional<Type> getTypeOfVariable(const string& ident) const;
   void setType(const string& ident, Type);
   const optional<Type>& getReturnType() const;
   void setReturnType(Type);
+  void addType(const string& name, Type);
+  optional<Type> getTypeFromString(const string& ident) const;
 
   private:
-  using Variables = unordered_map<string, Type>;
-  Variables vars;
+  unordered_map<string, Type> vars;
+  unordered_map<string, Type> types;
   optional<Type> returnType;
 };

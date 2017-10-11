@@ -99,14 +99,36 @@ unique_ptr<StatementBlock> parseBlock(Tokens& tokens) {
   auto block = unique<StatementBlock>(tokens.peek("statement").codeLoc);
   while (1) {
     auto token2 = tokens.peek("statement");
-    if (auto k1 = token2.getReferenceMaybe<Keyword>())
-      if (k1->type == Keyword::CLOSE_BLOCK) {
-        tokens.popNext("statement");
-        break;
-      }
+    if (token2 == Keyword{Keyword::CLOSE_BLOCK}) {
+      tokens.popNext("statement");
+      break;
+    }
     block->elems.push_back(parseStatement(tokens));
   }
   return block;
+}
+
+unique_ptr<Statement> parseFunctionDefinition(Token idToken, Tokens& tokens) {
+  auto token2 = tokens.popNext("function definition");
+  CHECK_SYNTAX(token2.contains<Identifier>()) << "Expected identifier, got: \"" + token2.value + "\"";
+  auto ret = unique<FunctionDefinition>(idToken.codeLoc, idToken.value, token2.value);
+  tokens.eat(Keyword::OPEN_BRACKET);
+  while (1) {
+    if (auto keyword = tokens.peek("function parameter").getReferenceMaybe<Keyword>()) {
+      if (keyword->type == Keyword::CLOSE_BRACKET) {
+        tokens.popNext("function parameter");
+        break;
+      } else
+        tokens.eat(Keyword::COMMA);
+    }
+    auto typeToken = tokens.popNext("identifier");
+    tokens.check(token2.contains<Identifier>(), "Expected function parameter");
+    auto nameToken = tokens.popNext("identifier");
+    ret->parameters.push_back(unique<VariableDeclaration>(idToken.codeLoc, typeToken.value, nameToken.value));
+  }
+  tokens.eat(Keyword::OPEN_BLOCK);
+  ret->body = parseBlock(tokens);
+  return ret;
 }
 
 unique_ptr<Statement> parseStatement(Tokens& tokens) {
@@ -150,6 +172,24 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             tokens.eat(Keyword::SEMICOLON);
             return ret;
           }
+          case Keyword::STRUCT: {
+            auto token2 = tokens.popNext("struct name");
+            token2.codeLoc.check(token2.contains<Identifier>(), "Expected struct name");
+            auto ret = unique<StructDeclaration>(token.codeLoc, token2.value);
+            tokens.eat(Keyword::OPEN_BLOCK);
+            while (1) {
+              token2 = tokens.popNext("member declaration");
+              if (token2 == Keyword{Keyword::CLOSE_BLOCK})
+                break;
+              auto memberName = tokens.popNext("member name");
+              token2.codeLoc.check(token2.contains<Identifier>(), "Expected identifier");
+              memberName.codeLoc.check(memberName.contains<Identifier>(), "Expected identifier");
+              ret->members.push_back({token2.value, memberName.value, token2.codeLoc});
+              tokens.eat(Keyword::SEMICOLON);
+            }
+            tokens.eat(Keyword::SEMICOLON);
+            return ret;
+          }
           default:
             tokens.error("Unexpected keyword: \"" + token.value + "\"");
             return {};
@@ -159,8 +199,12 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
         auto token2 = tokens.peek("identifier");
         if (token2.contains<Identifier>()) {
           tokens.popNext("identifier");
+          if (tokens.peek("variable or function declaration") == Keyword{Keyword::OPEN_BRACKET}) {
+            tokens.rewind();
+            return parseFunctionDefinition(token, tokens);
+          }
           tokens.eat(Keyword::SEMICOLON);
-          return unique<VariableDecl>(token.codeLoc, token.value, token2.value);
+          return unique<VariableDeclaration>(token.codeLoc, token.value, token2.value);
         } else
           return rewindAndParseExpression();
       },
@@ -170,38 +214,12 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
   );
 }
 
-unique_ptr<TopLevelStatement> parseTopLevelStatement(Tokens& tokens) {
+unique_ptr<Statement> parseTopLevelStatement(Tokens& tokens) {
   if (tokens.empty())
     return nullptr;
-  auto token = tokens.popNext();
-  return token.visit(
-      [&](const Identifier&) -> unique_ptr<TopLevelStatement> {
-        auto token2 = tokens.popNext("function definition");
-        CHECK_SYNTAX(token2.contains<Identifier>()) << "Expected identifier, got: \"" + token2.value + "\"";
-        auto ret = unique<FunctionDefinition>(token.codeLoc, token.value, token2.value);
-        tokens.eat(Keyword::OPEN_BRACKET);
-        while (1) {
-          if (auto keyword = tokens.peek("function parameter").getReferenceMaybe<Keyword>()) {
-            if (keyword->type == Keyword::CLOSE_BRACKET) {
-              tokens.popNext("function parameter");
-              break;
-            } else
-              tokens.eat(Keyword::COMMA);
-          }
-          auto typeToken = tokens.popNext("identifier");
-          tokens.check(token2.contains<Identifier>(), "Expected function parameter");
-          auto nameToken = tokens.popNext("identifier");
-          ret->parameters.push_back(unique<VariableDecl>(token.codeLoc, typeToken.value, nameToken.value));
-        }
-        tokens.eat(Keyword::OPEN_BLOCK);
-        ret->body = parseBlock(tokens);
-        return ret;
-      },
-      [&](const auto&) -> unique_ptr<TopLevelStatement> {
-        ERROR << "Expected function definition, got \"" << token.value << "\"";
-        return {};
-      }
-  );
+  auto statement = parseStatement(tokens);
+  statement->codeLoc.check(statement->allowTopLevel(), "Statement not allowed in the top level of the program");
+  return statement;
 }
 
 AST parse(Tokens tokens) {
