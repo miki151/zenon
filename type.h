@@ -53,3 +53,4 @@ extern string getName(const Type&);
 extern bool canAssign(const Type& to, const Type& from);
 extern Type getOperationResult(CodeLoc, BinaryOperator op, const Type& from, const Type& to);
 extern bool canConvert(const Type& from, const Type& to);
+extern bool requiresInitialization(const Type&);

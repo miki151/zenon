@@ -44,7 +44,7 @@ Tokens lex(const string& input) {
       {"#.*\n", [](const string&) -> optional<Token> { return none;}},
       {getKeywords(), [](const string& s) -> optional<Token> { return Token(Keyword::get(s));}},
       {getOperators(), [](const string& s) -> optional<Token> {
-          return Token(Operator{*getBinaryOperator(s)});}},
+          return Token(*getBinaryOperator(s));}},
       {"[0-9]+" , [](const string& s) -> optional<Token> { return Token(Number{s}); } } ,
       {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(Identifier{}); }},
   };

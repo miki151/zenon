@@ -24,7 +24,8 @@ Variable::Variable(CodeLoc l, string n) : Expression(l), name(n) {}
 
 FunctionCall::FunctionCall(CodeLoc l, string n) : Expression(l), name(n) {}
 
-VariableDeclaration::VariableDeclaration(CodeLoc l, string t, string id) : Statement(l), type(t), identifier(id) {
+VariableDeclaration::VariableDeclaration(CodeLoc l, string t, string id, unique_ptr<Expression> ini)
+    : Statement(l), type(t), identifier(id), initExpr(std::move(ini)) {
   INFO << "Declared variable \"" << id << "\" of type \"" << t << "\"";
 }
 
@@ -94,6 +95,12 @@ void IfStatement::check(State& state) const {
 void VariableDeclaration::check(State& state) const {
   codeLoc.check(!state.getTypeFromString(identifier), "Variable \"" + identifier + "\" conflicts with an existing type");
   if (auto typeId = state.getTypeFromString(type)) {
+    if (initExpr) {
+      auto exprType = initExpr->getType(state);
+      initExpr->codeLoc.check(canAssign(ReferenceType(*typeId), exprType), "Can't initialize variable of type \""
+          + getName(*typeId) + "\" with value of type \"" + getName(exprType) + "\"");
+    } else
+      codeLoc.check(!requiresInitialization(*typeId), "Type \"" + getName(*typeId) + "\" requires initialization");
     state.setType(identifier, ReferenceType(*typeId));
   } else
     codeLoc.error("Type \"" + type + "\" not recognized");
@@ -135,11 +142,11 @@ void FunctionDefinition::check(State& state) const {
   if (auto returnType = state.getTypeFromString(this->returnType)) {
     vector<Type> params;
     for (auto& p : parameters)
-      if (auto paramType = state.getTypeFromString(p->type)) {
-        stateCopy.setType(p->identifier, *paramType);
+      if (auto paramType = state.getTypeFromString(p.type)) {
+        stateCopy.setType(p.name, *paramType);
         params.push_back(*paramType);
       } else
-        p->codeLoc.error("Unrecognized parameter type: \"" + p->type);
+        p.codeLoc.error("Unrecognized parameter type: \"" + p.type + "\"");
     state.setType(name, FunctionType { *returnType, params });
     stateCopy.setType(name, FunctionType { *returnType, params });
     stateCopy.setReturnType(*returnType);

@@ -67,9 +67,10 @@ struct Statement : Node {
 };
 
 struct VariableDeclaration : Statement {
-  VariableDeclaration(CodeLoc, string type, string identifier);
+  VariableDeclaration(CodeLoc, string type, string identifier, unique_ptr<Expression> initExpr);
   string type;
   string identifier;
+  unique_ptr<Expression> initExpr;
   virtual void check(State&) const override;
   virtual void codegen(Accu&) const override;
 };
@@ -125,7 +126,12 @@ struct FunctionDefinition : Statement {
   FunctionDefinition(CodeLoc, string returnType, string name);
   string returnType;
   string name;
-  vector<unique_ptr<VariableDeclaration>> parameters;
+  struct Parameter {
+    CodeLoc codeLoc;
+    string type;
+    string name;
+  };
+  vector<Parameter> parameters;
   unique_ptr<StatementBlock> body;
   virtual void check(State&) const override;
   virtual void codegen(Accu&) const override;

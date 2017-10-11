@@ -50,7 +50,12 @@ void StatementBlock::codegen(Accu& accu) const {
 }
 
 void VariableDeclaration::codegen(Accu& accu) const {
-  accu.add(type + " " + identifier + ";");
+  accu.add(type + " " + identifier);
+  if (initExpr) {
+    accu.add(" = ");
+    initExpr->codegen(accu);
+  }
+  accu.add(";");
 }
 
 void IfStatement::codegen(Accu& accu) const {
@@ -95,7 +100,7 @@ void FunctionCall::codegen(Accu& accu) const {
 void FunctionDefinition::codegen(Accu& accu) const {
   accu.add(returnType + " " + name + "(");
   for (auto& param : parameters) {
-    accu.add(param->type + " " + param->identifier);
+    accu.add(param.type + " " + param.name);
     accu.add(", ");
   }
   if (!parameters.empty()) {

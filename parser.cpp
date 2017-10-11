@@ -49,25 +49,25 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<BinaryOperator> pre
 unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression> lhs, int minPrecedence) {
   auto token = tokens.peek("arithmetic operator");
   while (1) {
-    if (auto op1 = token.getValueMaybe<Operator>()) {
-      if (getPrecedence(op1->type) < minPrecedence)
+    if (auto op1 = token.getValueMaybe<BinaryOperator>()) {
+      if (getPrecedence(*op1) < minPrecedence)
         break;
       tokens.popNext("arithmetic operator");
-      auto rhs = parsePrimary(tokens, op1->type);
+      auto rhs = parsePrimary(tokens, *op1);
       token = tokens.peek("arithmetic operator");
       while (1) {
-        if (auto op2 = token.getReferenceMaybe<Operator>()) {
-          INFO << "Comparing operators op1 " << getString(op1->type) << " and op2 " << getString(op2->type);
-          if (getPrecedence(op2->type) <= getPrecedence(op1->type) &&
-              (!isRightAssociative(op2->type) || getPrecedence(op2->type) < getPrecedence(op1->type)))
+        if (auto op2 = token.getReferenceMaybe<BinaryOperator>()) {
+          INFO << "Comparing operators op1 " << getString(*op1) << " and op2 " << getString(*op2);
+          if (getPrecedence(*op2) <= getPrecedence(*op1) &&
+              (!isRightAssociative(*op2) || getPrecedence(*op2) < getPrecedence(*op1)))
             break;
-          rhs = parseExpressionImpl(tokens, std::move(rhs), getPrecedence(op2->type));
+          rhs = parseExpressionImpl(tokens, std::move(rhs), getPrecedence(*op2));
           token = tokens.peek("arithmetic operator");
         } else
           break;
           //token.codeLoc.error("2 Expected operator, got: \"" + token.value + "\"");
       }
-      lhs = unique<BinaryExpression>(token.codeLoc, op1->type, std::move(lhs), std::move(rhs));
+      lhs = unique<BinaryExpression>(token.codeLoc, *op1, std::move(lhs), std::move(rhs));
     } else
       break;
       //ERROR << "3 Expected operator, got: \"" << token.value << "\"";
@@ -127,7 +127,7 @@ unique_ptr<Statement> parseFunctionDefinition(Token idToken, Tokens& tokens) {
     auto typeToken = tokens.popNext("identifier");
     tokens.check(token2.contains<Identifier>(), "Expected function parameter");
     auto nameToken = tokens.popNext("identifier");
-    ret->parameters.push_back(unique<VariableDeclaration>(idToken.codeLoc, typeToken.value, nameToken.value));
+    ret->parameters.push_back({idToken.codeLoc, typeToken.value, nameToken.value});
   }
   tokens.eat(Keyword::OPEN_BLOCK);
   ret->body = parseBlock(tokens);
@@ -206,8 +206,13 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             tokens.rewind();
             return parseFunctionDefinition(token, tokens);
           }
+          unique_ptr<Expression> initExpression;
+          if (tokens.peek("expression or \";\"") != Keyword(Keyword::SEMICOLON)) {
+            tokens.eat(BinaryOperator::ASSIGNMENT);
+            initExpression = parseExpression(tokens);
+          }
           tokens.eat(Keyword::SEMICOLON);
-          return unique<VariableDeclaration>(token.codeLoc, token.value, token2.value);
+          return unique<VariableDeclaration>(token.codeLoc, token.value, token2.value, std::move(initExpression));
         } else
           return rewindAndParseExpression();
       },

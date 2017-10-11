@@ -36,13 +36,12 @@ struct Keyword {
   bool operator == (const Keyword& o) const {
     return type == o.type;
   }
+  bool operator != (const Keyword& o) const {
+    return !(*this == o.type);
+  }
 };
 
-struct Operator {
-  BinaryOperator type;
-};
-
-class Token : public variant<Number, Identifier, Keyword, Operator> {
+class Token : public variant<Number, Identifier, Keyword, BinaryOperator> {
   public:
   using variant::variant;
   string value;
@@ -59,7 +58,8 @@ class Tokens {
   void rewind();
   void error(const string&) const;
   void check(bool, const string&) const;
-  void eat(Keyword keyword);
+  void eat(BinaryOperator);
+  void eat(Keyword);
 
   private:
   std::vector<Token> data;

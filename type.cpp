@@ -144,3 +144,7 @@ bool MemberAccess::operator == (const MemberAccess& a) const {
 bool canConvert(const Type& from, const Type& to) {
   return getUnderlying(from) == to;
 }
+
+bool requiresInitialization(const Type& t) {
+  return true;
+}

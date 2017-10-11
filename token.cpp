@@ -86,13 +86,18 @@ void Tokens::check(bool b, const string& e) const {
     error(e);
 }
 
+void Tokens::eat(BinaryOperator op) {
+  auto expected = "Expected \""s + getString(op) + "\"";
+  check(!empty(), expected + ", got EOF.");
+  auto& token = peek();
+  check(token == op, expected + ", got \"" + token.value + "\"");
+  popNext();
+}
+
 void Tokens::eat(Keyword keyword) {
   auto expected = "Expected \""s + keyword.getString() + "\"";
   check(!empty(), expected + ", got EOF.");
   auto& token = peek();
-  if (auto k1 = token.getReferenceMaybe<Keyword>()) {
-    check(k1->type == keyword.type, expected + ", got \"" + token.value + "\"");
-  } else
-    error(expected + ", got \"" + token.value + "\"");
+  check(token == keyword, expected + ", got \"" + token.value + "\"");
   popNext();
 }
