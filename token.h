@@ -8,38 +8,31 @@
 class Token;
 
 struct Number {
-  string value;
+  bool operator == (const Number&) const { return true; }
 };
 
 struct Identifier {
+  bool operator == (const Identifier&) const { return true; }
 };
 
-struct Keyword {
-  enum Type {
-    IF,
-    ELSE,
-    OPEN_BRACKET,
-    CLOSE_BRACKET,
-    OPEN_BLOCK,
-    CLOSE_BLOCK,
-    SEMICOLON,
-    COMMA,
-    RETURN,
-    TRUE,
-    FALSE,
-    STRUCT,
-  } type;
-  Keyword(Type);
-  static Token get(const string&);
-  const char* getString() const;
-  static vector<string> getAll();
-  bool operator == (const Keyword& o) const {
-    return type == o.type;
-  }
-  bool operator != (const Keyword& o) const {
-    return !(*this == o.type);
-  }
+enum class Keyword {
+  IF,
+  ELSE,
+  OPEN_BRACKET,
+  CLOSE_BRACKET,
+  OPEN_BLOCK,
+  CLOSE_BLOCK,
+  SEMICOLON,
+  COMMA,
+  RETURN,
+  TRUE,
+  FALSE,
+  STRUCT,
 };
+
+extern Keyword getKeyword(const string&);
+string getString(Token);
+extern vector<string> getAllKeywords();
 
 class Token : public variant<Number, Identifier, Keyword, BinaryOperator> {
   public:
@@ -58,8 +51,7 @@ class Tokens {
   void rewind();
   void error(const string&) const;
   void check(bool, const string&) const;
-  void eat(BinaryOperator);
-  void eat(Keyword);
+  void eat(Token);
 
   private:
   std::vector<Token> data;

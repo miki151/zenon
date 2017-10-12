@@ -30,11 +30,14 @@ string getName(const Type& t) {
   );
 }
 
-FunctionType::FunctionType(Type returnType, vector<Type> p) : retVal(std::move(returnType)), params(std::move(p)) {
+static int idCounter = 0;
+
+FunctionType::FunctionType(Target t, Type returnType, vector<Param> p) : target(t), retVal(std::move(returnType)),
+    params(std::move(p)), id(idCounter++) {
 }
 
 bool FunctionType::operator == (const FunctionType& o) const {
-  return retVal == o.retVal && params == o.params;
+  return id == o.id;
 }
 
 static Type getUnderlying(Type type) {
@@ -84,8 +87,12 @@ Type getOperationResult(CodeLoc codeLoc, BinaryOperator op, const Type& left, co
         if (auto structInfo = leftUnderlying.getReferenceMaybe<StructType>()) {
           for (auto& member : structInfo->members) {
             INFO << "Looking for member " << memberInfo->memberName << " in " << member.name;
-            if (member.name == memberInfo->memberName)
-              return Type(ReferenceType(*member.type));
+            if (member.name == memberInfo->memberName) {
+              auto ret = *member.type;
+              if (left.contains<ReferenceType>())
+                ret = ReferenceType(std::move(ret));
+              return ret;
+            }
           }
           codeLoc.error("No member named \"" + memberInfo->memberName + " in struct \"" + getName(*structInfo) + "\"");
           return {};
@@ -126,8 +133,6 @@ bool canAssign(const Type& to, const Type& from) {
       }
   );
 }
-
-static int idCounter = 0;
 
 StructType::StructType(string n) : name(n), id(++idCounter) {}
 

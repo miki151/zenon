@@ -1,9 +1,10 @@
 #include <unordered_map>
 #include "token.h"
+#include "binary_operator.h"
 
 using namespace std;
 
-static const unordered_map<string, Keyword::Type> keywords {
+static const unordered_map<string, Keyword> keywords {
   {"if", Keyword::IF},
   {"else", Keyword::ELSE},
   {"return", Keyword::RETURN},
@@ -18,16 +19,14 @@ static const unordered_map<string, Keyword::Type> keywords {
   {",", Keyword::COMMA},
 };
 
-vector<string> Keyword::getAll() {
+vector<string> getAllKeywords() {
   vector<string> ret;
   for (auto& elem : keywords)
     ret.push_back(elem.first);
   return ret;
 }
 
-Keyword::Keyword(Keyword::Type t) : type(t) { }
-
-Token Keyword::get(const string& s) {
+Keyword getKeyword(const string& s) {
   if (keywords.count(s))
     return Keyword{keywords.at(s)};
   else
@@ -35,12 +34,25 @@ Token Keyword::get(const string& s) {
   return {};
 }
 
-const char* Keyword::getString() const {
-  for (auto& elem : keywords)
-    if (elem.second == type)
-      return elem.first.c_str();
-  FATAL << "No keyword string found: " << type;
-  return {};
+string getString(Token t) {
+  return t.visit(
+      [](Keyword k) {
+        for (auto& elem : keywords)
+          if (elem.second == k)
+            return elem.first.c_str();
+        FATAL << "No keyword string found: " << (int)k;
+        return "";
+      },
+      [](Number n) {
+        return "number";
+      },
+      [](const Identifier&) {
+        return "identifier";
+      },
+      [](BinaryOperator op) {
+        return getString(op);
+      }
+  );
 }
 
 
@@ -59,6 +71,7 @@ Token Tokens::popNext(string expected) {
     check(index < data.size(), "Expected \"" + expected + "\", got end-of-file.");
   } else
     CHECK(index < data.size());
+  INFO << "Popping token " << getString(data[index]);
   return data[index++];
 }
 
@@ -86,18 +99,10 @@ void Tokens::check(bool b, const string& e) const {
     error(e);
 }
 
-void Tokens::eat(BinaryOperator op) {
-  auto expected = "Expected \""s + getString(op) + "\"";
+void Tokens::eat(Token t) {
+  auto expected = "Expected \""s + getString(t) + "\"";
   check(!empty(), expected + ", got EOF.");
   auto& token = peek();
-  check(token == op, expected + ", got \"" + token.value + "\"");
-  popNext();
-}
-
-void Tokens::eat(Keyword keyword) {
-  auto expected = "Expected \""s + keyword.getString() + "\"";
-  check(!empty(), expected + ", got EOF.");
-  auto& token = peek();
-  check(token == keyword, expected + ", got \"" + token.value + "\"");
+  check(token == t, expected + ", got \"" + token.value + "\"");
   popNext();
 }

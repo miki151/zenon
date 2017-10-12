@@ -2,6 +2,8 @@
 
 #include "stdafx.h"
 
+string combine(const vector<string>& adj, bool commasOnly = false);
+
 template <class T>
 class HeapAllocated {
   public:

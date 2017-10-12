@@ -14,9 +14,19 @@ enum class ArithmeticType {
 };
 
 struct FunctionType {
-  FunctionType(Type returnType, vector<Type> params);
+  struct Param {
+    string name;
+    HeapAllocated<Type> type;
+  };
+  enum Target {
+    TOP_LEVEL,
+    CONSTRUCTOR
+  };
+  FunctionType(Target, Type returnType, vector<Param>);
+  Target target;
   HeapAllocated<Type> retVal;
-  vector<Type> params;
+  vector<Param> params;
+  int id;
   bool operator == (const FunctionType&) const;
 };
 

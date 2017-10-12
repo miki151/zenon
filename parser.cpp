@@ -4,13 +4,43 @@
 #include "ast.h"
 
 unique_ptr<Expression> parseExpression(Tokens&);
-unique_ptr<FunctionCall> parseFunctionCall(Tokens&);
+
+unique_ptr<FunctionCallNamedArgs> parseFunctionCallWithNamedArguments(Tokens& tokens) {
+  auto token = tokens.popNext("function call");
+  auto ret = unique<FunctionCallNamedArgs>(token.codeLoc, token.value);
+  tokens.eat(Keyword::OPEN_BLOCK);
+  while (tokens.peek("function call argument") != Keyword::CLOSE_BLOCK) {
+    token = tokens.popNext("function parameter initializer");
+    token.codeLoc.check(token.contains<Identifier>(), "function parameter expected");
+    tokens.eat(BinaryOperator::ASSIGNMENT);
+    ret->arguments.push_back({token.codeLoc, token.value, parseExpression(tokens)});
+    if (tokens.peek("function parameter") == Keyword::COMMA)
+      tokens.popNext();
+  }
+  tokens.eat(Keyword::CLOSE_BLOCK);
+  return ret;
+}
+
+unique_ptr<FunctionCall> parseFunctionCall(Tokens& tokens) {
+  auto token = tokens.popNext("function call");
+  auto ret = unique<FunctionCall>(token.codeLoc, token.value);
+  tokens.eat(Keyword::OPEN_BRACKET);
+  while (tokens.peek("function call argument") != Keyword::CLOSE_BRACKET) {
+    ret->arguments.push_back(parseExpression(tokens));
+    if (tokens.peek("function call argument") == Keyword::COMMA)
+      tokens.popNext();
+    else
+      break;
+  }
+  tokens.eat(Keyword::CLOSE_BRACKET);
+  return ret;
+}
 
 unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<BinaryOperator> precedingOp) {
   auto token = tokens.popNext("primary expression");
   return token.visit(
       [&](const Keyword& k) -> unique_ptr<Expression> {
-        switch (k.type) {
+        switch (k) {
           case Keyword::OPEN_BRACKET: {
             auto ret = parseExpression(tokens);
             tokens.eat(Keyword::CLOSE_BRACKET);
@@ -26,18 +56,21 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<BinaryOperator> pre
       },
       [&](const Identifier&) -> unique_ptr<Expression> {
         auto token2 = tokens.peek("something");
-        if (auto keyword = token2.getReferenceMaybe<Keyword>())
-          if (keyword->type == Keyword::OPEN_BRACKET) {
-            tokens.rewind();
-            return parseFunctionCall(tokens);
-          }
+        if (token2 == Keyword::OPEN_BRACKET) {
+          tokens.rewind();
+          return parseFunctionCall(tokens);
+        } else
+        if (token2 == Keyword::OPEN_BLOCK) {
+          tokens.rewind();
+          return parseFunctionCallWithNamedArguments(tokens);
+        }
         if (precedingOp != BinaryOperator::MEMBER_ACCESS)
           return unique<Variable>(token.codeLoc, token.value);
         else
           return unique<MemberAccessType>(token.codeLoc, token.value);
       },
-      [&](const Number& n) -> unique_ptr<Expression> {
-        return unique<Constant>(token.codeLoc, ArithmeticType::INT, n.value);
+      [&](const Number&) -> unique_ptr<Expression> {
+        return unique<Constant>(token.codeLoc, ArithmeticType::INT, token.value);
       },
       [&](const auto&) -> unique_ptr<Expression> {
         token.codeLoc.error("Expected primary expression, got: \"" + token.value + "\"");
@@ -79,30 +112,13 @@ unique_ptr<Expression> parseExpression(Tokens& tokens) {
   return parseExpressionImpl(tokens, parsePrimary(tokens, none), 0);
 }
 
-unique_ptr<FunctionCall> parseFunctionCall(Tokens& tokens) {
-  auto token = tokens.popNext("function call");
-  auto ret = unique<FunctionCall>(token.codeLoc, token.value);
-  tokens.eat(Keyword::OPEN_BRACKET);
-  while (1) {
-    if (auto keyword = tokens.peek("function argument").getReferenceMaybe<Keyword>()) {
-      if (keyword->type == Keyword::CLOSE_BRACKET) {
-        tokens.popNext("function argument");
-        break;
-      } else
-        tokens.eat(Keyword::COMMA);
-    }
-    ret->arguments.push_back(parseExpression(tokens));
-  }
-  return ret;
-}
-
 unique_ptr<Statement> parseStatement(Tokens&);
 
 unique_ptr<StatementBlock> parseBlock(Tokens& tokens) {
   auto block = unique<StatementBlock>(tokens.peek("statement").codeLoc);
   while (1) {
     auto token2 = tokens.peek("statement");
-    if (token2 == Keyword{Keyword::CLOSE_BLOCK}) {
+    if (token2 == Keyword::CLOSE_BLOCK) {
       tokens.popNext("statement");
       break;
     }
@@ -118,7 +134,7 @@ unique_ptr<Statement> parseFunctionDefinition(Token idToken, Tokens& tokens) {
   tokens.eat(Keyword::OPEN_BRACKET);
   while (1) {
     if (auto keyword = tokens.peek("function parameter").getReferenceMaybe<Keyword>()) {
-      if (keyword->type == Keyword::CLOSE_BRACKET) {
+      if (*keyword == Keyword::CLOSE_BRACKET) {
         tokens.popNext("function parameter");
         break;
       } else
@@ -144,7 +160,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
   };
   return token.visit(
       [&](const Keyword& k) -> unique_ptr<Statement> {
-        switch (k.type) {
+        switch (k) {
           case Keyword::IF: {
             tokens.eat(Keyword::OPEN_BRACKET);
             auto cond = parseExpression(tokens);
@@ -154,7 +170,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             if (!tokens.empty()) {
               auto& token2 = tokens.peek();
               if (auto k1 = token2.getReferenceMaybe<Keyword>())
-                if (k1->type == Keyword::ELSE) {
+                if (*k1 == Keyword::ELSE) {
                   tokens.popNext();
                   ifFalse = parseStatement(tokens);
                 }
@@ -167,7 +183,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             auto ret = unique<ReturnStatement>(token.codeLoc);
             auto token2 = tokens.peek("expression or \";\"");
             if (auto keyword = token2.getReferenceMaybe<Keyword>())
-              if (keyword->type == Keyword::SEMICOLON) {
+              if (*keyword == Keyword::SEMICOLON) {
                 tokens.eat(Keyword::SEMICOLON);
                 return ret;
               }
@@ -182,7 +198,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             tokens.eat(Keyword::OPEN_BLOCK);
             while (1) {
               token2 = tokens.popNext("member declaration");
-              if (token2 == Keyword{Keyword::CLOSE_BLOCK})
+              if (token2 == Keyword::CLOSE_BLOCK)
                 break;
               auto memberName = tokens.popNext("member name");
               token2.codeLoc.check(token2.contains<Identifier>(), "Expected identifier");
@@ -202,12 +218,12 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
         auto token2 = tokens.peek("identifier");
         if (token2.contains<Identifier>()) {
           tokens.popNext("identifier");
-          if (tokens.peek("variable or function declaration") == Keyword{Keyword::OPEN_BRACKET}) {
+          if (tokens.peek("variable or function declaration") == Keyword::OPEN_BRACKET) {
             tokens.rewind();
             return parseFunctionDefinition(token, tokens);
           }
           unique_ptr<Expression> initExpression;
-          if (tokens.peek("expression or \";\"") != Keyword(Keyword::SEMICOLON)) {
+          if (tokens.peek("expression or \";\"") != Keyword::SEMICOLON) {
             tokens.eat(BinaryOperator::ASSIGNMENT);
             initExpression = parseExpression(tokens);
           }

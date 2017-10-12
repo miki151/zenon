@@ -85,7 +85,7 @@ void ReturnStatement::codegen(Accu& accu) const {
 }
 
 void FunctionCall::codegen(Accu& accu) const {
-  accu.add(name + "(");
+  accu.add(name + (constructor ? "{" : "("));
   for (auto& arg : arguments) {
     arg->codegen(accu);
     accu.add(", ");
@@ -94,7 +94,20 @@ void FunctionCall::codegen(Accu& accu) const {
     accu.buf.pop_back();
     accu.buf.pop_back();
   }
-  accu.add(")");
+  accu.add(constructor ? "}" : ")");
+}
+
+void FunctionCallNamedArgs::codegen(Accu& accu) const {
+  accu.add(name + (constructor ? "{" : "("));
+  for (auto& arg : arguments) {
+    arg.expr->codegen(accu);
+    accu.add(", ");
+  }
+  if (!arguments.empty()) {
+    accu.buf.pop_back();
+    accu.buf.pop_back();
+  }
+  accu.add(constructor ? "}" : ")");
 }
 
 void FunctionDefinition::codegen(Accu& accu) const {

@@ -17,12 +17,12 @@ struct Node {
 
 struct Expression : Node {
   using Node::Node;
-  virtual Type getType(const State&) const = 0;
+  virtual Type getType(const State&) = 0;
 };
 
 struct Constant : Expression {
   Constant(CodeLoc, ArithmeticType, string value);
-  virtual Type getType(const State&) const override;
+  virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
   Type type;
   string value;
@@ -30,21 +30,21 @@ struct Constant : Expression {
 
 struct Variable : Expression {
   Variable(CodeLoc, string name);
-  virtual Type getType(const State&) const override;
+  virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
   string name;
 };
 
 struct MemberAccessType : Expression {
   MemberAccessType(CodeLoc, string name);
-  virtual Type getType(const State&) const override;
+  virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
   string name;
 };
 
 struct BinaryExpression : Expression {
   BinaryExpression(CodeLoc, BinaryOperator, unique_ptr<Expression>, unique_ptr<Expression>);
-  virtual Type getType(const State&) const override;
+  virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
   BinaryOperator op;
   unique_ptr<Expression> e1, e2;
@@ -52,15 +52,30 @@ struct BinaryExpression : Expression {
 
 struct FunctionCall : Expression {
   FunctionCall(CodeLoc, string name);
-  virtual Type getType(const State&) const override;
+  virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
   string name;
+  bool constructor;
   vector<unique_ptr<Expression>> arguments;
+};
+
+struct FunctionCallNamedArgs : Expression {
+  FunctionCallNamedArgs(CodeLoc, string name);
+  virtual Type getType(const State&) override;
+  virtual void codegen(Accu&) const override;
+  string name;
+  struct Argument {
+    CodeLoc codeLoc;
+    string name;
+    unique_ptr<Expression> expr;
+  };
+  bool constructor;
+  vector<Argument> arguments;
 };
 
 struct Statement : Node {
   using Node::Node;
-  virtual void check(State&) const = 0;
+  virtual void check(State&) = 0;
   virtual bool hasReturnStatement(const State&) const;
   virtual void codegen(Accu&) const = 0;
   virtual bool allowTopLevel() const { return false; }
@@ -71,7 +86,7 @@ struct VariableDeclaration : Statement {
   string type;
   string identifier;
   unique_ptr<Expression> initExpr;
-  virtual void check(State&) const override;
+  virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
 };
 
@@ -81,7 +96,7 @@ struct IfStatement : Statement {
   unique_ptr<Expression> cond;
   unique_ptr<Statement> ifTrue, ifFalse;
   virtual bool hasReturnStatement(const State&) const override;
-  virtual void check(State&) const override;
+  virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
 };
 
@@ -89,7 +104,7 @@ struct StatementBlock : Statement {
   using Statement::Statement;
   vector<unique_ptr<Statement>> elems;
   virtual bool hasReturnStatement(const State&) const override;
-  virtual void check(State&) const override;
+  virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
 };
 
@@ -97,14 +112,14 @@ struct ReturnStatement : Statement {
   using Statement::Statement;
   unique_ptr<Expression> expr;
   virtual bool hasReturnStatement(const State&) const override;
-  virtual void check(State&) const override;
+  virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
 };
 
 struct ExpressionStatement : Statement {
   ExpressionStatement(unique_ptr<Expression>);
   unique_ptr<Expression> expr;
-  virtual void check(State&) const override;
+  virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
 };
 
@@ -117,7 +132,7 @@ struct StructDeclaration : Statement {
     CodeLoc codeLoc;
   };
   vector<Member> members;
-  virtual void check(State&) const override;
+  virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual bool allowTopLevel() const override { return true; }
 };
@@ -133,7 +148,7 @@ struct FunctionDefinition : Statement {
   };
   vector<Parameter> parameters;
   unique_ptr<StatementBlock> body;
-  virtual void check(State&) const override;
+  virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual bool allowTopLevel() const override { return true; }
 };

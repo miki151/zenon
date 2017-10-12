@@ -12,7 +12,7 @@ using namespace std;
 
 static string getKeywords() {
   string keywords;
-  for (auto& k : Keyword::getAll()) {
+  for (auto& k : getAllKeywords()) {
     if (!isalpha(k[0]))
       keywords.append("\\");
     keywords.append(k);
@@ -42,10 +42,10 @@ Tokens lex(const string& input) {
   string idLetter = idLetterFirst + "0-9";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
       {"#.*\n", [](const string&) -> optional<Token> { return none;}},
-      {getKeywords(), [](const string& s) -> optional<Token> { return Token(Keyword::get(s));}},
+      {getKeywords(), [](const string& s) -> optional<Token> { return Token(getKeyword(s));}},
       {getOperators(), [](const string& s) -> optional<Token> {
           return Token(*getBinaryOperator(s));}},
-      {"[0-9]+" , [](const string& s) -> optional<Token> { return Token(Number{s}); } } ,
+      {"[0-9]+" , [](const string& s) -> optional<Token> { return Token(Number{}); } } ,
       {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(Identifier{}); }},
   };
   INFO << "Lexing expressions:";
