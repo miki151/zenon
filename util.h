@@ -3,6 +3,7 @@
 #include "stdafx.h"
 
 string combine(const vector<string>& adj, bool commasOnly = false);
+string quote(const string&);
 
 template <class T>
 class HeapAllocated {

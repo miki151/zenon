@@ -11,3 +11,7 @@ string combine(const vector<string>& adj, bool commasOnly) {
   }
   return res;
 }
+
+std::string quote(const string& s) {
+  return "\"" + s + "\"";
+}

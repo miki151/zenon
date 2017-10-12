@@ -19,7 +19,7 @@ string getName(const Type& t) {
         return "function"s;
       },
       [&](const MemberAccess& m) {
-        return "member \"" + m.memberName + "\"";
+        return "member " + quote(m.memberName);
       },
       [&](const ReferenceType& t) {
         return "reference("s + getName(*t.underlying) + ")";
@@ -94,17 +94,17 @@ Type getOperationResult(CodeLoc codeLoc, BinaryOperator op, const Type& left, co
               return ret;
             }
           }
-          codeLoc.error("No member named \"" + memberInfo->memberName + " in struct \"" + getName(*structInfo) + "\"");
+          codeLoc.error("No member named " + quote(memberInfo->memberName + " in struct " + quote(getName(*structInfo))));
           return {};
         }
       }
-      codeLoc.error("Bad use of operator \".\"");
+      codeLoc.error("Bad use of operator " + quote("."));
       return {};
     case BinaryOperator::ASSIGNMENT:
       if (getUnderlying(left) == getUnderlying(right) && left.contains<ReferenceType>())
         return left;
       else {
-        codeLoc.error("Can't assign \"" + getName(right) + " to \"" + getName(left) + "\"");
+        codeLoc.error("Can't assign " + quote(getName(right)) + " to " + quote(getName(left)));
         return {};
       }
     case BinaryOperator::LESS_THAN:
@@ -116,8 +116,8 @@ Type getOperationResult(CodeLoc codeLoc, BinaryOperator op, const Type& left, co
       if (operand == getUnderlying(right))
         if (auto res = getOperationResult(op, operand))
           return *res;
-      codeLoc.error("Unsupported operator: \"" + getName(left) + " " + getString(op)
-          + " \"" + getName(right) + "\"");
+      codeLoc.error("Unsupported operator: " + quote(getName(left)) + " " + getString(op)
+          + " " + quote(getName(right)));
       return {};
     }
   }

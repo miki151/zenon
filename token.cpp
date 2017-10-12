@@ -1,6 +1,7 @@
 #include <unordered_map>
 #include "token.h"
 #include "binary_operator.h"
+#include "util.h"
 
 using namespace std;
 
@@ -43,7 +44,7 @@ string getString(Token t) {
         FATAL << "No keyword string found: " << (int)k;
         return "";
       },
-      [](Number n) {
+      [](Number) {
         return "number";
       },
       [](const Identifier&) {
@@ -51,6 +52,9 @@ string getString(Token t) {
       },
       [](BinaryOperator op) {
         return getString(op);
+      },
+      [](Unknown) {
+        return "unknown";
       }
   );
 }
@@ -60,7 +64,7 @@ Tokens::Tokens(std::vector<Token> d) : data(d) {}
 
 const Token& Tokens::peek(string expected) const {
   if (!expected.empty()) {
-    check(index < data.size(), "Expected \"" + expected + "\", got end-of-file.");
+    check(index < data.size(), "Expected " + quote(expected) + ", got end-of-file.");
   } else
     CHECK(index < data.size());
   return data[index];
@@ -68,7 +72,7 @@ const Token& Tokens::peek(string expected) const {
 
 Token Tokens::popNext(string expected) {
   if (!expected.empty()) {
-    check(index < data.size(), "Expected \"" + expected + "\", got end-of-file.");
+    check(index < data.size(), "Expected " + quote(expected) + ", got end-of-file.");
   } else
     CHECK(index < data.size());
   INFO << "Popping token " << getString(data[index]);
@@ -100,9 +104,9 @@ void Tokens::check(bool b, const string& e) const {
 }
 
 void Tokens::eat(Token t) {
-  auto expected = "Expected \""s + getString(t) + "\"";
+  auto expected = "Expected "s + quote(getString(t));
   check(!empty(), expected + ", got EOF.");
   auto& token = peek();
-  check(token == t, expected + ", got \"" + token.value + "\"");
+  check(token == t, expected + ", got " + quote(token.value));
   popNext();
 }

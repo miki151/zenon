@@ -50,7 +50,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<BinaryOperator> pre
           case Keyword::TRUE:
             return unique<Constant>(token.codeLoc, ArithmeticType::BOOL, token.value);
           default:
-            token.codeLoc.error("Expected primary expression, got: \"" + token.value + "\"");
+            token.codeLoc.error("Expected primary expression, got: " + quote(token.value));
             return {};
         }
       },
@@ -73,7 +73,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<BinaryOperator> pre
         return unique<Constant>(token.codeLoc, ArithmeticType::INT, token.value);
       },
       [&](const auto&) -> unique_ptr<Expression> {
-        token.codeLoc.error("Expected primary expression, got: \"" + token.value + "\"");
+        token.codeLoc.error("Expected primary expression, got: " + quote(token.value));
         return {};
       }
   );
@@ -98,12 +98,10 @@ unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression
           token = tokens.peek("arithmetic operator");
         } else
           break;
-          //token.codeLoc.error("2 Expected operator, got: \"" + token.value + "\"");
       }
       lhs = unique<BinaryExpression>(token.codeLoc, *op1, std::move(lhs), std::move(rhs));
     } else
       break;
-      //ERROR << "3 Expected operator, got: \"" << token.value << "\"";
   }
   return lhs;
 }
@@ -129,7 +127,7 @@ unique_ptr<StatementBlock> parseBlock(Tokens& tokens) {
 
 unique_ptr<Statement> parseFunctionDefinition(Token idToken, Tokens& tokens) {
   auto token2 = tokens.popNext("function definition");
-  CHECK_SYNTAX(token2.contains<Identifier>()) << "Expected identifier, got: \"" + token2.value + "\"";
+  CHECK_SYNTAX(token2.contains<Identifier>()) << "Expected identifier, got: " + quote(token2.value);
   auto ret = unique<FunctionDefinition>(idToken.codeLoc, idToken.value, token2.value);
   tokens.eat(Keyword::OPEN_BRACKET);
   while (1) {
@@ -181,7 +179,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseBlock(tokens);
           case Keyword::RETURN: {
             auto ret = unique<ReturnStatement>(token.codeLoc);
-            auto token2 = tokens.peek("expression or \";\"");
+            auto token2 = tokens.peek("expression or " + quote(";"));
             if (auto keyword = token2.getReferenceMaybe<Keyword>())
               if (*keyword == Keyword::SEMICOLON) {
                 tokens.eat(Keyword::SEMICOLON);
@@ -210,7 +208,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return ret;
           }
           default:
-            tokens.error("Unexpected keyword: \"" + token.value + "\"");
+            tokens.error("Unexpected keyword: " + quote(token.value));
             return {};
         }
       },
@@ -223,7 +221,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseFunctionDefinition(token, tokens);
           }
           unique_ptr<Expression> initExpression;
-          if (tokens.peek("expression or \";\"") != Keyword::SEMICOLON) {
+          if (tokens.peek("expression or " + quote(";")) != Keyword::SEMICOLON) {
             tokens.eat(BinaryOperator::ASSIGNMENT);
             initExpression = parseExpression(tokens);
           }

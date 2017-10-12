@@ -17,7 +17,7 @@ IfStatement::IfStatement(CodeLoc loc, unique_ptr<Expression> c, unique_ptr<State
 }
 
 Constant::Constant(CodeLoc l, ArithmeticType t, string v) : Expression(l), type(t), value(v) {
-  INFO << "Created constant \"" << v << "\" of type " << getName(Type(t));
+  INFO << "Created constant " << quote(v) << " of type " << getName(Type(t));
 }
 
 Variable::Variable(CodeLoc l, string n) : Expression(l), name(n) {}
@@ -28,7 +28,7 @@ FunctionCall::FunctionCall(CodeLoc l, string n) : Expression(l), name(n) {
 
 VariableDeclaration::VariableDeclaration(CodeLoc l, string t, string id, unique_ptr<Expression> ini)
     : Statement(l), type(t), identifier(id), initExpr(std::move(ini)) {
-  INFO << "Declared variable \"" << id << "\" of type \"" << t << "\"";
+  INFO << "Declared variable " << quote(id) << " of type " << quote(t);
 }
 
 FunctionDefinition::FunctionDefinition(CodeLoc l, string r, string n) : Statement(l), returnType(r), name(n) {}
@@ -56,8 +56,8 @@ Type FunctionCall::getType(const State& state) {
             auto argType = arguments[i]->getType(state);
             auto& paramType = t.params[i];
             arguments[i]->codeLoc.check(canAssign(ReferenceType(*paramType.type), argType),
-                "Function call argument " + to_string(i + 1) + " mismatch: expected \""s + getName(*paramType.type) +
-                "\", got \""s + getName(argType) + "\"");
+                "Function call argument " + to_string(i + 1) + " mismatch: expected "s
+                + quote(getName(*paramType.type)) + ", got " + quote(getName(argType)));
           }
           constructor = (t.target == FunctionType::CONSTRUCTOR);
           return *t.retVal;
@@ -68,7 +68,7 @@ Type FunctionCall::getType(const State& state) {
         }
     );
   else
-    codeLoc.error("Function not found: \"" + name + "\"");
+    codeLoc.error("Function not found: " + quote(name));
   return {};
 }
 
@@ -87,25 +87,25 @@ void StatementBlock::check(State& state) {
 
 void IfStatement::check(State& state) {
   auto condType = cond->getType(state);
-  codeLoc.check(canConvert(condType, ArithmeticType::BOOL), "Expected a type convertible to bool inside if statement, got \""
-      + getName(condType) + "\"");
+  codeLoc.check(canConvert(condType, ArithmeticType::BOOL), "Expected a type convertible to bool inside if statement, got "
+      + quote(getName(condType)));
   ifTrue->check(state);
   if (ifFalse)
     ifFalse->check(state);
 }
 
 void VariableDeclaration::check(State& state) {
-  codeLoc.check(!state.getTypeFromString(identifier), "Variable \"" + identifier + "\" conflicts with an existing type");
+  codeLoc.check(!state.getTypeFromString(identifier), "Variable " + quote(identifier) + " conflicts with an existing type");
   if (auto typeId = state.getTypeFromString(type)) {
     if (initExpr) {
       auto exprType = initExpr->getType(state);
-      initExpr->codeLoc.check(canAssign(ReferenceType(*typeId), exprType), "Can't initialize variable of type \""
-          + getName(*typeId) + "\" with value of type \"" + getName(exprType) + "\"");
+      initExpr->codeLoc.check(canAssign(ReferenceType(*typeId), exprType), "Can't initialize variable of type "
+          + quote(getName(*typeId)) + " with value of type " + quote(getName(exprType)));
     } else
-      codeLoc.check(!requiresInitialization(*typeId), "Type \"" + getName(*typeId) + "\" requires initialization");
+      codeLoc.check(!requiresInitialization(*typeId), "Type " + quote(getName(*typeId)) + " requires initialization");
     state.setType(identifier, ReferenceType(*typeId));
   } else
-    codeLoc.error("Type \"" + type + "\" not recognized");
+    codeLoc.error("Type " + quote(type) + " not recognized");
 }
 
 void ReturnStatement::check(State& state) {
@@ -115,8 +115,8 @@ void ReturnStatement::check(State& state) {
   else {
     auto returnType = expr->getType(state);
     codeLoc.check(canAssign(ReferenceType(*state.getReturnType()), returnType),
-        "Attempting to return value of type \""s + getName(returnType) +
-         "\" in a function returning \""s + getName(*state.getReturnType()) + "\"");
+        "Attempting to return value of type "s + quote(getName(returnType)) +
+         " in a function returning "s + quote(getName(*state.getReturnType())));
   }
 }
 
@@ -148,7 +148,7 @@ void FunctionDefinition::check(State& state) {
         stateCopy.setType(p.name, *paramType);
         params.push_back({p.name, *paramType});
       } else
-        p.codeLoc.error("Unrecognized parameter type: \"" + p.type + "\"");
+        p.codeLoc.error("Unrecognized parameter type: " + quote(p.type));
     auto type = FunctionType (FunctionType::TOP_LEVEL, *returnType, params );
     state.setType(name, type);
     stateCopy.setType(name, type);
@@ -180,15 +180,15 @@ StructDeclaration::StructDeclaration(CodeLoc l, string n) : Statement(l), name(n
 }
 
 void StructDeclaration::check(State& s) {
-  codeLoc.check(!s.getTypeOfVariable(name), "Type \"" + name + "\" conflicts with an existing variable");
-  codeLoc.check(!s.getTypeFromString(name), "Type \"" + name + "\" conflicts with an existing type");
+  codeLoc.check(!s.getTypeOfVariable(name), "Type " + quote(name) + " conflicts with an existing variable");
+  codeLoc.check(!s.getTypeFromString(name), "Type " + quote(name) + " conflicts with an existing type");
   StructType type(name);
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
     if (auto memberType = s.getTypeFromString(member.type))
       type.members.push_back({member.name, *memberType});
     else
-      member.codeLoc.error("Type \"" + member.type + "\" not recognized");
+      member.codeLoc.error("Type " + quote(member.type) + " not recognized");
   }
   s.addType(name, type);
   vector<FunctionType::Param> constructorParams;
@@ -218,19 +218,20 @@ Type FunctionCallNamedArgs::getType(const State& state) {
             paramIndex[param.name] = count++;
           }
           for (auto& elem : arguments) {
-            elem.codeLoc.check(toInitialize.count(elem.name), "No parameter named \"" + elem.name
-                + "\" in function \"" + name + "\"");
-            elem.codeLoc.check(!initialized.count(elem.name), "Parameter \"" + elem.name + "\" listed more than once");
+            elem.codeLoc.check(toInitialize.count(elem.name), "No parameter named " + quote(elem.name)
+                + " in function " + quote(name));
+            elem.codeLoc.check(!initialized.count(elem.name), "Parameter " + quote(elem.name) + " listed more than once");
             auto exprType = elem.expr->getType(state);
             auto paramType = toInitialize.at(elem.name);
-            elem.codeLoc.check(canAssign(ReferenceType(paramType), exprType), "Can't initialize parameter \"" + elem.name
-                + "\" of type \"" + getName(paramType) + "\" with expression of type \"" + getName(exprType) + "\"");
+            elem.codeLoc.check(canAssign(ReferenceType(paramType), exprType), "Can't initialize parameter "
+                + quote(elem.name) + " of type " + quote(getName(paramType)) + " with expression of type "
+                + quote(getName(exprType)));
             initialized.insert(elem.name);
           }
           vector<string> notInitialized;
           for (auto& elem : toInitialize)
             if (!initialized.count(elem.first))
-              notInitialized.push_back("\"" + elem.first + "\"");
+              notInitialized.push_back("" + quote(elem.first));
           codeLoc.check(notInitialized.empty(), "Function parameters: " + combine(notInitialized) + " were not initialized" );
           sort(arguments.begin(), arguments.end(),
               [&](const Argument& m1, const Argument& m2) { return paramIndex[m1.name] < paramIndex[m2.name]; });
@@ -243,6 +244,6 @@ Type FunctionCallNamedArgs::getType(const State& state) {
         }
     );
   else
-    codeLoc.error("Function not found: \"" + name + "\"");
+    codeLoc.error("Function not found: " + quote(name));
   return {};
 }

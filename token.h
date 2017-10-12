@@ -30,11 +30,15 @@ enum class Keyword {
   STRUCT,
 };
 
+struct Unknown {
+  bool operator == (const Unknown&) const { return true; }
+};
+
 extern Keyword getKeyword(const string&);
 string getString(Token);
 extern vector<string> getAllKeywords();
 
-class Token : public variant<Number, Identifier, Keyword, BinaryOperator> {
+class Token : public variant<Number, Identifier, Keyword, BinaryOperator, Unknown> {
   public:
   using variant::variant;
   string value;

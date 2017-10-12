@@ -7,6 +7,7 @@
 #include "token.h"
 #include "debug.h"
 #include "binary_operator.h"
+#include "util.h"
 
 using namespace std;
 
@@ -88,9 +89,9 @@ Tokens lex(const string& input) {
         auto codeLoc = CodeLoc(lines[lastPos - 1], columns[lastPos - 1]);
         ret.back().codeLoc = codeLoc;
         if (!all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); }))
-          codeLoc.error("Unrecognized input: \"" + skipped + "\"");
+          codeLoc.error("Unrecognized input: " + quote(skipped));
         ret.back().value = matched;
-        INFO << "Matched \"" << matched << "\" with rule " << index;
+        INFO << "Matched " << quote(matched) << " with rule " << index;
         break;
       }
   }
