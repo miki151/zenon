@@ -39,7 +39,7 @@ static string getOperators() {
 }
 
 Tokens lex(const string& input) {
-  string idLetterFirst = "_a-zA-Z";
+  string idLetterFirst = "a-zA-Z";
   string idLetter = idLetterFirst + "0-9";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
       {"#.*\n", [](const string&) -> optional<Token> { return Token(Unknown{});}},

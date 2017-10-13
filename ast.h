@@ -130,8 +130,8 @@ struct ExpressionStatement : Statement {
   virtual void codegen(Accu&) const override;
 };
 
-struct StructDeclaration : Statement {
-  StructDeclaration(CodeLoc, string name);
+struct StructDefinition : Statement {
+  StructDefinition(CodeLoc, string name);
   string name;
   struct Member {
     string type;
@@ -139,6 +139,19 @@ struct StructDeclaration : Statement {
     CodeLoc codeLoc;
   };
   vector<Member> members;
+  virtual void check(State&) override;
+  virtual void codegen(Accu&) const override;
+  virtual bool allowTopLevel() const override { return true; }
+};
+
+struct VariantDefinition : Statement {
+  VariantDefinition(CodeLoc, string name);
+  string name;
+  struct Subtype {
+    variant<string, unique_ptr<StructDefinition>> type;
+    CodeLoc codeLoc;
+  };
+  vector<Subtype> subtypes;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual bool allowTopLevel() const override { return true; }

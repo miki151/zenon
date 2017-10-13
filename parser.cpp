@@ -167,6 +167,25 @@ unique_ptr<Statement> parseFunctionDefinition(Token idToken, Tokens& tokens) {
   return ret;
 }
 
+unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens) {
+  auto token2 = tokens.popNext("struct name");
+  token2.codeLoc.check(token2.contains<Identifier>(), "Expected struct name");
+  auto ret = unique<StructDefinition>(token2.codeLoc, token2.value);
+  tokens.eat(Keyword::OPEN_BLOCK);
+  while (1) {
+    token2 = tokens.popNext("member declaration");
+    if (token2 == Keyword::CLOSE_BLOCK)
+      break;
+    auto memberName = tokens.popNext("member name");
+    token2.codeLoc.check(token2.contains<Identifier>(), "Expected identifier");
+    memberName.codeLoc.check(memberName.contains<Identifier>(), "Expected identifier");
+    ret->members.push_back({token2.value, memberName.value, token2.codeLoc});
+    tokens.eat(Keyword::SEMICOLON);
+  }
+  tokens.eat(Keyword::SEMICOLON);
+  return ret;
+}
+
 unique_ptr<Statement> parseStatement(Tokens& tokens) {
   auto token = tokens.popNext("statement");
   auto rewindAndParseExpression = [&] {
@@ -208,20 +227,24 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             tokens.eat(Keyword::SEMICOLON);
             return ret;
           }
-          case Keyword::STRUCT: {
-            auto token2 = tokens.popNext("struct name");
-            token2.codeLoc.check(token2.contains<Identifier>(), "Expected struct name");
-            auto ret = unique<StructDeclaration>(token.codeLoc, token2.value);
+          case Keyword::STRUCT:
+            return parseStructDefinition(tokens);
+          case Keyword::VARIANT: {
+            auto nameToken = tokens.popNext("variant name");
+            nameToken.codeLoc.check(nameToken.contains<Identifier>(), "Expected variant name");
+            auto ret = unique<VariantDefinition>(nameToken.codeLoc, nameToken.value);
             tokens.eat(Keyword::OPEN_BLOCK);
             while (1) {
-              token2 = tokens.popNext("member declaration");
+              auto token2 = tokens.popNext("variant definition");
               if (token2 == Keyword::CLOSE_BLOCK)
                 break;
-              auto memberName = tokens.popNext("member name");
-              token2.codeLoc.check(token2.contains<Identifier>(), "Expected identifier");
-              memberName.codeLoc.check(memberName.contains<Identifier>(), "Expected identifier");
-              ret->members.push_back({token2.value, memberName.value, token2.codeLoc});
-              tokens.eat(Keyword::SEMICOLON);
+              else if (token2 == Keyword::STRUCT)
+                ret->subtypes.push_back(VariantDefinition::Subtype{parseStructDefinition(tokens), token2.codeLoc});
+              else {
+                token2.codeLoc.check(token2.contains<Identifier>(), "Expected type identifier or struct definition");
+                ret->subtypes.push_back(VariantDefinition::Subtype{token2.value, token2.codeLoc});
+                tokens.eat(Keyword::SEMICOLON);
+              }
             }
             tokens.eat(Keyword::SEMICOLON);
             return ret;

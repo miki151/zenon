@@ -156,7 +156,7 @@ string codegen(const AST& ast) {
   for (auto& elem : ast.elems) {
     elem->codegen(accu);
     accu.newLine();
-    accu.newLine();
+//    accu.newLine();
   }
   return accu.generate();
 }
@@ -166,7 +166,7 @@ void ExpressionStatement::codegen(Accu& accu) const {
   accu.add(";");
 }
 
-void StructDeclaration::codegen(Accu& accu) const {
+void StructDefinition::codegen(Accu& accu) const {
   accu.add("struct " + name + " {");
   ++accu.indent;
   for (auto& member : members)
@@ -189,4 +189,42 @@ void EmbedBlock::codegen(Accu& accu) const {
 
 void EmbedInclude::codegen(Accu& accu) const {
   accu.newLine(path, Accu::EMBED);
+}
+
+constexpr const char* variantEnumeratorPrefix = "Enum_";
+constexpr const char* variantUnionEntryPrefix = "Union_";
+
+void VariantDefinition::codegen(Accu& accu) const {
+  accu.add("struct " + name + " {");
+  ++accu.indent;
+  accu.newLine();
+  for (auto& subtype : subtypes)
+    subtype.type.visit(
+        [&](const unique_ptr<StructDefinition>& s) {
+          s->codegen(accu);
+          accu.newLine();
+        },
+        [&](const auto&) {}
+    );
+  accu.add("enum {");
+  vector<string> typeNames;
+  for (auto& subtype : subtypes) {
+    subtype.type.visit(
+        [&](const string& type) {
+          typeNames.push_back(type);
+        },
+        [&](const unique_ptr<StructDefinition>& s) {
+          typeNames.push_back(s->name);
+        }
+    );
+  }
+  accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;})) + "};");
+  accu.newLine("union {");
+  ++accu.indent;
+  for (auto& type : typeNames)
+    accu.newLine(type + " " + variantUnionEntryPrefix + type + ";");
+  --accu.indent;
+  accu.newLine("};");
+  --accu.indent;
+  accu.newLine("};");
 }

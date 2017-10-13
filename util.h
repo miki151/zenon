@@ -2,7 +2,7 @@
 
 #include "stdafx.h"
 
-string combine(const vector<string>& adj, bool commasOnly = false);
+string combine(const vector<string>& adj);
 string quote(const string&);
 
 template <class T>
@@ -60,3 +60,12 @@ class HeapAllocated {
   private:
   unique_ptr<T> elem;
 };
+
+template <typename T, typename Fun>
+auto transform(const vector<T>& v, Fun fun) {
+  vector<decltype(fun(*v.begin()))> ret;
+  ret.reserve(v.size());
+  for (const auto& elem : v)
+    ret.push_back(fun(elem));
+  return ret;
+}

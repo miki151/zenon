@@ -55,7 +55,15 @@ struct StructType {
   bool operator == (const StructType&) const;
 };
 
-struct Type : variant<ArithmeticType, FunctionType, ReferenceType, StructType, MemberAccess> {
+struct VariantType {
+  VariantType(string name);
+  string name;
+  int id;
+  vector<Type> types;
+  bool operator == (const VariantType&) const;
+};
+
+struct Type : variant<ArithmeticType, FunctionType, ReferenceType, StructType, MemberAccess, VariantType> {
   using variant::variant;
 };
 

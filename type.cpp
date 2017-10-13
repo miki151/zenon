@@ -26,14 +26,20 @@ string getName(const Type& t) {
       },
       [&](const StructType& t) {
         return t.name;
+      },
+      [&](const VariantType& t) {
+        return "variant " + t.name;
       }
   );
 }
 
-static int idCounter = 0;
+int getNewId() {
+  static int idCounter = 0;
+  return ++idCounter;
+}
 
 FunctionType::FunctionType(Target t, Type returnType, vector<Param> p) : target(t), retVal(std::move(returnType)),
-    params(std::move(p)), id(idCounter++) {
+    params(std::move(p)), id(getNewId()) {
 }
 
 bool FunctionType::operator == (const FunctionType& o) const {
@@ -133,13 +139,13 @@ bool canAssign(const Type& to, const Type& from) {
   );
 }
 
-StructType::StructType(string n) : name(n), id(++idCounter) {}
+StructType::StructType(string n) : name(n), id(getNewId()) {}
 
 bool StructType::operator == (const StructType& o) const {
   return id == o.id;
 }
 
-MemberAccess::MemberAccess(const string& m) : memberName(m), id(idCounter) {}
+MemberAccess::MemberAccess(const string& m) : memberName(m), id(getNewId()) {}
 
 bool MemberAccess::operator == (const MemberAccess& a) const {
   return id == a.id;
@@ -149,6 +155,12 @@ bool canConvert(const Type& from, const Type& to) {
   return getUnderlying(from) == to;
 }
 
-bool requiresInitialization(const Type& t) {
+bool requiresInitialization(const Type&) {
   return true;
+}
+
+VariantType::VariantType(string n) : name(n), id(getNewId()) {}
+
+bool VariantType::operator ==(const VariantType& o) const {
+  return id == o.id;
 }

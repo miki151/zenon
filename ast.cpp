@@ -176,12 +176,12 @@ void ExpressionStatement::check(State& state) {
   expr->getType(state);
 }
 
-StructDeclaration::StructDeclaration(CodeLoc l, string n) : Statement(l), name(n) {
+StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-void StructDeclaration::check(State& s) {
-  codeLoc.check(!s.getTypeOfVariable(name), "Type " + quote(name) + " conflicts with an existing variable");
+void StructDefinition::check(State& s) {
   codeLoc.check(!s.getTypeFromString(name), "Type " + quote(name) + " conflicts with an existing type");
+  codeLoc.check(!s.getTypeOfVariable(name), "Type " + quote(name) + " conflicts with an existing variable or function");
   StructType type(name);
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
@@ -256,4 +256,31 @@ EmbedInclude::EmbedInclude(CodeLoc l, const string& p) : Statement(l), path(p) {
 }
 
 void EmbedInclude::check(State&) {
+}
+
+VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n) {
+}
+
+void VariantDefinition::check(State& state) {
+  VariantType type(name);
+  unordered_set<string> subtypeNames;
+  for (auto& subtype : subtypes) {
+    auto checkSubtype = [&](const string& name) {
+      subtype.codeLoc.check(!subtypeNames.count(name), "Duplicate variant subtype: " + quote(name));
+      subtypeNames.insert(name);
+    };
+    subtype.type.visit(
+        [&](const string& type) {
+          subtype.codeLoc.check(!!state.getTypeFromString(type), "Unrecognized type: " + quote(type));
+          checkSubtype(type);
+        },
+        [&](const unique_ptr<StructDefinition>& s) {
+          auto stateCopy = state;
+          s->check(stateCopy);
+          type.types.push_back(*stateCopy.getTypeFromString(s->name));
+          checkSubtype(s->name);
+        }
+    );
+  }
+  state.addType(name, type);
 }

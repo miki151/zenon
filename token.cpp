@@ -13,6 +13,7 @@ static const unordered_map<string, Keyword> keywords {
   {"false", Keyword::FALSE},
   {"struct", Keyword::STRUCT},
   {"embed", Keyword::EMBED},
+  {"variant", Keyword::VARIANT},
   {"(", Keyword::OPEN_BRACKET},
   {")", Keyword::CLOSE_BRACKET},
   {"{", Keyword::OPEN_BLOCK},
