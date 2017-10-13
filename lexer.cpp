@@ -42,11 +42,12 @@ Tokens lex(const string& input) {
   string idLetterFirst = "_a-zA-Z";
   string idLetter = idLetterFirst + "0-9";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
-      {"#.*\n", [](const string&) -> optional<Token> { return none;}},
+      {"#.*\n", [](const string&) -> optional<Token> { return Token(Unknown{});}},
+      {"//.*\n", [](const string&) -> optional<Token> { return none;}},
       {getKeywords(), [](const string& s) -> optional<Token> { return Token(getKeyword(s));}},
       {getOperators(), [](const string& s) -> optional<Token> {
           return Token(*getBinaryOperator(s));}},
-      {"[0-9]+" , [](const string& s) -> optional<Token> { return Token(Number{}); } } ,
+      {"[0-9]+" , [](const string&) -> optional<Token> { return Token(Number{}); } } ,
       {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(Identifier{}); }},
   };
   INFO << "Lexing expressions:";
@@ -84,13 +85,18 @@ Tokens lex(const string& input) {
         string matched = it->str();
         string skipped = input.substr(lastPos, it->position() - lastPos);
         lastPos += matched.size() + skipped.size();
-        if (auto token = v[index].second(matched))
-          ret.push_back(*token);
         auto codeLoc = CodeLoc(lines[lastPos - 1], columns[lastPos - 1]);
-        ret.back().codeLoc = codeLoc;
-        if (!all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); }))
-          codeLoc.error("Unrecognized input: " + quote(skipped));
-        ret.back().value = matched;
+        if (!all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); })) {
+          ret.push_back(Unknown{});
+          ret.back().value = skipped;
+          ret.back().codeLoc = CodeLoc(lines[lastPos - 1 - skipped.size()], columns[lastPos - 1 - skipped.size()]);
+          INFO << "Skipped " << quote(skipped);
+        }
+        if (auto token = v[index].second(matched)) {
+          ret.push_back(*token);
+          ret.back().codeLoc = codeLoc;
+          ret.back().value = matched;
+        }
         INFO << "Matched " << quote(matched) << " with rule " << index;
         break;
       }

@@ -28,6 +28,7 @@ enum class Keyword {
   TRUE,
   FALSE,
   STRUCT,
+  EMBED
 };
 
 struct Unknown {

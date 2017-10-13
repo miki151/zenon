@@ -125,6 +125,18 @@ unique_ptr<StatementBlock> parseBlock(Tokens& tokens) {
   return block;
 }
 
+unique_ptr<EmbedBlock> parseEmbedBlock(Tokens& tokens) {
+  auto block = unique<EmbedBlock>(tokens.peek("statement").codeLoc);
+  int bracketCount = 1;
+  while (1) {
+    auto token2 = tokens.popNext("embedded function body");
+    if (token2 == Keyword::CLOSE_BLOCK && --bracketCount == 0)
+      break;
+    block->content.append(token2.value);
+  }
+  return block;
+}
+
 unique_ptr<Statement> parseFunctionDefinition(Token idToken, Tokens& tokens) {
   auto token2 = tokens.popNext("function definition");
   CHECK_SYNTAX(token2.contains<Identifier>()) << "Expected identifier, got: " + quote(token2.value);
@@ -143,8 +155,15 @@ unique_ptr<Statement> parseFunctionDefinition(Token idToken, Tokens& tokens) {
     auto nameToken = tokens.popNext("identifier");
     ret->parameters.push_back({idToken.codeLoc, typeToken.value, nameToken.value});
   }
-  tokens.eat(Keyword::OPEN_BLOCK);
-  ret->body = parseBlock(tokens);
+  token2 = tokens.popNext("function body");
+  if (token2 == Keyword::OPEN_BLOCK)
+    ret->body = parseBlock(tokens);
+  else
+  if (token2 == Keyword::EMBED) {
+    tokens.eat(Keyword::OPEN_BLOCK);
+    ret->body = parseEmbedBlock(tokens);
+    ret->embed = true;
+  }
   return ret;
 }
 
@@ -206,6 +225,10 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             }
             tokens.eat(Keyword::SEMICOLON);
             return ret;
+          }
+          case Keyword::EMBED: {
+            auto content = tokens.popNext("Embedded statement");
+            return unique<EmbedInclude>(content.codeLoc, content.value);
           }
           default:
             tokens.error("Unexpected keyword: " + quote(token.value));

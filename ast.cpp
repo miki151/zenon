@@ -247,3 +247,13 @@ Type FunctionCallNamedArgs::getType(const State& state) {
     codeLoc.error("Function not found: " + quote(name));
   return {};
 }
+
+void EmbedBlock::check(State&) {
+}
+
+EmbedInclude::EmbedInclude(CodeLoc l, const string& p) : Statement(l), path(p) {
+  INFO << "Embed statement " << p;
+}
+
+void EmbedInclude::check(State&) {
+}

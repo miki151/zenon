@@ -7,18 +7,35 @@ using namespace std;
 
 struct Accu {
   public:
-  void add(const string& s) {
-    buf += s;
+
+  enum Position {
+    CURRENT,
+    EMBED
+  };
+
+  void add(const string& s, Position pos = CURRENT) {
+    buf[pos] += s;
   }
 
-  void newLine(const string& s = "") {
+  void newLine(const string& s = "", Position pos = CURRENT) {
     const int indentSize = 2;
-    buf += "\n" + string(indent * indentSize, ' ');
-    buf += s;
+    buf[pos] += "\n" + string(indent * indentSize, ' ');
+    buf[pos] += s;
+  }
+
+  void pop_back(Position pos = CURRENT) {
+    buf[pos].pop_back();
+  }
+
+  string generate() {
+    string ret;
+    for (auto& elem : buf)
+      ret += elem.second + "\n";
+    return ret;
   }
 
   int indent = 0;
-  string buf;
+  map<Position, string> buf;
 };
 
 void Constant::codegen(Accu& accu) const {
@@ -33,9 +50,12 @@ void BinaryExpression::codegen(Accu& accu) const {
   accu.add("(");
   e1->codegen(accu);
   accu.add(") ");
-  accu.add(getString(op) + " ("s);
+  accu.add(getString(op));
+  if (op != BinaryOperator::MEMBER_ACCESS)
+    accu.add(" (");
   e2->codegen(accu);
-  accu.add(")");
+  if (op != BinaryOperator::MEMBER_ACCESS)
+    accu.add(")");
 }
 
 void StatementBlock::codegen(Accu& accu) const {
@@ -91,8 +111,8 @@ void FunctionCall::codegen(Accu& accu) const {
     accu.add(", ");
   }
   if (!arguments.empty()) {
-    accu.buf.pop_back();
-    accu.buf.pop_back();
+    accu.pop_back();
+    accu.pop_back();
   }
   accu.add(constructor ? "}" : ")");
 }
@@ -104,24 +124,30 @@ void FunctionCallNamedArgs::codegen(Accu& accu) const {
     accu.add(", ");
   }
   if (!arguments.empty()) {
-    accu.buf.pop_back();
-    accu.buf.pop_back();
+    accu.pop_back();
+    accu.pop_back();
   }
   accu.add(constructor ? "}" : ")");
 }
 
 void FunctionDefinition::codegen(Accu& accu) const {
-  accu.add(returnType + " " + name + "(");
-  for (auto& param : parameters) {
-    accu.add(param.type + " " + param.name);
-    accu.add(", ");
+  auto getPrototype = [this]() {
+    string ret = returnType + " " + name + "(";
+    for (auto& param : parameters)
+      ret.append(param.type + " " + param.name + ", ");
+    if (!parameters.empty()) {
+      ret.pop_back();
+      ret.pop_back();
+    }
+    ret.append(")");
+    return ret;
+  };
+  if (embed) {
+    accu.add(getPrototype() + ";");
   }
-  if (!parameters.empty()) {
-    accu.buf.pop_back();
-    accu.buf.pop_back();
-  }
-  accu.add(")");
-  accu.newLine();
+  Accu::Position pos = embed ? Accu::EMBED : Accu::CURRENT;
+  accu.add(getPrototype(), pos);
+  accu.newLine("", pos);
   body->codegen(accu);
 }
 
@@ -132,7 +158,7 @@ string codegen(const AST& ast) {
     accu.newLine();
     accu.newLine();
   }
-  return accu.buf;
+  return accu.generate();
 }
 
 void ExpressionStatement::codegen(Accu& accu) const {
@@ -151,4 +177,16 @@ void StructDeclaration::codegen(Accu& accu) const {
 
 void MemberAccessType::codegen(Accu& accu) const {
   accu.add(name);
+}
+
+void EmbedBlock::codegen(Accu& accu) const {
+  accu.add("{", Accu::EMBED);
+  accu.newLine("", Accu::EMBED);
+  accu.add(content, Accu::EMBED);
+  accu.newLine("}", Accu::EMBED);
+}
+
+
+void EmbedInclude::codegen(Accu& accu) const {
+  accu.newLine(path, Accu::EMBED);
 }

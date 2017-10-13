@@ -12,6 +12,7 @@ static const unordered_map<string, Keyword> keywords {
   {"true", Keyword::TRUE},
   {"false", Keyword::FALSE},
   {"struct", Keyword::STRUCT},
+  {"embed", Keyword::EMBED},
   {"(", Keyword::OPEN_BRACKET},
   {")", Keyword::CLOSE_BRACKET},
   {"{", Keyword::OPEN_BLOCK},
@@ -59,7 +60,6 @@ string getString(Token t) {
   );
 }
 
-
 Tokens::Tokens(std::vector<Token> d) : data(d) {}
 
 const Token& Tokens::peek(string expected) const {
@@ -75,7 +75,7 @@ Token Tokens::popNext(string expected) {
     check(index < data.size(), "Expected " + quote(expected) + ", got end-of-file.");
   } else
     CHECK(index < data.size());
-  INFO << "Popping token " << getString(data[index]);
+  //INFO << "Popping token " << getString(data[index]);
   return data[index++];
 }
 

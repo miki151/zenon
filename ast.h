@@ -108,6 +108,13 @@ struct StatementBlock : Statement {
   virtual void codegen(Accu&) const override;
 };
 
+struct EmbedBlock : Statement {
+  using Statement::Statement;
+  string content;
+  virtual void check(State&) override;
+  virtual void codegen(Accu&) const override;
+};
+
 struct ReturnStatement : Statement {
   using Statement::Statement;
   unique_ptr<Expression> expr;
@@ -147,7 +154,16 @@ struct FunctionDefinition : Statement {
     string name;
   };
   vector<Parameter> parameters;
-  unique_ptr<StatementBlock> body;
+  unique_ptr<Statement> body;
+  bool embed = false;
+  virtual void check(State&) override;
+  virtual void codegen(Accu&) const override;
+  virtual bool allowTopLevel() const override { return true; }
+};
+
+struct EmbedInclude : Statement {
+  EmbedInclude(CodeLoc, const string& path);
+  string path;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual bool allowTopLevel() const override { return true; }

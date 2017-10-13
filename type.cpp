@@ -86,7 +86,6 @@ Type getOperationResult(CodeLoc codeLoc, BinaryOperator op, const Type& left, co
         auto leftUnderlying = getUnderlying(left);
         if (auto structInfo = leftUnderlying.getReferenceMaybe<StructType>()) {
           for (auto& member : structInfo->members) {
-            INFO << "Looking for member " << memberInfo->memberName << " in " << member.name;
             if (member.name == memberInfo->memberName) {
               auto ret = *member.type;
               if (left.contains<ReferenceType>())
