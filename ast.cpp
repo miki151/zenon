@@ -20,10 +20,12 @@ Constant::Constant(CodeLoc l, ArithmeticType t, string v) : Expression(l), type(
   INFO << "Created constant " << quote(v) << " of type " << getName(Type(t));
 }
 
-Variable::Variable(CodeLoc l, string n) : Expression(l), name(n) {}
+Variable::Variable(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {
+  INFO << "Parsed variable " << id.toString();
+}
 
-FunctionCall::FunctionCall(CodeLoc l, string n) : Expression(l), name(n) {
-  INFO << "Function call " << n;
+FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {
+  INFO << "Function call " << id.toString();;
 }
 
 VariableDeclaration::VariableDeclaration(CodeLoc l, string t, string id, unique_ptr<Expression> ini)
@@ -38,15 +40,15 @@ Type Constant::getType(const State&) {
 }
 
 Type Variable::getType(const State& state) {
-  if (auto ret = state.getTypeOfVariable(name))
+  if (auto ret = state.getTypeOfVariable(identifier))
     return *ret;
   else
-    codeLoc.error("Undefined variable: " + name);
+    codeLoc.error("Undefined variable: " + identifier.toString());
   return {};
 }
 
 Type FunctionCall::getType(const State& state) {
-  if (auto type = state.getTypeOfVariable(name))
+  if (auto type = state.getTypeOfVariable(identifier))
     return type->visit(
         [&](const FunctionType& t) {
           int numParams = (int) t.params.size();
@@ -59,7 +61,7 @@ Type FunctionCall::getType(const State& state) {
                 "Function call argument " + to_string(i + 1) + " mismatch: expected "s
                 + quote(getName(*paramType.type)) + ", got " + quote(getName(argType)));
           }
-          constructor = (t.target == FunctionType::CONSTRUCTOR);
+          callType = t.callType;
           return *t.retVal;
         },
         [&](const auto&) -> Type {
@@ -68,7 +70,7 @@ Type FunctionCall::getType(const State& state) {
         }
     );
   else
-    codeLoc.error("Function not found: " + quote(name));
+    codeLoc.error("Function not found: " + quote(identifier.toString()));
   return {};
 }
 
@@ -140,6 +142,7 @@ bool ReturnStatement::hasReturnStatement(const State&) const {
 }
 
 void FunctionDefinition::check(State& state) {
+  codeLoc.check(!state.getTypeOfVariable(name), "Function name " + quote(name) + " conflicts with existing function");
   State stateCopy = state;
   if (auto returnType = state.getTypeFromString(this->returnType)) {
     vector<FunctionType::Param> params;
@@ -149,7 +152,7 @@ void FunctionDefinition::check(State& state) {
         params.push_back({p.name, *paramType});
       } else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type));
-    auto type = FunctionType (FunctionType::TOP_LEVEL, *returnType, params );
+    auto type = FunctionType (FunctionCallType::FUNCTION, *returnType, params );
     state.setType(name, type);
     stateCopy.setType(name, type);
     stateCopy.setReturnType(*returnType);
@@ -194,7 +197,7 @@ void StructDefinition::check(State& s) {
   vector<FunctionType::Param> constructorParams;
   for (auto& member : type.members)
     constructorParams.push_back({member.name, *member.type});
-  s.setType(name, FunctionType(FunctionType::CONSTRUCTOR, type, std::move(constructorParams)));
+  s.setType(name, FunctionType(FunctionCallType::CONSTRUCTOR, type, std::move(constructorParams)));
 }
 
 MemberAccessType::MemberAccessType(CodeLoc l, string n) : Expression(l), name(n) {}
@@ -203,10 +206,10 @@ Type MemberAccessType::getType(const State&) {
   return MemberAccess(name);
 }
 
-FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, string n) : Expression(l), name(n) {}
+FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {}
 
 Type FunctionCallNamedArgs::getType(const State& state) {
-  if (auto type = state.getTypeOfVariable(name))
+/*  if (auto type = state.getTypeOfVariable(name))
     return type->visit(
         [&](const FunctionType& t) {
           map<string, Type> toInitialize;
@@ -244,7 +247,7 @@ Type FunctionCallNamedArgs::getType(const State& state) {
         }
     );
   else
-    codeLoc.error("Function not found: " + quote(name));
+    codeLoc.error("Function not found: " + quote(name));*/
   return {};
 }
 
@@ -265,22 +268,35 @@ void VariantDefinition::check(State& state) {
   VariantType type(name);
   unordered_set<string> subtypeNames;
   for (auto& subtype : subtypes) {
-    auto checkSubtype = [&](const string& name) {
+    string subtypeName;
+    vector<FunctionType::Param> constructorParams;
+    auto addSubtype = [&](const string& name) {
+      subtypeName = name;
       subtype.codeLoc.check(!subtypeNames.count(name), "Duplicate variant subtype: " + quote(name));
       subtypeNames.insert(name);
     };
+    FunctionCallType callType;
     subtype.type.visit(
-        [&](const string& type) {
-          subtype.codeLoc.check(!!state.getTypeFromString(type), "Unrecognized type: " + quote(type));
-          checkSubtype(type);
+        [&](const string& typeName) {
+          if (auto type = state.getTypeFromString(typeName))
+            constructorParams.push_back(FunctionType::Param{"", *type});
+          else
+            subtype.codeLoc.error("Unrecognized type: " + quote(name));
+          addSubtype(typeName);
+          callType = FunctionCallType::VARIANT_CONSTRUCTOR_EXTERNAL;
         },
         [&](const unique_ptr<StructDefinition>& s) {
           auto stateCopy = state;
           s->check(stateCopy);
-          type.types.push_back(*stateCopy.getTypeFromString(s->name));
-          checkSubtype(s->name);
+          Type structType = *stateCopy.getTypeFromString(s->name);
+          type.types.push_back(structType);
+          addSubtype(s->name);
+          for (auto& member : structType.getReferenceMaybe<StructType>()->members)
+            constructorParams.push_back({member.name, *member.type});
+          callType = FunctionCallType::VARIANT_CONSTRUCTOR_INTERNAL;
         }
     );
+    state.setType(IdentifierInfo({name}, subtypeName), FunctionType(callType, type, std::move(constructorParams)));
   }
   state.addType(name, type);
 }

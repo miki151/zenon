@@ -2,7 +2,7 @@
 
 #include "stdafx.h"
 
-string combine(const vector<string>& adj);
+string combine(const vector<string>& adj, const string& separator);
 string quote(const string&);
 
 template <class T>

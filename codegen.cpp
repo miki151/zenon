@@ -43,7 +43,7 @@ void Constant::codegen(Accu& accu) const {
 }
 
 void Variable::codegen(Accu& accu) const {
-  accu.add(name);
+  accu.add(identifier.toString());
 }
 
 void BinaryExpression::codegen(Accu& accu) const {
@@ -104,8 +104,30 @@ void ReturnStatement::codegen(Accu& accu) const {
   accu.add(";");
 }
 
+// identifier(args)
+// identifier{args}
+// variant { variant::enumId, { variant::identifier{args}}}
+
+
 void FunctionCall::codegen(Accu& accu) const {
-  accu.add(name + (constructor ? "{" : "("));
+  string prefix;
+  string suffix;
+  string id = identifier.toString();
+  switch (callType) {
+    case FunctionCallType::FUNCTION:
+      prefix = id + "("; suffix = ")";
+      break;
+    case FunctionCallType::CONSTRUCTOR:
+      prefix = id + "{"; suffix = "}";
+      break;
+    case FunctionCallType::VARIANT_CONSTRUCTOR_INTERNAL:
+      prefix = combine(identifier.namespaces, "::") + "{ " + id + "{"; suffix = "}}";
+      break;
+    case FunctionCallType::VARIANT_CONSTRUCTOR_EXTERNAL:
+      prefix = combine(identifier.namespaces, "::") + "{ " + identifier.name + "{"; suffix = "}}";
+      break;
+  }
+  accu.add(prefix);
   for (auto& arg : arguments) {
     arg->codegen(accu);
     accu.add(", ");
@@ -114,11 +136,11 @@ void FunctionCall::codegen(Accu& accu) const {
     accu.pop_back();
     accu.pop_back();
   }
-  accu.add(constructor ? "}" : ")");
+  accu.add(suffix);
 }
 
 void FunctionCallNamedArgs::codegen(Accu& accu) const {
-  accu.add(name + (constructor ? "{" : "("));
+/*  accu.add(name + (constructor ? "{" : "("));
   for (auto& arg : arguments) {
     arg.expr->codegen(accu);
     accu.add(", ");
@@ -127,7 +149,7 @@ void FunctionCallNamedArgs::codegen(Accu& accu) const {
     accu.pop_back();
     accu.pop_back();
   }
-  accu.add(constructor ? "}" : ")");
+  accu.add(constructor ? "}" : ")");*/
 }
 
 void FunctionDefinition::codegen(Accu& accu) const {
@@ -193,6 +215,7 @@ void EmbedInclude::codegen(Accu& accu) const {
 
 constexpr const char* variantEnumeratorPrefix = "Enum_";
 constexpr const char* variantUnionEntryPrefix = "Union_";
+constexpr const char* variantUnionElem = "unionElem";
 
 void VariantDefinition::codegen(Accu& accu) const {
   accu.add("struct " + name + " {");
@@ -218,7 +241,12 @@ void VariantDefinition::codegen(Accu& accu) const {
         }
     );
   }
-  accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;})) + "};");
+  accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
+      + variantUnionElem + ";");
+  for (auto& t : typeNames) {
+    accu.newLine(name + "(const " + t + "& elem) : unionElem(" + variantEnumeratorPrefix + t + "), " +
+        variantUnionEntryPrefix + t + "(elem) {}");
+  }
   accu.newLine("union {");
   ++accu.indent;
   for (auto& type : typeNames)

@@ -5,6 +5,8 @@
 #include "code_loc.h"
 #include "state.h"
 #include "binary_operator.h"
+#include "identifier.h"
+#include "function_call_type.h"
 
 struct Accu;
 
@@ -29,10 +31,10 @@ struct Constant : Expression {
 };
 
 struct Variable : Expression {
-  Variable(CodeLoc, string name);
+  Variable(CodeLoc, IdentifierInfo);
   virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
-  string name;
+  IdentifierInfo identifier;
 };
 
 struct MemberAccessType : Expression {
@@ -51,19 +53,19 @@ struct BinaryExpression : Expression {
 };
 
 struct FunctionCall : Expression {
-  FunctionCall(CodeLoc, string name);
+  FunctionCall(CodeLoc, IdentifierInfo);
   virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
-  string name;
-  bool constructor;
+  IdentifierInfo identifier;
+  FunctionCallType callType;
   vector<unique_ptr<Expression>> arguments;
 };
 
 struct FunctionCallNamedArgs : Expression {
-  FunctionCallNamedArgs(CodeLoc, string name);
+  FunctionCallNamedArgs(CodeLoc, IdentifierInfo);
   virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
-  string name;
+  IdentifierInfo identifier;
   struct Argument {
     CodeLoc codeLoc;
     string name;

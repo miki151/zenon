@@ -11,8 +11,8 @@ struct Number {
   bool operator == (const Number&) const { return true; }
 };
 
-struct Identifier {
-  bool operator == (const Identifier&) const { return true; }
+struct IdentifierToken {
+  bool operator == (const IdentifierToken&) const { return true; }
 };
 
 enum class Keyword {
@@ -29,7 +29,8 @@ enum class Keyword {
   FALSE,
   STRUCT,
   EMBED,
-  VARIANT
+  VARIANT,
+  NAMESPACE_ACCESS
 };
 
 struct Unknown {
@@ -40,7 +41,7 @@ extern Keyword getKeyword(const string&);
 string getString(Token);
 extern vector<string> getAllKeywords();
 
-class Token : public variant<Number, Identifier, Keyword, BinaryOperator, Unknown> {
+class Token : public variant<Number, IdentifierToken, Keyword, BinaryOperator, Unknown> {
   public:
   using variant::variant;
   string value;

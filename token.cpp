@@ -14,6 +14,7 @@ static const unordered_map<string, Keyword> keywords {
   {"struct", Keyword::STRUCT},
   {"embed", Keyword::EMBED},
   {"variant", Keyword::VARIANT},
+  {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},
   {")", Keyword::CLOSE_BRACKET},
   {"{", Keyword::OPEN_BLOCK},
@@ -49,7 +50,7 @@ string getString(Token t) {
       [](Number) {
         return "number";
       },
-      [](const Identifier&) {
+      [](const IdentifierToken&) {
         return "identifier";
       },
       [](BinaryOperator op) {

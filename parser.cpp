@@ -5,13 +5,13 @@
 
 unique_ptr<Expression> parseExpression(Tokens&);
 
-unique_ptr<FunctionCallNamedArgs> parseFunctionCallWithNamedArguments(Tokens& tokens) {
+/*unique_ptr<FunctionCallNamedArgs> parseFunctionCallWithNamedArguments(Tokens& tokens) {
   auto token = tokens.popNext("function call");
   auto ret = unique<FunctionCallNamedArgs>(token.codeLoc, token.value);
   tokens.eat(Keyword::OPEN_BLOCK);
   while (tokens.peek("function call argument") != Keyword::CLOSE_BLOCK) {
     token = tokens.popNext("function parameter initializer");
-    token.codeLoc.check(token.contains<Identifier>(), "function parameter expected");
+    token.codeLoc.check(token.contains<IdentifierToken>(), "function parameter expected");
     tokens.eat(BinaryOperator::ASSIGNMENT);
     ret->arguments.push_back({token.codeLoc, token.value, parseExpression(tokens)});
     if (tokens.peek("function parameter") == Keyword::COMMA)
@@ -19,11 +19,10 @@ unique_ptr<FunctionCallNamedArgs> parseFunctionCallWithNamedArguments(Tokens& to
   }
   tokens.eat(Keyword::CLOSE_BLOCK);
   return ret;
-}
+}*/
 
-unique_ptr<FunctionCall> parseFunctionCall(Tokens& tokens) {
-  auto token = tokens.popNext("function call");
-  auto ret = unique<FunctionCall>(token.codeLoc, token.value);
+unique_ptr<FunctionCall> parseFunctionCall(IdentifierInfo id, Tokens& tokens) {
+  auto ret = unique<FunctionCall>(tokens.peek("function call").codeLoc, id);
   tokens.eat(Keyword::OPEN_BRACKET);
   while (tokens.peek("function call argument") != Keyword::CLOSE_BRACKET) {
     ret->arguments.push_back(parseExpression(tokens));
@@ -54,18 +53,21 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<BinaryOperator> pre
             return {};
         }
       },
-      [&](const Identifier&) -> unique_ptr<Expression> {
+      [&](const IdentifierToken&) -> unique_ptr<Expression> {
+        auto identifier = IdentifierInfo::parseFrom(token, tokens);
         auto token2 = tokens.peek("something");
         if (token2 == Keyword::OPEN_BRACKET) {
-          tokens.rewind();
-          return parseFunctionCall(tokens);
-        } else
+          auto ret = parseFunctionCall(identifier, tokens);
+          return ret;
+        }/* else
         if (token2 == Keyword::OPEN_BLOCK) {
           tokens.rewind();
-          return parseFunctionCallWithNamedArguments(tokens);
-        }
+          auto ret = parseFunctionCallWithNamedArguments(tokens);
+          ret->space = space;
+          return ret;
+        }*/
         if (precedingOp != BinaryOperator::MEMBER_ACCESS)
-          return unique<Variable>(token.codeLoc, token.value);
+          return unique<Variable>(token.codeLoc, identifier);
         else
           return unique<MemberAccessType>(token.codeLoc, token.value);
       },
@@ -139,7 +141,7 @@ unique_ptr<EmbedBlock> parseEmbedBlock(Tokens& tokens) {
 
 unique_ptr<Statement> parseFunctionDefinition(Token idToken, Tokens& tokens) {
   auto token2 = tokens.popNext("function definition");
-  CHECK_SYNTAX(token2.contains<Identifier>()) << "Expected identifier, got: " + quote(token2.value);
+  CHECK_SYNTAX(token2.contains<IdentifierToken>()) << "Expected identifier, got: " + quote(token2.value);
   auto ret = unique<FunctionDefinition>(idToken.codeLoc, idToken.value, token2.value);
   tokens.eat(Keyword::OPEN_BRACKET);
   while (1) {
@@ -151,7 +153,7 @@ unique_ptr<Statement> parseFunctionDefinition(Token idToken, Tokens& tokens) {
         tokens.eat(Keyword::COMMA);
     }
     auto typeToken = tokens.popNext("identifier");
-    tokens.check(token2.contains<Identifier>(), "Expected function parameter");
+    tokens.check(token2.contains<IdentifierToken>(), "Expected function parameter");
     auto nameToken = tokens.popNext("identifier");
     ret->parameters.push_back({idToken.codeLoc, typeToken.value, nameToken.value});
   }
@@ -169,7 +171,7 @@ unique_ptr<Statement> parseFunctionDefinition(Token idToken, Tokens& tokens) {
 
 unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens) {
   auto token2 = tokens.popNext("struct name");
-  token2.codeLoc.check(token2.contains<Identifier>(), "Expected struct name");
+  token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected struct name");
   auto ret = unique<StructDefinition>(token2.codeLoc, token2.value);
   tokens.eat(Keyword::OPEN_BLOCK);
   while (1) {
@@ -177,8 +179,8 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens) {
     if (token2 == Keyword::CLOSE_BLOCK)
       break;
     auto memberName = tokens.popNext("member name");
-    token2.codeLoc.check(token2.contains<Identifier>(), "Expected identifier");
-    memberName.codeLoc.check(memberName.contains<Identifier>(), "Expected identifier");
+    token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected identifier");
+    memberName.codeLoc.check(memberName.contains<IdentifierToken>(), "Expected identifier");
     ret->members.push_back({token2.value, memberName.value, token2.codeLoc});
     tokens.eat(Keyword::SEMICOLON);
   }
@@ -231,7 +233,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseStructDefinition(tokens);
           case Keyword::VARIANT: {
             auto nameToken = tokens.popNext("variant name");
-            nameToken.codeLoc.check(nameToken.contains<Identifier>(), "Expected variant name");
+            nameToken.codeLoc.check(nameToken.contains<IdentifierToken>(), "Expected variant name");
             auto ret = unique<VariantDefinition>(nameToken.codeLoc, nameToken.value);
             tokens.eat(Keyword::OPEN_BLOCK);
             while (1) {
@@ -241,7 +243,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
               else if (token2 == Keyword::STRUCT)
                 ret->subtypes.push_back(VariantDefinition::Subtype{parseStructDefinition(tokens), token2.codeLoc});
               else {
-                token2.codeLoc.check(token2.contains<Identifier>(), "Expected type identifier or struct definition");
+                token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected type identifier or struct definition");
                 ret->subtypes.push_back(VariantDefinition::Subtype{token2.value, token2.codeLoc});
                 tokens.eat(Keyword::SEMICOLON);
               }
@@ -258,9 +260,9 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return {};
         }
       },
-      [&](const Identifier&) -> unique_ptr<Statement> {
+      [&](const IdentifierToken&) -> unique_ptr<Statement> {
         auto token2 = tokens.peek("identifier");
-        if (token2.contains<Identifier>()) {
+        if (token2.contains<IdentifierToken>()) {
           tokens.popNext("identifier");
           if (tokens.peek("variable or function declaration") == Keyword::OPEN_BRACKET) {
             tokens.rewind();

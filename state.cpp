@@ -1,13 +1,14 @@
 #include "state.h"
+#include "ast.h"
 
-optional<Type> State::getTypeOfVariable(const string& ident) const {
+optional<Type> State::getTypeOfVariable(const IdentifierInfo& ident) const {
   if (vars.count(ident))
     return vars.at(ident);
   else
     return none;
 }
 
-void State::setType(const string& ident, Type t) {
+void State::setType(const IdentifierInfo& ident, Type t) {
   vars[ident] = t;
 }
 

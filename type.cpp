@@ -38,8 +38,8 @@ int getNewId() {
   return ++idCounter;
 }
 
-FunctionType::FunctionType(Target t, Type returnType, vector<Param> p) : target(t), retVal(std::move(returnType)),
-    params(std::move(p)), id(getNewId()) {
+FunctionType::FunctionType(FunctionCallType t, Type returnType, vector<Param> p) : callType(t),
+    retVal(std::move(returnType)), params(std::move(p)), id(getNewId()) {
 }
 
 bool FunctionType::operator == (const FunctionType& o) const {

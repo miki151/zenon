@@ -4,6 +4,7 @@
 #include "util.h"
 #include "binary_operator.h"
 #include "code_loc.h"
+#include "function_call_type.h"
 
 struct Type;
 
@@ -18,12 +19,8 @@ struct FunctionType {
     string name;
     HeapAllocated<Type> type;
   };
-  enum Target {
-    TOP_LEVEL,
-    CONSTRUCTOR
-  };
-  FunctionType(Target, Type returnType, vector<Param>);
-  Target target;
+  FunctionType(FunctionCallType, Type returnType, vector<Param>);
+  FunctionCallType callType;
   HeapAllocated<Type> retVal;
   vector<Param> params;
   int id;

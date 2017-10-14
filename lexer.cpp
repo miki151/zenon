@@ -48,7 +48,7 @@ Tokens lex(const string& input) {
       {getOperators(), [](const string& s) -> optional<Token> {
           return Token(*getBinaryOperator(s));}},
       {"[0-9]+" , [](const string&) -> optional<Token> { return Token(Number{}); } } ,
-      {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(Identifier{}); }},
+      {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(IdentifierToken{}); }},
   };
   INFO << "Lexing expressions:";
   for (auto& elem : v)
