@@ -278,9 +278,10 @@ void VariantDefinition::check(State& state) {
     FunctionCallType callType;
     subtype.type.visit(
         [&](const string& typeName) {
-          if (auto type = state.getTypeFromString(typeName))
-            constructorParams.push_back(FunctionType::Param{"", *type});
-          else
+          if (auto subtypeInfo = state.getTypeFromString(typeName)) {
+            constructorParams.push_back(FunctionType::Param{"", *subtypeInfo});
+            type.types.insert({typeName, *subtypeInfo});
+          } else
             subtype.codeLoc.error("Unrecognized type: " + quote(name));
           addSubtype(typeName);
           callType = FunctionCallType::VARIANT_CONSTRUCTOR_EXTERNAL;
@@ -289,7 +290,7 @@ void VariantDefinition::check(State& state) {
           auto stateCopy = state;
           s->check(stateCopy);
           Type structType = *stateCopy.getTypeFromString(s->name);
-          type.types.push_back(structType);
+          type.types.insert({s->name, structType});
           addSubtype(s->name);
           for (auto& member : structType.getReferenceMaybe<StructType>()->members)
             constructorParams.push_back({member.name, *member.type});
@@ -299,4 +300,33 @@ void VariantDefinition::check(State& state) {
     state.setType(IdentifierInfo({name}, subtypeName), FunctionType(callType, type, std::move(constructorParams)));
   }
   state.addType(name, type);
+}
+
+SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
+
+void SwitchStatement::check(State& state) {
+  auto exprType = expr->getType(state);
+  auto inputType = exprType.getReferenceMaybe<VariantType>();
+  subtypesPrefix = inputType->name + "::";
+  expr->codeLoc.check(!!inputType, "Expected variant type in switch input, got " + quote(getName(exprType)));
+  unordered_set<string> handledTypes;
+  for (auto& caseElem : caseElems) {
+    caseElem.codeloc.check(inputType->types.count(caseElem.type), "Type " + quote(caseElem.type) + " not a subtype "
+        "of " + quote(getName(exprType)));
+    caseElem.codeloc.check(!handledTypes.count(caseElem.type), "Variant subtype " + quote(caseElem.type)
+        + " handled more than once in switch statement");
+    handledTypes.insert(caseElem.type);
+    auto stateCopy = state;
+    if (caseElem.id)
+      stateCopy.setType(*caseElem.id, inputType->types.at(caseElem.type));
+    caseElem.block->check(stateCopy);
+  }
+  if (!defaultBlock) {
+    vector<string> unhandled;
+    for (auto& elem : inputType->types)
+      if (!handledTypes.count(elem.first))
+        unhandled.push_back(quote(elem.first));
+    codeLoc.check(unhandled.empty(), quote(getName(exprType)) + " subtypes " + combine(unhandled, ", ")
+        + " not handled in switch statement");
+  }
 }

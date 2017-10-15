@@ -56,7 +56,7 @@ struct VariantType {
   VariantType(string name);
   string name;
   int id;
-  vector<Type> types;
+  map<string, Type> types;
   bool operator == (const VariantType&) const;
 };
 

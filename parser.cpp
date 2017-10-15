@@ -251,12 +251,45 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             tokens.eat(Keyword::SEMICOLON);
             return ret;
           }
+          case Keyword::SWITCH: {
+            tokens.eat(Keyword::OPEN_BRACKET);
+            auto expr = parseExpression(tokens);
+            tokens.eat(Keyword::CLOSE_BRACKET);
+            tokens.eat(Keyword::OPEN_BLOCK);
+            auto ret = unique<SwitchStatement>(token.codeLoc, std::move(expr));
+            while (1) {
+              auto token2 = tokens.peek("switch body");
+              if (token2 == Keyword::CLOSE_BLOCK) {
+                tokens.popNext();
+                break;
+              }
+              tokens.eat(Keyword::CASE);
+              tokens.eat(Keyword::OPEN_BRACKET);
+              token2 = tokens.popNext("case statement");
+              token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected type identifier, got "
+                  + quote(token2.value));
+              SwitchStatement::CaseElem caseElem;
+              caseElem.codeloc = token2.codeLoc;
+              caseElem.type = token2.value;
+              token2 = tokens.popNext("case statement");
+              if (token2 != Keyword::CLOSE_BRACKET) {
+                token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected variable identifier, got "
+                    + quote(token2.value));
+                caseElem.id = token2.value;
+                tokens.eat(Keyword::CLOSE_BRACKET);
+              }
+              tokens.eat(Keyword::OPEN_BLOCK);
+              caseElem.block = parseBlock(tokens);
+              ret->caseElems.push_back(std::move(caseElem));
+            }
+            return ret;
+          }
           case Keyword::EMBED: {
             auto content = tokens.popNext("Embedded statement");
             return unique<EmbedInclude>(content.codeLoc, content.value);
           }
           default:
-            tokens.error("Unexpected keyword: " + quote(token.value));
+            token.codeLoc.error("Unexpected keyword: " + quote(token.value));
             return {};
         }
       },

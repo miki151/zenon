@@ -14,6 +14,8 @@ static const unordered_map<string, Keyword> keywords {
   {"struct", Keyword::STRUCT},
   {"embed", Keyword::EMBED},
   {"variant", Keyword::VARIANT},
+  {"switch", Keyword::SWITCH},
+  {"case", Keyword::CASE},
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},
   {")", Keyword::CLOSE_BRACKET},

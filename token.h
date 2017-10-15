@@ -30,7 +30,9 @@ enum class Keyword {
   STRUCT,
   EMBED,
   VARIANT,
-  NAMESPACE_ACCESS
+  NAMESPACE_ACCESS,
+  SWITCH,
+  CASE
 };
 
 struct Unknown {

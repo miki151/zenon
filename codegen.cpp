@@ -256,3 +256,29 @@ void VariantDefinition::codegen(Accu& accu) const {
   --accu.indent;
   accu.newLine("};");
 }
+
+constexpr const char* variantTmpRef = "variantTmpRef";
+
+void SwitchStatement::codegen(Accu& accu) const {
+  accu.add("{ auto&& "s + variantTmpRef + " = ");
+  expr->codegen(accu);
+  accu.add(";");
+  accu.newLine("switch ("s + variantTmpRef + "."s + variantUnionElem + ") {");
+  ++accu.indent;
+  for (auto& caseElem : caseElems) {
+    accu.newLine("case "s + subtypesPrefix + variantEnumeratorPrefix + caseElem.type + ":");
+    accu.add("{");
+    ++accu.indent;
+    if (caseElem.id) {
+      accu.newLine("auto&& " + *caseElem.id + " = " + variantTmpRef + "." + variantUnionEntryPrefix + caseElem.type + ";");
+    }
+    accu.newLine();
+    caseElem.block->codegen(accu);
+    accu.newLine("break;");
+    --accu.indent;
+    accu.newLine("}");
+  }
+
+  --accu.indent;
+  accu.newLine("}}");
+}

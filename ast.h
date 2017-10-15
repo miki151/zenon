@@ -159,6 +159,22 @@ struct VariantDefinition : Statement {
   virtual bool allowTopLevel() const override { return true; }
 };
 
+struct SwitchStatement : Statement {
+  SwitchStatement(CodeLoc, unique_ptr<Expression>);
+  struct CaseElem {
+    CodeLoc codeloc;
+    string type;
+    optional<string> id;
+    unique_ptr<StatementBlock> block;
+  };
+  string subtypesPrefix;
+  vector<CaseElem> caseElems;
+  unique_ptr<StatementBlock> defaultBlock;
+  unique_ptr<Expression> expr;
+  virtual void check(State&) override;
+  virtual void codegen(Accu&) const override;
+};
+
 struct FunctionDefinition : Statement {
   FunctionDefinition(CodeLoc, string returnType, string name);
   string returnType;
