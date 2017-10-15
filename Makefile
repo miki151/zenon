@@ -20,7 +20,7 @@ CFLAGS += $(IPATH)
 
 LDFLAGS += -L/usr/local/lib
 
-SRCS = $(shell ls -t *.cpp)
+SRCS = $(shell ls -t src/*.cpp)
 
 LIBS = -L/usr/lib/x86_64-linux-gnu  ${LDFLAGS}
 
@@ -37,7 +37,7 @@ all:
 
 compile: $(NAME)
 
-$(OBJDIR)/stdafx.h.gch: stdafx.h
+$(OBJDIR)/stdafx.h.gch: src/stdafx.h
 	$(CC) -x c++-header $< -MMD $(CFLAGS) -o $@
 
 PCH = $(OBJDIR)/stdafx.h.gch
