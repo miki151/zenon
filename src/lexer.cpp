@@ -6,7 +6,7 @@
 #include <algorithm>
 #include "token.h"
 #include "debug.h"
-#include "binary_operator.h"
+#include "operator.h"
 #include "util.h"
 
 using namespace std;
@@ -46,7 +46,7 @@ Tokens lex(const string& input) {
       {"//.*\n", [](const string&) -> optional<Token> { return none;}},
       {getKeywords(), [](const string& s) -> optional<Token> { return Token(getKeyword(s));}},
       {getOperators(), [](const string& s) -> optional<Token> {
-          return Token(*getBinaryOperator(s));}},
+          return Token(*getOperator(s));}},
       {"[0-9]+" , [](const string&) -> optional<Token> { return Token(Number{}); } } ,
       {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(IdentifierToken{}); }},
   };

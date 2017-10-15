@@ -2,7 +2,7 @@
 
 #include "stdafx.h"
 #include "util.h"
-#include "binary_operator.h"
+#include "operator.h"
 #include "code_loc.h"
 #include "function_call_type.h"
 
@@ -66,6 +66,6 @@ struct Type : variant<ArithmeticType, FunctionType, ReferenceType, StructType, M
 
 extern string getName(const Type&);
 extern bool canAssign(const Type& to, const Type& from);
-extern Type getOperationResult(CodeLoc, BinaryOperator op, const Type& from, const Type& to);
+extern Type getOperationResult(CodeLoc, Operator op, const Type& from, const Type& to);
 extern bool canConvert(const Type& from, const Type& to);
 extern bool requiresInitialization(const Type&);

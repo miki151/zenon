@@ -35,7 +35,7 @@ unique_ptr<FunctionCall> parseFunctionCall(IdentifierInfo id, Tokens& tokens) {
   return ret;
 }
 
-unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<BinaryOperator> precedingOp) {
+unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<Operator> precedingOp) {
   auto token = tokens.popNext("primary expression");
   return token.visit(
       [&](const Keyword& k) -> unique_ptr<Expression> {
@@ -66,13 +66,18 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<BinaryOperator> pre
           ret->space = space;
           return ret;
         }*/
-        if (precedingOp != BinaryOperator::MEMBER_ACCESS)
+        if (precedingOp != Operator::MEMBER_ACCESS)
           return unique<Variable>(token.codeLoc, identifier);
         else
           return unique<MemberAccessType>(token.codeLoc, token.value);
       },
       [&](const Number&) -> unique_ptr<Expression> {
         return unique<Constant>(token.codeLoc, ArithmeticType::INT, token.value);
+      },
+      [&](const Operator& op) -> unique_ptr<Expression> {
+        token.codeLoc.check(isUnary(op), getString(op) + " is not a unary operator"s);
+        auto exp = parsePrimary(tokens, none);
+        return unique<UnaryExpression>(token.codeLoc, op, std::move(exp));
       },
       [&](const auto&) -> unique_ptr<Expression> {
         token.codeLoc.error("Expected primary expression, got: " + quote(token.value));
@@ -84,14 +89,14 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<BinaryOperator> pre
 unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression> lhs, int minPrecedence) {
   auto token = tokens.peek("arithmetic operator");
   while (1) {
-    if (auto op1 = token.getValueMaybe<BinaryOperator>()) {
+    if (auto op1 = token.getValueMaybe<Operator>()) {
       if (getPrecedence(*op1) < minPrecedence)
         break;
       tokens.popNext("arithmetic operator");
       auto rhs = parsePrimary(tokens, *op1);
       token = tokens.peek("arithmetic operator");
       while (1) {
-        if (auto op2 = token.getReferenceMaybe<BinaryOperator>()) {
+        if (auto op2 = token.getReferenceMaybe<Operator>()) {
           INFO << "Comparing operators op1 " << getString(*op1) << " and op2 " << getString(*op2);
           if (getPrecedence(*op2) <= getPrecedence(*op1) &&
               (!isRightAssociative(*op2) || getPrecedence(*op2) < getPrecedence(*op1)))
@@ -309,7 +314,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
           }
           unique_ptr<Expression> initExpression;
           if (tokens.peek("expression or " + quote(";")) != Keyword::SEMICOLON) {
-            tokens.eat(BinaryOperator::ASSIGNMENT);
+            tokens.eat(Operator::ASSIGNMENT);
             initExpression = parseExpression(tokens);
           }
           tokens.eat(Keyword::SEMICOLON);

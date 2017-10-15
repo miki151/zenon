@@ -53,8 +53,8 @@ info:
 	@$(CC) -v 2>&1 | head -n 2
 
 clean:
-	$(RM) $(OBJDIR)/*.o
-	$(RM) $(OBJDIR)/*.d
+	$(RM) $(OBJDIR)/src/*.o
+	$(RM) $(OBJDIR)/src/*.d
 	$(RM) $(OBJDIR)/test
 	$(RM) $(OBJDIR)-opt/*.o
 	$(RM) $(OBJDIR)-opt/*.d

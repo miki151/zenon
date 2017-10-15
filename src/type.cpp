@@ -64,19 +64,19 @@ bool ReferenceType::operator == (const ReferenceType& o) const {
   return underlying == o.underlying;
 }
 
-static optional<Type> getOperationResult(BinaryOperator op, const Type& underlyingOperands) {
+static optional<Type> getOperationResult(Operator op, const Type& underlyingOperands) {
   switch (op) {
-    case BinaryOperator::PLUS:
-    case BinaryOperator::MINUS:
+    case Operator::PLUS:
+    case Operator::MINUS:
       if (underlyingOperands == ArithmeticType::INT)
         return Type(ArithmeticType::INT);
       return none;
-    case BinaryOperator::LESS_THAN:
-    case BinaryOperator::MORE_THAN:
+    case Operator::LESS_THAN:
+    case Operator::MORE_THAN:
       if (underlyingOperands == ArithmeticType::INT)
         return Type(ArithmeticType::BOOL);
       return none;
-    case BinaryOperator::EQUALS:
+    case Operator::EQUALS:
       if (underlyingOperands == ArithmeticType::INT || underlyingOperands == ArithmeticType::BOOL)
         return Type(ArithmeticType::BOOL);
       return none;
@@ -85,9 +85,9 @@ static optional<Type> getOperationResult(BinaryOperator op, const Type& underlyi
   }
 }
 
-Type getOperationResult(CodeLoc codeLoc, BinaryOperator op, const Type& left, const Type& right) {
+Type getOperationResult(CodeLoc codeLoc, Operator op, const Type& left, const Type& right) {
   switch (op) {
-    case BinaryOperator::MEMBER_ACCESS:
+    case Operator::MEMBER_ACCESS:
       if (auto memberInfo = right.getReferenceMaybe<MemberAccess>()) {
         auto leftUnderlying = getUnderlying(left);
         if (auto structInfo = leftUnderlying.getReferenceMaybe<StructType>()) {
@@ -105,18 +105,18 @@ Type getOperationResult(CodeLoc codeLoc, BinaryOperator op, const Type& left, co
       }
       codeLoc.error("Bad use of operator " + quote("."));
       return {};
-    case BinaryOperator::ASSIGNMENT:
+    case Operator::ASSIGNMENT:
       if (getUnderlying(left) == getUnderlying(right) && left.contains<ReferenceType>())
         return left;
       else {
         codeLoc.error("Can't assign " + quote(getName(right)) + " to " + quote(getName(left)));
         return {};
       }
-    case BinaryOperator::LESS_THAN:
-    case BinaryOperator::MORE_THAN:
-    case BinaryOperator::PLUS:
-    case BinaryOperator::EQUALS:
-    case BinaryOperator::MINUS: {
+    case Operator::LESS_THAN:
+    case Operator::MORE_THAN:
+    case Operator::PLUS:
+    case Operator::EQUALS:
+    case Operator::MINUS: {
       auto operand = getUnderlying(left);
       if (operand == getUnderlying(right))
         if (auto res = getOperationResult(op, operand))

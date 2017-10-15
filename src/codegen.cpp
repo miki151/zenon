@@ -51,10 +51,10 @@ void BinaryExpression::codegen(Accu& accu) const {
   e1->codegen(accu);
   accu.add(") ");
   accu.add(getString(op));
-  if (op != BinaryOperator::MEMBER_ACCESS)
+  if (op != Operator::MEMBER_ACCESS)
     accu.add(" (");
   e2->codegen(accu);
-  if (op != BinaryOperator::MEMBER_ACCESS)
+  if (op != Operator::MEMBER_ACCESS)
     accu.add(")");
 }
 
@@ -289,4 +289,9 @@ void SwitchStatement::codegen(Accu& accu) const {
   }
   --accu.indent;
   accu.newLine("}}");
+}
+
+void UnaryExpression::codegen(Accu& accu) const {
+  accu.add(getString(op));
+  expr->codegen(accu);
 }

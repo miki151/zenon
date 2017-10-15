@@ -3,7 +3,7 @@
 #include <deque>
 #include "variant.h"
 #include "code_loc.h"
-#include "binary_operator.h"
+#include "operator.h"
 
 class Token;
 
@@ -44,7 +44,7 @@ extern Keyword getKeyword(const string&);
 string getString(Token);
 extern vector<string> getAllKeywords();
 
-class Token : public variant<Number, IdentifierToken, Keyword, BinaryOperator, Unknown> {
+class Token : public variant<Number, IdentifierToken, Keyword, Operator, Unknown> {
   public:
   using variant::variant;
   string value;

@@ -6,7 +6,7 @@ using namespace std;
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
 
-BinaryExpression::BinaryExpression(CodeLoc loc, BinaryOperator o, unique_ptr<Expression> u1, unique_ptr<Expression> u2)
+BinaryExpression::BinaryExpression(CodeLoc loc, Operator o, unique_ptr<Expression> u1, unique_ptr<Expression> u2)
     : Expression(loc), op(o) {
   e1 = std::move(u1);
   e2 = std::move(u2);
@@ -339,4 +339,11 @@ bool SwitchStatement::hasReturnStatement(const State& state) const {
   if (defaultBlock && !defaultBlock->hasReturnStatement(state))
     return false;
   return true;
+}
+
+UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
+    : Expression(l), op(o), expr(std::move(e)) {}
+
+Type UnaryExpression::getType(const State& state) {
+  return expr->getType(state);
 }

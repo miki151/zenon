@@ -4,7 +4,7 @@
 #include "variant.h"
 #include "code_loc.h"
 #include "state.h"
-#include "binary_operator.h"
+#include "operator.h"
 #include "identifier.h"
 #include "function_call_type.h"
 
@@ -45,11 +45,19 @@ struct MemberAccessType : Expression {
 };
 
 struct BinaryExpression : Expression {
-  BinaryExpression(CodeLoc, BinaryOperator, unique_ptr<Expression>, unique_ptr<Expression>);
+  BinaryExpression(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>);
   virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
-  BinaryOperator op;
+  Operator op;
   unique_ptr<Expression> e1, e2;
+};
+
+struct UnaryExpression : Expression {
+  UnaryExpression(CodeLoc, Operator, unique_ptr<Expression>);
+  virtual Type getType(const State&) override;
+  virtual void codegen(Accu&) const override;
+  Operator op;
+  unique_ptr<Expression> expr;
 };
 
 struct FunctionCall : Expression {

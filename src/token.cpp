@@ -1,6 +1,6 @@
 #include <unordered_map>
 #include "token.h"
-#include "binary_operator.h"
+#include "operator.h"
 #include "util.h"
 
 using namespace std;
@@ -56,7 +56,7 @@ string getString(Token t) {
       [](const IdentifierToken&) {
         return "identifier";
       },
-      [](BinaryOperator op) {
+      [](Operator op) {
         return getString(op);
       },
       [](Unknown) {
