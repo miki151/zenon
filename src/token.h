@@ -32,7 +32,8 @@ enum class Keyword {
   VARIANT,
   NAMESPACE_ACCESS,
   SWITCH,
-  CASE
+  CASE,
+  DEFAULT
 };
 
 struct Unknown {
@@ -53,7 +54,7 @@ class Token : public variant<Number, IdentifierToken, Keyword, BinaryOperator, U
 class Tokens {
   public:
   Tokens(std::vector<Token>);
-  const Token& peek(string expected = "") const;
+  Token peek(string expected = "") const;
   Token popNext(string expected = "");
   const Token& peekPrevious() const;
   bool empty() const;

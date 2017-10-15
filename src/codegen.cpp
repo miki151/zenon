@@ -278,7 +278,15 @@ void SwitchStatement::codegen(Accu& accu) const {
     --accu.indent;
     accu.newLine("}");
   }
-
+  if (defaultBlock) {
+    accu.newLine("default: {");
+    ++accu.indent;
+    accu.newLine();
+    defaultBlock->codegen(accu);
+    accu.newLine("break;");
+    --accu.indent;
+    accu.newLine("}");
+  }
   --accu.indent;
   accu.newLine("}}");
 }

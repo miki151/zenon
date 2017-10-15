@@ -206,7 +206,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             auto ifTrue = parseStatement(tokens);
             unique_ptr<Statement> ifFalse;
             if (!tokens.empty()) {
-              auto& token2 = tokens.peek();
+              auto token2 = tokens.peek();
               if (auto k1 = token2.getReferenceMaybe<Keyword>())
                 if (*k1 == Keyword::ELSE) {
                   tokens.popNext();
@@ -263,24 +263,30 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
                 tokens.popNext();
                 break;
               }
-              tokens.eat(Keyword::CASE);
-              tokens.eat(Keyword::OPEN_BRACKET);
-              token2 = tokens.popNext("case statement");
-              token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected type identifier, got "
-                  + quote(token2.value));
-              SwitchStatement::CaseElem caseElem;
-              caseElem.codeloc = token2.codeLoc;
-              caseElem.type = token2.value;
-              token2 = tokens.popNext("case statement");
-              if (token2 != Keyword::CLOSE_BRACKET) {
-                token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected variable identifier, got "
+              if (token2 == Keyword::DEFAULT) {
+                tokens.popNext();
+                tokens.eat(Keyword::OPEN_BLOCK);
+                ret->defaultBlock = parseBlock(tokens);
+              } else {
+                tokens.eat(Keyword::CASE);
+                tokens.eat(Keyword::OPEN_BRACKET);
+                token2 = tokens.popNext("case statement");
+                token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected type identifier, got "
                     + quote(token2.value));
-                caseElem.id = token2.value;
-                tokens.eat(Keyword::CLOSE_BRACKET);
+                SwitchStatement::CaseElem caseElem;
+                caseElem.codeloc = token2.codeLoc;
+                caseElem.type = token2.value;
+                token2 = tokens.popNext("case statement");
+                if (token2 != Keyword::CLOSE_BRACKET) {
+                  token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected variable identifier, got "
+                      + quote(token2.value));
+                  caseElem.id = token2.value;
+                  tokens.eat(Keyword::CLOSE_BRACKET);
+                }
+                tokens.eat(Keyword::OPEN_BLOCK);
+                caseElem.block = parseBlock(tokens);
+                ret->caseElems.push_back(std::move(caseElem));
               }
-              tokens.eat(Keyword::OPEN_BLOCK);
-              caseElem.block = parseBlock(tokens);
-              ret->caseElems.push_back(std::move(caseElem));
             }
             return ret;
           }

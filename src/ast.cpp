@@ -329,6 +329,7 @@ void SwitchStatement::check(State& state) {
     codeLoc.check(unhandled.empty(), quote(getName(exprType)) + " subtypes " + combine(unhandled, ", ")
         + " not handled in switch statement");
   }
+  defaultBlock->check(state);
 }
 
 bool SwitchStatement::hasReturnStatement(const State& state) const {

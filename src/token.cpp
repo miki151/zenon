@@ -16,6 +16,7 @@ static const unordered_map<string, Keyword> keywords {
   {"variant", Keyword::VARIANT},
   {"switch", Keyword::SWITCH},
   {"case", Keyword::CASE},
+  {"default", Keyword::DEFAULT},
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},
   {")", Keyword::CLOSE_BRACKET},
@@ -66,7 +67,7 @@ string getString(Token t) {
 
 Tokens::Tokens(std::vector<Token> d) : data(d) {}
 
-const Token& Tokens::peek(string expected) const {
+Token Tokens::peek(string expected) const {
   if (!expected.empty()) {
     check(index < data.size(), "Expected " + quote(expected) + ", got end-of-file.");
   } else
@@ -110,7 +111,7 @@ void Tokens::check(bool b, const string& e) const {
 void Tokens::eat(Token t) {
   auto expected = "Expected "s + quote(getString(t));
   check(!empty(), expected + ", got EOF.");
-  auto& token = peek();
+  auto token = peek();
   check(token == t, expected + ", got " + quote(token.value));
   popNext();
 }
