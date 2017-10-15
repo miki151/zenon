@@ -330,3 +330,12 @@ void SwitchStatement::check(State& state) {
         + " not handled in switch statement");
   }
 }
+
+bool SwitchStatement::hasReturnStatement(const State& state) const {
+  for (auto& elem : caseElems)
+    if (!elem.block->hasReturnStatement(state))
+      return false;
+  if (defaultBlock && !defaultBlock->hasReturnStatement(state))
+    return false;
+  return true;
+}

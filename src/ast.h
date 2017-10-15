@@ -173,6 +173,7 @@ struct SwitchStatement : Statement {
   unique_ptr<Expression> expr;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
+  virtual bool hasReturnStatement(const State&) const override;
 };
 
 struct FunctionDefinition : Statement {
