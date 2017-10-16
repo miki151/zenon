@@ -269,6 +269,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
                 break;
               }
               if (token2 == Keyword::DEFAULT) {
+                token2.codeLoc.check(!ret->defaultBlock, "Default switch statement is repeated");
                 tokens.popNext();
                 tokens.eat(Keyword::OPEN_BLOCK);
                 ret->defaultBlock = parseBlock(tokens);

@@ -328,7 +328,9 @@ void SwitchStatement::check(State& state) {
         unhandled.push_back(quote(elem.first));
     codeLoc.check(unhandled.empty(), quote(getName(exprType)) + " subtypes " + combine(unhandled, ", ")
         + " not handled in switch statement");
-  }
+  } else
+    defaultBlock->codeLoc.check(handledTypes.size() < inputType->types.size(), "Default switch statement unnecessary when all "
+        "variant cases are handled");
   defaultBlock->check(state);
 }
 
