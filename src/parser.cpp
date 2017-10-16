@@ -193,6 +193,98 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens) {
   return ret;
 }
 
+unique_ptr<IfStatement> parseIfStatement(Token token, Tokens& tokens) {
+  tokens.eat(Keyword::OPEN_BRACKET);
+  auto cond = parseExpression(tokens);
+  tokens.eat(Keyword::CLOSE_BRACKET);
+  auto ifTrue = parseStatement(tokens);
+  unique_ptr<Statement> ifFalse;
+  if (!tokens.empty()) {
+    auto token2 = tokens.peek();
+    if (auto k1 = token2.getReferenceMaybe<Keyword>())
+      if (*k1 == Keyword::ELSE) {
+        tokens.popNext();
+        ifFalse = parseStatement(tokens);
+      }
+  }
+  return unique<IfStatement>(token.codeLoc, std::move(cond), std::move(ifTrue), std::move(ifFalse));
+}
+
+unique_ptr<ReturnStatement> parseReturnStatement(Token token, Tokens& tokens) {
+  auto ret = unique<ReturnStatement>(token.codeLoc);
+  auto token2 = tokens.peek("expression or " + quote(";"));
+  if (auto keyword = token2.getReferenceMaybe<Keyword>())
+    if (*keyword == Keyword::SEMICOLON) {
+      tokens.eat(Keyword::SEMICOLON);
+      return ret;
+    }
+  ret->expr = parseExpression(tokens);
+  tokens.eat(Keyword::SEMICOLON);
+  return ret;
+}
+
+unique_ptr<VariantDefinition> parseVariantDefinition(Tokens& tokens) {
+  auto nameToken = tokens.popNext("variant name");
+  nameToken.codeLoc.check(nameToken.contains<IdentifierToken>(), "Expected variant name");
+  auto ret = unique<VariantDefinition>(nameToken.codeLoc, nameToken.value);
+  tokens.eat(Keyword::OPEN_BLOCK);
+  while (1) {
+    auto token2 = tokens.popNext("variant definition");
+    if (token2 == Keyword::CLOSE_BLOCK)
+      break;
+    else if (token2 == Keyword::STRUCT)
+      ret->subtypes.push_back(VariantDefinition::Subtype{parseStructDefinition(tokens), token2.codeLoc});
+    else {
+      token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected type identifier or struct definition");
+      ret->subtypes.push_back(VariantDefinition::Subtype{token2.value, token2.codeLoc});
+      tokens.eat(Keyword::SEMICOLON);
+    }
+  }
+  tokens.eat(Keyword::SEMICOLON);
+  return ret;
+}
+
+unique_ptr<SwitchStatement> parseSwitchStatement(Token token, Tokens& tokens) {
+  tokens.eat(Keyword::OPEN_BRACKET);
+  auto expr = parseExpression(tokens);
+  tokens.eat(Keyword::CLOSE_BRACKET);
+  tokens.eat(Keyword::OPEN_BLOCK);
+  auto ret = unique<SwitchStatement>(token.codeLoc, std::move(expr));
+  while (1) {
+    auto token2 = tokens.peek("switch body");
+    if (token2 == Keyword::CLOSE_BLOCK) {
+      tokens.popNext();
+      break;
+    }
+    if (token2 == Keyword::DEFAULT) {
+      token2.codeLoc.check(!ret->defaultBlock, "Default switch statement is repeated");
+      tokens.popNext();
+      tokens.eat(Keyword::OPEN_BLOCK);
+      ret->defaultBlock = parseBlock(tokens);
+    } else {
+      tokens.eat(Keyword::CASE);
+      tokens.eat(Keyword::OPEN_BRACKET);
+      token2 = tokens.popNext("case statement");
+      token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected type identifier, got "
+          + quote(token2.value));
+      SwitchStatement::CaseElem caseElem;
+      caseElem.codeloc = token2.codeLoc;
+      caseElem.type = token2.value;
+      token2 = tokens.popNext("case statement");
+      if (token2 != Keyword::CLOSE_BRACKET) {
+        token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected variable identifier, got "
+            + quote(token2.value));
+        caseElem.id = token2.value;
+        tokens.eat(Keyword::CLOSE_BRACKET);
+      }
+      tokens.eat(Keyword::OPEN_BLOCK);
+      caseElem.block = parseBlock(tokens);
+      ret->caseElems.push_back(std::move(caseElem));
+    }
+  }
+  return ret;
+}
+
 unique_ptr<Statement> parseStatement(Tokens& tokens) {
   auto token = tokens.popNext("statement");
   auto rewindAndParseExpression = [&] {
@@ -204,98 +296,18 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
   return token.visit(
       [&](const Keyword& k) -> unique_ptr<Statement> {
         switch (k) {
-          case Keyword::IF: {
-            tokens.eat(Keyword::OPEN_BRACKET);
-            auto cond = parseExpression(tokens);
-            tokens.eat(Keyword::CLOSE_BRACKET);
-            auto ifTrue = parseStatement(tokens);
-            unique_ptr<Statement> ifFalse;
-            if (!tokens.empty()) {
-              auto token2 = tokens.peek();
-              if (auto k1 = token2.getReferenceMaybe<Keyword>())
-                if (*k1 == Keyword::ELSE) {
-                  tokens.popNext();
-                  ifFalse = parseStatement(tokens);
-                }
-            }
-            return unique<IfStatement>(token.codeLoc, std::move(cond), std::move(ifTrue), std::move(ifFalse));
-          }
+          case Keyword::IF:
+            return parseIfStatement(token, tokens);
           case Keyword::OPEN_BLOCK:
             return parseBlock(tokens);
-          case Keyword::RETURN: {
-            auto ret = unique<ReturnStatement>(token.codeLoc);
-            auto token2 = tokens.peek("expression or " + quote(";"));
-            if (auto keyword = token2.getReferenceMaybe<Keyword>())
-              if (*keyword == Keyword::SEMICOLON) {
-                tokens.eat(Keyword::SEMICOLON);
-                return ret;
-              }
-            ret->expr = parseExpression(tokens);
-            tokens.eat(Keyword::SEMICOLON);
-            return ret;
-          }
+          case Keyword::RETURN:
+            return parseReturnStatement(token, tokens);
           case Keyword::STRUCT:
             return parseStructDefinition(tokens);
-          case Keyword::VARIANT: {
-            auto nameToken = tokens.popNext("variant name");
-            nameToken.codeLoc.check(nameToken.contains<IdentifierToken>(), "Expected variant name");
-            auto ret = unique<VariantDefinition>(nameToken.codeLoc, nameToken.value);
-            tokens.eat(Keyword::OPEN_BLOCK);
-            while (1) {
-              auto token2 = tokens.popNext("variant definition");
-              if (token2 == Keyword::CLOSE_BLOCK)
-                break;
-              else if (token2 == Keyword::STRUCT)
-                ret->subtypes.push_back(VariantDefinition::Subtype{parseStructDefinition(tokens), token2.codeLoc});
-              else {
-                token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected type identifier or struct definition");
-                ret->subtypes.push_back(VariantDefinition::Subtype{token2.value, token2.codeLoc});
-                tokens.eat(Keyword::SEMICOLON);
-              }
-            }
-            tokens.eat(Keyword::SEMICOLON);
-            return ret;
-          }
-          case Keyword::SWITCH: {
-            tokens.eat(Keyword::OPEN_BRACKET);
-            auto expr = parseExpression(tokens);
-            tokens.eat(Keyword::CLOSE_BRACKET);
-            tokens.eat(Keyword::OPEN_BLOCK);
-            auto ret = unique<SwitchStatement>(token.codeLoc, std::move(expr));
-            while (1) {
-              auto token2 = tokens.peek("switch body");
-              if (token2 == Keyword::CLOSE_BLOCK) {
-                tokens.popNext();
-                break;
-              }
-              if (token2 == Keyword::DEFAULT) {
-                token2.codeLoc.check(!ret->defaultBlock, "Default switch statement is repeated");
-                tokens.popNext();
-                tokens.eat(Keyword::OPEN_BLOCK);
-                ret->defaultBlock = parseBlock(tokens);
-              } else {
-                tokens.eat(Keyword::CASE);
-                tokens.eat(Keyword::OPEN_BRACKET);
-                token2 = tokens.popNext("case statement");
-                token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected type identifier, got "
-                    + quote(token2.value));
-                SwitchStatement::CaseElem caseElem;
-                caseElem.codeloc = token2.codeLoc;
-                caseElem.type = token2.value;
-                token2 = tokens.popNext("case statement");
-                if (token2 != Keyword::CLOSE_BRACKET) {
-                  token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected variable identifier, got "
-                      + quote(token2.value));
-                  caseElem.id = token2.value;
-                  tokens.eat(Keyword::CLOSE_BRACKET);
-                }
-                tokens.eat(Keyword::OPEN_BLOCK);
-                caseElem.block = parseBlock(tokens);
-                ret->caseElems.push_back(std::move(caseElem));
-              }
-            }
-            return ret;
-          }
+          case Keyword::VARIANT:
+            return parseVariantDefinition(tokens);
+          case Keyword::SWITCH:
+            return parseSwitchStatement(token, tokens);
           case Keyword::EMBED: {
             auto content = tokens.popNext("Embedded statement");
             return unique<EmbedInclude>(content.codeLoc, content.value);

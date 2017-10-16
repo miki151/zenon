@@ -140,6 +140,8 @@ struct ExpressionStatement : Statement {
   virtual void codegen(Accu&) const override;
 };
 
+struct FunctionDefinition;
+
 struct StructDefinition : Statement {
   StructDefinition(CodeLoc, string name);
   string name;
@@ -149,6 +151,7 @@ struct StructDefinition : Statement {
     CodeLoc codeLoc;
   };
   vector<Member> members;
+  vector<FunctionDefinition> methods;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual bool allowTopLevel() const override { return true; }
