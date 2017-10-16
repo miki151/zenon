@@ -79,7 +79,7 @@ struct FunctionCallNamedArgs : Expression {
     string name;
     unique_ptr<Expression> expr;
   };
-  bool constructor;
+  FunctionCallType callType;
   vector<Argument> arguments;
 };
 

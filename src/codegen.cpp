@@ -109,7 +109,8 @@ void ReturnStatement::codegen(Accu& accu) const {
 // variant { variant::enumId, { variant::identifier{args}}}
 
 
-void FunctionCall::codegen(Accu& accu) const {
+static void genFunctionCall(Accu& accu, IdentifierInfo identifier, FunctionCallType callType,
+    vector<Expression*> arguments) {
   string prefix;
   string suffix;
   string id = identifier.toString();
@@ -139,17 +140,12 @@ void FunctionCall::codegen(Accu& accu) const {
   accu.add(suffix);
 }
 
+void FunctionCall::codegen(Accu& accu) const {
+  genFunctionCall(accu, identifier, callType, extractRefs(arguments));
+}
+
 void FunctionCallNamedArgs::codegen(Accu& accu) const {
-/*  accu.add(name + (constructor ? "{" : "("));
-  for (auto& arg : arguments) {
-    arg.expr->codegen(accu);
-    accu.add(", ");
-  }
-  if (!arguments.empty()) {
-    accu.pop_back();
-    accu.pop_back();
-  }
-  accu.add(constructor ? "}" : ")");*/
+  genFunctionCall(accu, identifier, callType, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
 }
 
 void FunctionDefinition::codegen(Accu& accu) const {

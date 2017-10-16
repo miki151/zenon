@@ -69,3 +69,12 @@ auto transform(const vector<T>& v, Fun fun) {
     ret.push_back(fun(elem));
   return ret;
 }
+
+template<class T>
+vector<T*> extractRefs(const vector<unique_ptr<T>>& v) {
+  vector<T*> ret;
+  ret.reserve(v.size());
+  for (auto& el : v)
+    ret.push_back(el.get());
+  return ret;
+}

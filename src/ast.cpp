@@ -47,33 +47,6 @@ Type Variable::getType(const State& state) {
   return {};
 }
 
-Type FunctionCall::getType(const State& state) {
-  if (auto type = state.getTypeOfVariable(identifier))
-    return type->visit(
-        [&](const FunctionType& t) {
-          int numParams = (int) t.params.size();
-          codeLoc.check(arguments.size() == numParams,
-               "Expected " + to_string(numParams) + " arguments, got " + to_string(arguments.size()));
-          for (int i = 0; i < numParams; ++i) {
-            auto argType = arguments[i]->getType(state);
-            auto& paramType = t.params[i];
-            arguments[i]->codeLoc.check(canAssign(ReferenceType(*paramType.type), argType),
-                "Function call argument " + to_string(i + 1) + " mismatch: expected "s
-                + quote(getName(*paramType.type)) + ", got " + quote(getName(argType)));
-          }
-          callType = t.callType;
-          return *t.retVal;
-        },
-        [&](const auto&) -> Type {
-          codeLoc.error("Trying to call a non-function type");
-          return {};
-        }
-    );
-  else
-    codeLoc.error("Function not found: " + quote(identifier.toString()));
-  return {};
-}
-
 Type BinaryExpression::getType(const State& state) {
   auto leftType = e1->getType(state);
   auto rightType = e2->getType(state);
@@ -206,10 +179,37 @@ Type MemberAccessType::getType(const State&) {
   return MemberAccess(name);
 }
 
+Type FunctionCall::getType(const State& state) {
+  if (auto type = state.getTypeOfVariable(identifier))
+    return type->visit(
+        [&](const FunctionType& t) {
+          int numParams = (int) t.params.size();
+          codeLoc.check(arguments.size() == numParams,
+               "Expected " + to_string(numParams) + " arguments, got " + to_string(arguments.size()));
+          for (int i = 0; i < numParams; ++i) {
+            auto argType = arguments[i]->getType(state);
+            auto& paramType = t.params[i];
+            arguments[i]->codeLoc.check(canAssign(ReferenceType(*paramType.type), argType),
+                "Function call argument " + to_string(i + 1) + " mismatch: expected "s
+                + quote(getName(*paramType.type)) + ", got " + quote(getName(argType)));
+          }
+          callType = t.callType;
+          return *t.retVal;
+        },
+        [&](const auto&) -> Type {
+          codeLoc.error("Trying to call a non-function type");
+          return {};
+        }
+    );
+  else
+    codeLoc.error("Function not found: " + quote(identifier.toString()));
+  return {};
+}
+
 FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {}
 
 Type FunctionCallNamedArgs::getType(const State& state) {
-/*  if (auto type = state.getTypeOfVariable(name))
+  if (auto type = state.getTypeOfVariable(identifier))
     return type->visit(
         [&](const FunctionType& t) {
           map<string, Type> toInitialize;
@@ -222,7 +222,7 @@ Type FunctionCallNamedArgs::getType(const State& state) {
           }
           for (auto& elem : arguments) {
             elem.codeLoc.check(toInitialize.count(elem.name), "No parameter named " + quote(elem.name)
-                + " in function " + quote(name));
+                + " in function " + quote(identifier.toString()));
             elem.codeLoc.check(!initialized.count(elem.name), "Parameter " + quote(elem.name) + " listed more than once");
             auto exprType = elem.expr->getType(state);
             auto paramType = toInitialize.at(elem.name);
@@ -235,10 +235,11 @@ Type FunctionCallNamedArgs::getType(const State& state) {
           for (auto& elem : toInitialize)
             if (!initialized.count(elem.first))
               notInitialized.push_back("" + quote(elem.first));
-          codeLoc.check(notInitialized.empty(), "Function parameters: " + combine(notInitialized) + " were not initialized" );
+          codeLoc.check(notInitialized.empty(), "Function parameters: " + combine(notInitialized, ",")
+              + " were not initialized" );
           sort(arguments.begin(), arguments.end(),
               [&](const Argument& m1, const Argument& m2) { return paramIndex[m1.name] < paramIndex[m2.name]; });
-          constructor = (t.target == FunctionType::CONSTRUCTOR);
+          callType = t.callType;
           return *t.retVal;
         },
         [&](const auto&) -> Type {
@@ -247,7 +248,7 @@ Type FunctionCallNamedArgs::getType(const State& state) {
         }
     );
   else
-    codeLoc.error("Function not found: " + quote(name));*/
+    codeLoc.error("Function not found: " + quote(identifier.toString()));
   return {};
 }
 

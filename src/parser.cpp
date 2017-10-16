@@ -5,25 +5,30 @@
 
 unique_ptr<Expression> parseExpression(Tokens&);
 
-/*unique_ptr<FunctionCallNamedArgs> parseFunctionCallWithNamedArguments(Tokens& tokens) {
-  auto token = tokens.popNext("function call");
-  auto ret = unique<FunctionCallNamedArgs>(token.codeLoc, token.value);
+unique_ptr<FunctionCallNamedArgs> parseFunctionCallWithNamedArguments(IdentifierInfo id, Tokens& tokens) {
+  auto ret = unique<FunctionCallNamedArgs>(tokens.peek("function call").codeLoc, id);
+  tokens.eat(Keyword::OPEN_BRACKET);
   tokens.eat(Keyword::OPEN_BLOCK);
   while (tokens.peek("function call argument") != Keyword::CLOSE_BLOCK) {
-    token = tokens.popNext("function parameter initializer");
+    auto token = tokens.popNext("function parameter initializer");
     token.codeLoc.check(token.contains<IdentifierToken>(), "function parameter expected");
-    tokens.eat(BinaryOperator::ASSIGNMENT);
+    tokens.eat(Operator::ASSIGNMENT);
     ret->arguments.push_back({token.codeLoc, token.value, parseExpression(tokens)});
     if (tokens.peek("function parameter") == Keyword::COMMA)
       tokens.popNext();
   }
   tokens.eat(Keyword::CLOSE_BLOCK);
+  tokens.eat(Keyword::CLOSE_BRACKET);
   return ret;
-}*/
+}
 
-unique_ptr<FunctionCall> parseFunctionCall(IdentifierInfo id, Tokens& tokens) {
+unique_ptr<Expression> parseFunctionCall(IdentifierInfo id, Tokens& tokens) {
   auto ret = unique<FunctionCall>(tokens.peek("function call").codeLoc, id);
   tokens.eat(Keyword::OPEN_BRACKET);
+  if (tokens.peek("function call") == Keyword::OPEN_BLOCK) {
+    tokens.rewind();
+    return parseFunctionCallWithNamedArguments(id, tokens);
+  }
   while (tokens.peek("function call argument") != Keyword::CLOSE_BRACKET) {
     ret->arguments.push_back(parseExpression(tokens));
     if (tokens.peek("function call argument") == Keyword::COMMA)
@@ -59,13 +64,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<Operator> preceding
         if (token2 == Keyword::OPEN_BRACKET) {
           auto ret = parseFunctionCall(identifier, tokens);
           return ret;
-        }/* else
-        if (token2 == Keyword::OPEN_BLOCK) {
-          tokens.rewind();
-          auto ret = parseFunctionCallWithNamedArguments(tokens);
-          ret->space = space;
-          return ret;
-        }*/
+        } else
         if (precedingOp != Operator::MEMBER_ACCESS)
           return unique<Variable>(token.codeLoc, identifier);
         else
