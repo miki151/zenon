@@ -33,7 +33,8 @@ enum class Keyword {
   NAMESPACE_ACCESS,
   SWITCH,
   CASE,
-  DEFAULT
+  DEFAULT,
+  MAYBE
 };
 
 struct Unknown {

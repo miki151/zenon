@@ -17,6 +17,7 @@ static const unordered_map<string, Keyword> keywords {
   {"switch", Keyword::SWITCH},
   {"case", Keyword::CASE},
   {"default", Keyword::DEFAULT},
+  {"?", Keyword::MAYBE},
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},
   {")", Keyword::CLOSE_BRACKET},

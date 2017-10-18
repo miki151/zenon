@@ -284,6 +284,25 @@ unique_ptr<SwitchStatement> parseSwitchStatement(Token token, Tokens& tokens) {
   return ret;
 }
 
+unique_ptr<Statement> parseVariableDeclaration(Token token, Tokens& tokens) {
+  auto token2 = tokens.peek("identifier");
+  if (token2.contains<IdentifierToken>()) {
+    tokens.popNext("identifier");
+    if (tokens.peek("variable or function declaration") == Keyword::OPEN_BRACKET) {
+      tokens.rewind();
+      return parseFunctionDefinition(token, tokens);
+    }
+    unique_ptr<Expression> initExpression;
+    if (tokens.peek("expression or " + quote(";")) != Keyword::SEMICOLON) {
+      tokens.eat(Operator::ASSIGNMENT);
+      initExpression = parseExpression(tokens);
+    }
+    tokens.eat(Keyword::SEMICOLON);
+    return unique<VariableDeclaration>(token.codeLoc, token.value, token2.value, std::move(initExpression));
+  } else
+    return {};
+}
+
 unique_ptr<Statement> parseStatement(Tokens& tokens) {
   auto token = tokens.popNext("statement");
   auto rewindAndParseExpression = [&] {
@@ -317,21 +336,9 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
         }
       },
       [&](const IdentifierToken&) -> unique_ptr<Statement> {
-        auto token2 = tokens.peek("identifier");
-        if (token2.contains<IdentifierToken>()) {
-          tokens.popNext("identifier");
-          if (tokens.peek("variable or function declaration") == Keyword::OPEN_BRACKET) {
-            tokens.rewind();
-            return parseFunctionDefinition(token, tokens);
-          }
-          unique_ptr<Expression> initExpression;
-          if (tokens.peek("expression or " + quote(";")) != Keyword::SEMICOLON) {
-            tokens.eat(Operator::ASSIGNMENT);
-            initExpression = parseExpression(tokens);
-          }
-          tokens.eat(Keyword::SEMICOLON);
-          return unique<VariableDeclaration>(token.codeLoc, token.value, token2.value, std::move(initExpression));
-        } else
+        if (auto decl = parseVariableDeclaration(token, tokens))
+          return decl;
+        else
           return rewindAndParseExpression();
       },
       [&](const auto&) -> unique_ptr<Statement> {
