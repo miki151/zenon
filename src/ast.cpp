@@ -243,8 +243,9 @@ void EmbedInclude::check(State&) {
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
 void SwitchStatement::check(State& state) {
-  auto exprType = expr->getType(state);
+  auto exprType = getUnderlying(expr->getType(state));
   auto inputType = exprType.getReferenceMaybe<VariantType>();
+  expr->codeLoc.check(!!inputType, "Expected a variant type, got " + quote(getName(exprType)));
   subtypesPrefix = inputType->name;
   if (!inputType->instantiatedParams.empty()) {
     subtypesPrefix += "<";

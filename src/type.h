@@ -89,3 +89,4 @@ extern optional<Type> instantiate(const Type&, vector<Type> templateParams, vect
 extern optional<FunctionType> instantiate(FunctionType, vector<Type> templateParams,
     vector<IdentifierInfo> templateParamNames);
 extern optional<FunctionType> getStaticMethod(const Type&, string name);
+extern Type getUnderlying(Type);

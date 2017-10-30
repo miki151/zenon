@@ -62,7 +62,7 @@ bool FunctionType::operator == (const FunctionType& o) const {
   return id == o.id;
 }
 
-static Type getUnderlying(Type type) {
+Type getUnderlying(Type type) {
   return type.visit(
       [&](const ReferenceType& t) -> Type {
         return getUnderlying(*t.underlying);
