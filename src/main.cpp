@@ -46,5 +46,6 @@ int main(int argc, char* argv[]) {
     );*/
   auto ast = parse(tokens);
   correctness(ast);
+  cerr << codegen(ast);
   cout << codegen(ast);
 }

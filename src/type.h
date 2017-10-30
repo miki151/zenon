@@ -14,19 +14,6 @@ enum class ArithmeticType {
   VOID
 };
 
-struct FunctionType {
-  struct Param {
-    string name;
-    HeapAllocated<Type> type;
-  };
-  FunctionType(FunctionCallType, Type returnType, vector<Param>);
-  FunctionCallType callType;
-  HeapAllocated<Type> retVal;
-  vector<Param> params;
-  int id;
-  bool operator == (const FunctionType&) const;
-};
-
 struct ReferenceType {
   ReferenceType(Type);
   HeapAllocated<Type> underlying;
@@ -40,6 +27,26 @@ struct MemberAccess {
   bool operator == (const MemberAccess&) const;
 };
 
+struct TemplateParameter {
+  TemplateParameter(string name);
+  string name;
+  int id;
+  bool operator == (const TemplateParameter&) const;
+};
+
+struct FunctionType;
+
+struct VariantType {
+  VariantType(string name);
+  string name;
+  int id;
+  map<string, Type> types;
+  vector<TemplateParameter> templateParams;
+  map<int, string> instantiatedParams;
+  vector<pair<string, FunctionType>> staticMethods;
+  bool operator == (const VariantType&) const;
+};
+
 struct StructType {
   StructType(string name);
   string name;
@@ -49,19 +56,27 @@ struct StructType {
     HeapAllocated<Type> type;
   };
   vector<Member> members;
+  vector<TemplateParameter> templateParams;
+  map<int, string> instantiatedParams;
   bool operator == (const StructType&) const;
 };
 
-struct VariantType {
-  VariantType(string name);
-  string name;
-  int id;
-  map<string, Type> types;
-  bool operator == (const VariantType&) const;
+struct Type : variant<ArithmeticType, ReferenceType, StructType, MemberAccess, VariantType, TemplateParameter> {
+  using variant::variant;
 };
 
-struct Type : variant<ArithmeticType, FunctionType, ReferenceType, StructType, MemberAccess, VariantType> {
-  using variant::variant;
+struct FunctionType {
+  struct Param {
+    string name;
+    HeapAllocated<Type> type;
+  };
+  FunctionType(FunctionCallType, Type returnType, vector<Param>, vector<TemplateParameter>);
+  FunctionCallType callType;
+  HeapAllocated<Type> retVal;
+  vector<Param> params;
+  vector<TemplateParameter> templateParams;
+  int id;
+  bool operator == (const FunctionType&) const;
 };
 
 extern string getName(const Type&);
@@ -69,3 +84,8 @@ extern bool canAssign(const Type& to, const Type& from);
 extern Type getOperationResult(CodeLoc, Operator op, const Type& from, const Type& to);
 extern bool canConvert(const Type& from, const Type& to);
 extern bool requiresInitialization(const Type&);
+class IdentifierInfo;
+extern optional<Type> instantiate(const Type&, vector<Type> templateParams, vector<IdentifierInfo> templateParamNames);
+extern optional<FunctionType> instantiate(FunctionType, vector<Type> templateParams,
+    vector<IdentifierInfo> templateParamNames);
+extern optional<FunctionType> getStaticMethod(const Type&, string name);

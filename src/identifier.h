@@ -6,14 +6,22 @@
 #include "token.h"
 
 struct IdentifierInfo {
+  struct IdentifierPart {
+    string name;
+    vector<IdentifierInfo> templateParams;
+    string toString() const;
+    bool operator == (const IdentifierPart&) const;
+    HASH_ALL(name, templateParams)
+  };
   IdentifierInfo(string name);
-  IdentifierInfo(vector<string> namespaces, string name);
-  static IdentifierInfo parseFrom(Token& idToken, Tokens&);
-  vector<string> namespaces;
-  string name;
+  IdentifierInfo(IdentifierPart);
+  //IdentifierInfo(vector<string> namespaces, string name, vector<IdentifierInfo> templateParams = {});
+  static IdentifierInfo parseFrom(Tokens&);
+  vector<IdentifierPart> parts;
+  CodeLoc codeLoc;
   string toString() const;
   bool operator == (const IdentifierInfo&) const;
-  HASH_ALL(name, namespaces)
+  HASH_ALL(parts)
   private:
   IdentifierInfo();
 };

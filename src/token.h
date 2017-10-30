@@ -34,7 +34,8 @@ enum class Keyword {
   SWITCH,
   CASE,
   DEFAULT,
-  MAYBE
+  MAYBE,
+  TEMPLATE
 };
 
 struct Unknown {
@@ -60,9 +61,12 @@ class Tokens {
   const Token& peekPrevious() const;
   bool empty() const;
   void rewind();
+  using Bookmark = int;
+  Bookmark getBookmark() const;
+  void rewind(Bookmark);
   void error(const string&) const;
   void check(bool, const string&) const;
-  void eat(Token);
+  Token eat(Token);
 
   private:
   std::vector<Token> data;

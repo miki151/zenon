@@ -28,12 +28,12 @@ FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identi
   INFO << "Function call " << id.toString();;
 }
 
-VariableDeclaration::VariableDeclaration(CodeLoc l, string t, string id, unique_ptr<Expression> ini)
+VariableDeclaration::VariableDeclaration(CodeLoc l, IdentifierInfo t, string id, unique_ptr<Expression> ini)
     : Statement(l), type(t), identifier(id), initExpr(std::move(ini)) {
-  INFO << "Declared variable " << quote(id) << " of type " << quote(t);
+  INFO << "Declared variable " << quote(id) << " of type " << quote(t.toString());
 }
 
-FunctionDefinition::FunctionDefinition(CodeLoc l, string r, string n) : Statement(l), returnType(r), name(n) {}
+FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, string n) : Statement(l), returnType(r), name(n) {}
 
 Type Constant::getType(const State&) {
   return type;
@@ -70,17 +70,18 @@ void IfStatement::check(State& state) {
 }
 
 void VariableDeclaration::check(State& state) {
-  codeLoc.check(!state.getTypeFromString(identifier), "Variable " + quote(identifier) + " conflicts with an existing type");
+  codeLoc.check(!state.typeNameExists(identifier), "Variable " + quote(identifier) + " conflicts with an existing type");
   if (auto typeId = state.getTypeFromString(type)) {
+    INFO << "Adding variable " << identifier << " of type " << getName(*typeId);
     if (initExpr) {
       auto exprType = initExpr->getType(state);
       initExpr->codeLoc.check(canAssign(ReferenceType(*typeId), exprType), "Can't initialize variable of type "
           + quote(getName(*typeId)) + " with value of type " + quote(getName(exprType)));
     } else
       codeLoc.check(!requiresInitialization(*typeId), "Type " + quote(getName(*typeId)) + " requires initialization");
-    state.setType(identifier, ReferenceType(*typeId));
+    state.addVariable(identifier, ReferenceType(*typeId));
   } else
-    codeLoc.error("Type " + quote(type) + " not recognized");
+    codeLoc.error("Type " + quote(type.toString()) + " not recognized");
 }
 
 void ReturnStatement::check(State& state) {
@@ -117,22 +118,27 @@ bool ReturnStatement::hasReturnStatement(const State&) const {
 void FunctionDefinition::check(State& state) {
   codeLoc.check(!state.getTypeOfVariable(name), "Function name " + quote(name) + " conflicts with existing function");
   State stateCopy = state;
-  if (auto returnType = state.getTypeFromString(this->returnType)) {
+  vector<TemplateParameter> templateTypes;
+  for (auto& param : templateParams) {
+    templateTypes.push_back(TemplateParameter{param});
+    stateCopy.addType(param, templateTypes.back());
+  }
+  if (auto returnType = stateCopy.getTypeFromString(this->returnType)) {
     vector<FunctionType::Param> params;
     for (auto& p : parameters)
-      if (auto paramType = state.getTypeFromString(p.type)) {
-        stateCopy.setType(p.name, *paramType);
+      if (auto paramType = stateCopy.getTypeFromString(p.type)) {
+        stateCopy.addVariable(p.name, *paramType);
         params.push_back({p.name, *paramType});
       } else
-        p.codeLoc.error("Unrecognized parameter type: " + quote(p.type));
-    auto type = FunctionType (FunctionCallType::FUNCTION, *returnType, params );
-    state.setType(name, type);
-    stateCopy.setType(name, type);
+        p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
+    auto type = FunctionType (FunctionCallType::FUNCTION, *returnType, params, templateTypes );
+    state.addFunction(name, type);
+    stateCopy.addFunction(name, type);
     stateCopy.setReturnType(*returnType);
     if (*returnType != ArithmeticType::VOID && !body->hasReturnStatement(state))
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
   } else
-    codeLoc.error("Unrecognized return type: " + this->returnType);
+    codeLoc.error("Unrecognized return type: " + this->returnType.toString());
   body->check(stateCopy);
 }
 
@@ -155,24 +161,6 @@ void ExpressionStatement::check(State& state) {
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-void StructDefinition::check(State& s) {
-  codeLoc.check(!s.getTypeFromString(name), "Type " + quote(name) + " conflicts with an existing type");
-  codeLoc.check(!s.getTypeOfVariable(name), "Type " + quote(name) + " conflicts with an existing variable or function");
-  StructType type(name);
-  for (auto& member : members) {
-    INFO << "Struct member " << member.name << " " << member.type << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
-    if (auto memberType = s.getTypeFromString(member.type))
-      type.members.push_back({member.name, *memberType});
-    else
-      member.codeLoc.error("Type " + quote(member.type) + " not recognized");
-  }
-  s.addType(name, type);
-  vector<FunctionType::Param> constructorParams;
-  for (auto& member : type.members)
-    constructorParams.push_back({member.name, *member.type});
-  s.setType(name, FunctionType(FunctionCallType::CONSTRUCTOR, type, std::move(constructorParams)));
-}
-
 MemberAccessType::MemberAccessType(CodeLoc l, string n) : Expression(l), name(n) {}
 
 Type MemberAccessType::getType(const State&) {
@@ -180,30 +168,20 @@ Type MemberAccessType::getType(const State&) {
 }
 
 Type FunctionCall::getType(const State& state) {
-  if (auto type = state.getTypeOfVariable(identifier))
-    return type->visit(
-        [&](const FunctionType& t) {
-          int numParams = (int) t.params.size();
-          codeLoc.check(arguments.size() == numParams,
-               "Expected " + to_string(numParams) + " arguments, got " + to_string(arguments.size()));
-          for (int i = 0; i < numParams; ++i) {
-            auto argType = arguments[i]->getType(state);
-            auto& paramType = t.params[i];
-            arguments[i]->codeLoc.check(canAssign(ReferenceType(*paramType.type), argType),
-                "Function call argument " + to_string(i + 1) + " mismatch: expected "s
-                + quote(getName(*paramType.type)) + ", got " + quote(getName(argType)));
-          }
-          callType = t.callType;
-          return *t.retVal;
-        },
-        [&](const auto&) -> Type {
-          codeLoc.error("Trying to call a non-function type");
-          return {};
-        }
-    );
-  else
-    codeLoc.error("Function not found: " + quote(identifier.toString()));
-  return {};
+  auto type = state.getFunction(codeLoc, identifier);
+  int numParams = (int) type.params.size();
+  codeLoc.check(arguments.size() == numParams,
+       "Expected " + to_string(numParams) + " arguments, got " + to_string(arguments.size()));
+  for (int i = 0; i < numParams; ++i) {
+    auto argType = arguments[i]->getType(state);
+    auto& paramType = type.params[i];
+    arguments[i]->codeLoc.check(canAssign(ReferenceType(*paramType.type), argType),
+        "Function call argument " + to_string(i + 1) + " mismatch: expected "s
+        + quote(getName(*paramType.type)) + ", got " + quote(getName(argType)));
+  }
+  INFO << "Function call type " << getName(*type.retVal);
+  callType = type.callType;
+  return *type.retVal;
 }
 
 FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {}
@@ -262,64 +240,38 @@ EmbedInclude::EmbedInclude(CodeLoc l, const string& p) : Statement(l), path(p) {
 void EmbedInclude::check(State&) {
 }
 
-VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n) {
-}
-
-void VariantDefinition::check(State& state) {
-  VariantType type(name);
-  unordered_set<string> subtypeNames;
-  for (auto& subtype : subtypes) {
-    string subtypeName;
-    vector<FunctionType::Param> constructorParams;
-    auto addSubtype = [&](const string& name) {
-      subtypeName = name;
-      subtype.codeLoc.check(!subtypeNames.count(name), "Duplicate variant subtype: " + quote(name));
-      subtypeNames.insert(name);
-    };
-    FunctionCallType callType;
-    subtype.type.visit(
-        [&](const string& typeName) {
-          if (auto subtypeInfo = state.getTypeFromString(typeName)) {
-            constructorParams.push_back(FunctionType::Param{"", *subtypeInfo});
-            type.types.insert({typeName, *subtypeInfo});
-          } else
-            subtype.codeLoc.error("Unrecognized type: " + quote(name));
-          addSubtype(typeName);
-          callType = FunctionCallType::VARIANT_CONSTRUCTOR_EXTERNAL;
-        },
-        [&](const unique_ptr<StructDefinition>& s) {
-          auto stateCopy = state;
-          s->check(stateCopy);
-          Type structType = *stateCopy.getTypeFromString(s->name);
-          type.types.insert({s->name, structType});
-          addSubtype(s->name);
-          for (auto& member : structType.getReferenceMaybe<StructType>()->members)
-            constructorParams.push_back({member.name, *member.type});
-          callType = FunctionCallType::VARIANT_CONSTRUCTOR_INTERNAL;
-        }
-    );
-    state.setType(IdentifierInfo({name}, subtypeName), FunctionType(callType, type, std::move(constructorParams)));
-  }
-  state.addType(name, type);
-}
-
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
 void SwitchStatement::check(State& state) {
   auto exprType = expr->getType(state);
   auto inputType = exprType.getReferenceMaybe<VariantType>();
-  subtypesPrefix = inputType->name + "::";
+  subtypesPrefix = inputType->name;
+  if (!inputType->instantiatedParams.empty()) {
+    subtypesPrefix += "<";
+    for (auto& t : inputType->instantiatedParams)
+      subtypesPrefix += t.second + ",";
+    subtypesPrefix.pop_back();
+    subtypesPrefix += ">";
+  }
+  subtypesPrefix += "::";
   expr->codeLoc.check(!!inputType, "Expected variant type in switch input, got " + quote(getName(exprType)));
   unordered_set<string> handledTypes;
   for (auto& caseElem : caseElems) {
-    caseElem.codeloc.check(inputType->types.count(caseElem.type), "Type " + quote(caseElem.type) + " not a subtype "
-        "of " + quote(getName(exprType)));
-    caseElem.codeloc.check(!handledTypes.count(caseElem.type), "Variant subtype " + quote(caseElem.type)
+    caseElem.codeloc.check(inputType->types.count(caseElem.id), "Element " + quote(caseElem.id) + " not present in " +
+        quote(getName(exprType)));
+    caseElem.codeloc.check(!handledTypes.count(caseElem.id), "Variant element " + quote(caseElem.id)
         + " handled more than once in switch statement");
-    handledTypes.insert(caseElem.type);
+    handledTypes.insert(caseElem.id);
     auto stateCopy = state;
-    if (caseElem.id)
-      stateCopy.setType(*caseElem.id, inputType->types.at(caseElem.type));
+    auto realType = inputType->types.at(caseElem.id);
+    caseElem.declareVar = !(realType == ArithmeticType::VOID);
+    if (caseElem.declareVar)
+      stateCopy.addVariable(caseElem.id, realType);
+    if (caseElem.type) {
+      if (auto t = state.getTypeFromString(*caseElem.type))
+        caseElem.type->codeLoc.check(*t == inputType->types.at(caseElem.id), "Can't handle variant element "
+            + quote(caseElem.id) + " of type " + quote(getName(realType)) + " as type " + quote(getName(*t)));
+    }
     caseElem.block->check(stateCopy);
   }
   if (!defaultBlock) {
@@ -329,10 +281,11 @@ void SwitchStatement::check(State& state) {
         unhandled.push_back(quote(elem.first));
     codeLoc.check(unhandled.empty(), quote(getName(exprType)) + " subtypes " + combine(unhandled, ", ")
         + " not handled in switch statement");
-  } else
+  } else {
     defaultBlock->codeLoc.check(handledTypes.size() < inputType->types.size(), "Default switch statement unnecessary when all "
         "variant cases are handled");
-  defaultBlock->check(state);
+    defaultBlock->check(state);
+  }
 }
 
 bool SwitchStatement::hasReturnStatement(const State& state) const {
@@ -344,9 +297,108 @@ bool SwitchStatement::hasReturnStatement(const State& state) const {
   return true;
 }
 
+VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n) {
+}
+
+void VariantDefinition::check(State& state) {
+  VariantType type(name);
+  unordered_set<string> subtypeNames;
+  State stateCopy = state;
+  for (auto& param : templateParams) {
+    type.templateParams.push_back(TemplateParameter{param});
+    stateCopy.addType(param, type.templateParams.back());
+  }
+  struct ConstructorInfo {
+    string subtypeName;
+    FunctionCallType callType;
+    vector<FunctionType::Param> constructorParams;
+  };
+  vector<ConstructorInfo> constructors;
+  for (auto& subtype : elements) {
+    ConstructorInfo constructorInfo;
+    constructorInfo.callType = FunctionCallType::FUNCTION;
+    constructorInfo.subtypeName = subtype.name;
+    subtype.codeLoc.check(!subtypeNames.count(subtype.name), "Duplicate variant alternative: " + quote(subtype.name));
+    subtypeNames.insert(subtype.name);
+    if (auto subtypeInfo = stateCopy.getTypeFromString(subtype.type)) {
+      if (!(*subtypeInfo == ArithmeticType::VOID))
+        constructorInfo.constructorParams.push_back(FunctionType::Param{"", *subtypeInfo});
+      type.types.insert({subtype.name, *subtypeInfo});
+    } else
+      subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
+    constructors.push_back(constructorInfo);
+  }
+  for (auto& elem : constructors)
+    type.staticMethods.push_back({elem.subtypeName, FunctionType(elem.callType, type, elem.constructorParams, {})});
+  state.addType(name, type);
+}
+
+/*subtype.type.visit(
+    [&](const string& typeName) {
+        constructorInfo.constructorParams.push_back(FunctionType::Param{"", *subtypeInfo});
+        type.types.insert({typeName, *subtypeInfo});
+      } else
+        subtype.codeLoc.error("Unrecognized type: " + quote(typeName));
+      addSubtype(typeName);
+      constructorInfo.callType = FunctionCallType::VARIANT_CONSTRUCTOR_EXTERNAL;
+    },
+    [&](const unique_ptr<StructDefinition>& s) {
+      auto stateCopy2 = stateCopy;
+      s->check(stateCopy2);
+      Type structType = *stateCopy2.getTypeFromString(s->name);
+      type.types.insert({s->name, structType});
+      addSubtype(s->name);
+      for (auto& member : structType.getReferenceMaybe<StructType>()->members)
+        constructorInfo.constructorParams.push_back({member.name, *member.type});
+      constructorInfo.callType = FunctionCallType::VARIANT_CONSTRUCTOR_INTERNAL;
+    }
+);*/
+
+
+void StructDefinition::check(State& state) {
+  codeLoc.check(!state.typeNameExists(name), "Type " + quote(name) + " conflicts with an existing type");
+  codeLoc.check(!state.getTypeOfVariable(name), "Type " + quote(name) + " conflicts with an existing variable or function");
+  StructType type(name);
+  auto stateCopy = state;
+  for (auto& param : templateParams) {
+    type.templateParams.push_back(TemplateParameter{param});
+    stateCopy.addType(param, type.templateParams.back());
+  }
+  for (auto& member : members) {
+    INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
+    if (auto memberType = stateCopy.getTypeFromString(member.type))
+      type.members.push_back({member.name, *memberType});
+    else
+      member.codeLoc.error("Type " + quote(member.type.toString()) + " not recognized");
+  }
+  state.addType(name, type);
+  vector<FunctionType::Param> constructorParams;
+  for (auto& member : type.members)
+    constructorParams.push_back({member.name, *member.type});
+  state.addFunction(name, FunctionType(FunctionCallType::CONSTRUCTOR, type, std::move(constructorParams), type.templateParams));
+}
+
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
     : Expression(l), op(o), expr(std::move(e)) {}
 
 Type UnaryExpression::getType(const State& state) {
   return expr->getType(state);
 }
+
+/*void TemplateDefinition::check(State& state) {
+  INFO << "Template " << typeName;
+  auto stateCopy = state;
+  vector<TemplateParameter> paramTypes;
+  for (auto& param : params) {
+    paramTypes.push_back(TemplateParameter{param});
+    stateCopy.addType(param, paramTypes.back());
+  }
+  definition->check(stateCopy);
+  auto structType = *stateCopy.getTypeFromString(typeName)->getValueMaybe<StructType>();
+  structType.templateParams = paramTypes;
+  state.addType(typeName, structType);
+  auto constructorFun = *stateCopy.getFunction(typeName);
+  constructorFun.templateParams = paramTypes;
+  state.addFunction(typeName, constructorFun);
+}
+*/

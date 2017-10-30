@@ -17,6 +17,7 @@ static const unordered_map<string, Keyword> keywords {
   {"switch", Keyword::SWITCH},
   {"case", Keyword::CASE},
   {"default", Keyword::DEFAULT},
+  {"template", Keyword::TEMPLATE},
   {"?", Keyword::MAYBE},
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},
@@ -99,6 +100,14 @@ void Tokens::rewind() {
   --index;
 }
 
+Tokens::Bookmark Tokens::getBookmark() const {
+  return index;
+}
+
+void Tokens::rewind(Tokens::Bookmark b){
+  index = b;
+}
+
 void Tokens::error(const string& e) const {
   auto& lastToken = empty() ? data[index - 1] : data[index];
   lastToken.codeLoc.error(e);
@@ -109,10 +118,10 @@ void Tokens::check(bool b, const string& e) const {
     error(e);
 }
 
-void Tokens::eat(Token t) {
+Token Tokens::eat(Token t) {
   auto expected = "Expected "s + quote(getString(t));
   check(!empty(), expected + ", got EOF.");
   auto token = peek();
   check(token == t, expected + ", got " + quote(token.value));
-  popNext();
+  return popNext();
 }

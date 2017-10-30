@@ -70,7 +70,7 @@ void StatementBlock::codegen(Accu& accu) const {
 }
 
 void VariableDeclaration::codegen(Accu& accu) const {
-  accu.add(type + " " + identifier);
+  accu.add(type.toString() + " " + identifier);
   if (initExpr) {
     accu.add(" = ");
     initExpr->codegen(accu);
@@ -121,12 +121,6 @@ static void genFunctionCall(Accu& accu, IdentifierInfo identifier, FunctionCallT
     case FunctionCallType::CONSTRUCTOR:
       prefix = id + "{"; suffix = "}";
       break;
-    case FunctionCallType::VARIANT_CONSTRUCTOR_INTERNAL:
-      prefix = combine(identifier.namespaces, "::") + "{ " + id + "{"; suffix = "}}";
-      break;
-    case FunctionCallType::VARIANT_CONSTRUCTOR_EXTERNAL:
-      prefix = combine(identifier.namespaces, "::") + "{ " + identifier.name + "{"; suffix = "}}";
-      break;
   }
   accu.add(prefix);
   for (auto& arg : arguments) {
@@ -148,11 +142,24 @@ void FunctionCallNamedArgs::codegen(Accu& accu) const {
   genFunctionCall(accu, identifier, callType, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
 }
 
+static void considerTemplateParams(Accu& accu, const vector<string>& params) {
+  if (!params.empty()) {
+    accu.add("template <");
+    for (auto& param : params)
+      accu.add("typename " + param + ", ");
+    accu.pop_back();
+    accu.pop_back();
+    accu.add(">");
+    accu.newLine();
+  }
+}
+
 void FunctionDefinition::codegen(Accu& accu) const {
+  considerTemplateParams(accu, templateParams);
   auto getPrototype = [this]() {
-    string ret = returnType + " " + name + "(";
+    string ret = returnType.toString() + " " + name + "(";
     for (auto& param : parameters)
-      ret.append(param.type + " " + param.name + ", ");
+      ret.append(param.type.toString() + " " + param.name + ", ");
     if (!parameters.empty()) {
       ret.pop_back();
       ret.pop_back();
@@ -185,10 +192,11 @@ void ExpressionStatement::codegen(Accu& accu) const {
 }
 
 void StructDefinition::codegen(Accu& accu) const {
+  considerTemplateParams(accu, templateParams);
   accu.add("struct " + name + " {");
   ++accu.indent;
   for (auto& member : members)
-    accu.newLine(member.type + " " + member.name + ";");
+    accu.newLine(member.type.toString() + " " + member.name + ";");
   --accu.indent;
   accu.newLine("};");
 }
@@ -212,41 +220,46 @@ void EmbedInclude::codegen(Accu& accu) const {
 constexpr const char* variantEnumeratorPrefix = "Enum_";
 constexpr const char* variantUnionEntryPrefix = "Union_";
 constexpr const char* variantUnionElem = "unionElem";
+constexpr const char* variantTagPrefix = "S_";
 
 void VariantDefinition::codegen(Accu& accu) const {
+  considerTemplateParams(accu, templateParams);
   accu.add("struct " + name + " {");
   ++accu.indent;
   accu.newLine();
-  for (auto& subtype : subtypes)
-    subtype.type.visit(
-        [&](const unique_ptr<StructDefinition>& s) {
-          s->codegen(accu);
-          accu.newLine();
-        },
-        [&](const auto&) {}
-    );
+  for (auto& subtype : elements)
+    subtype.type.toString();
   accu.add("enum {");
   vector<string> typeNames;
-  for (auto& subtype : subtypes) {
-    subtype.type.visit(
-        [&](const string& type) {
-          typeNames.push_back(type);
-        },
-        [&](const unique_ptr<StructDefinition>& s) {
-          typeNames.push_back(s->name);
-        }
-    );
-  }
+  for (auto& subtype : elements)
+    typeNames.push_back(subtype.name);
   accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
       + variantUnionElem + ";");
-  for (auto& t : typeNames) {
-    accu.newLine(name + "(const " + t + "& elem) : unionElem(" + variantEnumeratorPrefix + t + "), " +
-        variantUnionEntryPrefix + t + "(elem) {}");
+  for (auto& elem : elements) {
+    accu.newLine("static " + name + " " + elem.name + "(");
+    if (!(elem.type == IdentifierInfo("void")))
+      accu.add("const " + elem.type.toString() + "& elem");
+    accu.add(") {");
+    ++accu.indent;
+    accu.newLine(name + " ret;");
+    accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + elem.name + ";");
+    if (!(elem.type == IdentifierInfo("void")))
+      accu.newLine("ret."s + variantUnionEntryPrefix + elem.name + " = elem;");
+    accu.newLine("return ret;");
+    --accu.indent;
+    accu.newLine("}");
+/*      accu.newLine(name + "(" + variantTagPrefix + elem.name + ", const " + elem.type.toString() + "& elem) : unionElem("
+          + variantEnumeratorPrefix + elem.name + "), " + elem.name + "(elem) {}");
+
+    accu.newLine(name + "(" + variantTagPrefix + elem.name + ", const " + elem.type.toString() + "& elem) : unionElem("
+        + variantEnumeratorPrefix + elem.name + "), " + elem.name + "(elem) {}");*/
   }
   accu.newLine("union {");
   ++accu.indent;
-  for (auto& type : typeNames)
-    accu.newLine(type + " " + variantUnionEntryPrefix + type + ";");
+  accu.newLine("bool dummy;");
+  for (auto& elem : elements)
+    if (!(elem.type == IdentifierInfo("void")))
+      accu.newLine(elem.type.toString() + " " + variantUnionEntryPrefix + elem.name + ";");
   --accu.indent;
   accu.newLine("};");
   --accu.indent;
@@ -262,11 +275,11 @@ void SwitchStatement::codegen(Accu& accu) const {
   accu.newLine("switch ("s + variantTmpRef + "."s + variantUnionElem + ") {");
   ++accu.indent;
   for (auto& caseElem : caseElems) {
-    accu.newLine("case "s + subtypesPrefix + variantEnumeratorPrefix + caseElem.type + ":");
+    accu.newLine("case "s + subtypesPrefix + variantEnumeratorPrefix + caseElem.id + ":");
     accu.add("{");
     ++accu.indent;
-    if (caseElem.id) {
-      accu.newLine("auto&& " + *caseElem.id + " = " + variantTmpRef + "." + variantUnionEntryPrefix + caseElem.type + ";");
+    if (caseElem.declareVar) {
+      accu.newLine("auto&& "s + caseElem.id + " = " + variantTmpRef + "." + variantUnionEntryPrefix + caseElem.id + ";");
     }
     accu.newLine();
     caseElem.block->codegen(accu);

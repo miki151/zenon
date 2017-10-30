@@ -92,8 +92,8 @@ struct Statement : Node {
 };
 
 struct VariableDeclaration : Statement {
-  VariableDeclaration(CodeLoc, string type, string identifier, unique_ptr<Expression> initExpr);
-  string type;
+  VariableDeclaration(CodeLoc, IdentifierInfo type, string identifier, unique_ptr<Expression> initExpr);
+  IdentifierInfo type;
   string identifier;
   unique_ptr<Expression> initExpr;
   virtual void check(State&) override;
@@ -146,11 +146,12 @@ struct StructDefinition : Statement {
   StructDefinition(CodeLoc, string name);
   string name;
   struct Member {
-    string type;
+    IdentifierInfo type;
     string name;
     CodeLoc codeLoc;
   };
   vector<Member> members;
+  vector<string> templateParams;
   vector<FunctionDefinition> methods;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
@@ -160,11 +161,13 @@ struct StructDefinition : Statement {
 struct VariantDefinition : Statement {
   VariantDefinition(CodeLoc, string name);
   string name;
-  struct Subtype {
-    variant<string, unique_ptr<StructDefinition>> type;
+  struct Element {
+    IdentifierInfo type;
+    string name;
     CodeLoc codeLoc;
   };
-  vector<Subtype> subtypes;
+  vector<Element> elements;
+  vector<string> templateParams;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual bool allowTopLevel() const override { return true; }
@@ -174,9 +177,10 @@ struct SwitchStatement : Statement {
   SwitchStatement(CodeLoc, unique_ptr<Expression>);
   struct CaseElem {
     CodeLoc codeloc;
-    string type;
-    optional<string> id;
+    optional<IdentifierInfo> type;
+    string id;
     unique_ptr<StatementBlock> block;
+    bool declareVar;
   };
   string subtypesPrefix;
   vector<CaseElem> caseElems;
@@ -188,16 +192,17 @@ struct SwitchStatement : Statement {
 };
 
 struct FunctionDefinition : Statement {
-  FunctionDefinition(CodeLoc, string returnType, string name);
-  string returnType;
+  FunctionDefinition(CodeLoc, IdentifierInfo returnType, string name);
+  IdentifierInfo returnType;
   string name;
   struct Parameter {
     CodeLoc codeLoc;
-    string type;
+    IdentifierInfo type;
     string name;
   };
   vector<Parameter> parameters;
   unique_ptr<Statement> body;
+  vector<string> templateParams;
   bool embed = false;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;

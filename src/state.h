@@ -11,14 +11,19 @@ class State {
   public:
 
   optional<Type> getTypeOfVariable(const IdentifierInfo& ident) const;
-  void setType(const IdentifierInfo& ident, Type);
+  void addVariable(const string& ident, Type);
   const optional<Type>& getReturnType() const;
   void setReturnType(Type);
   void addType(const string& name, Type);
-  optional<Type> getTypeFromString(const string& ident) const;
+  optional<Type> getTypeFromString(IdentifierInfo) const;
+  bool typeNameExists(const string&) const;
+  void addFunction(string, FunctionType);
+  FunctionType getFunction(CodeLoc, IdentifierInfo) const;
 
   private:
-  unordered_map<IdentifierInfo, Type, CustomHash<IdentifierInfo>> vars;
-  unordered_map<IdentifierInfo, Type, CustomHash<IdentifierInfo>> types;
+  unordered_map<string, Type> vars;
+  unordered_map<string, Type> types;
+  unordered_map<string, FunctionType> functions;
   optional<Type> returnType;
+  vector<Type> getTypeList(const vector<IdentifierInfo>&) const;
 };
