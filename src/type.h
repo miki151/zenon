@@ -41,8 +41,7 @@ struct VariantType {
   string name;
   int id;
   map<string, Type> types;
-  vector<TemplateParameter> templateParams;
-  map<int, string> instantiatedParams;
+  vector<Type> templateParams;
   vector<pair<string, FunctionType>> staticMethods;
   bool operator == (const VariantType&) const;
 };
@@ -56,8 +55,7 @@ struct StructType {
     HeapAllocated<Type> type;
   };
   vector<Member> members;
-  vector<TemplateParameter> templateParams;
-  map<int, string> instantiatedParams;
+  vector<Type> templateParams;
   bool operator == (const StructType&) const;
 };
 
@@ -70,17 +68,18 @@ struct FunctionType {
     string name;
     HeapAllocated<Type> type;
   };
-  FunctionType(FunctionCallType, Type returnType, vector<Param>, vector<TemplateParameter>);
+  FunctionType(FunctionCallType, Type returnType, vector<Param>, vector<Type>);
   FunctionCallType callType;
   HeapAllocated<Type> retVal;
   vector<Param> params;
-  vector<TemplateParameter> templateParams;
+  vector<Type> templateParams;
   int id;
   bool operator == (const FunctionType&) const;
 };
 
 extern string getName(const Type&);
 extern bool canAssign(const Type& to, const Type& from);
+extern bool canBind(const Type& to, const Type& from);
 extern Type getOperationResult(CodeLoc, Operator op, const Type& from, const Type& to);
 extern bool canConvert(const Type& from, const Type& to);
 extern bool requiresInitialization(const Type&);

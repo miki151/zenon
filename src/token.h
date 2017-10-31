@@ -35,7 +35,8 @@ enum class Keyword {
   CASE,
   DEFAULT,
   MAYBE,
-  TEMPLATE
+  TEMPLATE,
+  REFERENCE
 };
 
 struct Unknown {
@@ -67,6 +68,7 @@ class Tokens {
   void error(const string&) const;
   void check(bool, const string&) const;
   Token eat(Token);
+  optional<Token> eatMaybe(Token);
 
   private:
   std::vector<Token> data;

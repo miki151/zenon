@@ -26,6 +26,7 @@ static const unordered_map<string, Keyword> keywords {
   {"}", Keyword::CLOSE_BLOCK},
   {";", Keyword::SEMICOLON},
   {",", Keyword::COMMA},
+  {"&", Keyword::REFERENCE},
 };
 
 vector<string> getAllKeywords() {
@@ -120,8 +121,16 @@ void Tokens::check(bool b, const string& e) const {
 
 Token Tokens::eat(Token t) {
   auto expected = "Expected "s + quote(getString(t));
-  check(!empty(), expected + ", got EOF.");
-  auto token = peek();
+  auto token = peek(expected + ", got EOF.");
   check(token == t, expected + ", got " + quote(token.value));
   return popNext();
+}
+
+optional<Token> Tokens::eatMaybe(Token t) {
+  auto token = peek("Expected "s + quote(getString(t)) + ", got EOF.");
+  if (token == t) {
+    popNext();
+    return token;
+  } else
+    return none;
 }

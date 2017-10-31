@@ -118,7 +118,7 @@ bool ReturnStatement::hasReturnStatement(const State&) const {
 void FunctionDefinition::check(State& state) {
   codeLoc.check(!state.getTypeOfVariable(name), "Function name " + quote(name) + " conflicts with existing function");
   State stateCopy = state;
-  vector<TemplateParameter> templateTypes;
+  vector<Type> templateTypes;
   for (auto& param : templateParams) {
     templateTypes.push_back(TemplateParameter{param});
     stateCopy.addType(param, templateTypes.back());
@@ -127,11 +127,16 @@ void FunctionDefinition::check(State& state) {
     vector<FunctionType::Param> params;
     for (auto& p : parameters)
       if (auto paramType = stateCopy.getTypeFromString(p.type)) {
-        stateCopy.addVariable(p.name, *paramType);
-        params.push_back({p.name, *paramType});
+        if (p.type.reference) {
+          params.push_back({p.name, ReferenceType(*paramType)});
+          stateCopy.addVariable(p.name, ReferenceType(*paramType));
+        } else {
+          params.push_back({p.name, *paramType});
+          stateCopy.addVariable(p.name, *paramType);
+        }
       } else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
-    auto type = FunctionType (FunctionCallType::FUNCTION, *returnType, params, templateTypes );
+    auto type = FunctionType(FunctionCallType::FUNCTION, *returnType, params, templateTypes );
     state.addFunction(name, type);
     stateCopy.addFunction(name, type);
     stateCopy.setReturnType(*returnType);
@@ -175,9 +180,9 @@ Type FunctionCall::getType(const State& state) {
   for (int i = 0; i < numParams; ++i) {
     auto argType = arguments[i]->getType(state);
     auto& paramType = type.params[i];
-    arguments[i]->codeLoc.check(canAssign(ReferenceType(*paramType.type), argType),
-        "Function call argument " + to_string(i + 1) + " mismatch: expected "s
-        + quote(getName(*paramType.type)) + ", got " + quote(getName(argType)));
+    arguments[i]->codeLoc.check(canBind(*paramType.type, argType),
+        "Function call argument " + to_string(i + 1) + ": cannot bind "s + quote(getName(argType)) + " to "
+        + quote(getName(*paramType.type)));
   }
   INFO << "Function call type " << getName(*type.retVal);
   callType = type.callType;
@@ -246,17 +251,16 @@ void SwitchStatement::check(State& state) {
   auto exprType = getUnderlying(expr->getType(state));
   auto inputType = exprType.getReferenceMaybe<VariantType>();
   expr->codeLoc.check(!!inputType, "Expected a variant type, got " + quote(getName(exprType)));
+  expr->codeLoc.check(!!inputType, "Expected variant type in switch input, got " + quote(getName(exprType)));
   subtypesPrefix = inputType->name;
-  if (!inputType->instantiatedParams.empty()) {
+  if (!inputType->templateParams.empty()) {
     subtypesPrefix += "<";
-    for (auto& t : inputType->instantiatedParams)
-      subtypesPrefix += t.second + ",";
+    for (auto& t : inputType->templateParams)
+      subtypesPrefix += getName(t) + ",";
     subtypesPrefix.pop_back();
     subtypesPrefix += ">";
   }
-  subtypesPrefix += "::";
-  expr->codeLoc.check(!!inputType, "Expected variant type in switch input, got " + quote(getName(exprType)));
-  unordered_set<string> handledTypes;
+  subtypesPrefix += "::";  unordered_set<string> handledTypes;
   for (auto& caseElem : caseElems) {
     caseElem.codeloc.check(inputType->types.count(caseElem.id), "Element " + quote(caseElem.id) + " not present in " +
         quote(getName(exprType)));
@@ -334,28 +338,6 @@ void VariantDefinition::check(State& state) {
   state.addType(name, type);
 }
 
-/*subtype.type.visit(
-    [&](const string& typeName) {
-        constructorInfo.constructorParams.push_back(FunctionType::Param{"", *subtypeInfo});
-        type.types.insert({typeName, *subtypeInfo});
-      } else
-        subtype.codeLoc.error("Unrecognized type: " + quote(typeName));
-      addSubtype(typeName);
-      constructorInfo.callType = FunctionCallType::VARIANT_CONSTRUCTOR_EXTERNAL;
-    },
-    [&](const unique_ptr<StructDefinition>& s) {
-      auto stateCopy2 = stateCopy;
-      s->check(stateCopy2);
-      Type structType = *stateCopy2.getTypeFromString(s->name);
-      type.types.insert({s->name, structType});
-      addSubtype(s->name);
-      for (auto& member : structType.getReferenceMaybe<StructType>()->members)
-        constructorInfo.constructorParams.push_back({member.name, *member.type});
-      constructorInfo.callType = FunctionCallType::VARIANT_CONSTRUCTOR_INTERNAL;
-    }
-);*/
-
-
 void StructDefinition::check(State& state) {
   codeLoc.check(!state.typeNameExists(name), "Type " + quote(name) + " conflicts with an existing type");
   codeLoc.check(!state.getTypeOfVariable(name), "Type " + quote(name) + " conflicts with an existing variable or function");
@@ -385,21 +367,3 @@ UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e
 Type UnaryExpression::getType(const State& state) {
   return expr->getType(state);
 }
-
-/*void TemplateDefinition::check(State& state) {
-  INFO << "Template " << typeName;
-  auto stateCopy = state;
-  vector<TemplateParameter> paramTypes;
-  for (auto& param : params) {
-    paramTypes.push_back(TemplateParameter{param});
-    stateCopy.addType(param, paramTypes.back());
-  }
-  definition->check(stateCopy);
-  auto structType = *stateCopy.getTypeFromString(typeName)->getValueMaybe<StructType>();
-  structType.templateParams = paramTypes;
-  state.addType(typeName, structType);
-  auto constructorFun = *stateCopy.getFunction(typeName);
-  constructorFun.templateParams = paramTypes;
-  state.addFunction(typeName, constructorFun);
-}
-*/

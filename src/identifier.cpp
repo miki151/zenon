@@ -40,6 +40,8 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens) {
     } else
       break;
   }
+  if (tokens.eatMaybe(Keyword::REFERENCE))
+    ret.reference = true;
   INFO << "Identifier " << ret.toString();
   return ret;
 }

@@ -7,13 +7,10 @@ const static unordered_map<string, ArithmeticType> arithmeticTypes {
   {"void", ArithmeticType::VOID},
 };
 
-string getTemplateParamNames(const vector<TemplateParameter>& templateParams, const map<int, string>& instantiatedParams) {
+string getTemplateParamNames(const vector<Type>& templateParams) {
   string ret;
   if (!templateParams.empty()) {
-    auto paramNames = transform(templateParams, [](auto& e) { return e.name; });
-    for (int i = 0; i < paramNames.size(); ++i)
-      if (instantiatedParams.count(i))
-        paramNames[i] = instantiatedParams.at(i);
+    auto paramNames = transform(templateParams, [](auto& e) { return getName(e); });
     ret += "<" + combine(paramNames, ",") + ">";
   }
   return ret;
@@ -28,8 +25,8 @@ string getName(const Type& t) {
         FATAL << "Type not recognized: " << (int)t;
         return ""s;
       },
-      [&](const FunctionType&) {
-        return "function"s;
+      [&](const FunctionType& t) {
+        return "function"s + getTemplateParamNames(t.templateParams);
       },
       [&](const MemberAccess& m) {
         return "member " + quote(m.memberName);
@@ -38,10 +35,10 @@ string getName(const Type& t) {
         return "reference("s + getName(*t.underlying) + ")";
       },
       [&](const StructType& t) {
-        return t.name + getTemplateParamNames(t.templateParams, t.instantiatedParams);
+        return t.name + getTemplateParamNames(t.templateParams);
       },
       [&](const VariantType& t) {
-        return "variant " + t.name + getTemplateParamNames(t.templateParams, t.instantiatedParams);
+        return t.name + getTemplateParamNames(t.templateParams);
       },
       [&](const TemplateParameter& t) {
         return t.name;
@@ -54,7 +51,7 @@ int getNewId() {
   return ++idCounter;
 }
 
-FunctionType::FunctionType(FunctionCallType t, Type returnType, vector<Param> p, vector<TemplateParameter> tpl)
+FunctionType::FunctionType(FunctionCallType t, Type returnType, vector<Param> p, vector<Type> tpl)
     : callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl), id(getNewId()) {
 }
 
@@ -145,7 +142,7 @@ Type getOperationResult(CodeLoc codeLoc, Operator op, const Type& left, const Ty
 }
 
 bool canAssign(const Type& to, const Type& from) {
-  INFO << "can convert " << getName(from) << " to " << getName(to);
+  //INFO << "can assign " << getName(from) << " to " << getName(to);
   return to.visit(
       [&](const ReferenceType& t) {
         return getUnderlying(from) == *t.underlying;
@@ -154,6 +151,11 @@ bool canAssign(const Type& to, const Type& from) {
         return false;
       }
   );
+}
+
+bool canBind(const Type& to, const Type& from) {
+  //INFO << "can bind " << getName(from) << " to " << getName(to);
+  return to == from || from == ReferenceType(to);
 }
 
 StructType::StructType(string n) : name(n), id(getNewId()) {}
@@ -201,34 +203,20 @@ bool TemplateParameter::operator ==(const TemplateParameter& t) const {
 extern void replace(Type& in, Type from, Type to, IdentifierInfo toName);
 void replace(FunctionType&, Type from, Type to, IdentifierInfo toName);
 
-/*void replace(ReferenceType& t, Type from, Type to, IdentifierInfo toName) {
-}
-
-void replace(StructType& t, Type from, Type to, IdentifierInfo toName) {
-}
-
-void replace(VariantType& t, Type from, Type to, IdentifierInfo toName) {
-}
-
-void replace(ArithmeticType&, Type from, Type to, IdentifierInfo toName) {}
-void replace(MemberAccess&, Type from, Type to, IdentifierInfo toName) {}*/
-
 void replace(Type& in, Type from, Type to, IdentifierInfo toName) {
   in.visit(
       [&](ReferenceType& t) {
         replace(*t.underlying, from, to, toName);
       },
       [&](StructType& t) {
-        for (int i = 0; i < t.templateParams.size(); ++i)
-          if (from == t.templateParams[i])
-            t.instantiatedParams[i] = toName.toString();
+        for (auto& param : t.templateParams)
+          replace(param, from, to, toName);
         for (int i = 0; i < t.members.size(); ++i)
           replace(*t.members[i].type, from, to, toName);
       },
       [&](VariantType& t) {
-        for (int i = 0; i < t.templateParams.size(); ++i)
-          if (from == t.templateParams[i])
-            t.instantiatedParams[i] = toName.toString();
+        for (auto& param : t.templateParams)
+          replace(param, from, to, toName);
         for (auto& subtype : t.types)
           replace(subtype.second, from, to, toName);
         for (auto& method : t.staticMethods)
