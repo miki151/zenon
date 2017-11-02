@@ -18,7 +18,8 @@ class State {
   optional<Type> getTypeFromString(IdentifierInfo) const;
   bool typeNameExists(const string&) const;
   void addFunction(string, FunctionType);
-  FunctionType getFunction(CodeLoc, IdentifierInfo) const;
+  FunctionType getFunction(CodeLoc, IdentifierInfo, vector<Type> argTypes, vector<CodeLoc> argLoc) const;
+  vector<string> getFunctionParamNames(CodeLoc, IdentifierInfo) const;
 
   private:
   unordered_map<string, Type> vars;
@@ -26,4 +27,5 @@ class State {
   unordered_map<string, FunctionType> functions;
   optional<Type> returnType;
   vector<Type> getTypeList(const vector<IdentifierInfo>&) const;
+  FunctionType getFunctionTemplate(CodeLoc, IdentifierInfo) const;
 };

@@ -78,3 +78,8 @@ vector<T*> extractRefs(const vector<unique_ptr<T>>& v) {
     ret.push_back(el.get());
   return ret;
 }
+
+template <typename Container, typename V>
+bool contains(const Container& v, const V& elem) {
+  return std::find(v.begin(), v.end(), elem) != v.end();
+}

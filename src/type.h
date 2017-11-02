@@ -84,8 +84,7 @@ extern Type getOperationResult(CodeLoc, Operator op, const Type& from, const Typ
 extern bool canConvert(const Type& from, const Type& to);
 extern bool requiresInitialization(const Type&);
 class IdentifierInfo;
-extern optional<Type> instantiate(const Type&, vector<Type> templateParams, vector<IdentifierInfo> templateParamNames);
-extern optional<FunctionType> instantiate(FunctionType, vector<Type> templateParams,
-    vector<IdentifierInfo> templateParamNames);
+extern optional<Type> instantiate(const Type&, vector<Type> templateParams);
+extern void instantiate(FunctionType&, CodeLoc, vector<Type> templateArgs, vector<Type> argTypes, vector<CodeLoc> argLoc);
 extern optional<FunctionType> getStaticMethod(const Type&, string name);
 extern Type getUnderlying(Type);

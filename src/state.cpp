@@ -3,7 +3,7 @@
 #include "type.h"
 
 optional<Type> State::getTypeOfVariable(const IdentifierInfo& id) const {
-  id.codeLoc.check(id.parts.size() == 1 && id.parts.at(0).templateParams.empty(),
+  id.codeLoc.check(id.parts.size() == 1 && id.parts.at(0).templateArguments.empty(),
       "Bad variable identifier: " + id.toString());
   auto name = id.parts.at(0).name;
   if (vars.count(name))
@@ -43,11 +43,9 @@ optional<Type> State::getTypeFromString(IdentifierInfo id) const {
   //INFO << "Get type " << id.toString();
   id.codeLoc.check(id.parts.size() == 1, "Bad type identifier: " + id.toString());
   auto name = id.parts.at(0).name;
-  //id.templateParams.clear();
   if (!types.count(name))
     return none;
-  auto params = id.parts.at(0).templateParams;
-  return instantiate(types.at(name), getTypeList(params), params);
+  return instantiate(types.at(name), getTypeList(id.parts.at(0).templateArguments));
 }
 
 bool State::typeNameExists(const string& name) const {
@@ -60,33 +58,37 @@ void State::addFunction(string id, FunctionType f) {
   functions.insert(make_pair(id, f));
 }
 
-FunctionType State::getFunction(CodeLoc codeLoc, IdentifierInfo idOrig) const {
-  /*INFO << "Looking up function " << id.toString();
-  INFO << "Functions:";
-  for (auto& elem : functions)
-    INFO << elem.first.toString();*/
-  auto templateParamNames = idOrig.parts.at(0).templateParams;
-  string funName = idOrig.parts.at(0).name;
-  optional<FunctionType> ret;
-  if (idOrig.parts.size() == 2) {
-    if (auto type = getTypeFromString(IdentifierInfo(idOrig.parts.at(0)))) {
+FunctionType State::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) const {
+  string funName = id.parts.at(0).name;
+  if (id.parts.size() == 2) {
+    if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0)))) {
       INFO << "Looking for static method in type " << getName(*type);
-      if (auto fun = getStaticMethod(*type, idOrig.parts.at(1).name)) {
-        templateParamNames = idOrig.parts.at(1).templateParams;
-        ret = *fun;
-      } else
-        idOrig.codeLoc.error("Static method not found: " + idOrig.toString());
+      if (auto fun = getStaticMethod(*type, id.parts.at(1).name))
+        return *fun;
+      else
+        id.codeLoc.error("Static method not found: " + id.toString());
     } else
-      idOrig.codeLoc.error("Type not found: " + idOrig.toString());
+      id.codeLoc.error("Type not found: " + id.toString());
   } else {
-    idOrig.codeLoc.check(idOrig.parts.size() == 1, "Bad function identifier: " + idOrig.toString());
+    id.codeLoc.check(id.parts.size() == 1, "Bad function identifier: " + id.toString());
     if (functions.count(funName))
-      ret = functions.at(funName);
+      return functions.at(funName);
   }
-  codeLoc.check(!!ret, "Function not found: " + quote(funName));
-  ret = instantiate(*ret, getTypeList(templateParamNames), templateParamNames);
-  if (!ret)
-    codeLoc.error("Can't instantiate template function " + quote(idOrig.toString()));
-  INFO << "Function " << idOrig.toString() << " return type " << getName(*ret->retVal);
-  return *ret;
+  codeLoc.error("Function not found: " + quote(funName));
+  return functions.at(funName);
+}
+
+vector<string> State::getFunctionParamNames(CodeLoc codeLoc, IdentifierInfo id) const {
+  auto fun = getFunctionTemplate(codeLoc, id);
+  return transform(fun.params, [](const FunctionType::Param& p) { return p.name; });
+}
+
+FunctionType State::getFunction(CodeLoc codeLoc, IdentifierInfo id, vector<Type> argTypes,
+    vector<CodeLoc> argLoc) const {
+  auto templateArgNames = id.parts.back().templateArguments;
+  auto templateArgs = getTypeList(templateArgNames);
+  auto ret = getFunctionTemplate(codeLoc, id);
+  instantiate(ret, codeLoc, templateArgs, argTypes, argLoc);
+  INFO << "Function " << id.toString() << " return type " << getName(*ret.retVal);
+  return ret;
 }

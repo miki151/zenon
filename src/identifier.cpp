@@ -27,7 +27,7 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens) {
           break;
         if (templateParamToken.contains<IdentifierToken>()) {
           tokens.rewind();
-          ret.parts.back().templateParams.push_back(IdentifierInfo::parseFrom(tokens));
+          ret.parts.back().templateArguments.push_back(IdentifierInfo::parseFrom(tokens));
           if (tokens.peek("template parameter") != Operator::MORE_THAN)
             tokens.eat(Keyword::COMMA);
         } else
@@ -70,13 +70,13 @@ IdentifierInfo::IdentifierInfo() {
 
 std::string IdentifierInfo::IdentifierPart::toString() const {
   string ret = name;
-  if (!templateParams.empty()) {
-    auto paramsNames = transform(templateParams, [](auto& e) { return e.toString(); });
+  if (!templateArguments.empty()) {
+    auto paramsNames = transform(templateArguments, [](auto& e) { return e.toString(); });
     ret = ret + "<" + combine(paramsNames, ",") + ">";
   }
   return ret;
 }
 
 bool IdentifierInfo::IdentifierPart::operator == (const IdentifierPart& o) const {
-  return name == o.name && templateParams == o.templateParams;
+  return name == o.name && templateArguments == o.templateArguments;
 }

@@ -8,10 +8,10 @@
 struct IdentifierInfo {
   struct IdentifierPart {
     string name;
-    vector<IdentifierInfo> templateParams;
+    vector<IdentifierInfo> templateArguments;
     string toString() const;
     bool operator == (const IdentifierPart&) const;
-    HASH_ALL(name, templateParams)
+    HASH_ALL(name, templateArguments)
   };
   IdentifierInfo(string name);
   IdentifierInfo(IdentifierPart);

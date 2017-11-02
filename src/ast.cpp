@@ -173,18 +173,14 @@ Type MemberAccessType::getType(const State&) {
 }
 
 Type FunctionCall::getType(const State& state) {
-  auto type = state.getFunction(codeLoc, identifier);
-  int numParams = (int) type.params.size();
-  codeLoc.check(arguments.size() == numParams,
-       "Expected " + to_string(numParams) + " arguments, got " + to_string(arguments.size()));
-  for (int i = 0; i < numParams; ++i) {
-    auto argType = arguments[i]->getType(state);
-    auto& paramType = type.params[i];
-    arguments[i]->codeLoc.check(canBind(*paramType.type, argType),
-        "Function call argument " + to_string(i + 1) + ": cannot bind "s + quote(getName(argType)) + " to "
-        + quote(getName(*paramType.type)));
+  vector<Type> argTypes;
+  vector<CodeLoc> argLoc;
+  for (int i = 0; i < arguments.size(); ++i) {
+    argTypes.push_back(arguments[i]->getType(state));
+    argLoc.push_back(arguments[i]->codeLoc);
+    INFO << "Function argument " << getName(argTypes.back());
   }
-  INFO << "Function call type " << getName(*type.retVal);
+  auto type = state.getFunction(codeLoc, identifier, argTypes, argLoc);
   callType = type.callType;
   return *type.retVal;
 }
@@ -192,47 +188,38 @@ Type FunctionCall::getType(const State& state) {
 FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {}
 
 Type FunctionCallNamedArgs::getType(const State& state) {
-  if (auto type = state.getTypeOfVariable(identifier))
-    return type->visit(
-        [&](const FunctionType& t) {
-          map<string, Type> toInitialize;
-          set<string> initialized;
-          map<string, int> paramIndex;
-          int count = 0;
-          for (auto& param : t.params) {
-            toInitialize.insert({param.name, *param.type});
-            paramIndex[param.name] = count++;
-          }
-          for (auto& elem : arguments) {
-            elem.codeLoc.check(toInitialize.count(elem.name), "No parameter named " + quote(elem.name)
-                + " in function " + quote(identifier.toString()));
-            elem.codeLoc.check(!initialized.count(elem.name), "Parameter " + quote(elem.name) + " listed more than once");
-            auto exprType = elem.expr->getType(state);
-            auto paramType = toInitialize.at(elem.name);
-            elem.codeLoc.check(canAssign(ReferenceType(paramType), exprType), "Can't initialize parameter "
-                + quote(elem.name) + " of type " + quote(getName(paramType)) + " with expression of type "
-                + quote(getName(exprType)));
-            initialized.insert(elem.name);
-          }
-          vector<string> notInitialized;
-          for (auto& elem : toInitialize)
-            if (!initialized.count(elem.first))
-              notInitialized.push_back("" + quote(elem.first));
-          codeLoc.check(notInitialized.empty(), "Function parameters: " + combine(notInitialized, ",")
-              + " were not initialized" );
-          sort(arguments.begin(), arguments.end(),
-              [&](const Argument& m1, const Argument& m2) { return paramIndex[m1.name] < paramIndex[m2.name]; });
-          callType = t.callType;
-          return *t.retVal;
-        },
-        [&](const auto&) -> Type {
-          codeLoc.error("Trying to a non-function type");
-          return {};
-        }
-    );
-  else
-    codeLoc.error("Function not found: " + quote(identifier.toString()));
-  return {};
+  set<string> toInitialize;
+  set<string> initialized;
+  map<string, int> paramIndex;
+  vector<string> paramNames = state.getFunctionParamNames(codeLoc, identifier);
+  int count = 0;
+  for (auto& param : paramNames) {
+    toInitialize.insert(param);
+    paramIndex[param] = count++;
+  }
+  for (auto& elem : arguments) {
+    elem.codeLoc.check(toInitialize.count(elem.name), "No parameter named " + quote(elem.name)
+        + " in function " + quote(identifier.toString()));
+    elem.codeLoc.check(!initialized.count(elem.name), "Parameter " + quote(elem.name) + " listed more than once");
+    initialized.insert(elem.name);
+  }
+  vector<string> notInitialized;
+  for (auto& elem : toInitialize)
+    if (!initialized.count(elem))
+      notInitialized.push_back("" + quote(elem));
+  codeLoc.check(notInitialized.empty(), "Function parameters: " + combine(notInitialized, ",")
+      + " were not initialized" );
+  sort(arguments.begin(), arguments.end(),
+      [&](const Argument& m1, const Argument& m2) { return paramIndex[m1.name] < paramIndex[m2.name]; });
+  vector<Type> argTypes;
+  vector<CodeLoc> argLocs;
+  for (auto& arg : arguments) {
+    argTypes.push_back(arg.expr->getType(state));
+    argLocs.push_back(arg.codeLoc);
+  }
+  auto type = state.getFunction(codeLoc, identifier, argTypes, argLocs);
+  callType = type.callType;
+  return *type.retVal;
 }
 
 void EmbedBlock::check(State&) {
