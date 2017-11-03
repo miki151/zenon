@@ -28,7 +28,7 @@ enum class Keyword {
   TRUE,
   FALSE,
   STRUCT,
-  EMBED,
+  EXTERN,
   VARIANT,
   NAMESPACE_ACCESS,
   SWITCH,
@@ -39,15 +39,15 @@ enum class Keyword {
   REFERENCE
 };
 
-struct Unknown {
-  bool operator == (const Unknown&) const { return true; }
+struct EmbedToken {
+  bool operator == (const EmbedToken&) const { return true; }
 };
 
 extern Keyword getKeyword(const string&);
 string getString(Token);
 extern vector<string> getAllKeywords();
 
-class Token : public variant<Number, IdentifierToken, Keyword, Operator, Unknown> {
+class Token : public variant<Number, IdentifierToken, Keyword, Operator, EmbedToken> {
   public:
   using variant::variant;
   string value;

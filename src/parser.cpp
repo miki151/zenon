@@ -135,18 +135,6 @@ unique_ptr<StatementBlock> parseBlock(Tokens& tokens) {
   return block;
 }
 
-unique_ptr<EmbedBlock> parseEmbedBlock(Tokens& tokens) {
-  auto block = unique<EmbedBlock>(tokens.peek("statement").codeLoc);
-  int bracketCount = 1;
-  while (1) {
-    auto token2 = tokens.popNext("embedded function body");
-    if (token2 == Keyword::CLOSE_BLOCK && --bracketCount == 0)
-      break;
-    block->content.append(token2.value);
-  }
-  return block;
-}
-
 unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Tokens& tokens) {
   auto token2 = tokens.popNext("function definition");
   token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected identifier, got: " + quote(token2.value));
@@ -165,16 +153,17 @@ unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Toke
     auto nameToken = tokens.popNext("identifier");
     ret->parameters.push_back({type.codeLoc, typeId, nameToken.value});
   }
-  token2 = tokens.peek("function body");
-  if (token2 == Keyword::OPEN_BLOCK)
-    ret->body = parseBlock(tokens);
-  else
-  if (token2 == Keyword::EMBED) {
-    tokens.popNext();
-    tokens.eat(Keyword::OPEN_BLOCK);
-    ret->body = parseEmbedBlock(tokens);
-    ret->embed = true;
-  }
+  ret->body = parseBlock(tokens);
+  return ret;
+}
+
+unique_ptr<EmbedStructDefinition> parseEmbedStructDefinition(Tokens& tokens) {
+  tokens.eat(Keyword::EXTERN);
+  tokens.eat(Keyword::STRUCT);
+  auto token2 = tokens.popNext("struct name");
+  token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected struct name");
+  auto ret = unique<EmbedStructDefinition>(token2.codeLoc, token2.value);
+  tokens.eat(Keyword::SEMICOLON);
   return ret;
 }
 
@@ -327,6 +316,11 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
       tokens.eat(Keyword::COMMA);
   }
   tokens.eat(Operator::MORE_THAN);
+  if (tokens.peek("Function or type definition") == Keyword::EXTERN) {
+    auto ret = parseEmbedStructDefinition(tokens);
+    ret->templateParams = params;
+    return ret;
+  } else
   if (tokens.peek("Function or type definition") == Keyword::STRUCT) {
     auto ret = parseStructDefinition(tokens);
     ret->templateParams = params;
@@ -368,11 +362,6 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseVariantDefinition(tokens);
           case Keyword::SWITCH:
             return parseSwitchStatement(tokens);
-          case Keyword::EMBED: {
-            tokens.popNext();
-            auto content = tokens.popNext("Embedded statement");
-            return unique<EmbedInclude>(content.codeLoc, content.value);
-          }
           default:
             token.codeLoc.error("Unexpected keyword: " + quote(token.value));
             return {};
@@ -386,6 +375,12 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
           tokens.rewind(bookmark);
           return rewindAndParseExpression();
         }
+      },
+      [&](EmbedToken) {
+        auto text = token.value.substr(1);
+        auto ret = unique<EmbedStatement>(token.codeLoc, text);
+        tokens.popNext();
+        return ret;
       },
       [&](const auto&) -> unique_ptr<Statement> {
         return rewindAndParseExpression();

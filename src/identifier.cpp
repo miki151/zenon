@@ -53,6 +53,8 @@ string IdentifierInfo::toString() const {
       ret.append("::");
     ret.append(part.toString());
   }
+  if (reference)
+    ret.append("&");
   return ret;
 }
 

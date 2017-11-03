@@ -40,10 +40,10 @@ static string getOperators() {
 
 Tokens lex(const string& input) {
   string idLetterFirst = "a-zA-Z";
-  string idLetter = idLetterFirst + "0-9";
+  string idLetter = idLetterFirst + "0-9_";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
-      {"#.*\n", [](const string&) -> optional<Token> { return Token(Unknown{});}},
-      {"//.*\n", [](const string&) -> optional<Token> { return none;}},
+      {"#.*$", [](const string&) -> optional<Token> { return Token(EmbedToken{});}},
+      {"//.*$", [](const string&) -> optional<Token> { return none;}},
       {getKeywords(), [](const string& s) -> optional<Token> { return Token(getKeyword(s));}},
       {getOperators(), [](const string& s) -> optional<Token> {
           return Token(*getOperator(s));}},
@@ -87,10 +87,10 @@ Tokens lex(const string& input) {
         lastPos += matched.size() + skipped.size();
         auto codeLoc = CodeLoc(lines[lastPos - 1], columns[lastPos - 1]);
         if (!all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); })) {
-          ret.push_back(Unknown{});
+/*          ret.push_back(UnknownToken{});
           ret.back().value = skipped;
-          ret.back().codeLoc = CodeLoc(lines[lastPos - 1 - skipped.size()], columns[lastPos - 1 - skipped.size()]);
-          INFO << "Skipped " << quote(skipped);
+          ret.back().codeLoc = CodeLoc(lines[lastPos - 1 - skipped.size()], columns[lastPos - 1 - skipped.size()]);*/
+          FATAL << "Skipped " << quote(skipped);
         }
         if (auto token = v[index].second(matched)) {
           ret.push_back(*token);

@@ -118,13 +118,6 @@ struct StatementBlock : Statement {
   virtual void codegen(Accu&) const override;
 };
 
-struct EmbedBlock : Statement {
-  using Statement::Statement;
-  string content;
-  virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
-};
-
 struct ReturnStatement : Statement {
   using Statement::Statement;
   unique_ptr<Expression> expr;
@@ -152,7 +145,6 @@ struct StructDefinition : Statement {
   };
   vector<Member> members;
   vector<string> templateParams;
-  vector<FunctionDefinition> methods;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual bool allowTopLevel() const override { return true; }
@@ -167,6 +159,15 @@ struct VariantDefinition : Statement {
     CodeLoc codeLoc;
   };
   vector<Element> elements;
+  vector<string> templateParams;
+  virtual void check(State&) override;
+  virtual void codegen(Accu&) const override;
+  virtual bool allowTopLevel() const override { return true; }
+};
+
+struct EmbedStructDefinition : Statement {
+  EmbedStructDefinition(CodeLoc, string name);
+  string name;
   vector<string> templateParams;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
@@ -203,18 +204,18 @@ struct FunctionDefinition : Statement {
   vector<Parameter> parameters;
   unique_ptr<Statement> body;
   vector<string> templateParams;
-  bool embed = false;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual bool allowTopLevel() const override { return true; }
 };
 
-struct EmbedInclude : Statement {
-  EmbedInclude(CodeLoc, const string& path);
-  string path;
+struct EmbedStatement : Statement {
+  EmbedStatement(CodeLoc, string value);
+  string value;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual bool allowTopLevel() const override { return true; }
+  virtual bool hasReturnStatement(const State&) const override;
 };
 
 struct AST {

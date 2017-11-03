@@ -12,7 +12,7 @@ static const unordered_map<string, Keyword> keywords {
   {"true", Keyword::TRUE},
   {"false", Keyword::FALSE},
   {"struct", Keyword::STRUCT},
-  {"embed", Keyword::EMBED},
+  {"extern", Keyword::EXTERN},
   {"variant", Keyword::VARIANT},
   {"switch", Keyword::SWITCH},
   {"case", Keyword::CASE},
@@ -62,7 +62,7 @@ string getString(Token t) {
       [](Operator op) {
         return getString(op);
       },
-      [](Unknown) {
+      [](EmbedToken) {
         return "unknown";
       }
   );

@@ -222,16 +222,6 @@ Type FunctionCallNamedArgs::getType(const State& state) {
   return *type.retVal;
 }
 
-void EmbedBlock::check(State&) {
-}
-
-EmbedInclude::EmbedInclude(CodeLoc l, const string& p) : Statement(l), path(p) {
-  INFO << "Embed statement " << p;
-}
-
-void EmbedInclude::check(State&) {
-}
-
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
 void SwitchStatement::check(State& state) {
@@ -353,4 +343,21 @@ UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e
 
 Type UnaryExpression::getType(const State& state) {
   return expr->getType(state);
+}
+
+EmbedStructDefinition::EmbedStructDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
+
+void EmbedStructDefinition::check(State& state) {
+  codeLoc.check(!state.typeNameExists(name), "Type " + quote(name) + " conflicts with an existing type");
+  codeLoc.check(!state.getTypeOfVariable(name), "Type " + quote(name) + " conflicts with an existing variable or function");
+  StructType type(name);
+  for (auto& param : templateParams)
+    type.templateParams.push_back(TemplateParameter{param});
+  state.addType(name, type);
+}
+
+EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {
+}
+
+void EmbedStatement::check(State&) {
 }

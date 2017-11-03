@@ -155,7 +155,6 @@ static void considerTemplateParams(Accu& accu, const vector<string>& params) {
 }
 
 void FunctionDefinition::codegen(Accu& accu) const {
-  considerTemplateParams(accu, templateParams);
   auto getPrototype = [this]() {
     string ret = returnType.toString() + " " + name + "(";
     for (auto& param : parameters)
@@ -167,12 +166,9 @@ void FunctionDefinition::codegen(Accu& accu) const {
     ret.append(")");
     return ret;
   };
-  if (embed) {
-    accu.add(getPrototype() + ";");
-  }
-  Accu::Position pos = embed ? Accu::EMBED : Accu::CURRENT;
-  accu.add(getPrototype(), pos);
-  accu.newLine("", pos);
+  considerTemplateParams(accu, templateParams);
+  accu.add(getPrototype());
+  accu.newLine("");
   body->codegen(accu);
 }
 
@@ -205,22 +201,9 @@ void MemberAccessType::codegen(Accu& accu) const {
   accu.add(name);
 }
 
-void EmbedBlock::codegen(Accu& accu) const {
-  accu.add("{", Accu::EMBED);
-  accu.newLine("", Accu::EMBED);
-  accu.add(content, Accu::EMBED);
-  accu.newLine("}", Accu::EMBED);
-}
-
-
-void EmbedInclude::codegen(Accu& accu) const {
-  accu.newLine(path, Accu::EMBED);
-}
-
 constexpr const char* variantEnumeratorPrefix = "Enum_";
 constexpr const char* variantUnionEntryPrefix = "Union_";
 constexpr const char* variantUnionElem = "unionElem";
-constexpr const char* variantTagPrefix = "S_";
 
 void VariantDefinition::codegen(Accu& accu) const {
   considerTemplateParams(accu, templateParams);
@@ -303,4 +286,17 @@ void SwitchStatement::codegen(Accu& accu) const {
 void UnaryExpression::codegen(Accu& accu) const {
   accu.add(getString(op));
   expr->codegen(accu);
+}
+
+
+void EmbedStructDefinition::codegen(Accu&) const {
+}
+
+
+void EmbedStatement::codegen(Accu& accu) const {
+  accu.newLine(value);
+}
+
+bool EmbedStatement::hasReturnStatement(const State&) const {
+  return true;
 }

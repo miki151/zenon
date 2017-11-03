@@ -267,7 +267,7 @@ optional<Type> instantiate(const Type& type, vector<Type> templateParams) {
 struct TypeMapping {
   vector<Type> templateParams;
   vector<optional<Type>> templateArgs;
-  const optional<Type>& getDeduced(const Type& t) {
+  optional<int> getParamIndex(const Type& t) {
     for (int i = 0; i < templateParams.size(); ++i)
       if (templateParams[i] == t)
         return i;
