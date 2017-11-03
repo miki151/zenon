@@ -63,11 +63,11 @@ int example() {
 
 ### Embedding C++ code
 ``` C++
-embed #include <stdio.h>
+##include <stdio.h>
 
-void print(int a) embed {
+void print(int a) {
   // C++ code in the body of this function 
-  printf("%d\n", a);
+#  printf("%d\n", a);
 }
 
 int main() {
