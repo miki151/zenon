@@ -1,0 +1,35 @@
+// 5
+
+##include <stdio.h>
+##include <vector>
+#using namespace std;
+
+// dupa
+void print(int x) {
+  #printf("%d\n", x);  
+}
+
+template <T>
+extern struct vector;
+
+template<T>
+void push_back(vector<T>& v, T elem) {
+  #v.push_back(std::move(elem));  
+}
+
+template<T>
+vector<T> make_vec() {
+  #return vector<T>();
+}
+
+template<T>
+T get(vector<T>& v, int index) {
+  #return v.at(index);
+}
+
+int main() {
+  vector<int> v = make_vec<int>();
+  push_back(v, 5);
+  return get(v, 0);
+}
+

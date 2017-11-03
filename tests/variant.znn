@@ -1,0 +1,46 @@
+// 2
+
+variant V1 {
+  int x;
+  bool b;
+};
+
+V1 getVariant(int x) {
+  return V1::x(x);
+}
+
+V1 getVariant2(bool b) {
+  return V1::b(b);
+}
+
+int getValue() {
+  switch (getVariant(4)) {
+    case (int x) {
+      return x;
+    }
+    case (bool b) {
+      if (b)
+        return 1;
+      else
+        return 0;
+    }
+  }
+}
+
+int getValue2() {
+  switch (getVariant2(false)) {
+    case (int x) {
+      return 5;
+    }
+    case (bool b) {
+      if (b)
+        return 1;
+      else
+        return -2;
+    }
+  }
+}
+
+int main() {
+  return getValue() + getValue2();
+}

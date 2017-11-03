@@ -1,0 +1,25 @@
+// 1
+
+int sum(int a, int b) {
+  return a + b;
+}
+
+int minus(int i) {
+  return -i;
+}
+
+bool negate(bool b) {
+  if (b)
+    return false;
+  else
+    return true;
+}
+
+int main() {
+  bool b = false;
+  int y = 3;
+  int x = y = 4;
+  if (negate(b))
+    x = x - 1;
+  return -sum(minus(x) - 1, y - 1);
+}

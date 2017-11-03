@@ -1,0 +1,61 @@
+// 2
+
+
+template <Param>
+variant nullable {
+  Param p;
+  void null;
+};
+
+template <T>
+nullable<T> null() {
+  return nullable<T>::null();
+}
+
+template <T>
+nullable<T> value(T t) {
+  return nullable<T>::p(t);
+}
+
+template <U, V>
+variant V2 {
+  nullable<U> e1;
+  nullable<V> e2;
+};
+
+template <U, V>
+bool equal(V2<U,V> v, U u) {
+  V2<U,V> vTmp = v;
+  switch (vTmp) {
+    case (e1) {
+      switch (e1) {
+        case (null) {
+          return false;
+        }
+        case (p) {
+          return true;
+        }
+      }
+    }
+    case (nullable<V> e2) {
+      return false;
+    }
+  }
+}
+
+template<T>
+struct X {
+  T elem;
+};
+
+int main() {
+  X<int> z = X<int>(5);
+  nullable<X<int>> x = value(z);
+  nullable<X<bool>> y = value(X<bool>(true));
+  V2<X<int>,X<bool>> v2 = V2<X<int>,X<bool>>::e1(x);
+  int a = 1;
+  if (equal(v2, z))
+    a = a + 1;
+  return a;
+}
+

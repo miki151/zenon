@@ -1,0 +1,12 @@
+// 8
+
+void f(int& x) {
+  x = x + 3;
+}
+
+int main() {
+  int x = 2;
+  f(x);
+  f({x = x});
+  return x;
+}
