@@ -377,7 +377,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
         }
       },
       [&](EmbedToken) {
-        auto text = token.value.substr(1);
+        auto text = token.value;
         auto ret = unique<EmbedStatement>(token.codeLoc, text);
         tokens.popNext();
         return ret;

@@ -42,8 +42,7 @@ Tokens lex(const string& input) {
   string idLetterFirst = "a-zA-Z";
   string idLetter = idLetterFirst + "0-9_";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
-      {"#.*$", [](const string&) -> optional<Token> { return Token(EmbedToken{});}},
-      {"//.*$", [](const string&) -> optional<Token> { return none;}},
+      {"//.*", [](const string&) -> optional<Token> { return none;}},
       {getKeywords(), [](const string& s) -> optional<Token> { return Token(getKeyword(s));}},
       {getOperators(), [](const string& s) -> optional<Token> {
           return Token(*getOperator(s));}},
@@ -79,6 +78,12 @@ Tokens lex(const string& input) {
 
   vector<Token> ret;
   int lastPos = 0;
+  struct EmbedBlock {
+    string value;
+    int numBrackets;
+    CodeLoc codeLoc;
+  };
+  optional<EmbedBlock> embedBlock;
   for (auto it = words_begin; it != words_end; ++it) {
     for (int index = 0 ; index < it->size(); ++index)
       if (!it->str(index + 1).empty()) { // determine which submatch was matched
@@ -86,10 +91,31 @@ Tokens lex(const string& input) {
         string skipped = input.substr(lastPos, it->position() - lastPos);
         lastPos += matched.size() + skipped.size();
         auto codeLoc = CodeLoc(lines[lastPos - 1], columns[lastPos - 1]);
+        auto token = v[index].second(matched);
+        if (embedBlock) {
+          if (embedBlock->numBrackets == 0) {
+            codeLoc.check(token == Token(Keyword::OPEN_BLOCK), "Expected " + quote("{") + " after " + quote("embed"));
+          }
+          if (token == Token(Keyword::OPEN_BLOCK))
+            ++embedBlock->numBrackets;
+          else
+          if (token == Token(Keyword::CLOSE_BLOCK))
+            --embedBlock->numBrackets;
+          else
+            embedBlock->value.append(skipped + matched);
+          if (embedBlock->numBrackets == 0) {
+            ret.push_back(EmbedToken{});
+            ret.back().value = embedBlock->value;
+            ret.back().codeLoc = embedBlock->codeLoc;
+            embedBlock = none;
+          }
+          break;
+        } else
+        if (v[index].second(matched) == Token(Keyword::EMBED)) {
+          embedBlock = EmbedBlock { "", 0, codeLoc };
+          break;
+        }
         if (!all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); })) {
-/*          ret.push_back(UnknownToken{});
-          ret.back().value = skipped;
-          ret.back().codeLoc = CodeLoc(lines[lastPos - 1 - skipped.size()], columns[lastPos - 1 - skipped.size()]);*/
           FATAL << "Skipped " << quote(skipped);
         }
         if (auto token = v[index].second(matched)) {

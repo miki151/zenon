@@ -29,6 +29,7 @@ enum class Keyword {
   FALSE,
   STRUCT,
   EXTERN,
+  EMBED,
   VARIANT,
   NAMESPACE_ACCESS,
   SWITCH,
