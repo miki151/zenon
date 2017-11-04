@@ -21,8 +21,18 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens) {
     ret.parts.back().name = token.value;
     if (tokens.peek("identifier") == Operator::LESS_THAN) {
       tokens.popNext();
+      bool firstParam = true;
       while (1) {
         auto templateParamToken = tokens.popNext("template parameter");
+        if (firstParam) {
+          auto nextToken = tokens.peek("Expression or template parameter");
+          if (nextToken != Keyword::COMMA && nextToken != Operator::LESS_THAN && nextToken != Operator::MORE_THAN) {
+            tokens.rewind();
+            tokens.rewind();
+            break;
+          }
+          firstParam = false;
+        }
         if (templateParamToken == Operator::MORE_THAN)
           break;
         if (templateParamToken.contains<IdentifierToken>()) {
