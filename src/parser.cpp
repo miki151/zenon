@@ -120,7 +120,7 @@ unique_ptr<Expression> parseExpression(Tokens& tokens) {
   return parseExpressionImpl(tokens, parsePrimary(tokens, none), 0);
 }
 
-unique_ptr<Statement> parseStatement(Tokens&);
+unique_ptr<Statement> parseNonTopLevelStatement(Tokens&);
 
 unique_ptr<StatementBlock> parseBlock(Tokens& tokens) {
   auto block = unique<StatementBlock>(tokens.eat(Keyword::OPEN_BLOCK).codeLoc);
@@ -130,7 +130,7 @@ unique_ptr<StatementBlock> parseBlock(Tokens& tokens) {
       tokens.popNext("statement");
       break;
     }
-    block->elems.push_back(parseStatement(tokens));
+    block->elems.push_back(parseNonTopLevelStatement(tokens));
   }
   return block;
 }
@@ -193,14 +193,14 @@ unique_ptr<IfStatement> parseIfStatement(Tokens& tokens) {
   tokens.eat(Keyword::OPEN_BRACKET);
   auto cond = parseExpression(tokens);
   tokens.eat(Keyword::CLOSE_BRACKET);
-  auto ifTrue = parseStatement(tokens);
+  auto ifTrue = parseNonTopLevelStatement(tokens);
   unique_ptr<Statement> ifFalse;
   if (!tokens.empty()) {
     auto token2 = tokens.peek();
     if (auto k1 = token2.getReferenceMaybe<Keyword>())
       if (*k1 == Keyword::ELSE) {
         tokens.popNext();
-        ifFalse = parseStatement(tokens);
+        ifFalse = parseNonTopLevelStatement(tokens);
       }
   }
   return unique<IfStatement>(codeLoc, std::move(cond), std::move(ifTrue), std::move(ifFalse));
@@ -247,12 +247,12 @@ unique_ptr<ForLoopStatement> parseForLoopStatement(Tokens& tokens) {
   auto codeLoc = tokens.peek().codeLoc;
   tokens.eat(Keyword::FOR);
   tokens.eat(Keyword::OPEN_BRACKET);
-  auto init = parseStatement(tokens);
+  auto init = parseNonTopLevelStatement(tokens);
   auto cond = parseExpression(tokens);
   tokens.eat(Keyword::SEMICOLON);
   auto iter = parseExpression(tokens);
   tokens.eat(Keyword::CLOSE_BRACKET);
-  auto body = parseStatement(tokens);
+  auto body = parseNonTopLevelStatement(tokens);
   return unique<ForLoopStatement>(codeLoc, std::move(init), std::move(cond), std::move(iter), std::move(body));
 }
 
@@ -351,8 +351,7 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
 }
 
 unique_ptr<Statement> parseStatement(Tokens& tokens) {
-  auto rewindAndParseExpression = [&] {
-    //tokens.rewind();
+  auto parseExpressionAndSemicolon = [&] {
     auto ret = parseExpression(tokens);
     tokens.eat(Keyword::SEMICOLON);
     return unique<ExpressionStatement>(std::move(ret));
@@ -388,7 +387,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
           return decl;
         else {
           tokens.rewind(bookmark);
-          return rewindAndParseExpression();
+          return parseExpressionAndSemicolon();
         }
       },
       [&](EmbedToken) {
@@ -398,16 +397,24 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
         return ret;
       },
       [&](const auto&) -> unique_ptr<Statement> {
-        return rewindAndParseExpression();
+        return parseExpressionAndSemicolon();
       }
   );
+}
+
+unique_ptr<Statement> parseNonTopLevelStatement(Tokens& tokens) {
+  auto ret = parseStatement(tokens);
+  ret->codeLoc.check(ret->allowTopLevel() != Statement::TopLevelAllowance::MUST,
+      "Statement only allowed in the top level of the program");
+  return ret;
 }
 
 unique_ptr<Statement> parseTopLevelStatement(Tokens& tokens) {
   if (tokens.empty())
     return nullptr;
   auto statement = parseStatement(tokens);
-  statement->codeLoc.check(statement->allowTopLevel(), "Statement not allowed in the top level of the program");
+  statement->codeLoc.check(statement->allowTopLevel() != Statement::TopLevelAllowance::CANT,
+      "Statement not allowed in the top level of the program");
   return statement;
 }
 

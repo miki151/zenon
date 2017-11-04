@@ -88,7 +88,12 @@ struct Statement : Node {
   virtual void check(State&) = 0;
   virtual bool hasReturnStatement(const State&) const;
   virtual void codegen(Accu&) const = 0;
-  virtual bool allowTopLevel() const { return false; }
+  enum class TopLevelAllowance {
+    CANT,
+    CAN,
+    MUST
+  };
+  virtual TopLevelAllowance allowTopLevel() const { return TopLevelAllowance::CANT; }
 };
 
 struct VariableDeclaration : Statement {
@@ -159,7 +164,7 @@ struct StructDefinition : Statement {
   vector<string> templateParams;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
-  virtual bool allowTopLevel() const override { return true; }
+  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 };
 
 struct VariantDefinition : Statement {
@@ -174,7 +179,7 @@ struct VariantDefinition : Statement {
   vector<string> templateParams;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
-  virtual bool allowTopLevel() const override { return true; }
+  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 };
 
 struct EmbedStructDefinition : Statement {
@@ -183,7 +188,7 @@ struct EmbedStructDefinition : Statement {
   vector<string> templateParams;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
-  virtual bool allowTopLevel() const override { return true; }
+  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 };
 
 struct SwitchStatement : Statement {
@@ -218,7 +223,7 @@ struct FunctionDefinition : Statement {
   vector<string> templateParams;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
-  virtual bool allowTopLevel() const override { return true; }
+  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 };
 
 struct EmbedStatement : Statement {
@@ -226,7 +231,7 @@ struct EmbedStatement : Statement {
   string value;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
-  virtual bool allowTopLevel() const override { return true; }
+  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::CAN; }
   virtual bool hasReturnStatement(const State&) const override;
 };
 
