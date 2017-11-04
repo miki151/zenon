@@ -300,3 +300,17 @@ void EmbedStatement::codegen(Accu& accu) const {
 bool EmbedStatement::hasReturnStatement(const State&) const {
   return true;
 }
+
+void ForLoopStatement::codegen(Accu& accu) const {
+  accu.add("for (");
+  init->codegen(accu);
+  cond->codegen(accu);
+  accu.add(";");
+  iter->codegen(accu);
+  accu.add(")");
+  ++accu.indent;
+  accu.newLine();
+  body->codegen(accu);
+  --accu.indent;
+  accu.newLine();
+}

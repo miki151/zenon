@@ -19,6 +19,7 @@ static const unordered_map<string, Keyword> keywords {
   {"case", Keyword::CASE},
   {"default", Keyword::DEFAULT},
   {"template", Keyword::TEMPLATE},
+  {"for", Keyword::FOR},
   {"?", Keyword::MAYBE},
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},

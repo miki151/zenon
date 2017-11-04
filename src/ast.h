@@ -133,6 +133,18 @@ struct ExpressionStatement : Statement {
   virtual void codegen(Accu&) const override;
 };
 
+struct ForLoopStatement : Statement {
+  ForLoopStatement(CodeLoc l, unique_ptr<Statement> init, unique_ptr<Expression> cond, unique_ptr<Expression> iter,
+      unique_ptr<Statement> body);
+  unique_ptr<Statement> init;
+  unique_ptr<Expression> cond;
+  unique_ptr<Expression> iter;
+  unique_ptr<Statement> body;
+  virtual bool hasReturnStatement(const State&) const override;
+  virtual void check(State&) override;
+  virtual void codegen(Accu&) const override;
+};
+
 struct FunctionDefinition;
 
 struct StructDefinition : Statement {

@@ -243,6 +243,19 @@ unique_ptr<VariantDefinition> parseVariantDefinition(Tokens& tokens) {
   return ret;
 }
 
+unique_ptr<ForLoopStatement> parseForLoopStatement(Tokens& tokens) {
+  auto codeLoc = tokens.peek().codeLoc;
+  tokens.eat(Keyword::FOR);
+  tokens.eat(Keyword::OPEN_BRACKET);
+  auto init = parseStatement(tokens);
+  auto cond = parseExpression(tokens);
+  tokens.eat(Keyword::SEMICOLON);
+  auto iter = parseExpression(tokens);
+  tokens.eat(Keyword::CLOSE_BRACKET);
+  auto body = parseStatement(tokens);
+  return unique<ForLoopStatement>(codeLoc, std::move(init), std::move(cond), std::move(iter), std::move(body));
+}
+
 unique_ptr<SwitchStatement> parseSwitchStatement(Tokens& tokens) {
   auto codeLoc = tokens.eat(Keyword::SWITCH).codeLoc;
   tokens.eat(Keyword::OPEN_BRACKET);
@@ -362,6 +375,8 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseVariantDefinition(tokens);
           case Keyword::SWITCH:
             return parseSwitchStatement(tokens);
+          case Keyword::FOR:
+            return parseForLoopStatement(tokens);
           default:
             token.codeLoc.error("Unexpected keyword: " + quote(token.value));
             return {};

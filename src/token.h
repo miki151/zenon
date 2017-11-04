@@ -37,7 +37,8 @@ enum class Keyword {
   DEFAULT,
   MAYBE,
   TEMPLATE,
-  REFERENCE
+  REFERENCE,
+  FOR
 };
 
 struct EmbedToken {
