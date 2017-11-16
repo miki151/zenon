@@ -350,6 +350,13 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
   }
 }
 
+unique_ptr<Statement> parseImportStatement(Tokens& tokens) {
+  auto codeLoc = tokens.peek().codeLoc;
+  tokens.eat(Keyword::IMPORT);
+  auto path = tokens.eat(StringToken{});
+  return unique<ImportStatement>(codeLoc, path.value);
+}
+
 unique_ptr<Statement> parseStatement(Tokens& tokens) {
   auto parseExpressionAndSemicolon = [&] {
     auto ret = parseExpression(tokens);
@@ -376,6 +383,8 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseSwitchStatement(tokens);
           case Keyword::FOR:
             return parseForLoopStatement(tokens);
+          case Keyword::IMPORT:
+            return parseImportStatement(tokens);
           default:
             token.codeLoc.error("Unexpected keyword: " + quote(token.value));
             return {};

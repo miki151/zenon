@@ -20,6 +20,7 @@ static const unordered_map<string, Keyword> keywords {
   {"default", Keyword::DEFAULT},
   {"template", Keyword::TEMPLATE},
   {"for", Keyword::FOR},
+  {"import", Keyword::IMPORT},
   {"?", Keyword::MAYBE},
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},
@@ -65,7 +66,10 @@ string getString(Token t) {
         return getString(op);
       },
       [](EmbedToken) {
-        return "unknown";
+        return "embed block";
+      },
+      [](StringToken) {
+        return "string literal";
       }
   );
 }
@@ -135,4 +139,17 @@ optional<Token> Tokens::eatMaybe(Token t) {
     return token;
   } else
     return none;
+}
+
+string process(Token t, string matched) {
+  return t.visit(
+      [&](StringToken) {
+        CHECK(matched.size() >= 2 && matched.front() == '\"' && matched.back() == '\"')
+            << "Bad string literal " << quote(matched);
+        return matched.substr(1, matched.size() - 2);
+      },
+      [&](const auto&) {
+        return matched;
+      }
+  );
 }

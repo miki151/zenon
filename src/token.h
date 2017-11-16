@@ -38,18 +38,24 @@ enum class Keyword {
   MAYBE,
   TEMPLATE,
   REFERENCE,
-  FOR
+  FOR,
+  IMPORT
 };
 
 struct EmbedToken {
   bool operator == (const EmbedToken&) const { return true; }
 };
 
+struct StringToken {
+  bool operator == (const StringToken&) const { return true; }
+};
+
 extern Keyword getKeyword(const string&);
 string getString(Token);
 extern vector<string> getAllKeywords();
+string process(Token, string matched);
 
-class Token : public variant<Number, IdentifierToken, Keyword, Operator, EmbedToken> {
+class Token : public variant<Number, IdentifierToken, Keyword, Operator, EmbedToken, StringToken> {
   public:
   using variant::variant;
   string value;

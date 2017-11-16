@@ -378,3 +378,10 @@ void ForLoopStatement::check(State& s) {
   iter->getType(stateCopy);
   body->check(stateCopy);
 }
+
+ImportStatement::ImportStatement(CodeLoc l, string p) : Statement(l), path(p) {
+}
+
+void ImportStatement::check(State& s) {
+
+}

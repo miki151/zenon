@@ -46,6 +46,7 @@ Tokens lex(const string& input) {
       {getKeywords(), [](const string& s) -> optional<Token> { return Token(getKeyword(s));}},
       {getOperators(), [](const string& s) -> optional<Token> {
           return Token(*getOperator(s));}},
+      {"\".*\"" , [](const string&) -> optional<Token> { return Token(StringToken{}); } } ,
       {"[0-9]+" , [](const string&) -> optional<Token> { return Token(Number{}); } } ,
       {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(IdentifierToken{}); }},
   };
@@ -121,7 +122,7 @@ Tokens lex(const string& input) {
         if (auto token = v[index].second(matched)) {
           ret.push_back(*token);
           ret.back().codeLoc = codeLoc;
-          ret.back().value = matched;
+          ret.back().value = process(*token, matched);
         }
         INFO << "Matched " << quote(matched) << " with rule " << index;
         break;

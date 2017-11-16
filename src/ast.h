@@ -235,6 +235,14 @@ struct EmbedStatement : Statement {
   virtual bool hasReturnStatement(const State&) const override;
 };
 
+struct ImportStatement : Statement {
+  ImportStatement(CodeLoc, string path);
+  string path;
+  virtual void check(State&) override;
+  virtual void codegen(Accu&) const override;
+  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+};
+
 struct AST {
   vector<unique_ptr<Statement>> elems;
 };

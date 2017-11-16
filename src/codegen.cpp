@@ -314,3 +314,7 @@ void ForLoopStatement::codegen(Accu& accu) const {
   --accu.indent;
   accu.newLine();
 }
+
+void ImportStatement::codegen(Accu& accu) const {
+  accu.add("import \"" + path + "\"");
+}
