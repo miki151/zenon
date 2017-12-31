@@ -1,10 +1,10 @@
-// 5
+// 2
 
 
-template<T>
-void copy(T& out, T in) {
-  out = in;
-}
+//template<T>
+//void copy(T& out, T in) {
+//  out = in;
+//}
 
 template<T>
 variant V {
@@ -28,6 +28,5 @@ int main() {
   V<int> v1 = V<int>::elem(7);
   V<int> v2 = V<int>::null();
   int x = get(v1, 10) - get({v = v2, def = 5});
-  copy(x, x + 3);
   return x;
 }

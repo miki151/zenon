@@ -29,7 +29,6 @@ static const unordered_map<string, Keyword> keywords {
   {"}", Keyword::CLOSE_BLOCK},
   {";", Keyword::SEMICOLON},
   {",", Keyword::COMMA},
-  {"&", Keyword::REFERENCE},
 };
 
 vector<string> getAllKeywords() {

@@ -117,7 +117,7 @@ Tokens lex(const string& input) {
           break;
         }
         if (!all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); })) {
-          FATAL << "Skipped " << quote(skipped);
+          ERROR << "Unrecognized token " << quote(skipped);
         }
         if (auto token = v[index].second(matched)) {
           ret.push_back(*token);

@@ -18,7 +18,6 @@ struct IdentifierInfo {
   //IdentifierInfo(vector<string> namespaces, string name, vector<IdentifierInfo> templateParams = {});
   static IdentifierInfo parseFrom(Tokens&);
   vector<IdentifierPart> parts;
-  bool reference = false;
   CodeLoc codeLoc;
   string toString() const;
   bool operator == (const IdentifierInfo&) const;

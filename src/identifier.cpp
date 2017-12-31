@@ -50,8 +50,6 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens) {
     } else
       break;
   }
-  if (tokens.eatMaybe(Keyword::REFERENCE))
-    ret.reference = true;
   INFO << "Identifier " << ret.toString();
   return ret;
 }
@@ -63,8 +61,6 @@ string IdentifierInfo::toString() const {
       ret.append("::");
     ret.append(part.toString());
   }
-  if (reference)
-    ret.append("&");
   return ret;
 }
 

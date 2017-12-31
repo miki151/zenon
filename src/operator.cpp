@@ -5,6 +5,7 @@ const static unordered_map<string, Operator> operators {
   {">", Operator::MORE_THAN},
   {"==", Operator::EQUALS},
   {"+", Operator::PLUS},
+  {"*", Operator::MULTIPLY},
   {"-", Operator::MINUS},
   {"=", Operator::ASSIGNMENT},
   {".", Operator::MEMBER_ACCESS}
@@ -43,8 +44,10 @@ int getPrecedence(Operator op) {
     case Operator::PLUS:
     case Operator::MINUS:
       return 3;
-    case Operator::MEMBER_ACCESS:
+    case Operator::MULTIPLY:
       return 4;
+    case Operator::MEMBER_ACCESS:
+      return 5;
   }
 }
 

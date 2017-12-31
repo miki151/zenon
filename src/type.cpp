@@ -79,6 +79,7 @@ bool ReferenceType::operator == (const ReferenceType& o) const {
 
 static optional<Type> getOperationResult(Operator op, const Type& underlyingOperands) {
   switch (op) {
+    case Operator::MULTIPLY:
     case Operator::PLUS:
     case Operator::MINUS:
       if (underlyingOperands == ArithmeticType::INT)
@@ -127,6 +128,7 @@ Type getOperationResult(CodeLoc codeLoc, Operator op, const Type& left, const Ty
       }
     case Operator::LESS_THAN:
     case Operator::MORE_THAN:
+    case Operator::MULTIPLY:
     case Operator::PLUS:
     case Operator::EQUALS:
     case Operator::MINUS: {

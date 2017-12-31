@@ -10,6 +10,7 @@ enum class Operator {
   MINUS,
   ASSIGNMENT,
   MEMBER_ACCESS,
+  MULTIPLY
 };
 
 extern optional<Operator> getOperator(const string&);

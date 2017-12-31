@@ -8,8 +8,13 @@ NC='\033[0m'
 for I in tests/*; do 
   echo "Running $I"
   ./zygmunt $I > tmp.cpp 2> log.out
-  if [ "$?" != "0" ]; then
+  RESULT=$?
+  if [ "$RESULT" = "1" ]; then
     echo "$RED Compilation failed$NC"
+    continue
+  fi
+  if [ "$RESULT" != "0" ]; then
+    echo "$RED Compiler crashed$NC"
     continue
   fi
   g++ -std=c++14 tmp.cpp -o tmp

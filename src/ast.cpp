@@ -127,13 +127,8 @@ void FunctionDefinition::check(State& state) {
     vector<FunctionType::Param> params;
     for (auto& p : parameters)
       if (auto paramType = stateCopy.getTypeFromString(p.type)) {
-        if (p.type.reference) {
-          params.push_back({p.name, ReferenceType(*paramType)});
-          stateCopy.addVariable(p.name, ReferenceType(*paramType));
-        } else {
-          params.push_back({p.name, *paramType});
-          stateCopy.addVariable(p.name, *paramType);
-        }
+        params.push_back({p.name, *paramType});
+        stateCopy.addVariable(p.name, *paramType);
       } else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
     auto type = FunctionType(FunctionCallType::FUNCTION, *returnType, params, templateTypes );

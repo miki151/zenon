@@ -37,7 +37,6 @@ enum class Keyword {
   DEFAULT,
   MAYBE,
   TEMPLATE,
-  REFERENCE,
   FOR,
   IMPORT
 };
