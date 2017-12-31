@@ -12,7 +12,7 @@ IdentifierInfo::IdentifierInfo(IdentifierInfo::IdentifierPart part) : parts(1, p
   CHECK(!name.empty());
 }*/
 
-IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens) {
+IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
   IdentifierInfo ret;
   while (1) {
     ret.parts.emplace_back();
@@ -37,7 +37,7 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens) {
           break;
         if (templateParamToken.contains<IdentifierToken>()) {
           tokens.rewind();
-          ret.parts.back().templateArguments.push_back(IdentifierInfo::parseFrom(tokens));
+          ret.parts.back().templateArguments.push_back(IdentifierInfo::parseFrom(tokens, true));
           if (tokens.peek("template parameter") != Operator::MORE_THAN)
             tokens.eat(Keyword::COMMA);
         } else
@@ -50,6 +50,8 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens) {
     } else
       break;
   }
+  if (allowPointer && tokens.eatMaybe(Operator::MULTIPLY))
+    ret.pointer = true;
   INFO << "Identifier " << ret.toString();
   return ret;
 }
@@ -61,6 +63,8 @@ string IdentifierInfo::toString() const {
       ret.append("::");
     ret.append(part.toString());
   }
+  if (pointer)
+    ret.append("*");
   return ret;
 }
 

@@ -285,7 +285,9 @@ void SwitchStatement::codegen(Accu& accu) const {
 
 void UnaryExpression::codegen(Accu& accu) const {
   accu.add(getString(op));
+  accu.add("(");
   expr->codegen(accu);
+  accu.add(") ");
 }
 
 

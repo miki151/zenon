@@ -45,7 +45,10 @@ optional<Type> State::getTypeFromString(IdentifierInfo id) const {
   auto name = id.parts.at(0).name;
   if (!types.count(name))
     return none;
-  return instantiate(types.at(name), getTypeList(id.parts.at(0).templateArguments));
+  auto ret = instantiate(types.at(name), getTypeList(id.parts.at(0).templateArguments));
+  if (ret && id.pointer)
+    ret = Type(PointerType(*ret));
+  return ret;
 }
 
 bool State::typeNameExists(const string& name) const {

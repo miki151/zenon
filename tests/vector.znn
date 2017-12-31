@@ -19,10 +19,10 @@ template <T>
 extern struct vector;
 
 template<T>
-void push_back(vector<T>& v, T elem) {
+void push_back(vector<T>* v, T elem) {
   embed {
     int embed;
-    v.push_back(std::move(elem));
+    v->push_back(std::move(elem));
   }
 }
 
@@ -34,15 +34,15 @@ vector<T> make_vec() {
 }
 
 template<T>
-T get(vector<T>& v, int index) {
+T get(vector<T>* v, int index) {
   embed {
-    return v.at(index);
+    return v->at(index);
   }
 }
 
 int main() {
   vector<int> v = make_vec<int>();
-  push_back(v, 5);
-  return get(v, 0);
+  push_back(&v, 5);
+  return get(&v, 0);
 }
 

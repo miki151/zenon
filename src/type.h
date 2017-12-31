@@ -20,6 +20,12 @@ struct ReferenceType {
   bool operator == (const ReferenceType&) const;
 };
 
+struct PointerType {
+  PointerType(Type);
+  HeapAllocated<Type> underlying;
+  bool operator == (const PointerType&) const;
+};
+
 struct MemberAccess {
   MemberAccess(const string& memberName);
   string memberName;
@@ -59,7 +65,7 @@ struct StructType {
   bool operator == (const StructType&) const;
 };
 
-struct Type : variant<ArithmeticType, ReferenceType, StructType, MemberAccess, VariantType, TemplateParameter> {
+struct Type : variant<ArithmeticType, ReferenceType, PointerType, StructType, MemberAccess, VariantType, TemplateParameter> {
   using variant::variant;
 };
 
@@ -80,7 +86,8 @@ struct FunctionType {
 extern string getName(const Type&);
 extern bool canAssign(const Type& to, const Type& from);
 extern bool canBind(const Type& to, const Type& from);
-extern Type getOperationResult(CodeLoc, Operator op, const Type& from, const Type& to);
+extern Type getOperationResult(CodeLoc, Operator, const Type& left, const Type& right);
+extern Type getUnaryOperationResult(CodeLoc, Operator, const Type& right);
 extern bool canConvert(const Type& from, const Type& to);
 extern bool requiresInitialization(const Type&);
 class IdentifierInfo;

@@ -337,7 +337,7 @@ UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e
     : Expression(l), op(o), expr(std::move(e)) {}
 
 Type UnaryExpression::getType(const State& state) {
-  return expr->getType(state);
+  return getUnaryOperationResult(expr->codeLoc, op, expr->getType(state));
 }
 
 EmbedStructDefinition::EmbedStructDefinition(CodeLoc l, string n) : Statement(l), name(n) {}

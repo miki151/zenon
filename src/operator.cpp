@@ -8,7 +8,8 @@ const static unordered_map<string, Operator> operators {
   {"*", Operator::MULTIPLY},
   {"-", Operator::MINUS},
   {"=", Operator::ASSIGNMENT},
-  {".", Operator::MEMBER_ACCESS}
+  {".", Operator::MEMBER_ACCESS},
+  {"&", Operator::GET_ADDRESS}
 };
 
 optional<Operator> getOperator(const string& s) {
@@ -46,8 +47,10 @@ int getPrecedence(Operator op) {
       return 3;
     case Operator::MULTIPLY:
       return 4;
-    case Operator::MEMBER_ACCESS:
+    case Operator::GET_ADDRESS:
       return 5;
+    case Operator::MEMBER_ACCESS:
+      return 6;
   }
 }
 
@@ -64,6 +67,8 @@ bool isUnary(Operator op) {
   switch (op) {
     case Operator::PLUS:
     case Operator::MINUS:
+    case Operator::GET_ADDRESS:
+    case Operator::MULTIPLY:
       return true;
     default:
       return false;

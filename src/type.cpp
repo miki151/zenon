@@ -34,6 +34,9 @@ string getName(const Type& t) {
       [&](const ReferenceType& t) {
         return "reference("s + getName(*t.underlying) + ")";
       },
+      [&](const PointerType& t) {
+        return getName(*t.underlying) + "*";
+      },
       [&](const StructType& t) {
         return t.name + getTemplateParamNames(t.templateParams);
       },
@@ -77,6 +80,13 @@ bool ReferenceType::operator == (const ReferenceType& o) const {
   return underlying == o.underlying;
 }
 
+PointerType::PointerType(Type t) : underlying(getUnderlying(t)) {
+}
+
+bool PointerType::operator == (const PointerType& o) const {
+  return underlying == o.underlying;
+}
+
 static optional<Type> getOperationResult(Operator op, const Type& underlyingOperands) {
   switch (op) {
     case Operator::MULTIPLY:
@@ -97,6 +107,32 @@ static optional<Type> getOperationResult(Operator op, const Type& underlyingOper
     default:
       return none;
   }
+}
+
+Type getUnaryOperationResult(CodeLoc codeLoc, Operator op, const Type& right) {
+  auto underlying = getUnderlying(right);
+  CHECK(isUnary(op));
+  switch (op) {
+    case Operator::MULTIPLY:
+      if (auto pointer = underlying.getReferenceMaybe<PointerType>())
+        return ReferenceType(*pointer->underlying);
+      else
+        codeLoc.error("Can't apply dereference operator to type " + quote(getName(right)));
+      break;
+    case Operator::GET_ADDRESS:
+      if (auto reference = right.getReferenceMaybe<ReferenceType>())
+        return PointerType(*reference->underlying);
+      else
+        codeLoc.error("Can't apply address-of operator to type " + quote(getName(right)));
+      break;
+    case Operator::PLUS:
+    case Operator::MINUS:
+      codeLoc.check(underlying == ArithmeticType::INT, "Expected type: " + quote("int") + ", got: " + quote(getName(right)));
+      break;
+    default:
+      break;
+  }
+  return right;
 }
 
 Type getOperationResult(CodeLoc codeLoc, Operator op, const Type& left, const Type& right) {
@@ -140,6 +176,9 @@ Type getOperationResult(CodeLoc codeLoc, Operator op, const Type& left, const Ty
           + " " + quote(getName(right)));
       return {};
     }
+    case Operator::GET_ADDRESS:
+      codeLoc.error("Address-of is not a binary operator");
+      return {};
   }
 }
 
@@ -208,6 +247,9 @@ void replace(FunctionType&, Type from, Type to);
 void replace(Type& in, Type from, Type to) {
   in.visit(
       [&](ReferenceType& t) {
+        replace(*t.underlying, from, to);
+      },
+      [&](PointerType& t) {
         replace(*t.underlying, from, to);
       },
       [&](StructType& t) {
@@ -291,6 +333,11 @@ bool canBind(TypeMapping& mapping, Type paramType, Type argType) {
     return true;
   } else
     return paramType.visit(
+        [&](PointerType& type) {
+          if (auto argPointer = argType.getReferenceMaybe<PointerType>())
+            return canBind(mapping, *type.underlying, *argPointer->underlying);
+          return false;
+        },
         [&](StructType& type) {
           auto argStruct = argType.getReferenceMaybe<StructType>();
           if (!argStruct || type.id != argStruct->id)
@@ -353,4 +400,3 @@ optional<FunctionType> getStaticMethod(const Type& type, string name) {
       [](const auto&) -> optional<FunctionType> {return none;}
   );
 }
-

@@ -3,7 +3,7 @@
 #include "token.h"
 #include "ast.h"
 
-unique_ptr<Expression> parseExpression(Tokens&);
+unique_ptr<Expression> parseExpression(Tokens&, int minPrecedence = 0);
 
 unique_ptr<FunctionCallNamedArgs> parseFunctionCallWithNamedArguments(IdentifierInfo id, Tokens& tokens) {
   auto ret = unique<FunctionCallNamedArgs>(tokens.peek("function call").codeLoc, id);
@@ -61,7 +61,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<Operator> preceding
         }
       },
       [&](const IdentifierToken&) -> unique_ptr<Expression> {
-        auto identifier = IdentifierInfo::parseFrom(tokens);
+        auto identifier = IdentifierInfo::parseFrom(tokens, false);
         auto token2 = tokens.peek("something");
         if (token2 == Keyword::OPEN_BRACKET) {
           auto ret = parseFunctionCall(identifier, tokens);
@@ -79,7 +79,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<Operator> preceding
       [&](const Operator& op) -> unique_ptr<Expression> {
         tokens.popNext();
         token.codeLoc.check(isUnary(op), getString(op) + " is not a unary operator"s);
-        auto exp = parsePrimary(tokens, none);
+        auto exp = parseExpression(tokens, getPrecedence(op) + 1);
         return unique<UnaryExpression>(token.codeLoc, op, std::move(exp));
       },
       [&](const auto&) -> unique_ptr<Expression> {
@@ -116,8 +116,8 @@ unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression
   return lhs;
 }
 
-unique_ptr<Expression> parseExpression(Tokens& tokens) {
-  return parseExpressionImpl(tokens, parsePrimary(tokens, none), 0);
+unique_ptr<Expression> parseExpression(Tokens& tokens, int minPrecedence) {
+  return parseExpressionImpl(tokens, parsePrimary(tokens, none), minPrecedence);
 }
 
 unique_ptr<Statement> parseNonTopLevelStatement(Tokens&);
@@ -148,7 +148,7 @@ unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Toke
       } else
         tokens.eat(Keyword::COMMA);
     }
-    auto typeId = IdentifierInfo::parseFrom(tokens);
+    auto typeId = IdentifierInfo::parseFrom(tokens, true);
     tokens.check(token2.contains<IdentifierToken>(), "Expected function parameter");
     auto nameToken = tokens.popNext("identifier");
     ret->parameters.push_back({type.codeLoc, typeId, nameToken.value});
@@ -178,7 +178,7 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens) {
       tokens.popNext();
       break;
     }
-    auto typeIdent = IdentifierInfo::parseFrom(tokens);
+    auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
     auto memberName = tokens.popNext("member name");
     memberName.codeLoc.check(memberName.contains<IdentifierToken>(), "Expected identifier");
     ret->members.push_back({typeIdent, memberName.value, token2.codeLoc});
@@ -231,7 +231,7 @@ unique_ptr<VariantDefinition> parseVariantDefinition(Tokens& tokens) {
       tokens.popNext();
       break;
     } else {
-      auto ident = IdentifierInfo::parseFrom(tokens);
+      auto ident = IdentifierInfo::parseFrom(tokens, true);
       token2 = tokens.popNext("name of a variant alternative");
       token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected name of a variant alternative");
       ret->elements.push_back(VariantDefinition::Element{ident, token2.value, token2.codeLoc});
@@ -276,7 +276,7 @@ unique_ptr<SwitchStatement> parseSwitchStatement(Tokens& tokens) {
     } else {
       tokens.eat(Keyword::CASE);
       tokens.eat(Keyword::OPEN_BRACKET);
-      auto identifier = IdentifierInfo::parseFrom(tokens);
+      auto identifier = IdentifierInfo::parseFrom(tokens, true);
       SwitchStatement::CaseElem caseElem;
       caseElem.codeloc = token2.codeLoc;
       token2 = tokens.popNext("case statement");
@@ -344,7 +344,7 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
     ret->templateParams = params;
     return ret;
   } else {
-    auto ret = parseFunctionDefinition(IdentifierInfo::parseFrom(tokens), tokens);
+    auto ret = parseFunctionDefinition(IdentifierInfo::parseFrom(tokens, true), tokens);
     ret->templateParams = params;
     return ret;
   }
@@ -385,6 +385,8 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseForLoopStatement(tokens);
           case Keyword::IMPORT:
             return parseImportStatement(tokens);
+          case Keyword::OPEN_BRACKET:
+            return parseExpressionAndSemicolon();
           default:
             token.codeLoc.error("Unexpected keyword: " + quote(token.value));
             return {};
@@ -392,7 +394,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
       },
       [&](const IdentifierToken&) -> unique_ptr<Statement> {
         auto bookmark = tokens.getBookmark();
-        if (auto decl = parseVariableDeclaration(IdentifierInfo::parseFrom(tokens), tokens))
+        if (auto decl = parseVariableDeclaration(IdentifierInfo::parseFrom(tokens, true), tokens))
           return decl;
         else {
           tokens.rewind(bookmark);
