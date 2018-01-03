@@ -50,9 +50,9 @@ struct X {
 
 int main() {
   X<int> z = X<int>(5);
-  nullable<X<int>> x = value(z);
-  nullable<X<bool>> y = value(X<bool>(true));
-  V2<X<int>,X<bool>> v2 = V2<X<int>,X<bool>>::e1(x);
+  auto x = value(z);
+  auto y = value(X<bool>(true));
+  auto v2 = V2<X<int>,X<bool>>::e1(x);
   int a = 1;
   if (equal(v2, z))
     a = a + 1;

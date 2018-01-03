@@ -13,7 +13,7 @@ struct IdentifierInfo {
     bool operator == (const IdentifierPart&) const;
     HASH_ALL(name, templateArguments)
   };
-  IdentifierInfo(string name);
+  explicit IdentifierInfo(string name);
   IdentifierInfo(IdentifierPart);
   //IdentifierInfo(vector<string> namespaces, string name, vector<IdentifierInfo> templateParams = {});
   static IdentifierInfo parseFrom(Tokens&, bool allowPointer);

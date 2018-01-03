@@ -1,0 +1,14 @@
+// no_compile
+
+variant T {
+  int x;
+};
+
+T T(int a) {
+  return T::x(a * 2);
+}
+
+int main() {
+  auto t = T(1);
+  return 1;
+}

@@ -72,7 +72,7 @@ void StatementBlock::codegen(Accu& accu) const {
 }
 
 void VariableDeclaration::codegen(Accu& accu) const {
-  accu.add(type.toString() + " " + identifier);
+  accu.add(getName(*realType) + " " + identifier);
   if (initExpr) {
     accu.add(" = ");
     initExpr->codegen(accu);

@@ -51,18 +51,17 @@ optional<Type> State::getTypeFromString(IdentifierInfo id) const {
   return ret;
 }
 
-bool State::typeNameExists(const string& name) const {
-  return types.count(name);
+void State::checkNameConflict(CodeLoc loc, const string& name, const string& type) const {
+  auto desc = type + " " + quote(name);
+  loc.check(!types.count(name), desc + " conflicts with an existing type");
+  loc.check(!vars.count(name), desc + " conflicts with an existing variable or function");
+  loc.check(!functions.count(name), desc + " conflicts with existing function");
 }
 
 void State::addFunction(string id, FunctionType f) {
   INFO << "Inserting function " << id;
   CHECK(!functions.count(id));
   functions.insert(make_pair(id, f));
-}
-
-bool State::functionExists(string name) const {
-  return functions.count(name);
 }
 
 FunctionType State::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) const {

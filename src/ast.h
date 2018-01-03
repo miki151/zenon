@@ -98,8 +98,9 @@ struct Statement : Node {
 };
 
 struct VariableDeclaration : Statement {
-  VariableDeclaration(CodeLoc, IdentifierInfo type, string identifier, unique_ptr<Expression> initExpr);
-  IdentifierInfo type;
+  VariableDeclaration(CodeLoc, optional<IdentifierInfo> type, string identifier, unique_ptr<Expression> initExpr);
+  optional<IdentifierInfo> type;
+  optional<Type> realType;
   string identifier;
   unique_ptr<Expression> initExpr;
   virtual void check(State&) override;

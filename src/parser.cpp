@@ -298,13 +298,18 @@ unique_ptr<SwitchStatement> parseSwitchStatement(Tokens& tokens) {
   return ret;
 }
 
-unique_ptr<Statement> parseVariableDeclaration(IdentifierInfo type, Tokens& tokens) {
+unique_ptr<Statement> parseVariableDeclaration(Tokens& tokens) {
+  auto typeLoc = tokens.peek().codeLoc;
+  optional<IdentifierInfo> type;
+  if (!tokens.eatMaybe(Keyword::AUTO))
+    type = IdentifierInfo::parseFrom(tokens, true);
   auto token2 = tokens.peek("identifier");
   if (token2.contains<IdentifierToken>()) {
     tokens.popNext("identifier");
     if (tokens.peek("variable or function declaration") == Keyword::OPEN_BRACKET) {
       tokens.rewind();
-      return parseFunctionDefinition(type, tokens);
+      typeLoc.check(!!type, "Auto return type not supported for functions");
+      return parseFunctionDefinition(*type, tokens);
     }
     unique_ptr<Expression> initExpression;
     if (tokens.peek("expression or " + quote(";")) != Keyword::SEMICOLON) {
@@ -312,7 +317,7 @@ unique_ptr<Statement> parseVariableDeclaration(IdentifierInfo type, Tokens& toke
       initExpression = parseExpression(tokens);
     }
     tokens.eat(Keyword::SEMICOLON);
-    return unique<VariableDeclaration>(type.codeLoc, type, token2.value, std::move(initExpression));
+    return unique<VariableDeclaration>(typeLoc, type, token2.value, std::move(initExpression));
   } else
     return {};
 }
@@ -390,6 +395,9 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseImportStatement(tokens);
           case Keyword::OPEN_BRACKET:
             return parseExpressionAndSemicolon();
+          case Keyword::AUTO: {
+            return parseVariableDeclaration(tokens);
+          }
           default:
             token.codeLoc.error("Unexpected keyword: " + quote(token.value));
             return {};
@@ -397,7 +405,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
       },
       [&](const IdentifierToken&) -> unique_ptr<Statement> {
         auto bookmark = tokens.getBookmark();
-        if (auto decl = parseVariableDeclaration(IdentifierInfo::parseFrom(tokens, true), tokens))
+        if (auto decl = parseVariableDeclaration(tokens))
           return decl;
         else {
           tokens.rewind(bookmark);

@@ -31,9 +31,12 @@ FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identi
   INFO << "Function call " << id.toString();;
 }
 
-VariableDeclaration::VariableDeclaration(CodeLoc l, IdentifierInfo t, string id, unique_ptr<Expression> ini)
+VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, string id, unique_ptr<Expression> ini)
     : Statement(l), type(t), identifier(id), initExpr(std::move(ini)) {
-  INFO << "Declared variable " << quote(id) << " of type " << quote(t.toString());
+  string type = "auto";
+  if (t)
+    type = t->toString();
+  INFO << "Declared variable " << quote(id) << " of type " << quote(type);
 }
 
 FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, string n) : Statement(l), returnType(r), name(n) {}
@@ -73,8 +76,25 @@ void IfStatement::check(State& state) {
 }
 
 void VariableDeclaration::check(State& state) {
-  codeLoc.check(!state.typeNameExists(identifier), "Variable " + quote(identifier) + " conflicts with an existing type");
-  if (auto typeId = state.getTypeFromString(type)) {
+  state.checkNameConflict(codeLoc, identifier, "Variable");
+  auto inferType = [&] () -> optional<Type> {
+    if (type) {
+      if (auto typeId = state.getTypeFromString(*type))
+        return typeId;
+      else {
+        codeLoc.error("Type " + quote(type->toString()) + " not recognized");
+        return none;
+      }
+    }
+    else if (initExpr)
+      return initExpr->getType(state);
+    else {
+      codeLoc.error("Initializing expression needed to infer variable type");
+      return none;
+    }
+  };
+  if (auto typeId = inferType()) {
+    realType = *typeId;
     INFO << "Adding variable " << identifier << " of type " << getName(*typeId);
     if (initExpr) {
       auto exprType = initExpr->getType(state);
@@ -83,8 +103,7 @@ void VariableDeclaration::check(State& state) {
     } else
       codeLoc.check(!requiresInitialization(*typeId), "Type " + quote(getName(*typeId)) + " requires initialization");
     state.addVariable(identifier, ReferenceType(*typeId));
-  } else
-    codeLoc.error("Type " + quote(type.toString()) + " not recognized");
+  }
 }
 
 void ReturnStatement::check(State& state) {
@@ -119,7 +138,7 @@ bool ReturnStatement::hasReturnStatement(const State&) const {
 }
 
 void FunctionDefinition::check(State& state) {
-  codeLoc.check(!state.functionExists(name), "Function name " + quote(name) + " conflicts with existing function");
+  state.checkNameConflict(codeLoc, name, "Function");
   State stateCopy = state;
   vector<Type> templateTypes;
   for (auto& param : templateParams) {
@@ -282,6 +301,7 @@ VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n
 }
 
 void VariantDefinition::check(State& state) {
+  state.checkNameConflict(codeLoc, name, "Type");
   VariantType type(name);
   unordered_set<string> subtypeNames;
   State stateCopy = state;
@@ -315,8 +335,7 @@ void VariantDefinition::check(State& state) {
 }
 
 void StructDefinition::check(State& state) {
-  codeLoc.check(!state.typeNameExists(name), "Type " + quote(name) + " conflicts with an existing type");
-  codeLoc.check(!state.getTypeOfVariable(name), "Type " + quote(name) + " conflicts with an existing variable or function");
+  state.checkNameConflict(codeLoc, name, "Type");
   StructType type(name);
   auto stateCopy = state;
   for (auto& param : templateParams) {
@@ -347,8 +366,7 @@ Type UnaryExpression::getType(const State& state) {
 EmbedStructDefinition::EmbedStructDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
 
 void EmbedStructDefinition::check(State& state) {
-  codeLoc.check(!state.typeNameExists(name), "Type " + quote(name) + " conflicts with an existing type");
-  codeLoc.check(!state.getTypeOfVariable(name), "Type " + quote(name) + " conflicts with an existing variable or function");
+  state.checkNameConflict(codeLoc, name, "Type");
   StructType type(name);
   for (auto& param : templateParams)
     type.templateParams.push_back(TemplateParameter{param});
