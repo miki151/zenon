@@ -12,9 +12,8 @@ Zenon is a compiled language with similiar features to C++. The aim is to remove
 * Named parameters in function calls
 * Reflection (tbd)
 * Compiles to C++
-
-### Non-features
-* Major paradigm divergence from C++
+* Syntax following C++ as closely as possible
+* No major paradigm divergence from C++
 
 ## Example code
 
