@@ -1,0 +1,11 @@
+public import "print.znn"
+
+
+struct Struct1 {
+  int x;
+  bool b;
+};
+
+int get(Struct1* s) {
+  return getInt((*s).x);
+}

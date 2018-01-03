@@ -1,0 +1,25 @@
+// 15
+
+template<T>
+void set(T* x, T y) {
+  *x = y;
+}
+
+struct X {
+  int* a;
+  int b;
+};
+
+int main() {
+  int x = 0;
+  bool a = true;
+  int* y = &x;
+  (x) = 1;
+  set(y, 5);
+  set(&a, false);
+  X x1 = X(&x, *y);
+  X* x2 = &x1;
+  (*x2).a = y;
+  *y = -(*x2).b + 20;
+  return *(*x2).a;
+}

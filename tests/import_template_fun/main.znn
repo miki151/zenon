@@ -1,0 +1,13 @@
+// 10
+import "fun.znn"
+
+template<T>
+int getT(T a) {
+  return 10;
+}
+
+int main() {
+  int a = getT(5);
+  int b = 20;
+  return *get(&a, &b, getNum());
+}

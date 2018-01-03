@@ -1,0 +1,7 @@
+// no_compile
+import "fun.znn"
+
+int main() {
+  :q
+  return b;
+}

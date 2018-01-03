@@ -1,0 +1,4 @@
+
+struct Struct2 {
+  int u;
+};

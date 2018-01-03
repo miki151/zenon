@@ -1,0 +1,16 @@
+public import "print.znn"
+
+
+struct Struct1 {
+  X x;
+  bool b;
+};
+
+int get(Struct1* s) {
+  return getInt((*s).x.a);
+}
+
+template<T>
+void f1(T t) {
+  X x = X(1);
+}

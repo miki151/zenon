@@ -1,0 +1,6 @@
+import "fun2.znn"
+
+struct S1 {
+  S2 s;
+  int a;
+};

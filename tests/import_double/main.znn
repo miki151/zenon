@@ -1,0 +1,10 @@
+// 10
+import "struct1.znn"
+import "struct2.znn"
+
+
+
+int main() {
+  Struct1 s1 = Struct1(X(5), true);
+  return get(&s1);
+}

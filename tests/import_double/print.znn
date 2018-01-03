@@ -1,0 +1,14 @@
+embed {
+  #include <stdio.h>
+  constexpr int g = 5;
+}
+
+int getInt(int x) {
+  embed {
+    return g + x;
+  }
+}
+
+struct X {
+  int a;
+};

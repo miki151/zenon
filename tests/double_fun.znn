@@ -1,0 +1,13 @@
+// no_compile
+
+int f(int x) {
+  return x;
+}
+
+int f(int y) {
+  return 2 * y;
+}
+
+int main() {
+  return f(5);
+}

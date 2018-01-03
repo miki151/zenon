@@ -1,0 +1,11 @@
+public import "print.znn"
+
+struct Struct2 {
+  X u;
+};
+
+
+template<T>
+void f2(T t) {
+  X x = X(1);
+}
