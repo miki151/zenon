@@ -7,8 +7,10 @@ Zenon is a compiled language with similiar features to C++. The aim is to remove
 ### Features
 * No null pointer
 * No uninitialized variables and members
-* Removes most or possibly all undefined behaviour
+* No headers
 * Built-in variant/tagged union type
+* Named parameters in function calls
+* Reflection (tbd)
 * Compiles to C++
 
 
@@ -47,9 +49,20 @@ variant Nullable {
     void null;
 };
 
+template<T>
+Nullable<T> value(T v) {
+    return Nullable<T>::value(v);
+}
+
+template<T>
+Nullable<T> null() {
+    return Nullable<T>::null();
+}
+
 int example() {
-    Nullable<int> var = Nullable<int>::value(5);
-    var = Nullable<int>::null();
+    // The template parameter of the function 'value' is inferred.
+    Nullable<int> var = value(5);
+    var = null<int>();
     switch (var) {
         case (int value) {
             return value;
@@ -79,4 +92,17 @@ int main() {
     print(5);
 }
 
+```
+
+### Named parameters
+``` C++
+int sum(int a, int b) {
+  return a + b;
+}
+
+int main() {
+  int x = sum(3, 4);
+  x = x + sum({a = 32, b = -30});
+  return x;
+}
 ```
