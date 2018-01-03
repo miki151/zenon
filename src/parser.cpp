@@ -352,9 +352,11 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
 
 unique_ptr<Statement> parseImportStatement(Tokens& tokens) {
   auto codeLoc = tokens.peek().codeLoc;
+  bool isPublic = !!tokens.eatMaybe(Keyword::PUBLIC);
   tokens.eat(Keyword::IMPORT);
-  auto path = tokens.eat(StringToken{});
-  return unique<ImportStatement>(codeLoc, path.value);
+  auto path = tokens.eat(StringToken{}).value;
+  path = getParentPath(codeLoc.file) + "/" + path;
+  return unique<ImportStatement>(codeLoc, path, isPublic);
 }
 
 unique_ptr<Statement> parseStatement(Tokens& tokens) {
@@ -384,6 +386,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
           case Keyword::FOR:
             return parseForLoopStatement(tokens);
           case Keyword::IMPORT:
+          case Keyword::PUBLIC:
             return parseImportStatement(tokens);
           case Keyword::OPEN_BRACKET:
             return parseExpressionAndSemicolon();

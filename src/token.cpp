@@ -21,6 +21,7 @@ static const unordered_map<string, Keyword> keywords {
   {"template", Keyword::TEMPLATE},
   {"for", Keyword::FOR},
   {"import", Keyword::IMPORT},
+  {"public", Keyword::PUBLIC},
   {"?", Keyword::MAYBE},
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},

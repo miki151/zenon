@@ -7,16 +7,9 @@
 #include "ast.h"
 #include "codegen.h"
 #include "correctness.h"
+#include "reader.h"
 
 using namespace std;
-
-string readFromFile(const char* path){
-  ifstream in;
-  in.open(path);
-  stringstream ss;
-  ss << in.rdbuf();
-  return ss.str();//str holds the content of the file
-}
 
 int main(int argc, char* argv[]) {
   FatalLog.addOutput(DebugOutput::crash());
@@ -26,9 +19,10 @@ int main(int argc, char* argv[]) {
   ErrorLog.addOutput(DebugOutput::toStream(std::cerr));
   if (argc < 2)
     return -1;
-  string program = readFromFile(argv[1]);
+  auto path = argv[1];
+  string program = readFromFile(path, none);
   INFO << "Parsing:\n\n" << program;
-  auto tokens = lex(program);
+  auto tokens = lex(program, path);
 /*  for (auto& token : tokens)
     token.visit(
         [](const Number& n) {

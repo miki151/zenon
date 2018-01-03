@@ -2,8 +2,8 @@
 
 #include "stdafx.h"
 
-string combine(const vector<string>& adj, const string& separator);
-string quote(const string&);
+extern string combine(const vector<string>& adj, const string& separator);
+extern string quote(const string&);
 
 template <class T>
 class HeapAllocated {
@@ -83,3 +83,7 @@ template <typename Container, typename V>
 bool contains(const Container& v, const V& elem) {
   return std::find(v.begin(), v.end(), elem) != v.end();
 }
+
+extern vector<string> split(const string& s, const std::set<char>& delim);
+
+extern string getParentPath(const string&);

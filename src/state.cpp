@@ -61,6 +61,10 @@ void State::addFunction(string id, FunctionType f) {
   functions.insert(make_pair(id, f));
 }
 
+bool State::functionExists(string name) const {
+  return functions.count(name);
+}
+
 FunctionType State::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) const {
   string funName = id.parts.at(0).name;
   if (id.parts.size() == 2) {
@@ -84,6 +88,23 @@ FunctionType State::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) cons
 vector<string> State::getFunctionParamNames(CodeLoc codeLoc, IdentifierInfo id) const {
   auto fun = getFunctionTemplate(codeLoc, id);
   return transform(fun.params, [](const FunctionType::Param& p) { return p.name; });
+}
+
+void State::pushImport(const string& name) {
+  imports.push_back(name);
+  allImports.push_back(name);
+}
+
+void State::popImport() {
+  imports.pop_back();
+}
+
+const vector<string>& State::getImports() const {
+  return imports;
+}
+
+const vector<string>& State::getAllImports() const {
+  return allImports;
 }
 
 FunctionType State::getFunction(CodeLoc codeLoc, IdentifierInfo id, vector<Type> argTypes,

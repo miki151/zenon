@@ -38,7 +38,8 @@ enum class Keyword {
   MAYBE,
   TEMPLATE,
   FOR,
-  IMPORT
+  IMPORT,
+  PUBLIC
 };
 
 struct EmbedToken {

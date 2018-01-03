@@ -38,7 +38,7 @@ static string getOperators() {
   return ret;
 }
 
-Tokens lex(const string& input) {
+Tokens lex(const string& input, const string& path) {
   string idLetterFirst = "a-zA-Z";
   string idLetter = idLetterFirst + "0-9_";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
@@ -91,7 +91,7 @@ Tokens lex(const string& input) {
         string matched = it->str();
         string skipped = input.substr(lastPos, it->position() - lastPos);
         lastPos += matched.size() + skipped.size();
-        auto codeLoc = CodeLoc(lines[lastPos - 1], columns[lastPos - 1]);
+        auto codeLoc = CodeLoc(path, lines[lastPos - 1], columns[lastPos - 1]);
         auto token = v[index].second(matched);
         if (embedBlock) {
           if (embedBlock->numBrackets == 0) {

@@ -1,11 +1,6 @@
-#ifndef READER_H
-#define READER_H
+#pragma once
 
+#include "util.h"
+#include "code_loc.h"
 
-class Reader
-{
-  public:
-  Reader();
-};
-
-#endif // READER_H
+extern string readFromFile(const char* path, optional<CodeLoc> codeLoc);

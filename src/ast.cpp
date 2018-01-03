@@ -1,5 +1,8 @@
 #include "ast.h"
 #include "type.h"
+#include "reader.h"
+#include "lexer.h"
+#include "parser.h"
 
 using namespace std;
 
@@ -116,7 +119,7 @@ bool ReturnStatement::hasReturnStatement(const State&) const {
 }
 
 void FunctionDefinition::check(State& state) {
-  codeLoc.check(!state.getTypeOfVariable(name), "Function name " + quote(name) + " conflicts with existing function");
+  codeLoc.check(!state.functionExists(name), "Function name " + quote(name) + " conflicts with existing function");
   State stateCopy = state;
   vector<Type> templateTypes;
   for (auto& param : templateParams) {
@@ -139,7 +142,8 @@ void FunctionDefinition::check(State& state) {
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
   } else
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
-  body->check(stateCopy);
+  if (!templateParams.empty() || state.getImports().empty())
+    body->check(stateCopy);
 }
 
 void correctness(const AST& ast) {
@@ -374,9 +378,19 @@ void ForLoopStatement::check(State& s) {
   body->check(stateCopy);
 }
 
-ImportStatement::ImportStatement(CodeLoc l, string p) : Statement(l), path(p) {
+ImportStatement::ImportStatement(CodeLoc l, string p, bool pub) : Statement(l), path(p), isPublic(pub) {
 }
 
 void ImportStatement::check(State& s) {
-
+  if ((!isPublic && !s.getImports().empty()) || contains(s.getAllImports(), path))
+    return;
+  codeLoc.check(!contains(s.getImports(), path), "Public import cycle: " + combine(s.getImports(), ", "));
+  s.pushImport(path);
+  string content = readFromFile(path.c_str(), codeLoc);
+  INFO << "Imported file " << path;
+  auto tokens = lex(content, path);
+  ast = make_unique<AST>(parse(tokens));
+  for (auto& elem : ast->elems)
+    elem->check(s);
+  s.popImport();
 }

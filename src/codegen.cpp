@@ -1,3 +1,5 @@
+#include <typeinfo>
+
 #include "codegen.h"
 #include "ast.h"
 
@@ -154,22 +156,33 @@ static void considerTemplateParams(Accu& accu, const vector<string>& params) {
   }
 }
 
+string FunctionDefinition::getPrototype() const {
+  string ret = returnType.toString() + " " + name + "(";
+  for (auto& param : parameters)
+    ret.append(param.type.toString() + " " + param.name + ", ");
+  if (!parameters.empty()) {
+    ret.pop_back();
+    ret.pop_back();
+  }
+  ret.append(")");
+  return ret;
+};
+
 void FunctionDefinition::codegen(Accu& accu) const {
-  auto getPrototype = [this]() {
-    string ret = returnType.toString() + " " + name + "(";
-    for (auto& param : parameters)
-      ret.append(param.type.toString() + " " + param.name + ", ");
-    if (!parameters.empty()) {
-      ret.pop_back();
-      ret.pop_back();
-    }
-    ret.append(")");
-    return ret;
-  };
   considerTemplateParams(accu, templateParams);
   accu.add(getPrototype());
   accu.newLine("");
   body->codegen(accu);
+}
+
+void FunctionDefinition::declare(Accu& accu) const {
+  if (!templateParams.empty())
+    codegen(accu);
+  else {
+    accu.add(getPrototype());
+    accu.add(";");
+    accu.newLine("");
+  }
 }
 
 string codegen(const AST& ast) {
@@ -195,6 +208,10 @@ void StructDefinition::codegen(Accu& accu) const {
     accu.newLine(member.type.toString() + " " + member.name + ";");
   --accu.indent;
   accu.newLine("};");
+}
+
+void StructDefinition::declare(Accu& accu) const {
+  codegen(accu);
 }
 
 void MemberAccessType::codegen(Accu& accu) const {
@@ -299,6 +316,10 @@ void EmbedStatement::codegen(Accu& accu) const {
   accu.newLine(value);
 }
 
+void EmbedStatement::declare(Accu& accu) const {
+  // embedded blocks are not generated in imports
+}
+
 bool EmbedStatement::hasReturnStatement(const State&) const {
   return true;
 }
@@ -318,5 +339,18 @@ void ForLoopStatement::codegen(Accu& accu) const {
 }
 
 void ImportStatement::codegen(Accu& accu) const {
-  accu.add("import \"" + path + "\"");
+  // ast can be null if import was already generated or is secondary and not public
+  if (ast)
+    for (auto& elem : ast->elems) {
+      elem->declare(accu);
+      accu.newLine("");
+    }
+}
+
+void ImportStatement::declare(Accu& accu) const {
+  codegen(accu);
+}
+
+void Statement::declare(Accu& accu) const {
+  FATAL << "Can't declare statement " << typeid(*this).name();
 }

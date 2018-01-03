@@ -88,6 +88,7 @@ struct Statement : Node {
   virtual void check(State&) = 0;
   virtual bool hasReturnStatement(const State&) const;
   virtual void codegen(Accu&) const = 0;
+  virtual void declare(Accu&) const;
   enum class TopLevelAllowance {
     CANT,
     CAN,
@@ -164,6 +165,7 @@ struct StructDefinition : Statement {
   vector<string> templateParams;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
+  virtual void declare(Accu&) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 };
 
@@ -223,7 +225,11 @@ struct FunctionDefinition : Statement {
   vector<string> templateParams;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
+  virtual void declare(Accu&) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+
+  private:
+  string getPrototype() const;
 };
 
 struct EmbedStatement : Statement {
@@ -231,15 +237,21 @@ struct EmbedStatement : Statement {
   string value;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
+  virtual void declare(Accu&) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::CAN; }
   virtual bool hasReturnStatement(const State&) const override;
 };
 
+struct AST;
+
 struct ImportStatement : Statement {
-  ImportStatement(CodeLoc, string path);
+  ImportStatement(CodeLoc, string path, bool isPublic);
   string path;
+  unique_ptr<AST> ast;
+  bool isPublic;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
+  virtual void declare(Accu&) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 };
 
