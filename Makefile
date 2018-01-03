@@ -10,7 +10,7 @@ LDFLAGS += -fuse-ld=lld
 
 OBJDIR = obj
 
-NAME = zygmunt
+NAME = zenon
 
 ROOT = ./
 TOROOT = ./../

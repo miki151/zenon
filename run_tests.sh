@@ -11,7 +11,7 @@ function transpile() {
   else
     EXPECTED_RET="0"
   fi
-  ./zygmunt $1 > tmp.cpp 2> log.out
+  ./zenon $1 > tmp.cpp 2> log.out
   RESULT=$?
 #echo "Result $RESULT"
   if [ "$RESULT" != "0" ] && [ "$RESULT" != "1" ]; then
