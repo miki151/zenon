@@ -78,14 +78,14 @@ int example() {
 ``` C++
 
 embed {
-  #include <stdio.h>
+    #include <stdio.h>
 }
 
 void print(int a) {
-  embed {
-    //C++ code in this block
-    printf("%d\n", a);
-  }
+    embed {
+      //C++ code in this block
+      printf("%d\n", a);
+    }
 }
 
 int main() {
@@ -97,12 +97,28 @@ int main() {
 ### Named parameters
 ``` C++
 int sum(int a, int b) {
-  return a + b;
+    return a + b;
 }
 
 int main() {
-  int x = sum(3, 4);
-  x = x + sum({a = 32, b = -30});
-  return x;
+    int x = sum(3, 4);
+    x = x + sum({a = 32, b = -30});
+    return x;
 }
 ```
+
+### Working with multiple files
+``` C++
+// library.znn
+int getNumber() {
+    return 5;
+}
+
+// main.znn
+import "library.znn"
+import "print.znn"
+
+int main() {
+    print(getNumber());
+    return 0;
+}
