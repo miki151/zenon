@@ -4,17 +4,21 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-function transpile() {
+function compile() {
 #echo "Expecting $1 $2"
+  OUTPUT=$3
   if [ "$2" = "no_compile" ]; then
     EXPECTED_RET="1"
   else
     EXPECTED_RET="0"
   fi
-  ./zenon $1 > tmp.cpp 2> log.out
+  ./zenon $1 -o $OUTPUT 2> /dev/null
   RESULT=$?
-#echo "Result $RESULT"
-  if [ "$RESULT" != "0" ] && [ "$RESULT" != "1" ]; then
+  if [ "$RESULT" = "2" ]; then
+    echo -e "$RED C++ compilation failed$NC"
+    return 1
+  fi
+  if [ "$RESULT" -gt "2" ]; then
     echo -e "${RED} Compiler crashed$NC"
     return 1
   fi
@@ -30,10 +34,12 @@ function transpile() {
   fi
 }
 
+BINARY_TMP=$(mktemp)
+
 for I in `ls tests/*.znn`; do 
   echo "Running $I"
   EXPECTED=`head -n 1 $I | cut -c 4-`
-  transpile $I $EXPECTED
+  compile $I $EXPECTED $BINARY_TMP
   if [ "$?" != "0" ]; then
     continue
   fi
@@ -41,12 +47,7 @@ for I in `ls tests/*.znn`; do
     echo -e "$GREEN Success$NC"
     continue
   fi
-  g++ -std=c++14 tmp.cpp -o tmp
-  if [ "$?" != "0" ]; then
-    echo -e "$RED C++ compilation failed$NC"
-    continue
-  fi
-  ./tmp
+  $BINARY_TMP
   RESULT=$?
   if [ "$RESULT" != "$EXPECTED" ]; then
     echo -e "$RED Expected $EXPECTED, got $RESULT$NC"
@@ -65,7 +66,8 @@ for D in `ls -d tests/*/`; do
   fi
   for I in $FILES; do
 #    echo "Compiling $I"
-    transpile $D/$I $EXPECTED
+    OPATH=$(mktemp)
+    compile "$D/$I -c" $EXPECTED $OPATH
     if [ "$?" != "0" ]; then
       continue 2
     fi
@@ -73,20 +75,18 @@ for D in `ls -d tests/*/`; do
       echo -e "$GREEN Success$NC"
       continue 2
     fi
-    g++ -std=c++14 tmp.cpp -c -o $I.o
-    if [ "$?" != "0" ]; then
-      echo -e "$RED C++ compilation failed$NC"
-      continue
-    fi
-    OBJECTS="$OBJECTS $I.o"
+    OBJECTS="$OBJECTS $OPATH"
   done
 #  echo "Linking $OBJECTS"
-  g++ $OBJECTS -o tmp
-  ./tmp
+  g++ $OBJECTS -o $BINARY_TMP
+  $BINARY_TMP
   RESULT=$?
   if [ "$RESULT" != "$EXPECTED" ]; then
     echo -e "$RED Expected $EXPECTED, got $RESULT$NC"
     continue
   fi
   echo -e "$GREEN Success$NC"
+  rm $OPATH
 done
+
+rm $BINARY_TMP

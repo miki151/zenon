@@ -34,8 +34,8 @@ DebugOutput DebugOutput::crash() {
   return DebugOutput(*(new stringstream()), [] { fail(); });
 }
 
-DebugOutput DebugOutput::exitProgram() {
-  return DebugOutput(*(new stringstream()), [] { exit(1); });
+DebugOutput DebugOutput::exitProgram(int code) {
+  return DebugOutput(*(new stringstream()), [code] { exit(code); });
 }
 
 void DebugLog::addOutput(DebugOutput o) {

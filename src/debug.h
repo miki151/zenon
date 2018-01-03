@@ -61,7 +61,7 @@ class DebugOutput {
   static DebugOutput toStream(std::ostream&);
   static DebugOutput toString(function<void(const string&)> callback);
   static DebugOutput crash();
-  static DebugOutput exitProgram();
+  static DebugOutput exitProgram(int code);
 
   typedef function<void()> LineEndFun;
   std::ostream& out;
