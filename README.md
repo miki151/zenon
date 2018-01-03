@@ -62,7 +62,7 @@ Nullable<T> null() {
 
 int example() {
     // The template parameter of the function 'value' is inferred.
-    Nullable<int> var = value(5);
+    auto var = value(5);
     var = null<int>();
     switch (var) {
         case (int value) {
