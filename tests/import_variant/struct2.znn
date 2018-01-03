@@ -1,0 +1,6 @@
+
+template<T, U>
+variant V2 {
+  T t;
+  U u;
+};

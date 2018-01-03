@@ -1,0 +1,11 @@
+// no_compile
+
+int* f(int a) {
+  return &a;
+}
+
+int main() {
+  int x = 5;
+  int* y = f(x);
+  return *y;
+}
