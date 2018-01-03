@@ -223,6 +223,18 @@ constexpr const char* variantUnionEntryPrefix = "Union_";
 constexpr const char* variantUnionElem = "unionElem";
 
 void VariantDefinition::codegen(Accu& accu) const {
+  generate(accu, false);
+}
+
+static string joinTemplateParams(const vector<string>& params) {
+  if (params.empty())
+    return "";
+  else
+    return "<" + combine(params, ", ") + ">";
+}
+
+void VariantDefinition::generate(Accu& accu, bool import) const {
+  Accu impls;
   considerTemplateParams(accu, templateParams);
   accu.add("struct " + name + " {");
   ++accu.indent;
@@ -236,18 +248,23 @@ void VariantDefinition::codegen(Accu& accu) const {
   accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
       + variantUnionElem + ";");
   for (auto& elem : elements) {
-    accu.newLine("static " + name + " " + elem.name + "(");
+    string signature = elem.name + "(";
     if (!(elem.type == IdentifierInfo("void")))
-      accu.add("const " + elem.type.toString() + "& elem");
-    accu.add(") {");
-    ++accu.indent;
-    accu.newLine(name + " ret;");
-    accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + elem.name + ";");
+      signature += "const " + elem.type.toString() + "& elem";
+    signature += ")";
+    string params = joinTemplateParams(templateParams);
+    accu.newLine("static " + name + params + " " + signature + ";");
+    considerTemplateParams(impls, templateParams);
+    impls.add(name + params + " " + name + params + "::" + signature + " {");
+    ++impls.indent;
+    impls.newLine(name + " ret;");
+    impls.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + elem.name + ";");
     if (!(elem.type == IdentifierInfo("void")))
-      accu.newLine("ret."s + variantUnionEntryPrefix + elem.name + " = elem;");
-    accu.newLine("return ret;");
-    --accu.indent;
-    accu.newLine("}");
+      impls.newLine("ret."s + variantUnionEntryPrefix + elem.name + " = elem;");
+    impls.newLine("return ret;");
+    --impls.indent;
+    impls.newLine("}");
+    impls.newLine("");
 /*      accu.newLine(name + "(" + variantTagPrefix + elem.name + ", const " + elem.type.toString() + "& elem) : unionElem("
           + variantEnumeratorPrefix + elem.name + "), " + elem.name + "(elem) {}");
 
@@ -264,7 +281,15 @@ void VariantDefinition::codegen(Accu& accu) const {
   accu.newLine("};");
   --accu.indent;
   accu.newLine("};");
+  if (!import)
+    accu.newLine(impls.generate());
 }
+
+
+void VariantDefinition::declare(Accu& accu) const {
+  generate(accu, templateParams.empty());
+}
+
 
 constexpr const char* variantTmpRef = "variantTmpRef";
 

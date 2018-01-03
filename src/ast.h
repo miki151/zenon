@@ -181,7 +181,11 @@ struct VariantDefinition : Statement {
   vector<string> templateParams;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
+  virtual void declare(Accu&) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+
+  private:
+  void generate(Accu&, bool import) const;
 };
 
 struct EmbedStructDefinition : Statement {
