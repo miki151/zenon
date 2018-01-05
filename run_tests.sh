@@ -4,8 +4,8 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
+
 function compile() {
-#echo "Expecting $1 $2"
   OUTPUT=$3
   if [ "$2" = "no_compile" ]; then
     EXPECTED_RET="1"
@@ -39,6 +39,10 @@ BINARY_TMP=$(mktemp)
 for I in `ls tests/*.znn`; do 
   echo "Running $I"
   EXPECTED=`head -n 1 $I | cut -c 4-`
+  if [ "$EXPECTED" = "" ]; then
+    echo -e "$RED No expected value specified$NC"
+    continue
+  fi
   compile $I $EXPECTED $BINARY_TMP
   if [ "$?" != "0" ]; then
     continue
