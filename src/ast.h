@@ -20,6 +20,7 @@ struct Node {
 struct Expression : Node {
   using Node::Node;
   virtual Type getType(const State&) = 0;
+  virtual optional<Type> getDotOperatorType(const State& idContext, const State& callContext);
 };
 
 struct Constant : Expression {
@@ -34,14 +35,8 @@ struct Variable : Expression {
   Variable(CodeLoc, IdentifierInfo);
   virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
+  virtual optional<Type> getDotOperatorType(const State& idContext, const State& callContext) override;
   IdentifierInfo identifier;
-};
-
-struct MemberAccessType : Expression {
-  MemberAccessType(CodeLoc, string name);
-  virtual Type getType(const State&) override;
-  virtual void codegen(Accu&) const override;
-  string name;
 };
 
 struct BinaryExpression : Expression {
@@ -64,6 +59,7 @@ struct FunctionCall : Expression {
   FunctionCall(CodeLoc, IdentifierInfo);
   virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
+  virtual optional<Type> getDotOperatorType(const State& idContext, const State& callContext) override;
   IdentifierInfo identifier;
   FunctionCallType callType;
   vector<unique_ptr<Expression>> arguments;
@@ -73,6 +69,7 @@ struct FunctionCallNamedArgs : Expression {
   FunctionCallNamedArgs(CodeLoc, IdentifierInfo);
   virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
+  virtual optional<Type> getDotOperatorType(const State& idContext, const State& callContext) override;
   IdentifierInfo identifier;
   struct Argument {
     CodeLoc codeLoc;
@@ -163,11 +160,15 @@ struct StructDefinition : Statement {
     CodeLoc codeLoc;
   };
   vector<Member> members;
+  vector<unique_ptr<FunctionDefinition>> methods;
   vector<string> templateParams;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual void declare(Accu&) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+
+  private:
+  void generate(Accu&, bool import) const;
 };
 
 struct VariantDefinition : Statement {
@@ -179,6 +180,7 @@ struct VariantDefinition : Statement {
     CodeLoc codeLoc;
   };
   vector<Element> elements;
+  vector<unique_ptr<FunctionDefinition>> methods;
   vector<string> templateParams;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
@@ -232,9 +234,9 @@ struct FunctionDefinition : Statement {
   virtual void codegen(Accu&) const override;
   virtual void declare(Accu&) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
-
-  private:
-  string getPrototype() const;
+  optional<FunctionType> addToState(const State&);
+  void checkFunction(State&, bool templateStruct);
+  void addSignature(Accu& accu, string structName) const;
 };
 
 struct EmbedStatement : Statement {

@@ -1,5 +1,5 @@
 #include "type.h"
-#include "identifier.h"
+#include "state.h"
 
 const static unordered_map<string, ArithmeticType> arithmeticTypes {
   {"int", ArithmeticType::INT},
@@ -27,9 +27,6 @@ string getName(const Type& t) {
       },
       [&](const FunctionType& t) {
         return "function"s + getTemplateParamNames(t.templateParams);
-      },
-      [&](const MemberAccess& m) {
-        return "member " + quote(m.memberName);
       },
       [&](const ReferenceType& t) {
         return "reference("s + getName(*t.underlying) + ")";
@@ -87,101 +84,6 @@ bool PointerType::operator == (const PointerType& o) const {
   return underlying == o.underlying;
 }
 
-static optional<Type> getOperationResult(Operator op, const Type& underlyingOperands) {
-  switch (op) {
-    case Operator::MULTIPLY:
-    case Operator::PLUS:
-    case Operator::MINUS:
-      if (underlyingOperands == ArithmeticType::INT)
-        return Type(ArithmeticType::INT);
-      return none;
-    case Operator::LESS_THAN:
-    case Operator::MORE_THAN:
-      if (underlyingOperands == ArithmeticType::INT)
-        return Type(ArithmeticType::BOOL);
-      return none;
-    case Operator::EQUALS:
-      if (underlyingOperands == ArithmeticType::INT || underlyingOperands == ArithmeticType::BOOL)
-        return Type(ArithmeticType::BOOL);
-      return none;
-    default:
-      return none;
-  }
-}
-
-Type getUnaryOperationResult(CodeLoc codeLoc, Operator op, const Type& right) {
-  auto underlying = getUnderlying(right);
-  CHECK(isUnary(op));
-  switch (op) {
-    case Operator::MULTIPLY:
-      if (auto pointer = underlying.getReferenceMaybe<PointerType>())
-        return ReferenceType(*pointer->underlying);
-      else
-        codeLoc.error("Can't apply dereference operator to type " + quote(getName(right)));
-      break;
-    case Operator::GET_ADDRESS:
-      if (auto reference = right.getReferenceMaybe<ReferenceType>())
-        return PointerType(*reference->underlying);
-      else
-        codeLoc.error("Can't apply address-of operator to type " + quote(getName(right)));
-      break;
-    case Operator::PLUS:
-    case Operator::MINUS:
-      codeLoc.check(underlying == ArithmeticType::INT, "Expected type: " + quote("int") + ", got: " + quote(getName(right)));
-      break;
-    default:
-      break;
-  }
-  return right;
-}
-
-Type getOperationResult(CodeLoc codeLoc, Operator op, const Type& left, const Type& right) {
-  switch (op) {
-    case Operator::MEMBER_ACCESS:
-      if (auto memberInfo = right.getReferenceMaybe<MemberAccess>()) {
-        auto leftUnderlying = getUnderlying(left);
-        if (auto structInfo = leftUnderlying.getReferenceMaybe<StructType>()) {
-          for (auto& member : structInfo->members) {
-            if (member.name == memberInfo->memberName) {
-              auto ret = *member.type;
-              if (left.contains<ReferenceType>())
-                ret = ReferenceType(std::move(ret));
-              return ret;
-            }
-          }
-          codeLoc.error("No member named " + quote(memberInfo->memberName + " in struct " + quote(getName(*structInfo))));
-          return {};
-        }
-      }
-      codeLoc.error("Bad use of operator " + quote("."));
-      return {};
-    case Operator::ASSIGNMENT:
-      if (getUnderlying(left) == getUnderlying(right) && left.contains<ReferenceType>())
-        return left;
-      else {
-        codeLoc.error("Can't assign " + quote(getName(right)) + " to " + quote(getName(left)));
-        return {};
-      }
-    case Operator::LESS_THAN:
-    case Operator::MORE_THAN:
-    case Operator::MULTIPLY:
-    case Operator::PLUS:
-    case Operator::EQUALS:
-    case Operator::MINUS: {
-      auto operand = getUnderlying(left);
-      if (operand == getUnderlying(right))
-        if (auto res = getOperationResult(op, operand))
-          return *res;
-      codeLoc.error("Unsupported operator: " + quote(getName(left)) + " " + getString(op)
-          + " " + quote(getName(right)));
-      return {};
-    }
-    case Operator::GET_ADDRESS:
-      codeLoc.error("Address-of is not a binary operator");
-      return {};
-  }
-}
-
 bool canAssign(const Type& to, const Type& from) {
   //INFO << "can assign " << getName(from) << " to " << getName(to);
   return to.visit(
@@ -210,10 +112,13 @@ bool StructType::operator == (const StructType& o) const {
   return id == o.id;
 }
 
-MemberAccess::MemberAccess(const string& m) : memberName(m), id(getNewId()) {}
-
-bool MemberAccess::operator == (const MemberAccess& a) const {
-  return id == a.id;
+State StructType::getContext() {
+  State state;
+  for (auto& member : members)
+    state.addVariable(member.name, ReferenceType(*member.type));
+  for (auto& method : methods)
+    state.addFunction(method.name, *method.type);
+  return state;
 }
 
 bool canConvert(const Type& from, const Type& to) {
@@ -233,6 +138,13 @@ bool VariantType::operator ==(const VariantType& o) const {
   else
     INFO << "Types different";
   return id == o.id && types == o.types;
+}
+
+State VariantType::getContext() {
+  State state;
+  for (auto& method : methods)
+    state.addFunction(method.name, *method.type);
+  return state;
 }
 
 TemplateParameter::TemplateParameter(string n) : name(n), id(getNewId()) {}
@@ -257,12 +169,16 @@ void replace(Type& in, Type from, Type to) {
           replace(param, from, to);
         for (int i = 0; i < t.members.size(); ++i)
           replace(*t.members[i].type, from, to);
+        for (int i = 0; i < t.methods.size(); ++i)
+          replace(*t.methods[i].type, from, to);
       },
       [&](VariantType& t) {
         for (auto& param : t.templateParams)
           replace(param, from, to);
         for (auto& subtype : t.types)
           replace(subtype.second, from, to);
+        for (int i = 0; i < t.methods.size(); ++i)
+          replace(*t.methods[i].type, from, to);
         for (auto& method : t.staticMethods)
           replace(method.second, from, to);
       },
@@ -365,6 +281,7 @@ bool canBind(TypeMapping& mapping, Type paramType, Type argType) {
 void instantiate(FunctionType& type, CodeLoc codeLoc, vector<Type> templateArgs, vector<Type> argTypes,
     vector<CodeLoc> argLoc) {
   vector<Type> funParams = transform(type.params, [](const FunctionType::Param& p) { return *p.type; });
+  codeLoc.check(templateArgs.size() <= type.templateParams.size(), "Too many template arguments.");
   TypeMapping mapping { type.templateParams, vector<optional<Type>>(type.templateParams.size()) };
   for (int i = 0; i < templateArgs.size(); ++i)
     mapping.templateArgs[i] = templateArgs[i];

@@ -49,7 +49,7 @@ struct X {
 };
 
 int main() {
-  X<int> z = X<int>(5);
+  auto z = X<int>(5);
   auto x = value(z);
   auto y = value(X<bool>(true));
   auto v2 = V2<X<int>,X<bool>>::e1(x);

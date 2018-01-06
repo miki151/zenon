@@ -53,10 +53,12 @@ Type Variable::getType(const State& state) {
   return {};
 }
 
+optional<Type> Variable::getDotOperatorType(const State& idContext, const State& callContext) {
+  return getType(idContext);
+}
+
 Type BinaryExpression::getType(const State& state) {
-  auto leftType = e1->getType(state);
-  auto rightType = e2->getType(state);
-  return getOperationResult(e1->codeLoc, op, leftType, rightType);
+  return getOperationResult(e1->codeLoc, op, state, *e1, *e2);
 }
 
 void StatementBlock::check(State& state) {
@@ -137,9 +139,9 @@ bool ReturnStatement::hasReturnStatement(const State&) const {
   return true;
 }
 
-void FunctionDefinition::check(State& state) {
-  state.checkNameConflict(codeLoc, name, "Function");
+optional<FunctionType> FunctionDefinition::addToState(const State& state) {
   State stateCopy = state;
+  state.checkNameConflict(codeLoc, name, "Function");
   vector<Type> templateTypes;
   for (auto& param : templateParams) {
     templateTypes.push_back(TemplateParameter{param});
@@ -150,19 +152,40 @@ void FunctionDefinition::check(State& state) {
     for (auto& p : parameters)
       if (auto paramType = stateCopy.getTypeFromString(p.type)) {
         params.push_back({p.name, *paramType});
-        stateCopy.addVariable(p.name, *paramType);
       } else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
-    auto type = FunctionType(FunctionCallType::FUNCTION, *returnType, params, templateTypes );
-    state.addFunction(name, type);
-    stateCopy.addFunction(name, type);
+    return FunctionType(FunctionCallType::FUNCTION, *returnType, params, templateTypes );
+  } else {
+    codeLoc.error("Unrecognized return type: " + this->returnType.toString());
+    return none;
+  }
+}
+
+void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
+  State stateCopy = state;
+  vector<Type> templateTypes;
+  for (auto& param : templateParams) {
+    templateTypes.push_back(TemplateParameter{param});
+    stateCopy.addType(param, templateTypes.back());
+  }
+  if (auto returnType = stateCopy.getTypeFromString(this->returnType)) {
+    for (auto& p : parameters)
+      if (auto paramType = stateCopy.getTypeFromString(p.type))
+        stateCopy.addVariable(p.name, *paramType);
+      else
+        p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
     stateCopy.setReturnType(*returnType);
     if (*returnType != ArithmeticType::VOID && !body->hasReturnStatement(state))
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
   } else
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
-  if (!templateParams.empty() || state.getImports().empty())
+  if (!templateParams.empty() || templateStruct || state.getImports().empty())
     body->check(stateCopy);
+}
+
+void FunctionDefinition::check(State& state) {
+  state.addFunction(name, *addToState(state));
+  checkFunction(state, false);
 }
 
 void correctness(const AST& ast) {
@@ -184,21 +207,25 @@ void ExpressionStatement::check(State& state) {
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-MemberAccessType::MemberAccessType(CodeLoc l, string n) : Expression(l), name(n) {}
-
-Type MemberAccessType::getType(const State&) {
-  return MemberAccess(name);
+Type FunctionCall::getType(const State& state) {
+  return *getDotOperatorType(state, state);
 }
 
-Type FunctionCall::getType(const State& state) {
+static FunctionType getFunction(const State& idContext, const State& callContext, CodeLoc codeLoc, IdentifierInfo id,
+    const vector<Type>& argTypes, const vector<CodeLoc>& argLoc) {
+  auto templateType = idContext.getFunctionTemplate(codeLoc, id);
+  return callContext.instantiateFunctionTemplate(codeLoc, templateType, id, argTypes, argLoc);
+}
+
+optional<Type> FunctionCall::getDotOperatorType(const State& idContext, const State& callContext) {
   vector<Type> argTypes;
-  vector<CodeLoc> argLoc;
+  vector<CodeLoc> argLocs;
   for (int i = 0; i < arguments.size(); ++i) {
-    argTypes.push_back(arguments[i]->getType(state));
-    argLoc.push_back(arguments[i]->codeLoc);
+    argTypes.push_back(arguments[i]->getType(callContext));
+    argLocs.push_back(arguments[i]->codeLoc);
     INFO << "Function argument " << getName(argTypes.back());
   }
-  auto type = state.getFunction(codeLoc, identifier, argTypes, argLoc);
+  auto type = getFunction(idContext, callContext, codeLoc, identifier, argTypes, argLocs);
   callType = type.callType;
   return *type.retVal;
 }
@@ -206,10 +233,14 @@ Type FunctionCall::getType(const State& state) {
 FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {}
 
 Type FunctionCallNamedArgs::getType(const State& state) {
+  return *getDotOperatorType(state, state);
+}
+
+optional<Type> FunctionCallNamedArgs::getDotOperatorType(const State& idContext, const State& callContext) {
   set<string> toInitialize;
   set<string> initialized;
   map<string, int> paramIndex;
-  vector<string> paramNames = state.getFunctionParamNames(codeLoc, identifier);
+  vector<string> paramNames = idContext.getFunctionParamNames(codeLoc, identifier);
   int count = 0;
   for (auto& param : paramNames) {
     toInitialize.insert(param);
@@ -232,10 +263,10 @@ Type FunctionCallNamedArgs::getType(const State& state) {
   vector<Type> argTypes;
   vector<CodeLoc> argLocs;
   for (auto& arg : arguments) {
-    argTypes.push_back(arg.expr->getType(state));
+    argTypes.push_back(arg.expr->getType(callContext));
     argLocs.push_back(arg.codeLoc);
   }
-  auto type = state.getFunction(codeLoc, identifier, argTypes, argLocs);
+  auto type = getFunction(idContext, callContext, codeLoc, identifier, argTypes, argLocs);
   callType = type.callType;
   return *type.retVal;
 }
@@ -329,6 +360,16 @@ void VariantDefinition::check(State& state) {
       subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
     constructors.push_back(constructorInfo);
   }
+  vector<FunctionType> methodTypes;
+  for (auto& method : methods) {
+    methodTypes.push_back(*method->addToState(stateCopy));
+    stateCopy.addFunction(method->name, methodTypes.back());
+  }
+  stateCopy.addVariable("this", PointerType(type));
+  for (int i = 0; i < methods.size(); ++i) {
+    methods[i]->checkFunction(stateCopy, !templateParams.empty());
+    type.methods.push_back({methods[i]->name, methodTypes[i]});
+  }
   for (auto& elem : constructors)
     type.staticMethods.push_back({elem.subtypeName, FunctionType(elem.callType, type, elem.constructorParams, {})});
   state.addType(name, type);
@@ -342,12 +383,23 @@ void StructDefinition::check(State& state) {
     type.templateParams.push_back(TemplateParameter{param});
     stateCopy.addType(param, type.templateParams.back());
   }
+  auto methodState = stateCopy;
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
-    if (auto memberType = stateCopy.getTypeFromString(member.type))
+    if (auto memberType = stateCopy.getTypeFromString(member.type)) {
       type.members.push_back({member.name, *memberType});
-    else
+      methodState.addVariable(member.name, ReferenceType(*memberType));
+    } else
       member.codeLoc.error("Type " + quote(member.type.toString()) + " not recognized");
+  }
+  vector<FunctionType> methodTypes;
+  for (auto& method : methods) {
+    methodTypes.push_back(*method->addToState(methodState));
+    methodState.addFunction(method->name, methodTypes.back());
+  }
+  for (int i = 0; i < methods.size(); ++i) {
+    methods[i]->checkFunction(methodState, !templateParams.empty());
+    type.methods.push_back({methods[i]->name, methodTypes[i]});
   }
   state.addType(name, type);
   vector<FunctionType::Param> constructorParams;
@@ -411,4 +463,8 @@ void ImportStatement::check(State& s) {
   for (auto& elem : ast->elems)
     elem->check(s);
   s.popImport();
+}
+
+optional<Type> Expression::getDotOperatorType(const State& idContext, const State& callContext) {
+  return none;
 }

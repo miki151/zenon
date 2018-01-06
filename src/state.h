@@ -17,8 +17,9 @@ class State {
   void addType(const string& name, Type);
   optional<Type> getTypeFromString(IdentifierInfo) const;
   void addFunction(string, FunctionType);
-  FunctionType getFunction(CodeLoc, IdentifierInfo, vector<Type> argTypes, vector<CodeLoc> argLoc) const;
   vector<string> getFunctionParamNames(CodeLoc, IdentifierInfo) const;
+  FunctionType getFunctionTemplate(CodeLoc, IdentifierInfo) const;
+  FunctionType instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<Type> argTypes, vector<CodeLoc> argLoc) const;
   void pushImport(const string& name);
   void popImport();
   const vector<string>& getImports() const;
@@ -31,7 +32,6 @@ class State {
   unordered_map<string, FunctionType> functions;
   optional<Type> returnType;
   vector<Type> getTypeList(const vector<IdentifierInfo>&) const;
-  FunctionType getFunctionTemplate(CodeLoc, IdentifierInfo) const;
   vector<string> imports;
   vector<string> allImports;
 };

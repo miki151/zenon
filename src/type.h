@@ -7,6 +7,7 @@
 #include "function_call_type.h"
 
 struct Type;
+class State;
 
 enum class ArithmeticType {
   INT,
@@ -26,13 +27,6 @@ struct PointerType {
   bool operator == (const PointerType&) const;
 };
 
-struct MemberAccess {
-  MemberAccess(const string& memberName);
-  string memberName;
-  int id;
-  bool operator == (const MemberAccess&) const;
-};
-
 struct TemplateParameter {
   TemplateParameter(string name);
   string name;
@@ -47,9 +41,15 @@ struct VariantType {
   string name;
   int id;
   map<string, Type> types;
+  struct Method {
+    string name;
+    HeapAllocated<FunctionType> type;
+  };
+  vector<Method> methods;
   vector<Type> templateParams;
   vector<pair<string, FunctionType>> staticMethods;
   bool operator == (const VariantType&) const;
+  State getContext();
 };
 
 struct StructType {
@@ -61,11 +61,17 @@ struct StructType {
     HeapAllocated<Type> type;
   };
   vector<Member> members;
+  struct Method {
+    string name;
+    HeapAllocated<FunctionType> type;
+  };
+  vector<Method> methods;
   vector<Type> templateParams;
   bool operator == (const StructType&) const;
+  State getContext();
 };
 
-struct Type : variant<ArithmeticType, ReferenceType, PointerType, StructType, MemberAccess, VariantType, TemplateParameter> {
+struct Type : variant<ArithmeticType, ReferenceType, PointerType, StructType, VariantType, TemplateParameter> {
   using variant::variant;
 };
 
@@ -74,7 +80,7 @@ struct FunctionType {
     string name;
     HeapAllocated<Type> type;
   };
-  FunctionType(FunctionCallType, Type returnType, vector<Param>, vector<Type>);
+  FunctionType(FunctionCallType, Type returnType, vector<Param> params, vector<Type> templateParams);
   FunctionCallType callType;
   HeapAllocated<Type> retVal;
   vector<Param> params;
@@ -83,11 +89,12 @@ struct FunctionType {
   bool operator == (const FunctionType&) const;
 };
 
+struct Expression;
+class State;
+
 extern string getName(const Type&);
 extern bool canAssign(const Type& to, const Type& from);
 extern bool canBind(const Type& to, const Type& from);
-extern Type getOperationResult(CodeLoc, Operator, const Type& left, const Type& right);
-extern Type getUnaryOperationResult(CodeLoc, Operator, const Type& right);
 extern bool canConvert(const Type& from, const Type& to);
 extern bool requiresInitialization(const Type&);
 class IdentifierInfo;

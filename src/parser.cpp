@@ -67,10 +67,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<Operator> preceding
           auto ret = parseFunctionCall(identifier, tokens);
           return ret;
         } else
-        if (precedingOp != Operator::MEMBER_ACCESS)
           return unique<Variable>(token.codeLoc, identifier);
-        else
-          return unique<MemberAccessType>(token.codeLoc, token.value);
       },
       [&](const Number&) -> unique_ptr<Expression> {
         tokens.popNext();
@@ -157,6 +154,21 @@ unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Toke
   return ret;
 }
 
+static vector<string> parseTemplateParams(Tokens& tokens) {
+  tokens.eat(Keyword::TEMPLATE);
+  tokens.eat(Operator::LESS_THAN);
+  vector<string> params;
+  while (tokens.peek("template definition") != Operator::MORE_THAN) {
+    auto paramToken = tokens.popNext();
+    paramToken.codeLoc.check(paramToken.contains<IdentifierToken>(), "Type parameter expected");
+    params.push_back(paramToken.value);
+    if (tokens.peek("template definition") != Operator::MORE_THAN)
+      tokens.eat(Keyword::COMMA);
+  }
+  tokens.eat(Operator::MORE_THAN);
+  return params;
+}
+
 unique_ptr<EmbedStructDefinition> parseEmbedStructDefinition(Tokens& tokens) {
   tokens.eat(Keyword::EXTERN);
   tokens.eat(Keyword::STRUCT);
@@ -174,15 +186,26 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens) {
   auto ret = unique<StructDefinition>(token2.codeLoc, token2.value);
   tokens.eat(Keyword::OPEN_BLOCK);
   while (1) {
-    if (tokens.peek("member declaration") == Keyword::CLOSE_BLOCK) {
+    auto memberToken = tokens.peek("member declaration");
+    if (memberToken == Keyword::CLOSE_BLOCK) {
       tokens.popNext();
       break;
     }
+    vector<string> templateParams;
+    if (memberToken == Keyword::TEMPLATE)
+      templateParams = parseTemplateParams(tokens);
     auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
     auto memberName = tokens.popNext("member name");
-    memberName.codeLoc.check(memberName.contains<IdentifierToken>(), "Expected identifier");
-    ret->members.push_back({typeIdent, memberName.value, token2.codeLoc});
-    tokens.eat(Keyword::SEMICOLON);
+    if (tokens.peek("struct definition") == Keyword::OPEN_BRACKET) {
+      tokens.rewind();
+      ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));
+      ret->methods.back()->templateParams = templateParams;
+    } else {
+      memberToken.codeLoc.check(templateParams.empty(), "Member variable can't have template parameters");
+      memberName.codeLoc.check(memberName.contains<IdentifierToken>(), "Expected identifier");
+      ret->members.push_back({typeIdent, memberName.value, token2.codeLoc});
+      tokens.eat(Keyword::SEMICOLON);
+    }
   }
   tokens.eat(Keyword::SEMICOLON);
   return ret;
@@ -226,16 +249,23 @@ unique_ptr<VariantDefinition> parseVariantDefinition(Tokens& tokens) {
   auto ret = unique<VariantDefinition>(nameToken.codeLoc, nameToken.value);
   tokens.eat(Keyword::OPEN_BLOCK);
   while (1) {
-    auto token2 = tokens.peek("variant definition");
-    if (token2 == Keyword::CLOSE_BLOCK) {
+    auto memberToken = tokens.peek("variant definition");
+    if (memberToken == Keyword::CLOSE_BLOCK) {
       tokens.popNext();
       break;
+    }
+    vector<string> templateParams;
+    if (memberToken == Keyword::TEMPLATE)
+      templateParams = parseTemplateParams(tokens);
+    auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
+    auto token2 = tokens.popNext("name of a variant alternative");
+    token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected name of a variant alternative");
+    if (tokens.peek("variant definition") == Keyword::OPEN_BRACKET) {
+      tokens.rewind();
+      ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));
+      ret->methods.back()->templateParams = templateParams;
     } else {
-      auto ident = IdentifierInfo::parseFrom(tokens, true);
-      token2 = tokens.popNext("name of a variant alternative");
-      token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected name of a variant alternative");
-      ret->elements.push_back(VariantDefinition::Element{ident, token2.value, token2.codeLoc});
-      //tokens.popNext();
+      ret->elements.push_back(VariantDefinition::Element{typeIdent, token2.value, token2.codeLoc});
       tokens.eat(Keyword::SEMICOLON);
     }
   }
@@ -323,17 +353,7 @@ unique_ptr<Statement> parseVariableDeclaration(Tokens& tokens) {
 }
 
 unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
-  tokens.eat(Keyword::TEMPLATE);
-  tokens.eat(Operator::LESS_THAN);
-  vector<string> params;
-  while (tokens.peek("template definition") != Operator::MORE_THAN) {
-    auto paramToken = tokens.popNext();
-    paramToken.codeLoc.check(paramToken.contains<IdentifierToken>(), "Type parameter expected");
-    params.push_back(paramToken.value);
-    if (tokens.peek("template definition") != Operator::MORE_THAN)
-      tokens.eat(Keyword::COMMA);
-  }
-  tokens.eat(Operator::MORE_THAN);
+  auto params = parseTemplateParams(tokens);
   if (tokens.peek("Function or type definition") == Keyword::EXTERN) {
     auto ret = parseEmbedStructDefinition(tokens);
     ret->templateParams = params;

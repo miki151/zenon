@@ -3,4 +3,8 @@ template<T, U>
 variant V2 {
   T t;
   U u;
+  template <X>
+  X get(T t, U u, X x) {
+    return x;
+  }
 };

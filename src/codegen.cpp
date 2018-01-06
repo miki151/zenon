@@ -156,8 +156,11 @@ static void considerTemplateParams(Accu& accu, const vector<string>& params) {
   }
 }
 
-string FunctionDefinition::getPrototype() const {
-  string ret = returnType.toString() + " " + name + "(";
+void FunctionDefinition::addSignature(Accu& accu, string structName) const {
+  considerTemplateParams(accu, templateParams);
+  if (!structName.empty())
+    structName += "::";
+  string ret = returnType.toString() + " " + structName + name + "(";
   for (auto& param : parameters)
     ret.append(param.type.toString() + " " + param.name + ", ");
   if (!parameters.empty()) {
@@ -165,12 +168,11 @@ string FunctionDefinition::getPrototype() const {
     ret.pop_back();
   }
   ret.append(")");
-  return ret;
+  accu.add(ret);
 };
 
 void FunctionDefinition::codegen(Accu& accu) const {
-  considerTemplateParams(accu, templateParams);
-  accu.add(getPrototype());
+  addSignature(accu, "");
   accu.newLine("");
   body->codegen(accu);
 }
@@ -179,7 +181,7 @@ void FunctionDefinition::declare(Accu& accu) const {
   if (!templateParams.empty())
     codegen(accu);
   else {
-    accu.add(getPrototype());
+    addSignature(accu, "");
     accu.add(";");
     accu.newLine("");
   }
@@ -190,7 +192,6 @@ string codegen(const AST& ast) {
   for (auto& elem : ast.elems) {
     elem->codegen(accu);
     accu.newLine();
-//    accu.newLine();
   }
   return accu.generate();
 }
@@ -200,22 +201,43 @@ void ExpressionStatement::codegen(Accu& accu) const {
   accu.add(";");
 }
 
-void StructDefinition::codegen(Accu& accu) const {
+static string joinTemplateParams(const vector<string>& params) {
+  if (params.empty())
+    return "";
+  else
+    return "<" + combine(params, ", ") + ">";
+}
+
+void StructDefinition::generate(Accu& accu, bool import) const {
   considerTemplateParams(accu, templateParams);
   accu.add("struct " + name + " {");
   ++accu.indent;
+  for (auto& method : methods) {
+    accu.newLine();
+    method->addSignature(accu, "");
+    accu.add(";");
+  }
   for (auto& member : members)
     accu.newLine(member.type.toString() + " " + member.name + ";");
   --accu.indent;
   accu.newLine("};");
+  accu.newLine();
+  for (auto& method : methods)
+    if (!import || !templateParams.empty() || !method->templateParams.empty()) {
+      considerTemplateParams(accu, templateParams);
+      method->addSignature(accu, name + joinTemplateParams(templateParams));
+      accu.newLine();
+      method->body->codegen(accu);
+      accu.newLine();
+    }
+}
+
+void StructDefinition::codegen(Accu& accu) const {
+  generate(accu, false);
 }
 
 void StructDefinition::declare(Accu& accu) const {
-  codegen(accu);
-}
-
-void MemberAccessType::codegen(Accu& accu) const {
-  accu.add(name);
+  generate(accu, true);
 }
 
 constexpr const char* variantEnumeratorPrefix = "Enum_";
@@ -226,18 +248,16 @@ void VariantDefinition::codegen(Accu& accu) const {
   generate(accu, false);
 }
 
-static string joinTemplateParams(const vector<string>& params) {
-  if (params.empty())
-    return "";
-  else
-    return "<" + combine(params, ", ") + ">";
-}
-
 void VariantDefinition::generate(Accu& accu, bool import) const {
   Accu impls;
   considerTemplateParams(accu, templateParams);
   accu.add("struct " + name + " {");
   ++accu.indent;
+  for (auto& method : methods) {
+    accu.newLine();
+    method->addSignature(accu, "");
+    accu.add(";");
+  }
   accu.newLine();
   for (auto& subtype : elements)
     subtype.type.toString();
@@ -265,11 +285,6 @@ void VariantDefinition::generate(Accu& accu, bool import) const {
     --impls.indent;
     impls.newLine("}");
     impls.newLine("");
-/*      accu.newLine(name + "(" + variantTagPrefix + elem.name + ", const " + elem.type.toString() + "& elem) : unionElem("
-          + variantEnumeratorPrefix + elem.name + "), " + elem.name + "(elem) {}");
-
-    accu.newLine(name + "(" + variantTagPrefix + elem.name + ", const " + elem.type.toString() + "& elem) : unionElem("
-        + variantEnumeratorPrefix + elem.name + "), " + elem.name + "(elem) {}");*/
   }
   accu.newLine("union {");
   ++accu.indent;
@@ -281,6 +296,15 @@ void VariantDefinition::generate(Accu& accu, bool import) const {
   accu.newLine("};");
   --accu.indent;
   accu.newLine("};");
+  accu.newLine();
+  for (auto& method : methods)
+    if (!import || !templateParams.empty() || !method->templateParams.empty()) {
+      considerTemplateParams(accu, templateParams);
+      method->addSignature(accu, name + joinTemplateParams(templateParams));
+      accu.newLine();
+      method->body->codegen(accu);
+      accu.newLine();
+    }
   if (!import)
     accu.newLine(impls.generate());
 }

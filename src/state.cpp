@@ -106,12 +106,11 @@ const vector<string>& State::getAllImports() const {
   return allImports;
 }
 
-FunctionType State::getFunction(CodeLoc codeLoc, IdentifierInfo id, vector<Type> argTypes,
+FunctionType State::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType templateType, IdentifierInfo id, vector<Type> argTypes,
     vector<CodeLoc> argLoc) const {
   auto templateArgNames = id.parts.back().templateArguments;
   auto templateArgs = getTypeList(templateArgNames);
-  auto ret = getFunctionTemplate(codeLoc, id);
-  instantiate(ret, codeLoc, templateArgs, argTypes, argLoc);
-  INFO << "Function " << id.toString() << " return type " << getName(*ret.retVal);
-  return ret;
+  instantiate(templateType, codeLoc, templateArgs, argTypes, argLoc);
+  INFO << "Function " << id.toString() << " return type " << getName(*templateType.retVal);
+  return templateType;
 }

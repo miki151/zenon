@@ -1,4 +1,7 @@
 #include "operator.h"
+#include "type.h"
+#include "code_loc.h"
+#include "ast.h"
 
 const static unordered_map<string, Operator> operators {
   {"<", Operator::LESS_THAN},
@@ -72,5 +75,106 @@ bool isUnary(Operator op) {
       return true;
     default:
       return false;
+  }
+}
+
+Type getUnaryOperationResult(CodeLoc codeLoc, Operator op, const Type& right) {
+  auto underlying = getUnderlying(right);
+  CHECK(isUnary(op));
+  switch (op) {
+    case Operator::MULTIPLY:
+      if (auto pointer = underlying.getReferenceMaybe<PointerType>())
+        return ReferenceType(*pointer->underlying);
+      else
+        codeLoc.error("Can't apply dereference operator to type " + quote(getName(right)));
+      break;
+    case Operator::GET_ADDRESS:
+      if (auto reference = right.getReferenceMaybe<ReferenceType>())
+        return PointerType(*reference->underlying);
+      else
+        codeLoc.error("Can't apply address-of operator to type " + quote(getName(right)));
+      break;
+    case Operator::PLUS:
+    case Operator::MINUS:
+      codeLoc.check(underlying == ArithmeticType::INT, "Expected type: " + quote("int") + ", got: " + quote(getName(right)));
+      break;
+    default:
+      break;
+  }
+  return right;
+}
+
+static optional<Type> getOperationResult(Operator op, const Type& underlyingOperands) {
+  switch (op) {
+    case Operator::MULTIPLY:
+    case Operator::PLUS:
+    case Operator::MINUS:
+      if (underlyingOperands == ArithmeticType::INT)
+        return Type(ArithmeticType::INT);
+      return none;
+    case Operator::LESS_THAN:
+    case Operator::MORE_THAN:
+      if (underlyingOperands == ArithmeticType::INT)
+        return Type(ArithmeticType::BOOL);
+      return none;
+    case Operator::EQUALS:
+      if (underlyingOperands == ArithmeticType::INT || underlyingOperands == ArithmeticType::BOOL)
+        return Type(ArithmeticType::BOOL);
+      return none;
+    default:
+      return none;
+  }
+}
+
+Type getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expression& leftExpr, Expression& rightExpr) {
+  auto left = leftExpr.getType(state);
+  auto right = [&]() { return rightExpr.getType(state); };
+  switch (op) {
+    case Operator::MEMBER_ACCESS: {
+      auto leftUnderlying = getUnderlying(left);
+      if (auto structInfo = leftUnderlying.getReferenceMaybe<StructType>()) {
+        auto context = structInfo->getContext();
+        if (auto rightType = rightExpr.getDotOperatorType(context, state)) {
+          if (!left.contains<ReferenceType>())
+            rightType = getUnderlying(*rightType);
+          return *rightType;
+        }
+      }
+      if (auto structInfo = leftUnderlying.getReferenceMaybe<VariantType>()) {
+        auto context = structInfo->getContext();
+        if (auto rightType = rightExpr.getDotOperatorType(context, state)) {
+          if (!left.contains<ReferenceType>())
+            rightType = getUnderlying(*rightType);
+          return *rightType;
+        }
+      }
+      codeLoc.error("Bad use of operator " + quote("."));
+      return {};
+    }
+    case Operator::ASSIGNMENT:
+      if (getUnderlying(left) == getUnderlying(right()) && left.contains<ReferenceType>())
+        return left;
+      else {
+        codeLoc.error("Can't assign " + quote(getName(right())) + " to " + quote(getName(left)));
+        return {};
+      }
+    case Operator::LESS_THAN:
+    case Operator::MORE_THAN:
+    case Operator::MULTIPLY:
+    case Operator::PLUS:
+    case Operator::EQUALS:
+    case Operator::MINUS: {
+      auto rightType = right();
+      auto operand = getUnderlying(left);
+      if (operand == getUnderlying(rightType))
+        if (auto res = getOperationResult(op, operand))
+          return *res;
+      codeLoc.error("Unsupported operator: " + quote(getName(left)) + " " + getString(op)
+          + " " + quote(getName(rightType)));
+      return {};
+    }
+    case Operator::GET_ADDRESS:
+      codeLoc.error("Address-of is not a binary operator");
+      return {};
   }
 }

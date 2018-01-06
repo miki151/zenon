@@ -16,7 +16,7 @@ static po::parser getCommandLineFlags() {
   po::parser flags;
   flags["help"].abbreviation('h').description("Print help");
   flags["o"].type(po::string).description("Binary output path.");
-  flags["cpp"].type(po::string).fallback("g++").description("C++ compiler path.");
+  flags["cpp"].type(po::string).fallback("g++").description("C++ compiler path (default: g++).");
   flags["c"].description("Do not link binary.");
   flags[""].type(po::string).description("Path to the input program.");
   return flags;
