@@ -37,8 +37,8 @@ function compile() {
 BINARY_TMP=$(mktemp)
 
 for I in `ls tests/*.znn`; do 
-  echo "Running $I"
   EXPECTED=`head -n 1 $I | cut -c 4-`
+  echo "Running $I. Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then
     echo -e "$RED No expected value specified$NC"
     continue
@@ -61,9 +61,13 @@ for I in `ls tests/*.znn`; do
 done
 
 for D in `ls -d tests/*/`; do
-  echo "Running directory $D"
-  EXPECTED=`head -n 1 $D/main.znn | cut -c 4-`
-  OBJECTS=""
+  EXPECTED=`head -n 1 $D/main.znn | grep "//"| cut -c 4-`
+  echo "Running directory $D. Expecting: $EXPECTED"
+  if [ "$EXPECTED" = "" ]; then
+    echo -e "$RED No expected value specified$NC"
+    continue
+  fi
+   OBJECTS=""
   FILES=`ls $D`
   if [ "$EXPECTED" = "no_compile" ]; then
     FILES="main.znn"
