@@ -1,0 +1,14 @@
+import "fun.znn"
+
+struct X {
+  int get() {
+    return fun(v);
+  }
+
+  void set(int t) {
+    v = fun(t);
+  }
+
+  int v;
+};
+

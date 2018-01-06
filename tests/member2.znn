@@ -1,0 +1,15 @@
+// no_compile
+
+struct A {
+  int x;
+};
+
+A f() {
+  return A(1);
+}
+
+int main() {
+  auto a = A(1);
+  f().x = 5;
+  return a.x;
+}

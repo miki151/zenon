@@ -1,0 +1,15 @@
+
+
+template<T>
+struct X {
+  T get() {
+    return v;
+  }
+
+  void set(T t) {
+    v = t;
+  }
+
+  T v;
+};
+

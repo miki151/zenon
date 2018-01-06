@@ -1,0 +1,26 @@
+// 11
+
+struct A {
+  int f(bool b) {
+    if (b)
+      return 1 + g(1);
+    else
+      return x;
+  }
+
+  int g(int a) {
+    return f(a == 0);
+  }
+
+  void set(int a) {
+    x = a;
+  }
+
+  int x;
+};
+
+int main() {
+  auto a = A(5);
+  a.set(10);
+  return a.f(true);
+}

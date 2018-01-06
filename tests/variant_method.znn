@@ -1,0 +1,22 @@
+// 4
+
+variant V {
+  int value;
+  void null;
+  int getValueOr(int a) {
+    switch (*this) {
+      case (int value) {
+        return value;
+      }
+      case (null) {
+        return a;
+      }
+    }
+  }
+};
+
+int main() {
+  auto v = V::value(5);
+  v = V::null();
+  return v.getValueOr(4);
+}

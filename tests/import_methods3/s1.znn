@@ -1,0 +1,23 @@
+
+
+struct X {
+  template<T>
+  int get(T u) {
+    return v;
+  }
+
+  int v;
+};
+
+
+template <T>
+struct Y {
+  template<U>
+  T get(U u) {
+    return v;
+  }
+
+  T v;
+};
+
+

@@ -1,0 +1,15 @@
+// no_compile
+
+struct X {
+  int a;
+  int b() {
+    return a;
+  }
+};
+
+int main() {
+  X x = X(1);
+  auto u = x.a;
+  u = x.b;
+  return 0;
+}

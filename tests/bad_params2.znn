@@ -1,0 +1,10 @@
+// no_compile
+
+int f() {
+  return 1;
+}
+
+int main() {
+  auto x = f<int>();
+  return x;
+}

@@ -1,0 +1,10 @@
+// no_compile
+
+struct X {
+  int a;
+};
+
+int main() {
+  auto x = X<int>(1);
+  return 0;
+}

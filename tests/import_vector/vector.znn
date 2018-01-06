@@ -1,0 +1,16 @@
+// 15
+
+public embed {
+
+#include <vector>
+using namespace std;
+
+}
+
+template <T>
+extern struct vector {
+  void push_back(T elem);
+  T at(int index);
+  int size();
+};
+

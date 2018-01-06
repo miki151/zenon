@@ -1,0 +1,14 @@
+// 5
+
+struct A {
+  int x;
+  int* get() {
+    return &x;
+  }
+};
+
+int main() {
+  auto a = A(1);
+  *(a.get()) = 5;
+  return a.x;
+}

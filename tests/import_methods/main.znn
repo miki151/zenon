@@ -1,0 +1,9 @@
+// 5
+import "s1.znn"
+
+
+int main() {
+  auto x = X<int>(10);
+  x.set(5);
+  return x.get();
+}

@@ -1,0 +1,15 @@
+// 5
+
+struct A {
+  int x;
+};
+
+A f() {
+  return A(1);
+}
+
+int main() {
+  auto a = A(1);
+  a.x = 5;
+  return a.x;
+}

@@ -1,0 +1,20 @@
+// 5
+
+template<T>
+struct X {
+  T get() {
+    return v;
+  }
+
+  void set(T t) {
+    v = t;
+  }
+
+  T v;
+};
+
+int main() {
+  auto x = X<int>(10);
+  x.set(5);
+  return x.get();
+}
