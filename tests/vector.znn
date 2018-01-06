@@ -1,48 +1,26 @@
-// 5
+// 15
 
 embed {
 
-#include <stdio.h>
 #include <vector>
 using namespace std;
 
 }
 
-// dupa
-void print(int x) {
-  embed {
-    printf("%d\n", x);  
-  }
-}
-
 template <T>
-extern struct vector;
-
-template<T>
-void push_back(vector<T>* v, T elem) {
-  embed {
-    int embed;
-    v->push_back(std::move(elem));
-  }
-}
-
-template<T>
-vector<T> make_vec() {
-  embed {
-    return vector<T>();
-  }
-}
-
-template<T>
-T get(vector<T>* v, int index) {
-  embed {
-    return v->at(index);
-  }
-}
+extern struct vector {
+  void push_back(T elem);
+  T at(int index);
+  int size();
+};
 
 int main() {
-  vector<int> v = make_vec<int>();
-  push_back(&v, 5);
-  return get(&v, 0);
+  auto v = vector<int>();
+  for (int i = 0; i < 6; i = i + 1)
+    v.push_back(i);
+  int sum = 0;
+  for (int i = 0; i < v.size(); i = i + 1)
+    sum = sum + i;
+  return sum;
 }
 

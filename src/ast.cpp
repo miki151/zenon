@@ -175,11 +175,11 @@ void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
       else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
     stateCopy.setReturnType(*returnType);
-    if (*returnType != ArithmeticType::VOID && !body->hasReturnStatement(state))
+    if (*returnType != ArithmeticType::VOID && body && !body->hasReturnStatement(state))
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
   } else
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
-  if (!templateParams.empty() || templateStruct || state.getImports().empty())
+  if (body && (!templateParams.empty() || templateStruct || state.getImports().empty()))
     body->check(stateCopy);
 }
 
@@ -413,16 +413,6 @@ UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e
 
 Type UnaryExpression::getType(const State& state) {
   return getUnaryOperationResult(expr->codeLoc, op, expr->getType(state));
-}
-
-EmbedStructDefinition::EmbedStructDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
-
-void EmbedStructDefinition::check(State& state) {
-  state.checkNameConflict(codeLoc, name, "Type");
-  StructType type(name);
-  for (auto& param : templateParams)
-    type.templateParams.push_back(TemplateParameter{param});
-  state.addType(name, type);
 }
 
 EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {

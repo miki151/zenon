@@ -132,7 +132,7 @@ unique_ptr<StatementBlock> parseBlock(Tokens& tokens) {
   return block;
 }
 
-unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Tokens& tokens) {
+unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Tokens& tokens) {
   auto token2 = tokens.popNext("function definition");
   token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected identifier, got: " + quote(token2.value));
   auto ret = unique<FunctionDefinition>(type.codeLoc, type, token2.value);
@@ -150,6 +150,11 @@ unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Toke
     auto nameToken = tokens.popNext("identifier");
     ret->parameters.push_back({type.codeLoc, typeId, nameToken.value});
   }
+  return ret;
+}
+
+unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Tokens& tokens) {
+  auto ret = parseFunctionSignature(type, tokens);
   ret->body = parseBlock(tokens);
   return ret;
 }
@@ -169,21 +174,13 @@ static vector<string> parseTemplateParams(Tokens& tokens) {
   return params;
 }
 
-unique_ptr<EmbedStructDefinition> parseEmbedStructDefinition(Tokens& tokens) {
-  tokens.eat(Keyword::EXTERN);
-  tokens.eat(Keyword::STRUCT);
-  auto token2 = tokens.popNext("struct name");
-  token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected struct name");
-  auto ret = unique<EmbedStructDefinition>(token2.codeLoc, token2.value);
-  tokens.eat(Keyword::SEMICOLON);
-  return ret;
-}
-
-unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens) {
+unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external) {
   tokens.eat(Keyword::STRUCT);
   auto token2 = tokens.popNext("struct name");
   token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected struct name");
   auto ret = unique<StructDefinition>(token2.codeLoc, token2.value);
+  if (external)
+    ret->external = true;
   tokens.eat(Keyword::OPEN_BLOCK);
   while (1) {
     auto memberToken = tokens.peek("member declaration");
@@ -198,7 +195,11 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens) {
     auto memberName = tokens.popNext("member name");
     if (tokens.peek("struct definition") == Keyword::OPEN_BRACKET) {
       tokens.rewind();
-      ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));
+      if (external) {
+        ret->methods.push_back(parseFunctionSignature(typeIdent, tokens));
+        tokens.eat(Keyword::SEMICOLON);
+      } else
+        ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));
       ret->methods.back()->templateParams = templateParams;
     } else {
       memberToken.codeLoc.check(templateParams.empty(), "Member variable can't have template parameters");
@@ -355,12 +356,13 @@ unique_ptr<Statement> parseVariableDeclaration(Tokens& tokens) {
 unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
   auto params = parseTemplateParams(tokens);
   if (tokens.peek("Function or type definition") == Keyword::EXTERN) {
-    auto ret = parseEmbedStructDefinition(tokens);
+    tokens.popNext();
+    auto ret = parseStructDefinition(tokens, true);
     ret->templateParams = params;
     return ret;
   } else
   if (tokens.peek("Function or type definition") == Keyword::STRUCT) {
-    auto ret = parseStructDefinition(tokens);
+    auto ret = parseStructDefinition(tokens, false);
     ret->templateParams = params;
     return ret;
   } else
@@ -375,9 +377,8 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
   }
 }
 
-unique_ptr<Statement> parseImportStatement(Tokens& tokens) {
+unique_ptr<Statement> parseImportStatement(Tokens& tokens, bool isPublic) {
   auto codeLoc = tokens.peek().codeLoc;
-  bool isPublic = !!tokens.eatMaybe(Keyword::PUBLIC);
   tokens.eat(Keyword::IMPORT);
   auto path = tokens.eat(StringToken{}).value;
   path = getParentPath(codeLoc.file) + "/" + path;
@@ -403,16 +404,29 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
           case Keyword::RETURN:
             return parseReturnStatement(tokens);
           case Keyword::STRUCT:
-            return parseStructDefinition(tokens);
+            return parseStructDefinition(tokens, false);
           case Keyword::VARIANT:
             return parseVariantDefinition(tokens);
           case Keyword::SWITCH:
             return parseSwitchStatement(tokens);
           case Keyword::FOR:
             return parseForLoopStatement(tokens);
+          case Keyword::PUBLIC: {
+            tokens.popNext();
+            auto next = tokens.peek("Import or embed block definition");
+            if (next == Keyword::IMPORT)
+              return parseImportStatement(tokens, true);
+            if (next.contains<EmbedToken>()) {
+              auto ret = unique<EmbedStatement>(next.codeLoc, next.value);
+              ret->isPublic = true;
+              return ret;
+            } else {
+              next.codeLoc.error("Unexpected definition after " + quote("public") + " keyword: " + quote(next.value));
+              return {};
+            }
+          }
           case Keyword::IMPORT:
-          case Keyword::PUBLIC:
-            return parseImportStatement(tokens);
+            return parseImportStatement(tokens, false);
           case Keyword::OPEN_BRACKET:
             return parseExpressionAndSemicolon();
           case Keyword::AUTO: {

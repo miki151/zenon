@@ -209,6 +209,8 @@ static string joinTemplateParams(const vector<string>& params) {
 }
 
 void StructDefinition::generate(Accu& accu, bool import) const {
+  if (external)
+    return;
   considerTemplateParams(accu, templateParams);
   accu.add("struct " + name + " {");
   ++accu.indent;
@@ -356,17 +358,13 @@ void UnaryExpression::codegen(Accu& accu) const {
   accu.add(") ");
 }
 
-
-void EmbedStructDefinition::codegen(Accu&) const {
-}
-
-
 void EmbedStatement::codegen(Accu& accu) const {
   accu.newLine(value);
 }
 
 void EmbedStatement::declare(Accu& accu) const {
-  // embedded blocks are not generated in imports
+  if (isPublic)
+    codegen(accu);
 }
 
 bool EmbedStatement::hasReturnStatement(const State&) const {

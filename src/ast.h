@@ -166,7 +166,7 @@ struct StructDefinition : Statement {
   virtual void codegen(Accu&) const override;
   virtual void declare(Accu&) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
-
+  bool external = false;
   private:
   void generate(Accu&, bool import) const;
 };
@@ -189,15 +189,6 @@ struct VariantDefinition : Statement {
 
   private:
   void generate(Accu&, bool import) const;
-};
-
-struct EmbedStructDefinition : Statement {
-  EmbedStructDefinition(CodeLoc, string name);
-  string name;
-  vector<string> templateParams;
-  virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
-  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 };
 
 struct SwitchStatement : Statement {
@@ -242,6 +233,7 @@ struct FunctionDefinition : Statement {
 struct EmbedStatement : Statement {
   EmbedStatement(CodeLoc, string value);
   string value;
+  bool isPublic = false;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual void declare(Accu&) const override;
