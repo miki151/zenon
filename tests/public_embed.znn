@@ -1,0 +1,16 @@
+// no_compile
+
+public embed {
+#include <iostream>
+}
+
+int f() {
+  public embed {
+    int x = 1;
+    return x;
+  }
+}
+
+int main() {
+  return f();
+}
