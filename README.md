@@ -1,7 +1,7 @@
 # zenon
 ## The Zenon programming language (work in progress)
 
-Zenon is a compiled language with similiar features to C++. The aim is to remove a lot of complexity from C++, and add some features that support safer and more high-level programming.
+Zenon is a compiled language similar to C++. It is much simpler, but contains some high level features to allow easier application development.
 
 
 ### Features
