@@ -42,6 +42,9 @@ string getName(const Type& t) {
       },
       [&](const TemplateParameter& t) {
         return t.name;
+      },
+      [&](const EnumType& t) {
+        return t.name;
       }
   );
 }
@@ -316,4 +319,10 @@ optional<FunctionType> getStaticMethod(const Type& type, string name) {
       },
       [](const auto&) -> optional<FunctionType> {return none;}
   );
+}
+
+EnumType::EnumType(string n, vector<string> e) : name(n), id(getNewId()), elements(e) {}
+
+bool EnumType::operator ==(const EnumType& e) const {
+  return id == e.id;
 }

@@ -191,6 +191,20 @@ struct VariantDefinition : Statement {
   void generate(Accu&, bool import) const;
 };
 
+struct EnumDefinition : Statement {
+  EnumDefinition(CodeLoc, string name);
+  string name;
+  vector<string> elements;
+  vector<unique_ptr<FunctionDefinition>> methods;
+  virtual void check(State&) override;
+  virtual void codegen(Accu&) const override;
+  virtual void declare(Accu&) const override;
+  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+
+  private:
+  void generate(Accu&, bool import) const;
+};
+
 struct SwitchStatement : Statement {
   SwitchStatement(CodeLoc, unique_ptr<Expression>);
   struct CaseElem {

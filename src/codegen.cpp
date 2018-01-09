@@ -401,3 +401,12 @@ void ImportStatement::declare(Accu& accu) const {
 void Statement::declare(Accu& accu) const {
   FATAL << "Can't declare statement " << typeid(*this).name();
 }
+
+
+void EnumDefinition::codegen(Accu&) const {
+
+}
+
+void EnumDefinition::declare(Accu&) const {
+
+}

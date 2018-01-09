@@ -22,7 +22,7 @@ extern vector<string> getAllOperators();
 extern int getPrecedence(Operator);
 extern bool isUnary(Operator);
 extern bool isRightAssociative(Operator);
-class Type;
+struct Type;
 class CodeLoc;
 class State;
 class Expression;

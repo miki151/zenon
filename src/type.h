@@ -71,7 +71,15 @@ struct StructType {
   State getContext();
 };
 
-struct Type : variant<ArithmeticType, ReferenceType, PointerType, StructType, VariantType, TemplateParameter> {
+struct EnumType {
+  EnumType(string name, vector<string> elements);
+  string name;
+  int id;
+  vector<string> elements;
+  bool operator == (const EnumType&) const;
+};
+
+struct Type : variant<ArithmeticType, ReferenceType, PointerType, StructType, VariantType, TemplateParameter, EnumType> {
   using variant::variant;
 };
 

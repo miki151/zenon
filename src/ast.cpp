@@ -465,3 +465,13 @@ void ImportStatement::check(State& s) {
 optional<Type> Expression::getDotOperatorType(const State& idContext, const State& callContext) {
   return none;
 }
+
+EnumDefinition::EnumDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
+
+void EnumDefinition::check(State& s) {
+  codeLoc.check(!elements.empty(), "Enum requires at least one element");
+  unordered_set<string> occurences;
+  for (auto& e : elements)
+    codeLoc.check(!occurences.count(e), "Duplicate enum element: " + quote(e));
+  s.addType(name, EnumType(name, elements));
+}

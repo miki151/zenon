@@ -385,6 +385,25 @@ unique_ptr<Statement> parseImportStatement(Tokens& tokens, bool isPublic) {
   return unique<ImportStatement>(codeLoc, path, isPublic);
 }
 
+unique_ptr<Statement> parseEnumStatement(Tokens& tokens) {
+  tokens.eat(Keyword::ENUM);
+  auto name = tokens.popNext();
+  name.codeLoc.check(name.contains<IdentifierToken>(), "Expected enum name, got: " + quote(name.value));
+  auto ret = unique<EnumDefinition>(tokens.peek().codeLoc, name.value);
+  tokens.eat(Keyword::OPEN_BLOCK);
+  while (1) {
+    auto token = tokens.popNext("enum elements");
+    if (token == Keyword::CLOSE_BLOCK) {
+      break;
+    }
+    if (tokens.eatMaybe(Keyword::COMMA)) {
+      token.codeLoc.check(token.contains<IdentifierToken>(), "Expected enum element, got: " + quote(token.value));
+      ret->elements.push_back(token.value);
+    }
+  }
+  return ret;
+}
+
 unique_ptr<Statement> parseStatement(Tokens& tokens) {
   auto parseExpressionAndSemicolon = [&] {
     auto ret = parseExpression(tokens);
@@ -409,6 +428,8 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseVariantDefinition(tokens);
           case Keyword::SWITCH:
             return parseSwitchStatement(tokens);
+          case Keyword::ENUM:
+            return parseEnumStatement(tokens);
           case Keyword::FOR:
             return parseForLoopStatement(tokens);
           case Keyword::PUBLIC: {

@@ -3,6 +3,16 @@
 #include "type.h"
 
 optional<Type> State::getTypeOfVariable(const IdentifierInfo& id) const {
+  if (id.parts.size() == 2 && types.count(id.parts[0].toString())) {
+    auto type = types.at(id.parts[0].toString());
+    if (auto enumType = type.getReferenceMaybe<EnumType>()) {
+      string element = id.parts[1].toString();
+      id.codeLoc.check(contains(enumType->elements, element),
+          "No element named " + quote(element) + " in enum " + quote(enumType->name));
+      return Type(*enumType);
+    } else
+      id.codeLoc.error("Unrecognized variable or constant: " + quote(id.toString()));
+  }
   id.codeLoc.check(id.parts.size() == 1 && id.parts.at(0).templateArguments.empty(),
       "Bad variable identifier: " + id.toString());
   auto name = id.parts.at(0).name;

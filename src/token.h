@@ -40,7 +40,8 @@ enum class Keyword {
   FOR,
   IMPORT,
   PUBLIC,
-  AUTO
+  AUTO,
+  ENUM
 };
 
 struct EmbedToken {

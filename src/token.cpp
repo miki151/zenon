@@ -23,6 +23,7 @@ static const unordered_map<string, Keyword> keywords {
   {"import", Keyword::IMPORT},
   {"public", Keyword::PUBLIC},
   {"auto", Keyword::AUTO},
+  {"enum", Keyword::ENUM},
   {"?", Keyword::MAYBE},
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},
