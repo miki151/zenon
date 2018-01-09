@@ -237,7 +237,7 @@ struct EmbedStatement : Statement {
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual void declare(Accu&) const override;
-  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::CAN; }
+  virtual TopLevelAllowance allowTopLevel() const override;
   virtual bool hasReturnStatement(const State&) const override;
 };
 

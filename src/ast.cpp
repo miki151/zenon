@@ -421,9 +421,16 @@ EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {
 void EmbedStatement::check(State&) {
 }
 
+Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
+  if (isPublic)
+    return TopLevelAllowance::MUST;
+  else
+    return TopLevelAllowance::CAN;
+}
+
 ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<Statement> i, unique_ptr<Expression> c,
-    unique_ptr<Expression> it, unique_ptr<Statement> b)
-    : Statement(l), init(std::move(i)), cond(std::move(c)), iter(std::move(it)), body(std::move(b)) {}
+                                   unique_ptr<Expression> it, unique_ptr<Statement> b)
+  : Statement(l), init(std::move(i)), cond(std::move(c)), iter(std::move(it)), body(std::move(b)) {}
 
 bool ForLoopStatement::hasReturnStatement(const State& s) const {
   return body->hasReturnStatement(s);

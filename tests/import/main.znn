@@ -3,6 +3,6 @@ import "struct1.znn"
 
 
 int main() {
-  Struct1 s1 = Struct1(5, true);
+  Struct1 s1 = Struct1(getSecond(4, 5, 6), true);
   return get(&s1);
 }

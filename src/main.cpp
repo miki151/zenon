@@ -54,8 +54,8 @@ int main(int argc, char* argv[]) {
     auto tokens = lex(program, path);
     auto ast = parse(tokens);
     correctness(ast);
-    log << codegen(ast);
     auto cppCode = codegen(ast);
+    log << cppCode;
     if (flags["o"].was_set()) {
       if (compileCpp(flags["cpp"].get().string, cppCode, flags["o"].get().string, !flags["c"].was_set())) {
         cerr << "C++ compilation failed, which is a Zenon bug :(\n\n";

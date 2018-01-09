@@ -419,6 +419,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             if (next.contains<EmbedToken>()) {
               auto ret = unique<EmbedStatement>(next.codeLoc, next.value);
               ret->isPublic = true;
+              tokens.popNext();
               return ret;
             } else {
               next.codeLoc.error("Unexpected definition after " + quote("public") + " keyword: " + quote(next.value));
