@@ -18,6 +18,7 @@ Zenon is a statically typed language that compiles to C++. The goal is to allow 
 * Faster compile times of the C++ output code than when writing the corresponding program in C++ thanks to transparently using the pimpl idiom and other tricks when generating code.
 * Reflection
 * Imperative metaprogramming using the same language
+* Custom C++ code injection to allow printing clean stacktraces or generating profiling data.
 
 ## Example code
 
