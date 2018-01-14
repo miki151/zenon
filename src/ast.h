@@ -218,9 +218,16 @@ struct SwitchStatement : Statement {
   vector<CaseElem> caseElems;
   unique_ptr<StatementBlock> defaultBlock;
   unique_ptr<Expression> expr;
+  enum { ENUM, VARIANT} type;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual bool hasReturnStatement(const State&) const override;
+
+  private:
+  void checkVariant(State&, VariantType);
+  void checkEnum(State&, EnumType);
+  void codegenEnum(Accu&) const;
+  void codegenVariant(Accu&) const;
 };
 
 struct FunctionDefinition : Statement {

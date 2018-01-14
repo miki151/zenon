@@ -392,14 +392,14 @@ unique_ptr<Statement> parseEnumStatement(Tokens& tokens) {
   auto ret = unique<EnumDefinition>(tokens.peek().codeLoc, name.value);
   tokens.eat(Keyword::OPEN_BLOCK);
   while (1) {
-    auto token = tokens.popNext("enum elements");
-    if (token == Keyword::CLOSE_BLOCK) {
+    auto element = tokens.popNext("enum elements");
+    element.codeLoc.check(element.contains<IdentifierToken>(), "Expected enum element, got: " + quote(element.value));
+    ret->elements.push_back(element.value);
+    if (tokens.eatMaybe(Keyword::CLOSE_BLOCK))
       break;
-    }
-    if (tokens.eatMaybe(Keyword::COMMA)) {
-      token.codeLoc.check(token.contains<IdentifierToken>(), "Expected enum element, got: " + quote(token.value));
-      ret->elements.push_back(token.value);
-    }
+    tokens.eat(Keyword::COMMA);
+    if (tokens.eatMaybe(Keyword::CLOSE_BLOCK))
+      break;
   }
   return ret;
 }

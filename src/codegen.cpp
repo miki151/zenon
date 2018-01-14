@@ -320,14 +320,51 @@ void VariantDefinition::declare(Accu& accu) const {
 constexpr const char* variantTmpRef = "variantTmpRef";
 
 void SwitchStatement::codegen(Accu& accu) const {
+  switch (type) {
+    case VARIANT:
+      codegenVariant(accu);
+      break;
+    case ENUM:
+      codegenEnum(accu);
+      break;
+  }
+}
+
+void SwitchStatement::codegenEnum(Accu& accu) const {
+  accu.add("switch (");
+  expr->codegen(accu);
+  accu.add(") {");
+  ++accu.indent;
+  for (auto& caseElem : caseElems) {
+    accu.newLine("case " + subtypesPrefix + caseElem.id + ": {");
+    ++accu.indent;
+    accu.newLine();
+    caseElem.block->codegen(accu);
+    accu.newLine("break;");
+    --accu.indent;
+    accu.newLine("}");
+  }
+  if (defaultBlock) {
+    accu.newLine("default: {");
+    ++accu.indent;
+    accu.newLine();
+    defaultBlock->codegen(accu);
+    accu.newLine("break;");
+    --accu.indent;
+    accu.newLine("}");
+  }
+  --accu.indent;
+  accu.newLine("}");
+}
+
+void SwitchStatement::codegenVariant(Accu& accu) const {
   accu.add("{ auto&& "s + variantTmpRef + " = ");
   expr->codegen(accu);
   accu.add(";");
   accu.newLine("switch ("s + variantTmpRef + "."s + variantUnionElem + ") {");
   ++accu.indent;
   for (auto& caseElem : caseElems) {
-    accu.newLine("case "s + subtypesPrefix + variantEnumeratorPrefix + caseElem.id + ":");
-    accu.add("{");
+    accu.newLine("case "s + subtypesPrefix + variantEnumeratorPrefix + caseElem.id + ": {");
     ++accu.indent;
     if (caseElem.declareVar) {
       accu.newLine("auto&& "s + caseElem.id + " = " + variantTmpRef + "." + variantUnionEntryPrefix + caseElem.id + ";");
@@ -403,10 +440,15 @@ void Statement::declare(Accu& accu) const {
 }
 
 
-void EnumDefinition::codegen(Accu&) const {
-
+void EnumDefinition::codegen(Accu& accu) const {
+  accu.add("enum class " + name + " {");
+  ++accu.indent;
+  for (auto& elem : elements)
+    accu.newLine(elem + ",");
+  --accu.indent;
+  accu.newLine("};");
 }
 
-void EnumDefinition::declare(Accu&) const {
-
+void EnumDefinition::declare(Accu& accu) const {
+  codegen(accu);
 }
