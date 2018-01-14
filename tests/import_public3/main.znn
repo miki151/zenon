@@ -2,6 +2,6 @@
 import "fun.znn"
 
 int main() {
-  :q
-  return b;
+  auto s = S1(S2(true), 5);
+  return s.a;
 }

@@ -1,0 +1,11 @@
+// 1
+import "enum1.znn"
+
+int main() {
+  auto e = E1::V1;
+  switch (e) {
+    default {
+      return 1;
+    }
+  }
+}

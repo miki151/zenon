@@ -1,0 +1,22 @@
+// no_compile
+enum E1 {
+  VALUE1,
+  VALUE2,
+  VALUE3,
+  VALUE4
+}
+
+int main() {
+  auto e1 = E1::VALUE1;
+  switch (e1) {
+    case (VALUE1) {
+      return 1;
+    }
+    case (VALUE_X) {
+      return 2;
+    }
+    default {
+      return 3;
+    }
+  }
+}

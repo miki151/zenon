@@ -1,0 +1,36 @@
+// 1
+enum E1 {
+  VALUE1,
+  VALUE2,
+  VALUE3,
+  VALUE4
+}
+
+enum E2 {
+  VALUE1,
+  VALUE2,
+}
+
+int main() {
+  auto e1 = E1::VALUE1;
+  int x = 1;
+  switch (e1) {
+    case (VALUE1) {
+      return 1;
+    }
+    case (VALUE2) {
+      return 2;
+    }
+    default {
+      x = 2;
+    }
+  }
+  switch (E2::VALUE1) {
+    case (VALUE1) {
+      return 3;
+    }
+    case (VALUE2) {
+      return 4;
+    }
+  }
+}
