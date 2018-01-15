@@ -1,39 +1,44 @@
 # zenon
 ## The Zenon programming language (work in progress)
 
-Zenon is a compiled language similar to C++. It is much simpler, but contains some high level features to allow easier application development.
+Zenon is a statically typed language that compiles to C++. The goal is to allow safer and easier application development than with C++ thanks to more high-level features and faster compile times.
 
 
 ### Features
 * No null pointer
 * No uninitialized variables and members
 * No headers
+* Compiles to C++
+* Extremely easy binding with C/C++.
 * Built-in variant/tagged union type
 * Named parameters in function calls
-* Reflection (tbd)
-* Compiles to C++
-* Syntax following C++ as closely as possible
-* No major paradigm divergence from C++
+* Syntax very similar to C++
+
+### To be done
+* Faster compile times of the C++ output code than when writing the corresponding program in C++ thanks to transparently using the pimpl idiom and other tricks when generating code.
+* Reflection
+* Imperative metaprogramming using the same language
+* Custom C++ code injection to allow printing clean stacktraces or generating profiling data.
 
 ## Example code
 
 ### Variant
 
 ``` C++
-variant IntOrBool {
-    bool asBool;
-    int asInt;
+variant my_variant {
+    bool as_bool;
+    int as_int;
 };
 
 int example() {
-    IntOrBool var = IntOrBool::asBool(true);
+    auto var = my_variant::as_bool(true);
     switch (var) {
-        case (bool asBool) {
-            if (asBool)
+        case (bool as_bool) {
+            if (as_bool)
                 return 1;
         }
-        case (int asInt) {
-            return asInt;
+        case (int as_int) {
+            return as_int;
         }
     }
     return -1;
@@ -45,23 +50,23 @@ int example() {
 ``` C++
 // Implementing a nullable a'ka optional type using a variant
 template <T>
-variant Nullable {
+variant nullable {
     T value;
     void null;
 };
 
 template<T>
-Nullable<T> value(T v) {
-    return Nullable<T>::value(v);
+nullable<T> value(T v) {
+    return nullable<T>::value(v);
 }
 
 template<T>
-Nullable<T> null() {
-    return Nullable<T>::null();
+nullable<T> null() {
+    return nullable<T>::null();
 }
 
 int example() {
-    // The template parameter of the function 'value' is inferred.
+    // 'T' is inferred from the function argument.
     auto var = value(5);
     var = null<int>();
     switch (var) {
@@ -84,13 +89,30 @@ embed {
 
 void print(int a) {
     embed {
-      //C++ code in this block
-      printf("%d\n", a);
+        //C++ code in this block
+        printf("%d\n", a);
     }
 }
 
+embed {
+    #include <vector>
+    using std::vector;
+}
+
+// Zenon can't parse the C++ vector header, so we have to tell it that 'vector' exists and how to use it. 
+template<T>
+extern struct vector {
+    int size();
+    void push_back(T);
+    T at(int index);
+}
+
 int main() {
-    print(5);
+    auto v = vector<int>();
+    for (int i = 0; i < 10; i = i + 1)
+        v.push_back(i);
+    print(v.at(3));
+    return 0;
 }
 
 ```
@@ -101,9 +123,15 @@ int sum(int a, int b) {
     return a + b;
 }
 
+struct my_struct {
+    int my_int;
+    bool my_bool;
+}
+
 int main() {
     int x = sum(3, 4);
     x = x + sum({a = 32, b = -30});
+    auto my1 = my_struct({my_int = 5, my_bool = false});
     return x;
 }
 ```
@@ -111,7 +139,7 @@ int main() {
 ### Working with multiple files
 ``` C++
 // library.znn
-int getNumber() {
+int get_number() {
     return 5;
 }
 
@@ -120,6 +148,6 @@ import "library.znn"
 import "print.znn"
 
 int main() {
-    print(getNumber());
+    print(get_number());
     return 0;
 }
