@@ -1,0 +1,12 @@
+// 14
+
+int main() {
+  char c = 'p';
+  auto s = "pok pok"; auto s2 = "pak";
+  string s3 = s + s2;
+  int x = s3.size();
+  if (s + s2 == s3)
+    return 4 + x;
+  else
+    return 5 + x;
+}

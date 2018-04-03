@@ -41,7 +41,17 @@ struct Accu {
 };
 
 void Constant::codegen(Accu& accu) const {
-  accu.add(value);
+  switch (*type.getValueMaybe<ArithmeticType>()) {
+    case ArithmeticType::STRING:
+      accu.add("\"" + value + "\"");
+      break;
+    case ArithmeticType::CHAR:
+      accu.add("'" + value + "'");
+      break;
+    default:
+      accu.add(value);
+      break;
+  }
 }
 
 void Variable::codegen(Accu& accu) const {
@@ -189,6 +199,8 @@ void FunctionDefinition::declare(Accu& accu) const {
 
 string codegen(const AST& ast) {
   Accu accu;
+  accu.add("#include \"lite_str.h\"\n using string = lite_str<>;");
+  accu.newLine();
   for (auto& elem : ast.elems) {
     elem->codegen(accu);
     accu.newLine();

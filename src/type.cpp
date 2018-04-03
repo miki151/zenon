@@ -1,11 +1,21 @@
 #include "type.h"
 #include "state.h"
 
-const static unordered_map<string, ArithmeticType> arithmeticTypes {
-  {"int", ArithmeticType::INT},
-  {"bool", ArithmeticType::BOOL},
-  {"void", ArithmeticType::VOID},
-};
+
+const char* getName(ArithmeticType type) {
+  switch (type) {
+    case ArithmeticType::VOID:
+      return "void";
+    case ArithmeticType::INT:
+      return "int";
+    case ArithmeticType::BOOL:
+      return "bool";
+    case ArithmeticType::STRING:
+      return "string";
+    case ArithmeticType::CHAR:
+      return "char";
+  }
+}
 
 string getTemplateParamNames(const vector<Type>& templateParams) {
   string ret;
@@ -18,12 +28,8 @@ string getTemplateParamNames(const vector<Type>& templateParams) {
 
 string getName(const Type& t) {
   return t.visit(
-      [&](const ArithmeticType& t) {
-        for (auto& elem : arithmeticTypes)
-          if (elem.second == t)
-            return elem.first;
-        FATAL << "Type not recognized: " << (int)t;
-        return ""s;
+      [&](const ArithmeticType& t) -> string {
+        return getName(t);
       },
       [&](const FunctionType& t) {
         return "function"s + getTemplateParamNames(t.templateParams);
@@ -115,7 +121,7 @@ bool StructType::operator == (const StructType& o) const {
   return id == o.id;
 }
 
-State StructType::getContext() {
+State StructType::getContext() const {
   State state;
   for (auto& member : members)
     state.addVariable(member.name, ReferenceType(*member.type));
@@ -143,7 +149,7 @@ bool VariantType::operator ==(const VariantType& o) const {
   return id == o.id && types == o.types;
 }
 
-State VariantType::getContext() {
+State VariantType::getContext() const {
   State state;
   for (auto& method : methods)
     state.addFunction(method.name, *method.type);

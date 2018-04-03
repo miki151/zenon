@@ -190,9 +190,9 @@ void FunctionDefinition::check(State& state) {
 
 void correctness(const AST& ast) {
   State state;
-  state.addType("int", ArithmeticType::INT);
-  state.addType("bool", ArithmeticType::BOOL);
-  state.addType("void", ArithmeticType::VOID);
+  for (auto type : {ArithmeticType::INT, ArithmeticType::BOOL,
+       ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
+    state.addType(getName(type), type);
   for (auto& elem : ast.elems) {
     elem->check(state);
   }

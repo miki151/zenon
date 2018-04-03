@@ -12,7 +12,9 @@ class State;
 enum class ArithmeticType {
   INT,
   BOOL,
-  VOID
+  VOID,
+  STRING,
+  CHAR,
 };
 
 struct ReferenceType {
@@ -49,7 +51,7 @@ struct VariantType {
   vector<Type> templateParams;
   vector<pair<string, FunctionType>> staticMethods;
   bool operator == (const VariantType&) const;
-  State getContext();
+  State getContext() const;
 };
 
 struct StructType {
@@ -68,7 +70,7 @@ struct StructType {
   vector<Method> methods;
   vector<Type> templateParams;
   bool operator == (const StructType&) const;
-  State getContext();
+  State getContext() const;
 };
 
 struct EnumType {
@@ -101,6 +103,7 @@ struct Expression;
 class State;
 
 extern string getName(const Type&);
+extern const char* getName(ArithmeticType);
 extern bool canAssign(const Type& to, const Type& from);
 extern bool canBind(const Type& to, const Type& from);
 extern bool canConvert(const Type& from, const Type& to);

@@ -46,7 +46,8 @@ Tokens lex(const string& input, const string& path) {
       {getKeywords(), [](const string& s) -> optional<Token> { return Token(getKeyword(s));}},
       {getOperators(), [](const string& s) -> optional<Token> {
           return Token(*getOperator(s));}},
-      {"\".*\"" , [](const string&) -> optional<Token> { return Token(StringToken{}); } } ,
+      {"\".*?\"" , [](const string&) -> optional<Token> { return Token(StringToken{}); } } ,
+      {"'.'" , [](const string&) -> optional<Token> { return Token(CharToken{}); } } ,
       {"[0-9]+" , [](const string&) -> optional<Token> { return Token(Number{}); } } ,
       {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(IdentifierToken{}); }},
   };

@@ -52,12 +52,16 @@ struct StringToken {
   bool operator == (const StringToken&) const { return true; }
 };
 
+struct CharToken {
+  bool operator == (const CharToken&) const { return true; }
+};
+
 extern Keyword getKeyword(const string&);
 string getString(Token);
 extern vector<string> getAllKeywords();
 string process(Token, string matched);
 
-class Token : public variant<Number, IdentifierToken, Keyword, Operator, EmbedToken, StringToken> {
+class Token : public variant<Number, IdentifierToken, Keyword, Operator, EmbedToken, StringToken, CharToken> {
   public:
   using variant::variant;
   string value;

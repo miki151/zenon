@@ -111,6 +111,8 @@ static optional<Type> getOperationResult(Operator op, const Type& underlyingOper
     case Operator::MINUS:
       if (underlyingOperands == ArithmeticType::INT)
         return Type(ArithmeticType::INT);
+      if (underlyingOperands == ArithmeticType::STRING)
+        return Type(ArithmeticType::STRING);
       return none;
     case Operator::LESS_THAN:
     case Operator::MORE_THAN:
@@ -118,7 +120,8 @@ static optional<Type> getOperationResult(Operator op, const Type& underlyingOper
         return Type(ArithmeticType::BOOL);
       return none;
     case Operator::EQUALS:
-      if (underlyingOperands == ArithmeticType::INT || underlyingOperands == ArithmeticType::BOOL)
+      if (underlyingOperands == ArithmeticType::INT || underlyingOperands == ArithmeticType::BOOL
+           || underlyingOperands == ArithmeticType::STRING)
         return Type(ArithmeticType::BOOL);
       return none;
     default:
@@ -126,29 +129,45 @@ static optional<Type> getOperationResult(Operator op, const Type& underlyingOper
   }
 }
 
+static State getStringTypeContext() {
+  State ret;
+  ret.addFunction("size", FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
+  return ret;
+}
+
+static State getTypeContext(CodeLoc codeLoc, const Type& type) {
+  return type.visit(
+      [&](const StructType& t) {
+        return t.getContext();
+      },
+      [&](const VariantType& t) {
+        return t.getContext();
+      },
+      [&](ArithmeticType t) {
+        if (t == ArithmeticType::STRING)
+          return getStringTypeContext();
+        codeLoc.error("Type " + quote(getName(t)) + " doesn't support operator " + quote("."));
+        return State();
+      },
+      [&] (const auto&) {
+        codeLoc.error("Type " + quote(getName(getUnderlying(type))) + " doesn't support operator " + quote("."));
+        return State();
+      }
+  );
+}
+
 Type getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expression& leftExpr, Expression& rightExpr) {
   auto left = leftExpr.getType(state);
   auto right = [&]() { return rightExpr.getType(state); };
   switch (op) {
     case Operator::MEMBER_ACCESS: {
-      auto leftUnderlying = getUnderlying(left);
-      if (auto structInfo = leftUnderlying.getReferenceMaybe<StructType>()) {
-        auto context = structInfo->getContext();
-        if (auto rightType = rightExpr.getDotOperatorType(context, state)) {
-          if (!left.contains<ReferenceType>())
-            rightType = getUnderlying(*rightType);
-          return *rightType;
-        }
-      }
-      if (auto structInfo = leftUnderlying.getReferenceMaybe<VariantType>()) {
-        auto context = structInfo->getContext();
-        if (auto rightType = rightExpr.getDotOperatorType(context, state)) {
-          if (!left.contains<ReferenceType>())
-            rightType = getUnderlying(*rightType);
-          return *rightType;
-        }
-      }
-      codeLoc.error("Bad use of operator " + quote("."));
+      auto context = getTypeContext(codeLoc, getUnderlying(left));
+      if (auto rightType = rightExpr.getDotOperatorType(context, state)) {
+        if (!left.contains<ReferenceType>())
+          rightType = getUnderlying(*rightType);
+        return *rightType;
+      } else
+        codeLoc.error("Bad use of operator " + quote("."));
       return {};
     }
     case Operator::ASSIGNMENT:

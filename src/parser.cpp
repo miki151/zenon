@@ -73,6 +73,14 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<Operator> preceding
         tokens.popNext();
         return unique<Constant>(token.codeLoc, ArithmeticType::INT, token.value);
       },
+      [&](const StringToken&) -> unique_ptr<Expression> {
+        tokens.popNext();
+        return unique<Constant>(token.codeLoc, ArithmeticType::STRING, token.value);
+      },
+      [&](const CharToken&) -> unique_ptr<Expression> {
+        tokens.popNext();
+        return unique<Constant>(token.codeLoc, ArithmeticType::CHAR, token.value);
+      },
       [&](const Operator& op) -> unique_ptr<Expression> {
         tokens.popNext();
         token.codeLoc.check(isUnary(op), getString(op) + " is not a unary operator"s);

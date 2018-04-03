@@ -72,6 +72,9 @@ string getString(Token t) {
       },
       [](StringToken) {
         return "string literal";
+      },
+      [](CharToken) {
+        return "character";
       }
   );
 }
@@ -148,6 +151,11 @@ string process(Token t, string matched) {
       [&](StringToken) {
         CHECK(matched.size() >= 2 && matched.front() == '\"' && matched.back() == '\"')
             << "Bad string literal " << quote(matched);
+        return matched.substr(1, matched.size() - 2);
+      },
+      [&](CharToken) {
+        CHECK(matched.size() >= 2 && matched.front() == '\'' && matched.back() == '\'')
+            << "Bad char literal " << quote(matched);
         return matched.substr(1, matched.size() - 2);
       },
       [&](const auto&) {
