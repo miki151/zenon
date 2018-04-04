@@ -1,0 +1,16 @@
+// 1
+
+struct A {
+  char operator[](string a) {
+    return a[0];
+  }
+};
+
+int main() {
+  auto a = A();
+  auto b = a["pok"];
+  if (b == 'p')
+    return 1;
+  else
+    return 0;
+}

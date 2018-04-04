@@ -171,11 +171,22 @@ static void considerTemplateParams(Accu& accu, const vector<string>& params) {
   }
 }
 
+string getFunctionName(const variant<string, Operator>& nameOrOp) {
+  return nameOrOp.visit(
+      [&](const string& s) {
+        return s;
+      },
+      [&](Operator op) {
+        return "operator "s + getString(op);
+      }
+  );
+}
+
 void FunctionDefinition::addSignature(Accu& accu, string structName) const {
   considerTemplateParams(accu, templateParams);
   if (!structName.empty())
     structName += "::";
-  string ret = returnType.toString() + " " + structName + name + "(";
+  string ret = returnType.toString() + " " + structName + getFunctionName(nameOrOp) + "(";
   for (auto& param : parameters)
     ret.append(param.type.toString() + " " + param.name + ", ");
   if (!parameters.empty()) {

@@ -1,0 +1,12 @@
+// no_compile
+
+struct X {
+  int operator[]() {
+    return 0;
+  }
+};
+
+int main() {
+  auto x = X();
+  return 0;
+}

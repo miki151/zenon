@@ -1,4 +1,4 @@
-// 15
+// 55
 
 embed {
 
@@ -11,16 +11,17 @@ template <T>
 extern struct vector {
   void push_back(T elem);
   T at(int index);
+  T operator [](int index);
   int size();
 };
 
 int main() {
   auto v = vector<int>();
   for (int i = 0; i < 6; i = i + 1)
-    v.push_back(i);
+    v.push_back(i * i);
   int sum = 0;
   for (int i = 0; i < v.size(); i = i + 1)
-    sum = sum + i;
+    sum = sum + v[i];
   return sum;
 }
 

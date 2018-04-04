@@ -1,0 +1,16 @@
+// 1
+
+template<T>
+struct X {
+  T t;
+};
+
+template<T>
+struct Y {
+  X<T> x;
+};
+
+int main() {
+  auto y = Y(X(1));
+  return y.x.t;
+}

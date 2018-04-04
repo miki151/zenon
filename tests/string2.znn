@@ -1,0 +1,20 @@
+// 6
+
+string getString() {
+  return "www";
+}
+
+int main() {
+  auto s = "pok pok";
+  char c1 = getString()[0];
+  char c2 = s[1];
+  char c3 = "abcdefghijkl"[1 + 2 * 3];
+  auto ret = 0;
+  if (c1 == 'w')
+    ret = ret + 1;
+  if (c2 == 'o')
+    ret = ret + 2;
+  if (c3 == 'h')
+    ret = ret + 3;
+  return ret;
+}

@@ -1,0 +1,17 @@
+// 1
+
+struct A {
+  string s;
+  char operator[](int a) {
+    return s[a];
+  }
+};
+
+int main() {
+  auto a = A("dupa");
+  auto b = a[0];
+  if (b == a[0])
+    return 1;
+  else
+    return 0;
+}

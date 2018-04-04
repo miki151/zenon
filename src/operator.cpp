@@ -12,7 +12,8 @@ const static unordered_map<string, Operator> operators {
   {"-", Operator::MINUS},
   {"=", Operator::ASSIGNMENT},
   {".", Operator::MEMBER_ACCESS},
-  {"&", Operator::GET_ADDRESS}
+  {"&", Operator::GET_ADDRESS},
+  {"[]", Operator::SUBSCRIPT}
 };
 
 optional<Operator> getOperator(const string& s) {
@@ -52,11 +53,10 @@ int getPrecedence(Operator op) {
       return 4;
     case Operator::GET_ADDRESS:
       return 5;
-    case Operator::MEMBER_ACCESS:
-      return 6;
     case Operator::SUBSCRIPT:
-      FATAL << "Subscript operator shouldn't be directly parsed.";
-      return 0;
+      return 7;
+    case Operator::MEMBER_ACCESS:
+      return 8;
   }
 }
 
@@ -134,8 +134,9 @@ static optional<Type> getOperationResult(Operator op, const Type& underlyingOper
 
 static State getStringTypeContext() {
   State ret;
-  ret.addFunction("size", FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
-  ret.setSubscriptOperatorReturnType(ArithmeticType::CHAR);
+  ret.addFunction("size"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
+  ret.addFunction(Operator::SUBSCRIPT, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::CHAR,
+      {{"index", ArithmeticType::INT}}, {}));
   return ret;
 }
 
@@ -176,10 +177,11 @@ Type getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expres
     }
     case Operator::SUBSCRIPT: {
       auto context = getTypeContext(codeLoc, getUnderlying(left), "[]");
-      if (getUnderlying(right()) != ArithmeticType::INT)
-        codeLoc.error("Expected expression of type " + quote("int") + " inside operator " + quote("[]"));
-      if (auto t = context.getSubscriptOperatorReturnType())
-        return *t;
+      if (auto t = context.getOperatorType(Operator::SUBSCRIPT)) {
+        codeLoc.check(getUnderlying(right()) == *t->params.at(0).type,
+            "Expected expression of type " + quote(getName(*t->params.at(0).type)) + " inside operator " + quote("[]"));
+        return *t->retVal;
+      }
       codeLoc.error("Type " + quote(getName(left)) + " doesn't support operator " + quote("[]"));
       return {};
     }
@@ -201,7 +203,7 @@ Type getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expres
       if (operand == getUnderlying(rightType))
         if (auto res = getOperationResult(op, operand))
           return *res;
-      codeLoc.error("Unsupported operator: " + quote(getName(left)) + " " + getString(op)
+      codeLoc.error("Unsupported operation: " + quote(getName(left)) + " " + getString(op)
           + " " + quote(getName(rightType)));
       return {};
     }

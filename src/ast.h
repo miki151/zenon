@@ -232,8 +232,9 @@ struct SwitchStatement : Statement {
 
 struct FunctionDefinition : Statement {
   FunctionDefinition(CodeLoc, IdentifierInfo returnType, string name);
+  FunctionDefinition(CodeLoc, IdentifierInfo returnType, Operator);
   IdentifierInfo returnType;
-  string name;
+  variant<string, Operator> nameOrOp;
   struct Parameter {
     CodeLoc codeLoc;
     IdentifierInfo type;
@@ -246,7 +247,7 @@ struct FunctionDefinition : Statement {
   virtual void codegen(Accu&) const override;
   virtual void declare(Accu&) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
-  optional<FunctionType> addToState(const State&);
+  optional<FunctionType> getFunctionType(const State&) const;
   void checkFunction(State&, bool templateStruct);
   void addSignature(Accu& accu, string structName) const;
 };

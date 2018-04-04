@@ -44,7 +44,7 @@ struct VariantType {
   int id;
   map<string, Type> types;
   struct Method {
-    string name;
+    variant<string, Operator> nameOrOp;
     HeapAllocated<FunctionType> type;
   };
   vector<Method> methods;
@@ -64,7 +64,7 @@ struct StructType {
   };
   vector<Member> members;
   struct Method {
-    string name;
+    variant<string, Operator> nameOrOp;
     HeapAllocated<FunctionType> type;
   };
   vector<Method> methods;
@@ -99,7 +99,7 @@ struct FunctionType {
   bool operator == (const FunctionType&) const;
 };
 
-struct Expression;
+class Expression;
 class State;
 
 extern string getName(const Type&);

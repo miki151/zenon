@@ -1,0 +1,9 @@
+// no_compile
+
+int operator[](int a) {
+  return 0;
+}
+
+int main() {
+  return 0;
+}

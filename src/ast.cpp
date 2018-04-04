@@ -39,7 +39,9 @@ VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, 
   INFO << "Declared variable " << quote(id) << " of type " << quote(type);
 }
 
-FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, string n) : Statement(l), returnType(r), name(n) {}
+FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, string n) : Statement(l), returnType(r), nameOrOp(n) {}
+
+FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, Operator op) : Statement(l), returnType(r), nameOrOp(op) {}
 
 Type Constant::getType(const State&) {
   return type;
@@ -139,9 +141,14 @@ bool ReturnStatement::hasReturnStatement(const State&) const {
   return true;
 }
 
-optional<FunctionType> FunctionDefinition::addToState(const State& state) {
+optional<FunctionType> FunctionDefinition::getFunctionType(const State& state) const {
   State stateCopy = state;
-  state.checkNameConflict(codeLoc, name, "Function");
+  if (auto name = nameOrOp.getReferenceMaybe<string>())
+    state.checkNameConflict(codeLoc, *name, "Function");
+  else {
+    auto op = *nameOrOp.getValueMaybe<Operator>();
+    codeLoc.check(!state.getOperatorType(op), "Operator " + quote(getString(op)) + " already defined");
+  }
   vector<Type> templateTypes;
   for (auto& param : templateParams) {
     templateTypes.push_back(TemplateParameter{param});
@@ -164,6 +171,17 @@ optional<FunctionType> FunctionDefinition::addToState(const State& state) {
 void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
   State stateCopy = state;
   vector<Type> templateTypes;
+  if (auto op = nameOrOp.getValueMaybe<Operator>()) {
+    codeLoc.check(templateParams.empty(), "Operator overload can't have template parameters.");
+    switch (*op) {
+      case Operator::SUBSCRIPT:
+        codeLoc.check(parameters.size() == 1, "Operator " + quote("[]") + " must take one parameter.");
+        break;
+      default:
+        codeLoc.error("Operator " + quote(getString(*op)) + " overload not supported.");
+        break;
+    }
+  }
   for (auto& param : templateParams) {
     templateTypes.push_back(TemplateParameter{param});
     stateCopy.addType(param, templateTypes.back());
@@ -184,7 +202,7 @@ void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
 }
 
 void FunctionDefinition::check(State& state) {
-  state.addFunction(name, *addToState(state));
+  state.addFunction(nameOrOp, *getFunctionType(state));
   checkFunction(state, false);
 }
 
@@ -397,13 +415,13 @@ void VariantDefinition::check(State& state) {
   }
   vector<FunctionType> methodTypes;
   for (auto& method : methods) {
-    methodTypes.push_back(*method->addToState(stateCopy));
-    stateCopy.addFunction(method->name, methodTypes.back());
+    methodTypes.push_back(*method->getFunctionType(stateCopy));
+    stateCopy.addFunction(method->nameOrOp, methodTypes.back());
   }
   stateCopy.addVariable("this", PointerType(type));
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(stateCopy, !templateParams.empty());
-    type.methods.push_back({methods[i]->name, methodTypes[i]});
+    type.methods.push_back({methods[i]->nameOrOp, methodTypes[i]});
   }
   for (auto& elem : constructors)
     type.staticMethods.push_back({elem.subtypeName, FunctionType(elem.callType, type, elem.constructorParams, {})});
@@ -429,12 +447,12 @@ void StructDefinition::check(State& state) {
   }
   vector<FunctionType> methodTypes;
   for (auto& method : methods) {
-    methodTypes.push_back(*method->addToState(methodState));
-    methodState.addFunction(method->name, methodTypes.back());
+    methodTypes.push_back(*method->getFunctionType(methodState));
+    methodState.addFunction(method->nameOrOp, methodTypes.back());
   }
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodState, !templateParams.empty());
-    type.methods.push_back({methods[i]->name, methodTypes[i]});
+    type.methods.push_back({methods[i]->nameOrOp, methodTypes[i]});
   }
   state.addType(name, type);
   vector<FunctionType::Param> constructorParams;

@@ -1,0 +1,13 @@
+// no_compile
+
+struct X {
+  template <T>
+  int operator[](T a) {
+    return 0;
+  }
+};
+
+int main() {
+  auto x = X();
+  return 0;
+}

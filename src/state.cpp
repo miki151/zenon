@@ -68,10 +68,19 @@ void State::checkNameConflict(CodeLoc loc, const string& name, const string& typ
   loc.check(!functions.count(name), desc + " conflicts with existing function");
 }
 
-void State::addFunction(string id, FunctionType f) {
-  INFO << "Inserting function " << id;
-  CHECK(!functions.count(id));
-  functions.insert(make_pair(id, f));
+void State::addFunction(variant<string, Operator> nameOrOp, FunctionType f) {
+  nameOrOp.visit(
+      [&](const string& id) {
+        INFO << "Inserting function " << id;
+        CHECK(!functions.count(id));
+        functions.insert(make_pair(id, f));
+      },
+      [&](Operator op) {
+        INFO << "Inserting operator " << getString(op);
+        CHECK(!operators.count(op));
+        operators.insert(make_pair(op, f));
+      }
+  );
 }
 
 FunctionType State::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) const {
@@ -125,10 +134,9 @@ FunctionType State::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType te
   return templateType;
 }
 
-optional<Type> State::getSubscriptOperatorReturnType() const {
-  return subscriptOperatorReturnType;
-}
-
-void State::setSubscriptOperatorReturnType(Type t) {
-  subscriptOperatorReturnType = t;
+optional<FunctionType> State::getOperatorType(Operator op) const {
+  if (operators.count(op))
+    return operators.at(op);
+  else
+    return none;
 }

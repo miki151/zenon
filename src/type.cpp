@@ -126,7 +126,7 @@ State StructType::getContext() const {
   for (auto& member : members)
     state.addVariable(member.name, ReferenceType(*member.type));
   for (auto& method : methods)
-    state.addFunction(method.name, *method.type);
+    state.addFunction(method.nameOrOp, *method.type);
   return state;
 }
 
@@ -152,7 +152,7 @@ bool VariantType::operator ==(const VariantType& o) const {
 State VariantType::getContext() const {
   State state;
   for (auto& method : methods)
-    state.addFunction(method.name, *method.type);
+    state.addFunction(method.nameOrOp, *method.type);
   return state;
 }
 

@@ -104,7 +104,10 @@ unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression
       auto rhs = parsePrimary(tokens);
       token = tokens.peek("arithmetic operator");
       while (1) {
-        if (auto op2 = token.getReferenceMaybe<Operator>()) {
+        auto op2 = token.getValueMaybe<Operator>();
+        if (token == Keyword::OPEN_SQUARE_BRACKET)
+          op2 = Operator::SUBSCRIPT;
+        if (op2) {
           INFO << "Comparing operators op1 " << getString(*op1) << " and op2 " << getString(*op2);
           if (getPrecedence(*op2) <= getPrecedence(*op1) &&
               (!isRightAssociative(*op2) || getPrecedence(*op2) < getPrecedence(*op1)))
@@ -148,8 +151,15 @@ unique_ptr<StatementBlock> parseBlock(Tokens& tokens) {
 
 unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Tokens& tokens) {
   auto token2 = tokens.popNext("function definition");
-  token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected identifier, got: " + quote(token2.value));
-  auto ret = unique<FunctionDefinition>(type.codeLoc, type, token2.value);
+  unique_ptr<FunctionDefinition> ret;
+  if (token2 == Keyword::OPERATOR) {
+    tokens.eat(Keyword::OPEN_SQUARE_BRACKET);
+    tokens.eat(Keyword::CLOSE_SQUARE_BRACKET);
+    ret = unique<FunctionDefinition>(type.codeLoc, type, Operator::SUBSCRIPT);
+  } else {
+    token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected identifier, got: " + quote(token2.value));
+    ret = unique<FunctionDefinition>(type.codeLoc, type, token2.value);
+  }
   tokens.eat(Keyword::OPEN_BRACKET);
   while (1) {
     if (auto keyword = tokens.peek("function parameter").getReferenceMaybe<Keyword>()) {
@@ -160,8 +170,8 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
         tokens.eat(Keyword::COMMA);
     }
     auto typeId = IdentifierInfo::parseFrom(tokens, true);
-    tokens.check(token2.contains<IdentifierToken>(), "Expected function parameter");
     auto nameToken = tokens.popNext("identifier");
+    tokens.check(nameToken.contains<IdentifierToken>(), "Expected function parameter");
     ret->parameters.push_back({type.codeLoc, typeId, nameToken.value});
   }
   return ret;
@@ -207,7 +217,7 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
       templateParams = parseTemplateParams(tokens);
     auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
     auto memberName = tokens.popNext("member name");
-    if (tokens.peek("struct definition") == Keyword::OPEN_BRACKET) {
+    if (memberName == Keyword::OPERATOR || tokens.peek("struct definition") == Keyword::OPEN_BRACKET) {
       tokens.rewind();
       if (external) {
         ret->methods.push_back(parseFunctionSignature(typeIdent, tokens));

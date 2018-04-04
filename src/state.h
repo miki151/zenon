@@ -16,12 +16,11 @@ class State {
   void setReturnType(Type);
   void addType(const string& name, Type);
   optional<Type> getTypeFromString(IdentifierInfo) const;
-  void addFunction(string, FunctionType);
+  void addFunction(variant<string, Operator> nameOrOp, FunctionType);
   vector<string> getFunctionParamNames(CodeLoc, IdentifierInfo) const;
   FunctionType getFunctionTemplate(CodeLoc, IdentifierInfo) const;
   FunctionType instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<Type> argTypes, vector<CodeLoc> argLoc) const;
-  optional<Type> getSubscriptOperatorReturnType() const;
-  void setSubscriptOperatorReturnType(Type);
+  optional<FunctionType> getOperatorType(Operator) const;
   void pushImport(const string& name);
   void popImport();
   const vector<string>& getImports() const;
@@ -32,9 +31,9 @@ class State {
   unordered_map<string, Type> vars;
   unordered_map<string, Type> types;
   unordered_map<string, FunctionType> functions;
+  map<Operator, FunctionType> operators;
   optional<Type> returnType;
   vector<Type> getTypeList(const vector<IdentifierInfo>&) const;
   vector<string> imports;
   vector<string> allImports;
-  optional<Type> subscriptOperatorReturnType;
 };

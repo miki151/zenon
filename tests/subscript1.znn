@@ -1,0 +1,11 @@
+// no_compile
+
+struct A {
+  string s;
+};
+
+int main() {
+  auto a = A("dupa");
+  auto b = a[0];
+  return 0;
+}
