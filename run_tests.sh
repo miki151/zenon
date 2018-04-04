@@ -4,6 +4,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
+CLANG_OPT="-fsanitize=address"
 
 function compile() {
   OUTPUT=$3
@@ -12,7 +13,7 @@ function compile() {
   else
     EXPECTED_RET="0"
   fi
-  ./zenon $1 -o $OUTPUT 2> /dev/null
+  ./zenon $1 -o $OUTPUT --cpp "clang++ $CLANG_OPT" 2> /dev/null
   RESULT=$?
   if [ "$RESULT" = "2" ]; then
     echo -e "$RED C++ compilation failed$NC"
@@ -38,7 +39,7 @@ BINARY_TMP=$(mktemp)
 
 for I in `ls tests/*.znn`; do 
   EXPECTED=`head -n 1 $I | cut -c 4-`
-  echo "Running $I. Expecting: $EXPECTED"
+  echo -n "Running $I. Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then
     echo -e "$RED No expected value specified$NC"
     continue
@@ -62,7 +63,7 @@ done
 
 for D in `ls -d tests/*/`; do
   EXPECTED=`head -n 1 $D/main.znn | grep "//"| cut -c 4-`
-  echo "Running directory $D. Expecting: $EXPECTED"
+  echo -n "Running directory $D. Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then
     echo -e "$RED No expected value specified$NC"
     continue
@@ -86,7 +87,7 @@ for D in `ls -d tests/*/`; do
     OBJECTS="$OBJECTS $OPATH"
   done
 #  echo "Linking $OBJECTS"
-  g++ $OBJECTS -o $BINARY_TMP
+  clang++ $OBJECTS -o $BINARY_TMP $CLANG_OPT
   $BINARY_TMP
   RESULT=$?
   if [ "$RESULT" != "$EXPECTED" ]; then
