@@ -124,3 +124,11 @@ FunctionType State::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType te
   INFO << "Function " << id.toString() << " return type " << getName(*templateType.retVal);
   return templateType;
 }
+
+optional<Type> State::getSubscriptOperatorReturnType() const {
+  return subscriptOperatorReturnType;
+}
+
+void State::setSubscriptOperatorReturnType(Type t) {
+  subscriptOperatorReturnType = t;
+}

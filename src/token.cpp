@@ -28,6 +28,8 @@ static const unordered_map<string, Keyword> keywords {
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},
   {")", Keyword::CLOSE_BRACKET},
+  {"[", Keyword::OPEN_SQUARE_BRACKET},
+  {"]", Keyword::CLOSE_SQUARE_BRACKET},
   {"{", Keyword::OPEN_BLOCK},
   {"}", Keyword::CLOSE_BLOCK},
   {";", Keyword::SEMICOLON},

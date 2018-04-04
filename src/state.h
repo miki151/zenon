@@ -20,6 +20,8 @@ class State {
   vector<string> getFunctionParamNames(CodeLoc, IdentifierInfo) const;
   FunctionType getFunctionTemplate(CodeLoc, IdentifierInfo) const;
   FunctionType instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<Type> argTypes, vector<CodeLoc> argLoc) const;
+  optional<Type> getSubscriptOperatorReturnType() const;
+  void setSubscriptOperatorReturnType(Type);
   void pushImport(const string& name);
   void popImport();
   const vector<string>& getImports() const;
@@ -34,4 +36,5 @@ class State {
   vector<Type> getTypeList(const vector<IdentifierInfo>&) const;
   vector<string> imports;
   vector<string> allImports;
+  optional<Type> subscriptOperatorReturnType;
 };

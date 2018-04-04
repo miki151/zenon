@@ -54,6 +54,9 @@ int getPrecedence(Operator op) {
       return 5;
     case Operator::MEMBER_ACCESS:
       return 6;
+    case Operator::SUBSCRIPT:
+      FATAL << "Subscript operator shouldn't be directly parsed.";
+      return 0;
   }
 }
 
@@ -121,7 +124,7 @@ static optional<Type> getOperationResult(Operator op, const Type& underlyingOper
       return none;
     case Operator::EQUALS:
       if (underlyingOperands == ArithmeticType::INT || underlyingOperands == ArithmeticType::BOOL
-           || underlyingOperands == ArithmeticType::STRING)
+           || underlyingOperands == ArithmeticType::STRING || underlyingOperands == ArithmeticType::CHAR)
         return Type(ArithmeticType::BOOL);
       return none;
     default:
@@ -132,10 +135,11 @@ static optional<Type> getOperationResult(Operator op, const Type& underlyingOper
 static State getStringTypeContext() {
   State ret;
   ret.addFunction("size", FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
+  ret.setSubscriptOperatorReturnType(ArithmeticType::CHAR);
   return ret;
 }
 
-static State getTypeContext(CodeLoc codeLoc, const Type& type) {
+static State getTypeContext(CodeLoc codeLoc, const Type& type, const char* op) {
   return type.visit(
       [&](const StructType& t) {
         return t.getContext();
@@ -146,11 +150,11 @@ static State getTypeContext(CodeLoc codeLoc, const Type& type) {
       [&](ArithmeticType t) {
         if (t == ArithmeticType::STRING)
           return getStringTypeContext();
-        codeLoc.error("Type " + quote(getName(t)) + " doesn't support operator " + quote("."));
+        codeLoc.error("Type " + quote(getName(t)) + " doesn't support operator " + quote(op));
         return State();
       },
       [&] (const auto&) {
-        codeLoc.error("Type " + quote(getName(getUnderlying(type))) + " doesn't support operator " + quote("."));
+        codeLoc.error("Type " + quote(getName(getUnderlying(type))) + " doesn't support operator " + quote(op));
         return State();
       }
   );
@@ -161,13 +165,22 @@ Type getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expres
   auto right = [&]() { return rightExpr.getType(state); };
   switch (op) {
     case Operator::MEMBER_ACCESS: {
-      auto context = getTypeContext(codeLoc, getUnderlying(left));
+      auto context = getTypeContext(codeLoc, getUnderlying(left), ".");
       if (auto rightType = rightExpr.getDotOperatorType(context, state)) {
         if (!left.contains<ReferenceType>())
           rightType = getUnderlying(*rightType);
         return *rightType;
       } else
         codeLoc.error("Bad use of operator " + quote("."));
+      return {};
+    }
+    case Operator::SUBSCRIPT: {
+      auto context = getTypeContext(codeLoc, getUnderlying(left), "[]");
+      if (getUnderlying(right()) != ArithmeticType::INT)
+        codeLoc.error("Expected expression of type " + quote("int") + " inside operator " + quote("[]"));
+      if (auto t = context.getSubscriptOperatorReturnType())
+        return *t;
+      codeLoc.error("Type " + quote(getName(left)) + " doesn't support operator " + quote("[]"));
       return {};
     }
     case Operator::ASSIGNMENT:

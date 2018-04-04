@@ -11,7 +11,8 @@ enum class Operator {
   ASSIGNMENT,
   MEMBER_ACCESS,
   MULTIPLY,
-  GET_ADDRESS
+  GET_ADDRESS,
+  SUBSCRIPT
 };
 
 extern optional<Operator> getOperator(const string&);

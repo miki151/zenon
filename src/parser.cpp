@@ -40,7 +40,7 @@ unique_ptr<Expression> parseFunctionCall(IdentifierInfo id, Tokens& tokens) {
   return ret;
 }
 
-unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<Operator> precedingOp) {
+unique_ptr<Expression> parsePrimary(Tokens& tokens) {
   auto token = tokens.peek("primary expression");
   return token.visit(
       [&](const Keyword& k) -> unique_ptr<Expression> {
@@ -95,13 +95,13 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens, optional<Operator> preceding
 }
 
 unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression> lhs, int minPrecedence) {
-  auto token = tokens.peek("arithmetic operator");
   while (1) {
+    auto token = tokens.peek("arithmetic operator");
     if (auto op1 = token.getValueMaybe<Operator>()) {
       if (getPrecedence(*op1) < minPrecedence)
         break;
       tokens.popNext("arithmetic operator");
-      auto rhs = parsePrimary(tokens, *op1);
+      auto rhs = parsePrimary(tokens);
       token = tokens.peek("arithmetic operator");
       while (1) {
         if (auto op2 = token.getReferenceMaybe<Operator>()) {
@@ -116,13 +116,19 @@ unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression
       }
       lhs = unique<BinaryExpression>(token.codeLoc, *op1, std::move(lhs), std::move(rhs));
     } else
+    if (token == Keyword::OPEN_SQUARE_BRACKET) {
+      tokens.popNext();
+      auto rhs = parseExpression(tokens);
+      tokens.eat(Keyword::CLOSE_SQUARE_BRACKET);
+      lhs = unique<BinaryExpression>(token.codeLoc, Operator::SUBSCRIPT, std::move(lhs), std::move(rhs));
+    } else
       break;
   }
   return lhs;
 }
 
 unique_ptr<Expression> parseExpression(Tokens& tokens, int minPrecedence) {
-  return parseExpressionImpl(tokens, parsePrimary(tokens, none), minPrecedence);
+  return parseExpressionImpl(tokens, parsePrimary(tokens), minPrecedence);
 }
 
 unique_ptr<Statement> parseNonTopLevelStatement(Tokens&);

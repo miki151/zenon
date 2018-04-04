@@ -62,12 +62,17 @@ void BinaryExpression::codegen(Accu& accu) const {
   accu.add("(");
   e1->codegen(accu);
   accu.add(") ");
-  accu.add(getString(op));
+  if (op == Operator::SUBSCRIPT)
+    accu.add("[");
+  else
+    accu.add(getString(op) + " "s);
   if (op != Operator::MEMBER_ACCESS)
-    accu.add(" (");
+    accu.add("(");
   e2->codegen(accu);
   if (op != Operator::MEMBER_ACCESS)
     accu.add(")");
+  if (op == Operator::SUBSCRIPT)
+    accu.add("]");
 }
 
 void StatementBlock::codegen(Accu& accu) const {
