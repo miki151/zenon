@@ -225,7 +225,7 @@ void FunctionDefinition::declare(Accu& accu) const {
 
 string codegen(const AST& ast) {
   Accu accu;
-  accu.add("#include \"lite_str.h\"\n using string = lite_str<>;");
+  accu.add("#include \"codegen_includes/lite_str.h\"\n using string = lite_str<>;");
   accu.newLine();
   for (auto& elem : ast.elems) {
     elem->codegen(accu);
