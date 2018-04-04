@@ -284,12 +284,12 @@ unique_ptr<VariantDefinition> parseVariantDefinition(Tokens& tokens) {
       templateParams = parseTemplateParams(tokens);
     auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
     auto token2 = tokens.popNext("name of a variant alternative");
-    token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected name of a variant alternative");
-    if (tokens.peek("variant definition") == Keyword::OPEN_BRACKET) {
+    if (token2 == Keyword::OPERATOR || tokens.peek("variant definition") == Keyword::OPEN_BRACKET) {
       tokens.rewind();
       ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));
       ret->methods.back()->templateParams = templateParams;
     } else {
+      token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected name of a variant alternative");
       ret->elements.push_back(VariantDefinition::Element{typeIdent, token2.value, token2.codeLoc});
       tokens.eat(Keyword::SEMICOLON);
     }

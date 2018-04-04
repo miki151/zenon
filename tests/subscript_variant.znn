@@ -1,0 +1,32 @@
+// 12
+
+template<T>
+variant X {
+  T elem;
+  void null;
+  T operator[](T a) {
+    switch (*this) {
+      case (T elem) {
+        return elem;
+      }
+      case (null) {
+        return a;
+      }
+    }
+  }
+};
+
+template<T>
+struct Y {
+  X<T> x;
+};
+
+X<int> fun() {
+  return X<int>::elem(5);
+}
+
+int main() {
+  auto x = X<int>::elem(3);
+  auto y = Y<int>(X<int>::null());
+  return 1 + x[1 + x[1 * 5]] + fun()[x[1] + 1] + y.x[1 + y.x[1] + 1];
+}
