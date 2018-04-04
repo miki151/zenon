@@ -312,6 +312,7 @@ void instantiate(FunctionType& type, CodeLoc codeLoc, vector<Type> templateArgs,
         codeLoc.error("Couldn't deduce template argument " + quote(getName(type.templateParams[i])));
     }
     replace(type, type.templateParams[i], templateArgs[i]);
+    type.templateParams[i] = templateArgs[i];
   }
 }
 

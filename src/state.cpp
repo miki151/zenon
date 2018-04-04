@@ -88,9 +88,10 @@ FunctionType State::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) cons
   if (id.parts.size() == 2) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0)))) {
       INFO << "Looking for static method in type " << getName(*type);
-      if (auto fun = getStaticMethod(*type, id.parts.at(1).name))
+      if (auto fun = getStaticMethod(*type, id.parts.at(1).name)) {
+        fun->parentType = *type;
         return *fun;
-      else
+      } else
         id.codeLoc.error("Static method not found: " + id.toString());
     } else
       id.codeLoc.error("Type not found: " + id.toString());

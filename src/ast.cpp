@@ -243,9 +243,8 @@ optional<Type> FunctionCall::getDotOperatorType(const State& idContext, const St
     argLocs.push_back(arguments[i]->codeLoc);
     INFO << "Function argument " << getName(argTypes.back());
   }
-  auto type = getFunction(idContext, callContext, codeLoc, identifier, argTypes, argLocs);
-  callType = type.callType;
-  return *type.retVal;
+  functionType = getFunction(idContext, callContext, codeLoc, identifier, argTypes, argLocs);
+  return *functionType->retVal;
 }
 
 FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {}
@@ -284,9 +283,8 @@ optional<Type> FunctionCallNamedArgs::getDotOperatorType(const State& idContext,
     argTypes.push_back(arg.expr->getType(callContext));
     argLocs.push_back(arg.codeLoc);
   }
-  auto type = getFunction(idContext, callContext, codeLoc, identifier, argTypes, argLocs);
-  callType = type.callType;
-  return *type.retVal;
+  functionType = getFunction(idContext, callContext, codeLoc, identifier, argTypes, argLocs);
+  return *functionType->retVal;
 }
 
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}

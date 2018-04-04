@@ -126,12 +126,22 @@ void ReturnStatement::codegen(Accu& accu) const {
 // variant { variant::enumId, { variant::identifier{args}}}
 
 
-static void genFunctionCall(Accu& accu, IdentifierInfo identifier, FunctionCallType callType,
+static string joinTemplateParams(const vector<string>& params) {
+  if (params.empty())
+    return "";
+  else
+    return "<" + combine(params, ", ") + ">";
+}
+
+static void genFunctionCall(Accu& accu, const IdentifierInfo& identifier, const FunctionType& functionType,
     vector<Expression*> arguments) {
   string prefix;
   string suffix;
-  string id = identifier.toString();
-  switch (callType) {
+  string id = identifier.parts.back().name +
+      joinTemplateParams(transform(functionType.templateParams, [](const auto& arg) { return getName(arg); } ));
+  if (functionType.parentType)
+    id = getName(*functionType.parentType) + "::" + id;
+  switch (functionType.callType) {
     case FunctionCallType::FUNCTION:
       prefix = id + "("; suffix = ")";
       break;
@@ -152,11 +162,11 @@ static void genFunctionCall(Accu& accu, IdentifierInfo identifier, FunctionCallT
 }
 
 void FunctionCall::codegen(Accu& accu) const {
-  genFunctionCall(accu, identifier, callType, extractRefs(arguments));
+  genFunctionCall(accu, identifier, *functionType, extractRefs(arguments));
 }
 
 void FunctionCallNamedArgs::codegen(Accu& accu) const {
-  genFunctionCall(accu, identifier, callType, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
+  genFunctionCall(accu, identifier, *functionType, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
 }
 
 static void considerTemplateParams(Accu& accu, const vector<string>& params) {
@@ -227,13 +237,6 @@ string codegen(const AST& ast) {
 void ExpressionStatement::codegen(Accu& accu) const {
   expr->codegen(accu);
   accu.add(";");
-}
-
-static string joinTemplateParams(const vector<string>& params) {
-  if (params.empty())
-    return "";
-  else
-    return "<" + combine(params, ", ") + ">";
 }
 
 void StructDefinition::generate(Accu& accu, bool import) const {

@@ -61,7 +61,7 @@ struct FunctionCall : Expression {
   virtual void codegen(Accu&) const override;
   virtual optional<Type> getDotOperatorType(const State& idContext, const State& callContext) override;
   IdentifierInfo identifier;
-  FunctionCallType callType;
+  optional<FunctionType> functionType;
   vector<unique_ptr<Expression>> arguments;
 };
 
@@ -76,7 +76,7 @@ struct FunctionCallNamedArgs : Expression {
     string name;
     unique_ptr<Expression> expr;
   };
-  FunctionCallType callType;
+  optional<FunctionType> functionType;
   vector<Argument> arguments;
 };
 
