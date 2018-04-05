@@ -145,9 +145,6 @@ static State getTypeContext(CodeLoc codeLoc, const Type& type, const char* op) {
       [&](const StructType& t) {
         return t.getContext();
       },
-      [&](const VariantType& t) {
-        return t.getContext();
-      },
       [&](ArithmeticType t) {
         if (t == ArithmeticType::STRING)
           return getStringTypeContext();

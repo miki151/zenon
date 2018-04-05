@@ -38,36 +38,27 @@ struct TemplateParameter {
 
 struct FunctionType;
 
-struct VariantType {
-  VariantType(string name);
-  string name;
-  int id;
-  map<string, Type> types;
-  struct Method {
-    variant<string, Operator> nameOrOp;
-    HeapAllocated<FunctionType> type;
-  };
-  vector<Method> methods;
-  vector<Type> templateParams;
-  vector<pair<string, FunctionType>> staticMethods;
-  bool operator == (const VariantType&) const;
-  State getContext() const;
-};
-
 struct StructType {
-  StructType(string name);
+  enum Kind {
+    STRUCT,
+    VARIANT
+  };
+  StructType(Kind, string name);
+  Kind kind;
   string name;
   int id;
   struct Member {
     string name;
     HeapAllocated<Type> type;
   };
+  optional<Type> getMember(const string&) const;
   vector<Member> members;
   struct Method {
     variant<string, Operator> nameOrOp;
     HeapAllocated<FunctionType> type;
   };
   vector<Method> methods;
+  vector<pair<string, FunctionType>> staticMethods;
   vector<Type> templateParams;
   bool operator == (const StructType&) const;
   State getContext() const;
@@ -81,7 +72,7 @@ struct EnumType {
   bool operator == (const EnumType&) const;
 };
 
-struct Type : variant<ArithmeticType, ReferenceType, PointerType, StructType, VariantType, TemplateParameter, EnumType> {
+struct Type : variant<ArithmeticType, ReferenceType, PointerType, StructType, TemplateParameter, EnumType> {
   using variant::variant;
 };
 

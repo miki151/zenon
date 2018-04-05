@@ -43,9 +43,6 @@ string getName(const Type& t) {
       [&](const StructType& t) {
         return t.name + getTemplateParamNames(t.templateParams);
       },
-      [&](const VariantType& t) {
-        return t.name + getTemplateParamNames(t.templateParams);
-      },
       [&](const TemplateParameter& t) {
         return t.name;
       },
@@ -110,21 +107,25 @@ bool canBind(const Type& to, const Type& from) {
   return to == from || from == ReferenceType(to);
 }
 
-StructType::StructType(string n) : name(n), id(getNewId()) {}
+StructType::StructType(Kind k, string n) : kind(k), name(n), id(getNewId()) {}
+
+optional<Type> StructType::getMember(const string& name) const {
+  for (auto& member : members)
+    if (member.name == name)
+      return *member.type;
+  return none;
+}
 
 bool StructType::operator == (const StructType& o) const {
   INFO << "Comparing struct " << getName(*this) << " id " << id << " and " << getName(o) << " id " << o.id;
-  for (int i = 0; i < members.size(); ++i) {
-    if (!(members[i].type == o.members[i].type))
-      return false;
-  }
   return id == o.id;
 }
 
 State StructType::getContext() const {
   State state;
-  for (auto& member : members)
-    state.addVariable(member.name, ReferenceType(*member.type));
+  if (kind != VARIANT)
+    for (auto& member : members)
+      state.addVariable(member.name, ReferenceType(*member.type));
   for (auto& method : methods)
     state.addFunction(method.nameOrOp, *method.type);
   return state;
@@ -136,24 +137,6 @@ bool canConvert(const Type& from, const Type& to) {
 
 bool requiresInitialization(const Type&) {
   return true;
-}
-
-VariantType::VariantType(string n) : name(n), id(getNewId()) {}
-
-bool VariantType::operator ==(const VariantType& o) const {
-  INFO << "Comparing " << getName(*this) << " id " << id << " with " << getName(o) << " id " << o.id;
-  if (types.size() == o.types.size())
-    INFO << "Types equal";
-  else
-    INFO << "Types different";
-  return id == o.id && types == o.types;
-}
-
-State VariantType::getContext() const {
-  State state;
-  for (auto& method : methods)
-    state.addFunction(method.nameOrOp, *method.type);
-  return state;
 }
 
 TemplateParameter::TemplateParameter(string n) : name(n), id(getNewId()) {}
@@ -180,14 +163,6 @@ void replace(Type& in, Type from, Type to) {
           replace(*t.members[i].type, from, to);
         for (int i = 0; i < t.methods.size(); ++i)
           replace(*t.methods[i].type, from, to);
-      },
-      [&](VariantType& t) {
-        for (auto& param : t.templateParams)
-          replace(param, from, to);
-        for (auto& subtype : t.types)
-          replace(subtype.second, from, to);
-        for (int i = 0; i < t.methods.size(); ++i)
-          replace(*t.methods[i].type, from, to);
         for (auto& method : t.staticMethods)
           replace(method.second, from, to);
       },
@@ -209,14 +184,6 @@ void replace(FunctionType& in, Type from, Type to) {
 optional<Type> instantiate(const Type& type, vector<Type> templateParams) {
   return type.visit(
       [&](StructType type) -> optional<Type> {
-        if (templateParams.size() != type.templateParams.size())
-          return none;
-        Type ret(type);
-        for (int i = 0; i < templateParams.size(); ++i)
-          replace(ret, type.templateParams[i], templateParams[i]);
-        return ret;
-      },
-      [&](VariantType type) -> optional<Type> {
         if (templateParams.size() != type.templateParams.size())
           return none;
         Type ret(type);
@@ -272,15 +239,6 @@ bool canBind(TypeMapping& mapping, Type paramType, Type argType) {
               return false;
           return true;
         },
-        [&](VariantType& type) {
-          auto argStruct = argType.getReferenceMaybe<VariantType>();
-          if (!argStruct || type.id != argStruct->id)
-            return false;
-          for (int i = 0; i < type.templateParams.size(); ++i)
-            if (!canBind(mapping, type.templateParams[i], argStruct->templateParams[i]))
-              return false;
-          return true;
-        },
         [&](auto) {
           return canBind(paramType, argType);
         }
@@ -318,7 +276,7 @@ void instantiate(FunctionType& type, CodeLoc codeLoc, vector<Type> templateArgs,
 
 optional<FunctionType> getStaticMethod(const Type& type, string name) {
   return type.visit(
-      [&](const VariantType& t) -> optional<FunctionType> {
+      [&](const StructType& t) -> optional<FunctionType> {
         for (auto& elem : t.staticMethods)
           if (elem.first == name)
             return elem.second;

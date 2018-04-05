@@ -224,7 +224,7 @@ struct SwitchStatement : Statement {
   virtual bool hasReturnStatement(const State&) const override;
 
   private:
-  void checkVariant(State&, VariantType);
+  void checkVariant(State&, StructType);
   void checkEnum(State&, EnumType);
   void codegenEnum(Accu&) const;
   void codegenVariant(Accu&) const;

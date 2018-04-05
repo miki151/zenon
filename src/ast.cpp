@@ -291,7 +291,8 @@ SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statemen
 
 void SwitchStatement::check(State& state) {
   auto exprType = getUnderlying(expr->getType(state));
-  if (auto t = exprType.getValueMaybe<VariantType>()) {
+  if (auto t = exprType.getValueMaybe<StructType>()) {
+    expr->codeLoc.check(t->kind == StructType::VARIANT, "Expected a variant or enum type");
     checkVariant(state, *t);
     type = VARIANT;
   } else if (auto t = exprType.getValueMaybe<EnumType>()) {
@@ -327,7 +328,7 @@ void SwitchStatement::checkEnum(State& state, EnumType inputType) {
   }
 }
 
-void SwitchStatement::checkVariant(State& state, VariantType inputType) {
+void SwitchStatement::checkVariant(State& state, StructType inputType) {
   subtypesPrefix = inputType.name;
   if (!inputType.templateParams.empty()) {
     subtypesPrefix += "<";
@@ -339,32 +340,32 @@ void SwitchStatement::checkVariant(State& state, VariantType inputType) {
   subtypesPrefix += "::";
   unordered_set<string> handledTypes;
   for (auto& caseElem : caseElems) {
-    caseElem.codeloc.check(inputType.types.count(caseElem.id), "Element " + quote(caseElem.id) +
+    caseElem.codeloc.check(!!inputType.getMember(caseElem.id), "Element " + quote(caseElem.id) +
         " not present in variant " + quote(getName(inputType)));
     caseElem.codeloc.check(!handledTypes.count(caseElem.id), "Variant element " + quote(caseElem.id)
         + " handled more than once in switch statement");
     handledTypes.insert(caseElem.id);
     auto stateCopy = state;
-    auto realType = inputType.types.at(caseElem.id);
+    auto realType = *inputType.getMember(caseElem.id);
     caseElem.declareVar = !(realType == ArithmeticType::VOID);
     if (caseElem.declareVar)
       stateCopy.addVariable(caseElem.id, realType);
     if (caseElem.type) {
       if (auto t = state.getTypeFromString(*caseElem.type))
-        caseElem.type->codeLoc.check(*t == inputType.types.at(caseElem.id), "Can't handle variant element "
+        caseElem.type->codeLoc.check(*t == realType, "Can't handle variant element "
             + quote(caseElem.id) + " of type " + quote(getName(realType)) + " as type " + quote(getName(*t)));
     }
     caseElem.block->check(stateCopy);
   }
   if (!defaultBlock) {
     vector<string> unhandled;
-    for (auto& elem : inputType.types)
-      if (!handledTypes.count(elem.first))
-        unhandled.push_back(quote(elem.first));
+    for (auto& elem : inputType.members)
+      if (!handledTypes.count(elem.name))
+        unhandled.push_back(quote(elem.name));
     codeLoc.check(unhandled.empty(), quote(getName(inputType)) + " subtypes " + combine(unhandled, ", ")
         + " not handled in switch statement");
   } else {
-    defaultBlock->codeLoc.check(handledTypes.size() < inputType.types.size(),
+    defaultBlock->codeLoc.check(handledTypes.size() < inputType.members.size(),
         "Default switch statement unnecessary when all variant cases are handled");
     defaultBlock->check(state);
   }
@@ -384,7 +385,7 @@ VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n
 
 void VariantDefinition::check(State& state) {
   state.checkNameConflict(codeLoc, name, "Type");
-  VariantType type(name);
+  StructType type(StructType::VARIANT, name);
   unordered_set<string> subtypeNames;
   State stateCopy = state;
   for (auto& param : templateParams) {
@@ -406,7 +407,7 @@ void VariantDefinition::check(State& state) {
     if (auto subtypeInfo = stateCopy.getTypeFromString(subtype.type)) {
       if (!(*subtypeInfo == ArithmeticType::VOID))
         constructorInfo.constructorParams.push_back(FunctionType::Param{"", *subtypeInfo});
-      type.types.insert({subtype.name, *subtypeInfo});
+      type.members.push_back({subtype.name, *subtypeInfo});
     } else
       subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
     constructors.push_back(constructorInfo);
@@ -428,7 +429,7 @@ void VariantDefinition::check(State& state) {
 
 void StructDefinition::check(State& state) {
   state.checkNameConflict(codeLoc, name, "Type");
-  StructType type(name);
+  StructType type(StructType::STRUCT, name);
   auto stateCopy = state;
   for (auto& param : templateParams) {
     type.templateParams.push_back(TemplateParameter{param});
