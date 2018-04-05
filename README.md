@@ -103,15 +103,15 @@ embed {
 template<T>
 extern struct vector {
     int size();
-    void push_back(T);
-    T at(int index);
-}
+    void push_back(T t);
+    T operator[](int index);
+};
 
 int main() {
     auto v = vector<int>();
     for (int i = 0; i < 10; i = i + 1)
         v.push_back(i);
-    print(v.at(3));
+    print(v[3]);
     return 0;
 }
 
