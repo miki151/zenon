@@ -1,0 +1,24 @@
+// 6
+
+variant V {
+  int a;
+  bool b;
+  int fun() {
+    switch (*this) {
+      case (int a) {
+        return a;
+      }
+      case (bool b) {
+        if (b)
+          return 2;
+        else
+          return 1;
+      }
+    }
+  }
+};
+
+
+int main() {
+  return V::a(3).fun() + V::b(false).fun() + V::b(true).fun();
+}

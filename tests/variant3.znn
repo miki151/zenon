@@ -1,0 +1,11 @@
+// no_compile
+
+variant V {
+  int a;
+  bool b;
+};
+
+int main() {
+  auto v = V::a(true);
+  return 0;
+}

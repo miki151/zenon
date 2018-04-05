@@ -87,8 +87,6 @@ struct FunctionType {
   vector<Param> params;
   vector<Type> templateParams;
   optional<Type> parentType;
-  int id;
-  bool operator == (const FunctionType&) const;
 };
 
 class Expression;

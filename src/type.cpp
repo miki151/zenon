@@ -58,11 +58,7 @@ int getNewId() {
 }
 
 FunctionType::FunctionType(FunctionCallType t, Type returnType, vector<Param> p, vector<Type> tpl)
-    : callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl), id(getNewId()) {
-}
-
-bool FunctionType::operator == (const FunctionType& o) const {
-  return id == o.id;
+    : callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
 
 Type getUnderlying(Type type) {
@@ -118,7 +114,7 @@ optional<Type> StructType::getMember(const string& name) const {
 
 bool StructType::operator == (const StructType& o) const {
   INFO << "Comparing struct " << getName(*this) << " id " << id << " and " << getName(o) << " id " << o.id;
-  return id == o.id;
+  return id == o.id && templateParams == o.templateParams;
 }
 
 State StructType::getContext() const {

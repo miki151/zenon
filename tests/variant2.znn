@@ -1,0 +1,11 @@
+// no_compile
+
+variant V {
+  int a;
+  bool a;
+};
+
+int main() {
+  
+  return 0;
+}
