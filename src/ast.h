@@ -24,19 +24,27 @@ struct Expression : Node {
 };
 
 struct Constant : Expression {
-  Constant(CodeLoc, ArithmeticType, string value);
+  Constant(CodeLoc, Type, string value);
   virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
   Type type;
   string value;
 };
 
+struct EnumConstant : Expression {
+  EnumConstant(CodeLoc, string enumName, string enumElement);
+  virtual Type getType(const State&) override;
+  virtual void codegen(Accu&) const override;
+  string enumName;
+  string enumElement;
+};
+
 struct Variable : Expression {
-  Variable(CodeLoc, IdentifierInfo);
+  Variable(CodeLoc, string);
   virtual Type getType(const State&) override;
   virtual void codegen(Accu&) const override;
   virtual optional<Type> getDotOperatorType(const State& idContext, const State& callContext) override;
-  IdentifierInfo identifier;
+  string identifier;
 };
 
 struct BinaryExpression : Expression {

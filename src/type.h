@@ -89,7 +89,7 @@ struct FunctionType {
   optional<Type> parentType;
 };
 
-class Expression;
+struct Expression;
 class State;
 
 extern string getName(const Type&);

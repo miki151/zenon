@@ -10,7 +10,7 @@ struct IdentifierInfo;
 class State {
   public:
 
-  optional<Type> getTypeOfVariable(const IdentifierInfo& ident) const;
+  optional<Type> getTypeOfVariable(const string&) const;
   void addVariable(const string& ident, Type);
   const optional<Type>& getReturnType() const;
   void setReturnType(Type);

@@ -66,8 +66,13 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
         if (token2 == Keyword::OPEN_BRACKET) {
           auto ret = parseFunctionCall(identifier, tokens);
           return ret;
-        } else
-          return unique<Variable>(token.codeLoc, identifier);
+        } else {
+          CHECK(identifier.parts[0].templateArguments.empty()) << identifier.toString();
+          if (identifier.parts.size() == 1)
+            return unique<Variable>(token.codeLoc, identifier.parts[0].name);
+          else
+            return unique<EnumConstant>(token.codeLoc, identifier.parts[0].name, identifier.parts[1].name);
+        }
       },
       [&](const Number&) -> unique_ptr<Expression> {
         tokens.popNext();

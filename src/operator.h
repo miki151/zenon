@@ -26,6 +26,6 @@ extern bool isRightAssociative(Operator);
 struct Type;
 class CodeLoc;
 class State;
-class Expression;
+struct Expression;
 extern Type getOperationResult(CodeLoc, Operator, const State&, Expression& left, Expression& right);
 extern Type getUnaryOperationResult(CodeLoc, Operator, const Type&);

@@ -55,7 +55,7 @@ void Constant::codegen(Accu& accu) const {
 }
 
 void Variable::codegen(Accu& accu) const {
-  accu.add(identifier.toString());
+  accu.add(identifier);
 }
 
 void BinaryExpression::codegen(Accu& accu) const {
@@ -482,4 +482,8 @@ void EnumDefinition::codegen(Accu& accu) const {
 
 void EnumDefinition::declare(Accu& accu) const {
   codegen(accu);
+}
+
+void EnumConstant::codegen(Accu& accu) const {
+  accu.add(enumName + "::" + enumElement);
 }

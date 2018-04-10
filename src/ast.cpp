@@ -19,12 +19,12 @@ IfStatement::IfStatement(CodeLoc loc, unique_ptr<Expression> c, unique_ptr<State
   : Statement(loc), cond(std::move(c)), ifTrue(std::move(t)), ifFalse(std::move(f)) {
 }
 
-Constant::Constant(CodeLoc l, ArithmeticType t, string v) : Expression(l), type(t), value(v) {
+Constant::Constant(CodeLoc l, Type t, string v) : Expression(l), type(t), value(v) {
   INFO << "Created constant " << quote(v) << " of type " << getName(Type(t));
 }
 
-Variable::Variable(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {
-  INFO << "Parsed variable " << id.toString();
+Variable::Variable(CodeLoc l, string id) : Expression(l), identifier(id) {
+  INFO << "Parsed variable " << id;
 }
 
 FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {
@@ -51,7 +51,7 @@ Type Variable::getType(const State& state) {
   if (auto ret = state.getTypeOfVariable(identifier))
     return *ret;
   else
-    codeLoc.error("Undefined variable: " + identifier.toString());
+    codeLoc.error("Undefined variable: " + identifier);
   return {};
 }
 
@@ -526,4 +526,15 @@ void EnumDefinition::check(State& s) {
   for (auto& e : elements)
     codeLoc.check(!occurences.count(e), "Duplicate enum element: " + quote(e));
   s.addType(name, EnumType(name, elements));
+}
+
+EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(l), enumName(name), enumElement(element) {
+}
+
+Type EnumConstant::getType(const State& state) {
+  if (auto type = state.getTypeFromString(IdentifierInfo(enumName)))
+    return *type;
+  else
+    codeLoc.error("Unrecognized type: " + quote(enumName));
+  return {};
 }
