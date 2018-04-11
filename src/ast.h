@@ -170,6 +170,7 @@ struct StructDefinition : Statement {
   vector<Member> members;
   vector<unique_ptr<FunctionDefinition>> methods;
   vector<string> templateParams;
+  optional<StructType> type;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual void declare(Accu&) const override;
@@ -190,6 +191,7 @@ struct VariantDefinition : Statement {
   vector<Element> elements;
   vector<unique_ptr<FunctionDefinition>> methods;
   vector<string> templateParams;
+  optional<StructType> type;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual void declare(Accu&) const override;
@@ -251,11 +253,12 @@ struct FunctionDefinition : Statement {
   vector<Parameter> parameters;
   unique_ptr<Statement> body;
   vector<string> templateParams;
+  optional<FunctionType> functionType;
   virtual void check(State&) override;
   virtual void codegen(Accu&) const override;
   virtual void declare(Accu&) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
-  optional<FunctionType> getFunctionType(const State&) const;
+  void setFunctionType(const State&);
   void checkFunction(State&, bool templateStruct);
   void addSignature(Accu& accu, string structName) const;
 };

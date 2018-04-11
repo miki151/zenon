@@ -141,7 +141,7 @@ bool ReturnStatement::hasReturnStatement(const State&) const {
   return true;
 }
 
-optional<FunctionType> FunctionDefinition::getFunctionType(const State& state) const {
+void FunctionDefinition::setFunctionType(const State& state) {
   State stateCopy = state;
   if (auto name = nameOrOp.getReferenceMaybe<string>())
     state.checkNameConflict(codeLoc, *name, "Function");
@@ -161,11 +161,9 @@ optional<FunctionType> FunctionDefinition::getFunctionType(const State& state) c
         params.push_back({p.name, *paramType});
       } else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
-    return FunctionType(FunctionCallType::FUNCTION, *returnType, params, templateTypes );
-  } else {
+    functionType = FunctionType(FunctionCallType::FUNCTION, *returnType, params, templateTypes );
+  } else
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
-    return none;
-  }
 }
 
 void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
@@ -202,7 +200,8 @@ void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
 }
 
 void FunctionDefinition::check(State& state) {
-  state.addFunction(nameOrOp, *getFunctionType(state));
+  setFunctionType(state);
+  state.addFunction(nameOrOp, *functionType);
   checkFunction(state, false);
 }
 
@@ -385,12 +384,12 @@ VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n
 
 void VariantDefinition::check(State& state) {
   state.checkNameConflict(codeLoc, name, "Type");
-  StructType type(StructType::VARIANT, name);
+  type = StructType(StructType::VARIANT, name);
   unordered_set<string> subtypeNames;
   State stateCopy = state;
   for (auto& param : templateParams) {
-    type.templateParams.push_back(TemplateParameter{param});
-    stateCopy.addType(param, type.templateParams.back());
+    type->templateParams.push_back(TemplateParameter{param});
+    stateCopy.addType(param, type->templateParams.back());
   }
   struct ConstructorInfo {
     string subtypeName;
@@ -407,57 +406,56 @@ void VariantDefinition::check(State& state) {
     if (auto subtypeInfo = stateCopy.getTypeFromString(subtype.type)) {
       if (!(*subtypeInfo == ArithmeticType::VOID))
         constructorInfo.constructorParams.push_back(FunctionType::Param{"", *subtypeInfo});
-      type.members.push_back({subtype.name, *subtypeInfo});
+      type->members.push_back({subtype.name, *subtypeInfo});
     } else
       subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
     constructors.push_back(constructorInfo);
   }
-  vector<FunctionType> methodTypes;
   for (auto& method : methods) {
-    methodTypes.push_back(*method->getFunctionType(stateCopy));
-    stateCopy.addFunction(method->nameOrOp, methodTypes.back());
+    method->setFunctionType(stateCopy);
+    stateCopy.addFunction(method->nameOrOp, *method->functionType);
   }
-  stateCopy.addVariable("this", PointerType(type));
+  stateCopy.addVariable("this", PointerType(*type));
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(stateCopy, !templateParams.empty());
-    type.methods.push_back({methods[i]->nameOrOp, methodTypes[i]});
+    type->methods.push_back({methods[i]->nameOrOp, *methods[i]->functionType});
   }
   for (auto& elem : constructors)
-    type.staticMethods.push_back({elem.subtypeName, FunctionType(elem.callType, type, elem.constructorParams, {})});
-  state.addType(name, type);
+    type->staticMethods.push_back({elem.subtypeName, FunctionType(elem.callType, *type, elem.constructorParams, {})});
+  state.addType(name, *type);
 }
 
 void StructDefinition::check(State& state) {
   state.checkNameConflict(codeLoc, name, "Type");
-  StructType type(StructType::STRUCT, name);
+  type = StructType(StructType::STRUCT, name);
   auto stateCopy = state;
   for (auto& param : templateParams) {
-    type.templateParams.push_back(TemplateParameter{param});
-    stateCopy.addType(param, type.templateParams.back());
+    type->templateParams.push_back(TemplateParameter{param});
+    stateCopy.addType(param, type->templateParams.back());
   }
   auto methodState = stateCopy;
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
     if (auto memberType = stateCopy.getTypeFromString(member.type)) {
-      type.members.push_back({member.name, *memberType});
+      type->members.push_back({member.name, *memberType});
       methodState.addVariable(member.name, ReferenceType(*memberType));
     } else
       member.codeLoc.error("Type " + quote(member.type.toString()) + " not recognized");
   }
   vector<FunctionType> methodTypes;
   for (auto& method : methods) {
-    methodTypes.push_back(*method->getFunctionType(methodState));
-    methodState.addFunction(method->nameOrOp, methodTypes.back());
+    method->setFunctionType(methodState);
+    methodState.addFunction(method->nameOrOp, *method->functionType);
   }
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodState, !templateParams.empty());
-    type.methods.push_back({methods[i]->nameOrOp, methodTypes[i]});
+    type->methods.push_back({methods[i]->nameOrOp, *methods[i]->functionType});
   }
-  state.addType(name, type);
+  state.addType(name, *type);
   vector<FunctionType::Param> constructorParams;
-  for (auto& member : type.members)
+  for (auto& member : type->members)
     constructorParams.push_back({member.name, *member.type});
-  state.addFunction(name, FunctionType(FunctionCallType::CONSTRUCTOR, type, std::move(constructorParams), type.templateParams));
+  state.addFunction(name, FunctionType(FunctionCallType::CONSTRUCTOR, *type, std::move(constructorParams), type->templateParams));
 }
 
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)

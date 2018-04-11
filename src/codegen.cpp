@@ -196,9 +196,9 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
   considerTemplateParams(accu, templateParams);
   if (!structName.empty())
     structName += "::";
-  string ret = returnType.toString() + " " + structName + getFunctionName(nameOrOp) + "(";
-  for (auto& param : parameters)
-    ret.append(param.type.toString() + " " + param.name + ", ");
+  string ret = getName(*functionType->retVal) + " " + structName + getFunctionName(nameOrOp) + "(";
+  for (auto& param : functionType->params)
+    ret.append(getName(*param.type) + " " + param.name + ", ");
   if (!parameters.empty()) {
     ret.pop_back();
     ret.pop_back();
@@ -250,8 +250,8 @@ void StructDefinition::generate(Accu& accu, bool import) const {
     method->addSignature(accu, "");
     accu.add(";");
   }
-  for (auto& member : members)
-    accu.newLine(member.type.toString() + " " + member.name + ";");
+  for (auto& member : type->members)
+    accu.newLine(getName(*member.type) + " " + member.name + ";");
   --accu.indent;
   accu.newLine("};");
   accu.newLine();
@@ -292,18 +292,16 @@ void VariantDefinition::generate(Accu& accu, bool import) const {
     accu.add(";");
   }
   accu.newLine();
-  for (auto& subtype : elements)
-    subtype.type.toString();
   accu.add("enum {");
   vector<string> typeNames;
   for (auto& subtype : elements)
     typeNames.push_back(subtype.name);
   accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
       + variantUnionElem + ";");
-  for (auto& elem : elements) {
+  for (auto& elem : type->members) {
     string signature = elem.name + "(";
-    if (!(elem.type == IdentifierInfo("void")))
-      signature += "const " + elem.type.toString() + "& elem";
+    if (!(elem.type == ArithmeticType::VOID))
+      signature += "const " + getName(*elem.type) + "& elem";
     signature += ")";
     string params = joinTemplateParams(templateParams);
     accu.newLine("static " + name + params + " " + signature + ";");
@@ -312,7 +310,7 @@ void VariantDefinition::generate(Accu& accu, bool import) const {
     ++impls.indent;
     impls.newLine(name + " ret;");
     impls.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + elem.name + ";");
-    if (!(elem.type == IdentifierInfo("void")))
+    if (!(elem.type == ArithmeticType::VOID))
       impls.newLine("ret."s + variantUnionEntryPrefix + elem.name + " = elem;");
     impls.newLine("return ret;");
     --impls.indent;
@@ -322,9 +320,9 @@ void VariantDefinition::generate(Accu& accu, bool import) const {
   accu.newLine("union {");
   ++accu.indent;
   accu.newLine("bool dummy;");
-  for (auto& elem : elements)
-    if (!(elem.type == IdentifierInfo("void")))
-      accu.newLine(elem.type.toString() + " " + variantUnionEntryPrefix + elem.name + ";");
+  for (auto& elem : type->members)
+    if (!(elem.type == ArithmeticType::VOID))
+      accu.newLine(getName(*elem.type) + " " + variantUnionEntryPrefix + elem.name + ";");
   --accu.indent;
   accu.newLine("};");
   --accu.indent;
