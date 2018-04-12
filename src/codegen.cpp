@@ -206,7 +206,7 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
 
 void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   addSignature(accu, "");
-  if (stage == DECLARE_FUNCTIONS || (stage == IMPORT && templateParams.empty())) {
+  if (stage == DECLARE || (stage == IMPORT && templateParams.empty())) {
     accu.add(";");
     accu.newLine("");
   } else {
@@ -220,11 +220,7 @@ string codegen(const AST& ast) {
   accu.add("#include \"codegen_includes/lite_str.h\"\n using string = lite_str<>;");
   accu.newLine();
   for (auto& elem : ast.elems) {
-    elem->codegen(accu, Node::DECLARE_TYPES);
-    accu.newLine();
-  }
-  for (auto& elem : ast.elems) {
-    elem->codegen(accu, Node::DECLARE_FUNCTIONS);
+    elem->codegen(accu, Node::DECLARE);
     accu.newLine();
   }
   for (auto& elem : ast.elems) {
@@ -243,10 +239,6 @@ void ExpressionStatement::codegen(Accu& accu, CodegenStage stage) const {
 void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (external)
     return;
-  if (stage == DECLARE_TYPES) {
-    considerTemplateParams(accu, templateParams);
-    accu.add("struct " + name + ";");
-  } else
   if (stage != DEFINE) {
     considerTemplateParams(accu, templateParams);
     accu.add("struct " + name + " {");
@@ -277,10 +269,6 @@ constexpr const char* variantUnionEntryPrefix = "Union_";
 constexpr const char* variantUnionElem = "unionElem";
 
 void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (stage == DECLARE_TYPES) {
-    considerTemplateParams(accu, templateParams);
-    accu.add("struct " + name + ";");
-  } else
   if (stage != DEFINE) {
     considerTemplateParams(accu, templateParams);
     accu.add("struct " + name + " {");

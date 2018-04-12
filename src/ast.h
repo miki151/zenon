@@ -13,7 +13,7 @@ struct Accu;
 struct Node {
   Node(CodeLoc);
   CodeLoc codeLoc;
-  enum CodegenStage { IMPORT, DECLARE_FUNCTIONS, DECLARE_TYPES, DEFINE };
+  enum CodegenStage { IMPORT, DECLARE, DEFINE };
   virtual void codegen(Accu&, CodegenStage) const {}
   virtual ~Node() {}
 };
