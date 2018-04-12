@@ -1,23 +1,13 @@
 #include "type.h"
 #include "state.h"
 
+SType ArithmeticType::INT = make_shared<Type>(ArithmeticType{});
+SType ArithmeticType::VOID = make_shared<Type>(ArithmeticType{});
+SType ArithmeticType::BOOL = make_shared<Type>(ArithmeticType{});
+SType ArithmeticType::STRING = make_shared<Type>(ArithmeticType{});
+SType ArithmeticType::CHAR = make_shared<Type>(ArithmeticType{});
 
-const char* getName(ArithmeticType type) {
-  switch (type) {
-    case ArithmeticType::VOID:
-      return "void";
-    case ArithmeticType::INT:
-      return "int";
-    case ArithmeticType::BOOL:
-      return "bool";
-    case ArithmeticType::STRING:
-      return "string";
-    case ArithmeticType::CHAR:
-      return "char";
-  }
-}
-
-string getTemplateParamNames(const vector<Type>& templateParams) {
+string getTemplateParamNames(const vector<SType>& templateParams) {
   string ret;
   if (!templateParams.empty()) {
     auto paramNames = transform(templateParams, [](auto& e) { return getName(e); });
@@ -26,19 +16,30 @@ string getTemplateParamNames(const vector<Type>& templateParams) {
   return ret;
 }
 
-string getName(const Type& t) {
-  return t.visit(
-      [&](const ArithmeticType& t) -> string {
-        return getName(t);
+string getName(SType t) {
+  return t->visit(
+      [&](const ArithmeticType&) -> string {
+        if (t == ArithmeticType::INT)
+          return "int";
+        if (t == ArithmeticType::VOID)
+          return "void";
+        if (t == ArithmeticType::BOOL)
+          return "bool";
+        if (t == ArithmeticType::STRING)
+          return "string";
+        if (t == ArithmeticType::CHAR)
+          return "char";
+        FATAL << "Unknown arithmetic type";
+        return "error";
       },
       [&](const FunctionType& t) {
         return "function"s + getTemplateParamNames(t.templateParams);
       },
       [&](const ReferenceType& t) {
-        return "reference("s + getName(*t.underlying) + ")";
+        return "reference("s + getName(t.underlying) + ")";
       },
       [&](const PointerType& t) {
-        return getName(*t.underlying) + "*";
+        return getName(t.underlying) + "*";
       },
       [&](const StructType& t) {
         return t.name + getTemplateParamNames(t.templateParams);
@@ -57,40 +58,46 @@ int getNewId() {
   return ++idCounter;
 }
 
-FunctionType::FunctionType(FunctionCallType t, Type returnType, vector<Param> p, vector<Type> tpl)
+FunctionType::FunctionType(FunctionCallType t, SType returnType, vector<Param> p, vector<SType> tpl)
     : callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
 
-Type getUnderlying(Type type) {
-  return type.visit(
-      [&](const ReferenceType& t) -> Type {
-        return getUnderlying(*t.underlying);
+SType getUnderlying(SType type) {
+  return type->visit(
+      [&](const ReferenceType& t) -> SType {
+        return getUnderlying(t.underlying);
       },
-      [&](const auto& t) -> Type {
-        return t;
+      [&](const auto&) -> SType {
+        return type;
       }
   );
 };
 
-ReferenceType::ReferenceType(Type t) : underlying(getUnderlying(t)) {
+SType ReferenceType::get(SType type) {
+  static map<SType, SType> generated;
+  if (!generated.count(type))
+    generated.insert({type, make_shared<Type>(ReferenceType(type))});
+  return generated.at(type);
 }
 
-bool ReferenceType::operator == (const ReferenceType& o) const {
-  return underlying == o.underlying;
+ReferenceType::ReferenceType(SType t) : underlying(getUnderlying(t)) {
 }
 
-PointerType::PointerType(Type t) : underlying(getUnderlying(t)) {
+SType PointerType::get(SType type) {
+  static map<SType, SType> generated;
+  if (!generated.count(type))
+    generated.insert({type, make_shared<Type>(PointerType(type))});
+  return generated.at(type);
 }
 
-bool PointerType::operator == (const PointerType& o) const {
-  return underlying == o.underlying;
+PointerType::PointerType(SType t) : underlying(getUnderlying(t)) {
 }
 
-bool canAssign(const Type& to, const Type& from) {
+bool canAssign(SType to, SType from) {
   //INFO << "can assign " << getName(from) << " to " << getName(to);
-  return to.visit(
+  return to->visit(
       [&](const ReferenceType& t) {
-        return getUnderlying(from) == *t.underlying;
+        return getUnderlying(from) == t.underlying;
       },
       [&](const auto&) {
         return false;
@@ -98,108 +105,165 @@ bool canAssign(const Type& to, const Type& from) {
   );
 }
 
-bool canBind(const Type& to, const Type& from) {
+bool canBind(SType to, SType from) {
   //INFO << "can bind " << getName(from) << " to " << getName(to);
-  return to == from || from == ReferenceType(to);
+  return to == from ||
+      to->visit(
+            [&](const ReferenceType& t) {
+              return from == t.underlying;
+            },
+            [&](const auto&) {
+              return false;
+            }
+      );
 }
 
-StructType::StructType(Kind k, string n) : kind(k), name(n), id(getNewId()) {}
+SType StructType::get(Kind kind, string name) {
+  auto ret = make_shared<Type>(StructType{});
+  auto& type = *ret->getReferenceMaybe<StructType>();
+  type.kind = kind;
+  type.name = name;
+  type.parent = ret;
+  return ret;
+}
 
-optional<Type> StructType::getMember(const string& name) const {
+nullable<SType> StructType::getMember(const string& name) const {
   for (auto& member : members)
     if (member.name == name)
-      return *member.type;
-  return none;
-}
-
-bool StructType::operator == (const StructType& o) const {
-  INFO << "Comparing struct " << getName(*this) << " id " << id << " and " << getName(o) << " id " << o.id;
-  return id == o.id && templateParams == o.templateParams;
+      return member.type;
+  return nullptr;
 }
 
 State StructType::getContext() const {
   State state;
   if (kind != VARIANT)
     for (auto& member : members)
-      state.addVariable(member.name, ReferenceType(*member.type));
+      state.addVariable(member.name, ReferenceType::get(member.type));
   for (auto& method : methods)
     state.addFunction(method.nameOrOp, *method.type);
   return state;
 }
 
-bool canConvert(const Type& from, const Type& to) {
+SType StructType::instantiate(SType self, vector<SType> newTemplateParams) {
+  if (templateParams == newTemplateParams)
+    return self;
+  for (auto type : instantations) {
+    auto& structType = *type->getReferenceMaybe<StructType>();
+    if (structType.templateParams == newTemplateParams) {
+      INFO << "Found instantiated type " << getName(type);
+      return type;
+    }
+  }
+  auto type = StructType::get(kind, name);
+  auto& structType = *type->getReferenceMaybe<StructType>();
+  structType.parent = self;
+  instantations.push_back(type);
+  INFO << "New instantiation: " << getName(type);
+  return type;
+}
+
+void replaceInFunction(FunctionType&, SType from, SType to);
+
+SType replace(SType in, SType from, SType to);
+
+void StructType::updateInstantations() {
+  for (auto type : instantations) {
+    auto& structType = *type->getReferenceMaybe<StructType>();
+    for (int i = 0; i < templateParams.size(); ++i) {
+      structType.methods = methods;
+      for (auto& method : structType.methods)
+        replaceInFunction(*method.type, templateParams[i], structType.templateParams[i]);
+      structType.staticMethods = staticMethods;
+      for (auto& method : structType.staticMethods)
+        replaceInFunction(method.second, templateParams[i], structType.templateParams[i]);
+      structType.members = members;
+      for (auto& member : structType.members)
+        member.type = replace(member.type, templateParams[i], structType.templateParams[i]);
+    }
+  }
+}
+
+bool canConvert(SType from, SType to) {
   return getUnderlying(from) == to;
 }
 
-bool requiresInitialization(const Type&) {
+bool requiresInitialization(SType) {
   return true;
 }
 
-TemplateParameter::TemplateParameter(string n) : name(n), id(getNewId()) {}
+TemplateParameter::TemplateParameter(string n) : name(n) {}
 
-bool TemplateParameter::operator ==(const TemplateParameter& t) const {
-  return id == t.id;
-}
-
-extern void replace(Type& in, Type from, Type to);
-void replace(FunctionType&, Type from, Type to);
-
-void replace(Type& in, Type from, Type to) {
-  in.visit(
-      [&](ReferenceType& t) {
-        replace(*t.underlying, from, to);
+SType replace(SType in, SType from, SType to) {
+  return in->visit(
+      [&](const ReferenceType& t) {
+        return ReferenceType::get(replace(t.underlying, from, to));
       },
-      [&](PointerType& t) {
-        replace(*t.underlying, from, to);
+      [&](const PointerType& t) {
+        return PointerType::get(replace(t.underlying, from, to));
       },
       [&](StructType& t) {
+        vector<SType> templateParams;
         for (auto& param : t.templateParams)
-          replace(param, from, to);
-        for (int i = 0; i < t.members.size(); ++i)
-          replace(*t.members[i].type, from, to);
-        for (int i = 0; i < t.methods.size(); ++i)
-          replace(*t.methods[i].type, from, to);
-        for (auto& method : t.staticMethods)
-          replace(method.second, from, to);
+          templateParams.push_back(replace(param, from, to));
+        auto ret = t.parent->getReferenceMaybe<StructType>()->instantiate(t.parent.get(), templateParams);
+        auto& structType = *ret->getReferenceMaybe<StructType>();
+        // This is how we check if instantiate gave us a new type to fill
+        if (structType.templateParams != templateParams) {
+          structType.templateParams = templateParams;
+          for (auto& member : t.members)
+            structType.members.push_back({member.name, replace(member.type, from, to)});
+          for (auto& method : t.methods) {
+            structType.methods.push_back(method);
+            replaceInFunction(*structType.methods.back().type, from, to);
+          }
+          for (auto& method : t.staticMethods) {
+            structType.staticMethods.push_back(method);
+            replaceInFunction(structType.staticMethods.back().second, from, to);
+          }
+        }
+        return ret;
       },
-      [&](TemplateParameter& t) {
-        if (from == t)
-          in = to;
+      [&](TemplateParameter&) {
+        if (from == in)
+          return to;
+        else
+          return in;
       },
-      [](auto) {
+      [&](auto) {
+        return in;
       }
   );
 }
 
-void replace(FunctionType& in, Type from, Type to) {
-  replace(*in.retVal, from, to);
+void replaceInFunction(FunctionType& in, SType from, SType to) {
+  in.retVal = replace(in.retVal, from, to);
   for (auto& param : in.params)
-    replace(*param.type, from, to);
+    param.type = replace(param.type, from, to);
 }
 
-optional<Type> instantiate(const Type& type, vector<Type> templateParams) {
-  return type.visit(
-      [&](StructType type) -> optional<Type> {
-        if (templateParams.size() != type.templateParams.size())
-          return none;
-        Type ret(type);
+nullable<SType> instantiate(SType type, vector<SType> templateParams) {
+  return type->visit(
+      [&](StructType structType) -> nullable<SType> {
+        if (templateParams.size() != structType.templateParams.size())
+          return nullptr;
+        SType ret = type;
         for (int i = 0; i < templateParams.size(); ++i)
-          replace(ret, type.templateParams[i], templateParams[i]);
+          ret = replace(ret, structType.templateParams[i], templateParams[i]);
         return ret;
       },
-      [&](const auto&) -> optional<Type> {
+      [&](const auto&) -> nullable<SType> {
          if (templateParams.empty())
            return type;
          else
-           return none;
+           return nullptr;
       }
   );
 }
 
 struct TypeMapping {
-  vector<Type> templateParams;
-  vector<optional<Type>> templateArgs;
-  optional<int> getParamIndex(const Type& t) {
+  vector<SType> templateParams;
+  vector<nullable<SType>> templateArgs;
+  optional<int> getParamIndex(const SType& t) {
     for (int i = 0; i < templateParams.size(); ++i)
       if (templateParams[i] == t)
         return i;
@@ -207,28 +271,28 @@ struct TypeMapping {
   }
 };
 
-bool canBind(TypeMapping& mapping, Type paramType, Type argType) {
-  if (auto refType = argType.getValueMaybe<ReferenceType>()) {
-    argType = *refType->underlying;
-    if (auto refType = paramType.getValueMaybe<ReferenceType>())
-      paramType = *refType->underlying;
+bool canBind(TypeMapping& mapping, SType paramType, SType argType) {
+  if (auto refType = argType->getValueMaybe<ReferenceType>()) {
+    argType = refType->underlying;
+    if (auto refType = paramType->getValueMaybe<ReferenceType>())
+      paramType = refType->underlying;
   }
   if (auto index = mapping.getParamIndex(paramType)) {
     auto& arg = mapping.templateArgs.at(*index);
-    if (arg && !(*arg == argType))
+    if (arg && arg != argType)
       return false;
     arg = argType;
     return true;
   } else
-    return paramType.visit(
+    return paramType->visit(
         [&](PointerType& type) {
-          if (auto argPointer = argType.getReferenceMaybe<PointerType>())
-            return canBind(mapping, *type.underlying, *argPointer->underlying);
+          if (auto argPointer = argType->getReferenceMaybe<PointerType>())
+            return canBind(mapping, type.underlying, argPointer->underlying);
           return false;
         },
         [&](StructType& type) {
-          auto argStruct = argType.getReferenceMaybe<StructType>();
-          if (!argStruct || type.id != argStruct->id)
+          auto argStruct = argType->getReferenceMaybe<StructType>();
+          if (!argStruct || type.parent.get() != argStruct->parent.get())
             return false;
           for (int i = 0; i < type.templateParams.size(); ++i)
             if (!canBind(mapping, type.templateParams[i], argStruct->templateParams[i]))
@@ -241,11 +305,11 @@ bool canBind(TypeMapping& mapping, Type paramType, Type argType) {
     );
 }
 
-void instantiate(FunctionType& type, CodeLoc codeLoc, vector<Type> templateArgs, vector<Type> argTypes,
+void instantiateFunction(FunctionType& type, CodeLoc codeLoc, vector<SType> templateArgs, vector<SType> argTypes,
     vector<CodeLoc> argLoc) {
-  vector<Type> funParams = transform(type.params, [](const FunctionType::Param& p) { return *p.type; });
+  vector<SType> funParams = transform(type.params, [](const FunctionType::Param& p) { return p.type; });
   codeLoc.check(templateArgs.size() <= type.templateParams.size(), "Too many template arguments.");
-  TypeMapping mapping { type.templateParams, vector<optional<Type>>(type.templateParams.size()) };
+  TypeMapping mapping { type.templateParams, vector<nullable<SType>>(type.templateParams.size()) };
   for (int i = 0; i < templateArgs.size(); ++i)
     mapping.templateArgs[i] = templateArgs[i];
   codeLoc.check(funParams.size() == argTypes.size(), "Wrong number of function arguments.");
@@ -254,18 +318,18 @@ void instantiate(FunctionType& type, CodeLoc codeLoc, vector<Type> templateArgs,
       string deducedAsString;
       if (auto index = mapping.getParamIndex(funParams[i]))
         if (auto deduced = mapping.templateArgs.at(*index))
-          deducedAsString = ", deduced as " + quote(getName(*deduced));
+          deducedAsString = ", deduced as " + quote(getName(deduced.get()));
       argLoc[i].error("Can't bind argument of type "
         + quote(getName(argTypes[i])) + " to parameter " + quote(getName(funParams[i])) + deducedAsString);
     }
   for (int i = 0; i < type.templateParams.size(); ++i) {
     if (i >= templateArgs.size()) {
       if (auto deduced = mapping.templateArgs[i])
-        templateArgs.push_back(*deduced);
+        templateArgs.push_back(deduced.get());
       else
         codeLoc.error("Couldn't deduce template argument " + quote(getName(type.templateParams[i])));
     }
-    replace(type, type.templateParams[i], templateArgs[i]);
+    replaceInFunction(type, type.templateParams[i], templateArgs[i]);
     type.templateParams[i] = templateArgs[i];
   }
 }
@@ -282,8 +346,4 @@ optional<FunctionType> getStaticMethod(const Type& type, string name) {
   );
 }
 
-EnumType::EnumType(string n, vector<string> e) : name(n), id(getNewId()), elements(e) {}
-
-bool EnumType::operator ==(const EnumType& e) const {
-  return id == e.id;
-}
+EnumType::EnumType(string n, vector<string> e) : name(n), elements(e) {}

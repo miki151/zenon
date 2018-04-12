@@ -9,31 +9,33 @@
 struct Type;
 class State;
 
-enum class ArithmeticType {
-  INT,
-  BOOL,
-  VOID,
-  STRING,
-  CHAR,
+struct ArithmeticType {
+  static SType INT;
+  static SType BOOL;
+  static SType VOID;
+  static SType STRING;
+  static SType CHAR;
 };
 
 struct ReferenceType {
-  ReferenceType(Type);
-  HeapAllocated<Type> underlying;
-  bool operator == (const ReferenceType&) const;
+  static SType get(SType);
+  SType underlying;
+
+  private:
+  ReferenceType(SType);
 };
 
 struct PointerType {
-  PointerType(Type);
-  HeapAllocated<Type> underlying;
-  bool operator == (const PointerType&) const;
+  static SType get(SType);
+  SType underlying;
+
+  private:
+  PointerType(SType);
 };
 
 struct TemplateParameter {
   TemplateParameter(string name);
   string name;
-  int id;
-  bool operator == (const TemplateParameter&) const;
 };
 
 struct FunctionType;
@@ -43,15 +45,14 @@ struct StructType {
     STRUCT,
     VARIANT
   };
-  StructType(Kind, string name);
+  static SType get(Kind, string name);
   Kind kind;
   string name;
-  int id;
   struct Member {
     string name;
-    HeapAllocated<Type> type;
+    SType type;
   };
-  optional<Type> getMember(const string&) const;
+  nullable<SType> getMember(const string&) const;
   vector<Member> members;
   struct Method {
     variant<string, Operator> nameOrOp;
@@ -59,47 +60,52 @@ struct StructType {
   };
   vector<Method> methods;
   vector<pair<string, FunctionType>> staticMethods;
-  vector<Type> templateParams;
-  bool operator == (const StructType&) const;
+  vector<SType> templateParams;
+  vector<SType> instantations;
+  nullable<SType> parent;
   State getContext() const;
+  SType instantiate(SType self, vector<SType> templateParams);
+  void updateInstantations();
+  SType getInstantiated(vector<SType> templateParams);
+
+  private:
+  StructType() {}
 };
 
 struct EnumType {
   EnumType(string name, vector<string> elements);
   string name;
-  int id;
   vector<string> elements;
-  bool operator == (const EnumType&) const;
 };
 
 struct Type : variant<ArithmeticType, ReferenceType, PointerType, StructType, TemplateParameter, EnumType> {
   using variant::variant;
+  Type(const Type&) = delete;
 };
 
 struct FunctionType {
   struct Param {
     string name;
-    HeapAllocated<Type> type;
+    SType type;
   };
-  FunctionType(FunctionCallType, Type returnType, vector<Param> params, vector<Type> templateParams);
+  FunctionType(FunctionCallType, SType returnType, vector<Param> params, vector<SType> templateParams);
   FunctionCallType callType;
-  HeapAllocated<Type> retVal;
+  SType retVal;
   vector<Param> params;
-  vector<Type> templateParams;
-  optional<Type> parentType;
+  vector<SType> templateParams;
+  nullable<SType> parentType;
 };
 
 struct Expression;
 class State;
 
-extern string getName(const Type&);
-extern const char* getName(ArithmeticType);
-extern bool canAssign(const Type& to, const Type& from);
-extern bool canBind(const Type& to, const Type& from);
-extern bool canConvert(const Type& from, const Type& to);
-extern bool requiresInitialization(const Type&);
+extern string getName(SType);
+extern bool canAssign(SType to, SType from);
+extern bool canBind(SType to, SType from);
+extern bool canConvert(SType from, SType to);
+extern bool requiresInitialization(SType);
 class IdentifierInfo;
-extern optional<Type> instantiate(const Type&, vector<Type> templateParams);
-extern void instantiate(FunctionType&, CodeLoc, vector<Type> templateArgs, vector<Type> argTypes, vector<CodeLoc> argLoc);
+extern nullable<SType> instantiate(SType, vector<SType> templateParams);
+extern void instantiateFunction(FunctionType&, CodeLoc, vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc);
 extern optional<FunctionType> getStaticMethod(const Type&, string name);
-extern Type getUnderlying(Type);
+extern SType getUnderlying(SType);

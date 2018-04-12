@@ -18,6 +18,8 @@
 #include <vector>
 #include "stdafx.h"
 
+using std::chrono::milliseconds;
+
 #define FATAL FatalLog.get() << "FATAL " << __FILE__ << ":" << __LINE__ << " "
 #define INFO InfoLog.get() << __FILE__ << ":" <<  __LINE__ << " "
 #define ERROR ErrorLog.get()// << __FILE__ << ":" <<  __LINE__ << " "
@@ -59,11 +61,11 @@ inline std::ostream& operator<<(std::ostream& d, const milliseconds& millis) {
 class DebugOutput {
   public:
   static DebugOutput toStream(std::ostream&);
-  static DebugOutput toString(function<void(const string&)> callback);
+  static DebugOutput toString(std::function<void(const std::string&)> callback);
   static DebugOutput crash();
   static DebugOutput exitProgram(int code);
 
-  typedef function<void()> LineEndFun;
+  typedef std::function<void()> LineEndFun;
   std::ostream& out;
   LineEndFun onLineEnd;
 
@@ -107,7 +109,7 @@ extern DebugLog FatalLog;
 extern DebugLog ErrorLog;
 
 template <class T, class V>
-const T& valueCheck(const T& e, const V& v, const string& msg) {
+const T& valueCheck(const T& e, const V& v, const std::string& msg) {
   if (e != v) FATAL << msg << " (" << e << " != " << v << ")";
   return e;
 }

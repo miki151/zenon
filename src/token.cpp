@@ -3,8 +3,6 @@
 #include "operator.h"
 #include "util.h"
 
-using namespace std;
-
 static const unordered_map<string, Keyword> keywords {
   {"if", Keyword::IF},
   {"else", Keyword::ELSE},

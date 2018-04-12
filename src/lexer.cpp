@@ -1,6 +1,5 @@
 #include <iostream>
 #include <string>
-#include <regex>
 #include <iterator>
 #include <vector>
 #include <algorithm>
@@ -9,7 +8,6 @@
 #include "operator.h"
 #include "util.h"
 
-using namespace std;
 
 static string getKeywords() {
   string keywords;

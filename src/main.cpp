@@ -10,8 +10,6 @@
 #include "reader.h"
 #include "ProgramOptions.h"
 
-using namespace std;
-
 static po::parser getCommandLineFlags() {
   po::parser flags;
   flags["help"].abbreviation('h').description("Print help");

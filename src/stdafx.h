@@ -64,6 +64,7 @@
 #include <numeric>
 #include <chrono>
 #include <cstddef>
+#include <regex>
 
 // Use boost threads on OSX to use the main thread for rendering
 // and set a large stack size for the model thread.
@@ -83,6 +84,7 @@
 #include <deque>
 #include <map>
 #include <set>
+#include "my_shared_ptr.h"
 using std::map;
 using std::multiset;
 using std::deque;
@@ -92,9 +94,7 @@ using std::queue;
 using std::unique_ptr;
 template<typename T, typename... Args>
 std::unique_ptr<T> unique(Args&&... args) { return std::unique_ptr<T>(new T(std::forward<Args>(args)...)); }
-using std::shared_ptr;
 using std::weak_ptr;
-using std::make_shared;
 using std::default_random_engine;
 using std::function;
 using std::initializer_list;
@@ -115,6 +115,10 @@ using std::stringstream;
 using std::istringstream;
 using std::ostringstream;
 using std::endl;
+using std::cerr;
+using std::cout;
+using std::regex;
+using std::sregex_iterator;
 using std::priority_queue;
 using std::make_pair;
 using std::stack;
@@ -124,6 +128,7 @@ using std::make_tuple;
 using std::hash;
 using std::array;
 using std::vector;
+using std::set;
 
 using std::recursive_mutex;
 typedef std::unique_lock<recursive_mutex> RecursiveLock;

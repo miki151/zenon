@@ -81,19 +81,19 @@ bool isUnary(Operator op) {
   }
 }
 
-Type getUnaryOperationResult(CodeLoc codeLoc, Operator op, const Type& right) {
+SType getUnaryOperationResult(CodeLoc codeLoc, Operator op, SType right) {
   auto underlying = getUnderlying(right);
   CHECK(isUnary(op));
   switch (op) {
     case Operator::MULTIPLY:
-      if (auto pointer = underlying.getReferenceMaybe<PointerType>())
-        return ReferenceType(*pointer->underlying);
+      if (auto pointer = underlying->getReferenceMaybe<PointerType>())
+        return ReferenceType::get(pointer->underlying);
       else
         codeLoc.error("Can't apply dereference operator to type " + quote(getName(right)));
       break;
     case Operator::GET_ADDRESS:
-      if (auto reference = right.getReferenceMaybe<ReferenceType>())
-        return PointerType(*reference->underlying);
+      if (auto reference = right->getReferenceMaybe<ReferenceType>())
+        return PointerType::get(reference->underlying);
       else
         codeLoc.error("Can't apply address-of operator to type " + quote(getName(right)));
       break;
@@ -107,28 +107,28 @@ Type getUnaryOperationResult(CodeLoc codeLoc, Operator op, const Type& right) {
   return right;
 }
 
-static optional<Type> getOperationResult(Operator op, const Type& underlyingOperands) {
+static nullable<SType> getOperationResult(Operator op, SType underlyingOperands) {
   switch (op) {
     case Operator::MULTIPLY:
     case Operator::PLUS:
     case Operator::MINUS:
       if (underlyingOperands == ArithmeticType::INT)
-        return Type(ArithmeticType::INT);
+        return ArithmeticType::INT;
       if (underlyingOperands == ArithmeticType::STRING)
-        return Type(ArithmeticType::STRING);
-      return none;
+        return ArithmeticType::STRING;
+      return nullptr;
     case Operator::LESS_THAN:
     case Operator::MORE_THAN:
       if (underlyingOperands == ArithmeticType::INT)
-        return Type(ArithmeticType::BOOL);
-      return none;
+        return ArithmeticType::BOOL;
+      return nullptr;
     case Operator::EQUALS:
       if (underlyingOperands == ArithmeticType::INT || underlyingOperands == ArithmeticType::BOOL
            || underlyingOperands == ArithmeticType::STRING || underlyingOperands == ArithmeticType::CHAR)
-        return Type(ArithmeticType::BOOL);
-      return none;
+        return ArithmeticType::BOOL;
+      return nullptr;
     default:
-      return none;
+      return nullptr;
   }
 }
 
@@ -140,15 +140,15 @@ static State getStringTypeContext() {
   return ret;
 }
 
-static State getTypeContext(CodeLoc codeLoc, const Type& type, const char* op) {
-  return type.visit(
+static State getTypeContext(CodeLoc codeLoc, SType type, const char* op) {
+  return type->visit(
       [&](const StructType& t) {
         return t.getContext();
       },
       [&](ArithmeticType t) {
-        if (t == ArithmeticType::STRING)
+        if (type == ArithmeticType::STRING)
           return getStringTypeContext();
-        codeLoc.error("Type " + quote(getName(t)) + " doesn't support operator " + quote(op));
+        codeLoc.error("Type " + quote(getName(type)) + " doesn't support operator " + quote(op));
         return State();
       },
       [&] (const auto&) {
@@ -158,37 +158,34 @@ static State getTypeContext(CodeLoc codeLoc, const Type& type, const char* op) {
   );
 }
 
-Type getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expression& leftExpr, Expression& rightExpr) {
+SType getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expression& leftExpr, Expression& rightExpr) {
   auto left = leftExpr.getType(state);
   auto right = [&]() { return rightExpr.getType(state); };
   switch (op) {
     case Operator::MEMBER_ACCESS: {
       auto context = getTypeContext(codeLoc, getUnderlying(left), ".");
       if (auto rightType = rightExpr.getDotOperatorType(context, state)) {
-        if (!left.contains<ReferenceType>())
-          rightType = getUnderlying(*rightType);
-        return *rightType;
+        if (!left->contains<ReferenceType>())
+          rightType = getUnderlying(rightType.get());
+        return rightType.get();
       } else
         codeLoc.error("Bad use of operator " + quote("."));
-      return {};
     }
     case Operator::SUBSCRIPT: {
       auto context = getTypeContext(codeLoc, getUnderlying(left), "[]");
       if (auto t = context.getOperatorType(Operator::SUBSCRIPT)) {
-        codeLoc.check(getUnderlying(right()) == *t->params.at(0).type,
-            "Expected expression of type " + quote(getName(*t->params.at(0).type)) + " inside operator " + quote("[]"));
-        return *t->retVal;
+        codeLoc.check(getUnderlying(right()) == t->params.at(0).type,
+            "Expected expression of type " + quote(getName(t->params.at(0).type)) + " inside operator " + quote("[]"));
+        return t->retVal;
       }
-      codeLoc.error("Type " + quote(getName(left)) + " doesn't support operator " + quote("[]"));
-      return {};
+      codeLoc.error("Type " + quote(getName(getUnderlying(left))) + " doesn't support operator " + quote("[]"));
     }
     case Operator::ASSIGNMENT:
-      if (getUnderlying(left) == getUnderlying(right()) && left.contains<ReferenceType>())
+      if (getUnderlying(left) == getUnderlying(right()) && left->contains<ReferenceType>())
         return left;
-      else {
+      else
         codeLoc.error("Can't assign " + quote(getName(right())) + " to " + quote(getName(left)));
-        return {};
-      }
+      break;
     case Operator::LESS_THAN:
     case Operator::MORE_THAN:
     case Operator::MULTIPLY:
@@ -199,13 +196,13 @@ Type getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expres
       auto operand = getUnderlying(left);
       if (operand == getUnderlying(rightType))
         if (auto res = getOperationResult(op, operand))
-          return *res;
+          return res.get();
       codeLoc.error("Unsupported operation: " + quote(getName(left)) + " " + getString(op)
           + " " + quote(getName(rightType)));
-      return {};
+      break;
     }
     case Operator::GET_ADDRESS:
       codeLoc.error("Address-of is not a binary operator");
-      return {};
+      break;
   }
 }

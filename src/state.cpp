@@ -2,49 +2,51 @@
 #include "ast.h"
 #include "type.h"
 
-optional<Type> State::getTypeOfVariable(const string& name) const {
+nullable<SType> State::getTypeOfVariable(const string& name) const {
   if (vars.count(name))
     return vars.at(name);
   else
-    return none;
+    return nullptr;
 }
 
-void State::addVariable(const string& id, Type t) {
-  vars[id] = t;
+void State::addVariable(const string& id, SType t) {
+  CHECK(!vars.count(id));
+  vars.insert({id, t});
 }
 
-const optional<Type>& State::getReturnType() const {
+nullable<SType> State::getReturnType() const {
   return returnType;
 }
 
-void State::setReturnType(Type t) {
+void State::setReturnType(SType t) {
   CHECK(!returnType) << "Attempted to overwrite return type";
   returnType = t;
 }
 
-void State::addType(const string& name, Type t) {
-  types[name] = t;
+void State::addType(const string& name, SType t) {
+  CHECK(!types.count(name));
+  types.insert({name, t});
 }
 
-vector<Type> State::getTypeList(const vector<IdentifierInfo>& ids) const {
-  vector<Type> params;
+vector<SType> State::getTypeList(const vector<IdentifierInfo>& ids) const {
+  vector<SType> params;
   for (auto& id : ids)
     if (auto type = getTypeFromString(id))
-      params.push_back(*type);
+      params.push_back(type.get());
     else
       id.codeLoc.error("Unrecognized type: " + quote(id.toString()));
   return params;
 }
 
-optional<Type> State::getTypeFromString(IdentifierInfo id) const {
+nullable<SType> State::getTypeFromString(IdentifierInfo id) const {
   //INFO << "Get type " << id.toString();
   id.codeLoc.check(id.parts.size() == 1, "Bad type identifier: " + id.toString());
   auto name = id.parts.at(0).name;
   if (!types.count(name))
-    return none;
+    return nullptr;
   auto ret = instantiate(types.at(name), getTypeList(id.parts.at(0).templateArguments));
   if (ret && id.pointer)
-    ret = Type(PointerType(*ret));
+    ret = PointerType::get(ret.get());
   return ret;
 }
 
@@ -74,9 +76,9 @@ FunctionType State::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) cons
   string funName = id.parts.at(0).name;
   if (id.parts.size() == 2) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0)))) {
-      INFO << "Looking for static method in type " << getName(*type);
+      INFO << "Looking for static method in type " << getName(type.get());
       if (auto fun = getStaticMethod(*type, id.parts.at(1).name)) {
-        fun->parentType = *type;
+        fun->parentType = type.get();
         return *fun;
       } else
         id.codeLoc.error("Static method not found: " + id.toString());
@@ -88,7 +90,6 @@ FunctionType State::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) cons
       return functions.at(funName);
   }
   codeLoc.error("Function not found: " + quote(funName));
-  return functions.at(funName);
 }
 
 vector<string> State::getFunctionParamNames(CodeLoc codeLoc, IdentifierInfo id) const {
@@ -113,12 +114,12 @@ const vector<string>& State::getAllImports() const {
   return allImports;
 }
 
-FunctionType State::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType templateType, IdentifierInfo id, vector<Type> argTypes,
+FunctionType State::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType templateType, IdentifierInfo id, vector<SType> argTypes,
     vector<CodeLoc> argLoc) const {
   auto templateArgNames = id.parts.back().templateArguments;
   auto templateArgs = getTypeList(templateArgNames);
-  instantiate(templateType, codeLoc, templateArgs, argTypes, argLoc);
-  INFO << "Function " << id.toString() << " return type " << getName(*templateType.retVal);
+  instantiateFunction(templateType, codeLoc, templateArgs, argTypes, argLoc);
+  INFO << "Function " << id.toString() << " return type " << getName(templateType.retVal);
   return templateType;
 }
 

@@ -13,61 +13,62 @@ struct Accu;
 struct Node {
   Node(CodeLoc);
   CodeLoc codeLoc;
-  virtual void codegen(Accu&) const {}
+  enum CodegenStage { IMPORT, DECLARE_FUNCTIONS, DECLARE_TYPES, DEFINE };
+  virtual void codegen(Accu&, CodegenStage) const {}
   virtual ~Node() {}
 };
 
 struct Expression : Node {
   using Node::Node;
-  virtual Type getType(const State&) = 0;
-  virtual optional<Type> getDotOperatorType(const State& idContext, const State& callContext);
+  virtual SType getType(const State&) = 0;
+  virtual nullable<SType> getDotOperatorType(const State& idContext, const State& callContext);
 };
 
 struct Constant : Expression {
-  Constant(CodeLoc, Type, string value);
-  virtual Type getType(const State&) override;
-  virtual void codegen(Accu&) const override;
-  Type type;
+  Constant(CodeLoc, SType, string value);
+  virtual SType getType(const State&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  SType type;
   string value;
 };
 
 struct EnumConstant : Expression {
   EnumConstant(CodeLoc, string enumName, string enumElement);
-  virtual Type getType(const State&) override;
-  virtual void codegen(Accu&) const override;
+  virtual SType getType(const State&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
   string enumName;
   string enumElement;
 };
 
 struct Variable : Expression {
   Variable(CodeLoc, string);
-  virtual Type getType(const State&) override;
-  virtual void codegen(Accu&) const override;
-  virtual optional<Type> getDotOperatorType(const State& idContext, const State& callContext) override;
+  virtual SType getType(const State&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual nullable<SType> getDotOperatorType(const State& idContext, const State& callContext) override;
   string identifier;
 };
 
 struct BinaryExpression : Expression {
   BinaryExpression(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>);
-  virtual Type getType(const State&) override;
-  virtual void codegen(Accu&) const override;
+  virtual SType getType(const State&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   unique_ptr<Expression> e1, e2;
 };
 
 struct UnaryExpression : Expression {
   UnaryExpression(CodeLoc, Operator, unique_ptr<Expression>);
-  virtual Type getType(const State&) override;
-  virtual void codegen(Accu&) const override;
+  virtual SType getType(const State&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   unique_ptr<Expression> expr;
 };
 
 struct FunctionCall : Expression {
   FunctionCall(CodeLoc, IdentifierInfo);
-  virtual Type getType(const State&) override;
-  virtual void codegen(Accu&) const override;
-  virtual optional<Type> getDotOperatorType(const State& idContext, const State& callContext) override;
+  virtual SType getType(const State&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual nullable<SType> getDotOperatorType(const State& idContext, const State& callContext) override;
   IdentifierInfo identifier;
   optional<FunctionType> functionType;
   vector<unique_ptr<Expression>> arguments;
@@ -75,9 +76,9 @@ struct FunctionCall : Expression {
 
 struct FunctionCallNamedArgs : Expression {
   FunctionCallNamedArgs(CodeLoc, IdentifierInfo);
-  virtual Type getType(const State&) override;
-  virtual void codegen(Accu&) const override;
-  virtual optional<Type> getDotOperatorType(const State& idContext, const State& callContext) override;
+  virtual SType getType(const State&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual nullable<SType> getDotOperatorType(const State& idContext, const State& callContext) override;
   IdentifierInfo identifier;
   struct Argument {
     CodeLoc codeLoc;
@@ -90,10 +91,10 @@ struct FunctionCallNamedArgs : Expression {
 
 struct Statement : Node {
   using Node::Node;
+  virtual void addToState(State&);
   virtual void check(State&) = 0;
   virtual bool hasReturnStatement(const State&) const;
-  virtual void codegen(Accu&) const = 0;
-  virtual void declare(Accu&) const;
+  virtual void codegen(Accu&, CodegenStage) const = 0;
   enum class TopLevelAllowance {
     CANT,
     CAN,
@@ -105,11 +106,11 @@ struct Statement : Node {
 struct VariableDeclaration : Statement {
   VariableDeclaration(CodeLoc, optional<IdentifierInfo> type, string identifier, unique_ptr<Expression> initExpr);
   optional<IdentifierInfo> type;
-  optional<Type> realType;
+  nullable<SType> realType;
   string identifier;
   unique_ptr<Expression> initExpr;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
 };
 
 struct IfStatement : Statement {
@@ -119,7 +120,7 @@ struct IfStatement : Statement {
   unique_ptr<Statement> ifTrue, ifFalse;
   virtual bool hasReturnStatement(const State&) const override;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
 };
 
 struct StatementBlock : Statement {
@@ -127,7 +128,7 @@ struct StatementBlock : Statement {
   vector<unique_ptr<Statement>> elems;
   virtual bool hasReturnStatement(const State&) const override;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
 };
 
 struct ReturnStatement : Statement {
@@ -135,14 +136,14 @@ struct ReturnStatement : Statement {
   unique_ptr<Expression> expr;
   virtual bool hasReturnStatement(const State&) const override;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
 };
 
 struct ExpressionStatement : Statement {
   ExpressionStatement(unique_ptr<Expression>);
   unique_ptr<Expression> expr;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
 };
 
 struct ForLoopStatement : Statement {
@@ -154,7 +155,7 @@ struct ForLoopStatement : Statement {
   unique_ptr<Statement> body;
   virtual bool hasReturnStatement(const State&) const override;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
 };
 
 struct FunctionDefinition;
@@ -170,10 +171,10 @@ struct StructDefinition : Statement {
   vector<Member> members;
   vector<unique_ptr<FunctionDefinition>> methods;
   vector<string> templateParams;
-  optional<StructType> type;
+  nullable<SType> type;
+  virtual void addToState(State&) override;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
-  virtual void declare(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   bool external = false;
   private:
@@ -191,10 +192,10 @@ struct VariantDefinition : Statement {
   vector<Element> elements;
   vector<unique_ptr<FunctionDefinition>> methods;
   vector<string> templateParams;
-  optional<StructType> type;
+  nullable<SType> type;
+  virtual void addToState(State&) override;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
-  virtual void declare(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 
   private:
@@ -206,9 +207,9 @@ struct EnumDefinition : Statement {
   string name;
   vector<string> elements;
   vector<unique_ptr<FunctionDefinition>> methods;
+  virtual void addToState(State&) override;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
-  virtual void declare(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 
   private:
@@ -230,12 +231,12 @@ struct SwitchStatement : Statement {
   unique_ptr<Expression> expr;
   enum { ENUM, VARIANT} type;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
   virtual bool hasReturnStatement(const State&) const override;
 
   private:
-  void checkVariant(State&, StructType);
-  void checkEnum(State&, EnumType);
+  void checkVariant(State&, StructType, const string& typeName);
+  void checkEnum(State&, EnumType, const string& typeName);
   void codegenEnum(Accu&) const;
   void codegenVariant(Accu&) const;
 };
@@ -255,8 +256,8 @@ struct FunctionDefinition : Statement {
   vector<string> templateParams;
   optional<FunctionType> functionType;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
-  virtual void declare(Accu&) const override;
+  virtual void addToState(State&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   void setFunctionType(const State&);
   void checkFunction(State&, bool templateStruct);
@@ -268,8 +269,7 @@ struct EmbedStatement : Statement {
   string value;
   bool isPublic = false;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
-  virtual void declare(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override;
   virtual bool hasReturnStatement(const State&) const override;
 };
@@ -281,9 +281,9 @@ struct ImportStatement : Statement {
   string path;
   unique_ptr<AST> ast;
   bool isPublic;
+  virtual void addToState(State&) override;
   virtual void check(State&) override;
-  virtual void codegen(Accu&) const override;
-  virtual void declare(Accu&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 };
 
