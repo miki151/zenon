@@ -9,6 +9,7 @@
 class State;
 struct TypeMapping;
 struct FunctionType;
+struct SwitchStatement;
 
 struct Type : public owned_object<Type> {
   virtual string getName() const = 0;
@@ -20,6 +21,7 @@ struct Type : public owned_object<Type> {
   virtual nullable<SType> instantiate(vector<SType> templateParams) const;
   virtual optional<State> getTypeContext() const;
   virtual optional<FunctionType> getStaticMethod(const string&) const;
+  virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const;
 };
 
 struct ArithmeticType : public Type {
@@ -45,6 +47,7 @@ struct ReferenceType : public Type {
   virtual bool canMap(TypeMapping& mapping, SType from) const override;
   virtual SType replace(SType from, SType to) const override;
   virtual optional<State> getTypeContext() const override;
+  virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const override;
 
   static shared_ptr<ReferenceType> get(SType);
   SType underlying;
@@ -62,11 +65,11 @@ struct PointerType : public Type {
   PointerType(SType);
 };
 
-struct TemplateParameter : public Type {
+struct TemplateParameterType : public Type {
   virtual string getName() const override;
   virtual SType replace(SType from, SType to) const override;
 
-  TemplateParameter(string name);
+  TemplateParameterType(string name);
   string name;
 };
 
@@ -77,6 +80,7 @@ struct StructType : public Type {
   virtual bool canMap(TypeMapping&, SType argType) const override;
   virtual optional<FunctionType> getStaticMethod(const string&) const override;
   virtual optional<State> getTypeContext() const override;
+  virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const override;
 
   enum Kind {
     STRUCT,
@@ -110,6 +114,7 @@ struct EnumType : public Type {
   EnumType(string name, vector<string> elements);
 
   virtual string getName() const override;
+  virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const override;
 
   string name;
   vector<string> elements;

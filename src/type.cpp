@@ -1,5 +1,6 @@
 #include "type.h"
 #include "state.h"
+#include "ast.h"
 
 ArithmeticType::DefType ArithmeticType::INT = shared<ArithmeticType>("int");
 ArithmeticType::DefType ArithmeticType::VOID = shared<ArithmeticType>("void");
@@ -35,12 +36,39 @@ string StructType::getName() const {
   return name + getTemplateParamNames(templateParams);
 }
 
-string TemplateParameter::getName() const {
+string TemplateParameterType::getName() const {
   return name;
 }
 
 string EnumType::getName() const {
   return name;
+}
+
+void EnumType::handleSwitchStatement(SwitchStatement& statement, State& state, CodeLoc codeLoc) const {
+  statement.type = SwitchStatement::ENUM;
+  unordered_set<string> handledElems;
+  statement.subtypesPrefix = name + "::";
+  for (auto& caseElem : statement.caseElems) {
+    caseElem.codeloc.check(!caseElem.type, "Expected enum element");
+    caseElem.codeloc.check(contains(elements, caseElem.id), "Element " + quote(caseElem.id) +
+        " not present in enum" + quote(name));
+    caseElem.codeloc.check(!handledElems.count(caseElem.id), "Enum element " + quote(caseElem.id)
+        + " handled more than once in switch statement");
+    handledElems.insert(caseElem.id);
+    caseElem.block->check(state);
+  }
+  if (!statement.defaultBlock) {
+    vector<string> unhandled;
+    for (auto& elem : elements)
+      if (!handledElems.count(elem))
+        unhandled.push_back(quote(elem));
+    codeLoc.check(unhandled.empty(), quote(name) + " elements " + combine(unhandled, ", ")
+        + " not handled in switch statement");
+  } else {
+    statement.defaultBlock->codeLoc.check(handledElems.size() < elements.size(),
+        "Default switch statement unnecessary when all enum elements are handled");
+    statement.defaultBlock->check(state);
+  }
 }
 
 int getNewId() {
@@ -122,6 +150,10 @@ optional<State> ReferenceType::getTypeContext() const {
   return underlying->getTypeContext();
 }
 
+void ReferenceType::handleSwitchStatement(SwitchStatement& statement, State& state, CodeLoc codeLoc) const {
+  underlying->handleSwitchStatement(statement, state, codeLoc);
+}
+
 optional<State> StructType::getTypeContext() const {
   State state;
   if (kind != VARIANT)
@@ -130,6 +162,51 @@ optional<State> StructType::getTypeContext() const {
   for (auto& method : methods)
     state.addFunction(method.nameOrOp, *method.type);
   return state;
+}
+
+void StructType::handleSwitchStatement(SwitchStatement& statement, State& state, CodeLoc codeLoc) const {
+  codeLoc.check(kind == StructType::VARIANT, "Expected a variant or enum type");
+  statement.type = SwitchStatement::VARIANT;
+  statement.subtypesPrefix = name;
+  if (!templateParams.empty()) {
+    statement.subtypesPrefix += "<";
+    for (auto& t : templateParams)
+      statement.subtypesPrefix += t->getName() + ",";
+    statement.subtypesPrefix.pop_back();
+    statement.subtypesPrefix += ">";
+  }
+  statement.subtypesPrefix += "::";
+  unordered_set<string> handledTypes;
+  for (auto& caseElem : statement.caseElems) {
+    caseElem.codeloc.check(!!getMember(caseElem.id), "Element " + quote(caseElem.id) +
+        " not present in variant " + quote(name));
+    caseElem.codeloc.check(!handledTypes.count(caseElem.id), "Variant element " + quote(caseElem.id)
+        + " handled more than once in switch statement");
+    handledTypes.insert(caseElem.id);
+    auto stateCopy = state;
+    auto realType = getMember(caseElem.id).get();
+    caseElem.declareVar = !(realType == ArithmeticType::VOID);
+    if (caseElem.declareVar)
+      stateCopy.addVariable(caseElem.id, realType);
+    if (caseElem.type) {
+      if (auto t = state.getTypeFromString(*caseElem.type))
+        caseElem.type->codeLoc.check(t == realType, "Can't handle variant element "
+            + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(t->getName()));
+    }
+    caseElem.block->check(stateCopy);
+  }
+  if (!statement.defaultBlock) {
+    vector<string> unhandled;
+    for (auto& elem : members)
+      if (!handledTypes.count(elem.name))
+        unhandled.push_back(quote(elem.name));
+    codeLoc.check(unhandled.empty(), quote(name) + " subtypes " + combine(unhandled, ", ")
+        + " not handled in switch statement");
+  } else {
+    statement.defaultBlock->codeLoc.check(handledTypes.size() < members.size(),
+        "Default switch statement unnecessary when all variant cases are handled");
+    statement.defaultBlock->check(state);
+  }
 }
 
 shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) {
@@ -173,7 +250,7 @@ bool requiresInitialization(SType) {
   return true;
 }
 
-TemplateParameter::TemplateParameter(string n) : name(n) {}
+TemplateParameterType::TemplateParameterType(string n) : name(n) {}
 
 SType Type::replace(SType from, SType to) const {
   return get_this().get();
@@ -187,7 +264,7 @@ SType PointerType::replace(SType from, SType to) const {
   return PointerType::get(underlying->replace(from, to));
 }
 
-SType TemplateParameter::replace(SType from, SType to) const {
+SType TemplateParameterType::replace(SType from, SType to) const {
   auto self = get_this().get();
   if (from == self)
     return to;
@@ -238,6 +315,10 @@ optional<State> Type::getTypeContext() const {
 
 optional<FunctionType> Type::getStaticMethod(const string&) const {
   return none;
+}
+
+void Type::handleSwitchStatement(SwitchStatement&, State&, CodeLoc codeLoc) const {
+  codeLoc.error("Can't switch on value of type " + quote(getName()));
 }
 
 optional<FunctionType> StructType::getStaticMethod(const string& methodName) const {

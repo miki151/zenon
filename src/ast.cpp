@@ -145,7 +145,7 @@ void FunctionDefinition::setFunctionType(const State& state) {
   }
   vector<SType> templateTypes;
   for (auto& param : templateParams) {
-    templateTypes.push_back(shared<TemplateParameter>(param));
+    templateTypes.push_back(shared<TemplateParameterType>(param));
     stateCopy.addType(param, templateTypes.back());
   }
   if (auto returnType = stateCopy.getTypeFromString(this->returnType)) {
@@ -175,7 +175,7 @@ void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
     }
   }
   for (auto& param : templateParams) {
-    templateTypes.push_back(shared<TemplateParameter>(param));
+    templateTypes.push_back(shared<TemplateParameterType>(param));
     stateCopy.addType(param, templateTypes.back());
   }
   if (auto returnType = stateCopy.getTypeFromString(this->returnType)) {
@@ -288,85 +288,7 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(const State& idContext
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
 void SwitchStatement::check(State& state) {
-  auto exprType = expr->getType(state)->getUnderlying();
-  if (auto t = exprType.dynamicCast<StructType>()) {
-    expr->codeLoc.check(t->kind == StructType::VARIANT, "Expected a variant or enum type");
-    checkVariant(state, *t, exprType->getName());
-    type = VARIANT;
-  } else if (auto t = exprType.dynamicCast<EnumType>()) {
-    checkEnum(state, *t, exprType->getName());
-    type = ENUM;
-  } else
-    expr->codeLoc.error("Can't switch on value of type " + quote(exprType->getName()));
-}
-
-void SwitchStatement::checkEnum(State& state, EnumType inputType, const string& typeName) {
-  unordered_set<string> handledElems;
-  subtypesPrefix = inputType.name + "::";
-  for (auto& caseElem : caseElems) {
-    caseElem.codeloc.check(!caseElem.type, "Expected enum element");
-    caseElem.codeloc.check(contains(inputType.elements, caseElem.id), "Element " + quote(caseElem.id) +
-        " not present in enum" + quote(typeName));
-    caseElem.codeloc.check(!handledElems.count(caseElem.id), "Enum element " + quote(caseElem.id)
-        + " handled more than once in switch statement");
-    handledElems.insert(caseElem.id);
-    caseElem.block->check(state);
-  }
-  if (!defaultBlock) {
-    vector<string> unhandled;
-    for (auto& elem : inputType.elements)
-      if (!handledElems.count(elem))
-        unhandled.push_back(quote(elem));
-    codeLoc.check(unhandled.empty(), quote(typeName) + " elements " + combine(unhandled, ", ")
-        + " not handled in switch statement");
-  } else {
-    defaultBlock->codeLoc.check(handledElems.size() < inputType.elements.size(),
-        "Default switch statement unnecessary when all enum elements are handled");
-    defaultBlock->check(state);
-  }
-}
-
-void SwitchStatement::checkVariant(State& state, const StructType& inputType, const string& typeName) {
-  subtypesPrefix = inputType.name;
-  if (!inputType.templateParams.empty()) {
-    subtypesPrefix += "<";
-    for (auto& t : inputType.templateParams)
-      subtypesPrefix += t->getName() + ",";
-    subtypesPrefix.pop_back();
-    subtypesPrefix += ">";
-  }
-  subtypesPrefix += "::";
-  unordered_set<string> handledTypes;
-  for (auto& caseElem : caseElems) {
-    caseElem.codeloc.check(!!inputType.getMember(caseElem.id), "Element " + quote(caseElem.id) +
-        " not present in variant " + quote(typeName));
-    caseElem.codeloc.check(!handledTypes.count(caseElem.id), "Variant element " + quote(caseElem.id)
-        + " handled more than once in switch statement");
-    handledTypes.insert(caseElem.id);
-    auto stateCopy = state;
-    auto realType = inputType.getMember(caseElem.id).get();
-    caseElem.declareVar = !(realType == ArithmeticType::VOID);
-    if (caseElem.declareVar)
-      stateCopy.addVariable(caseElem.id, realType);
-    if (caseElem.type) {
-      if (auto t = state.getTypeFromString(*caseElem.type))
-        caseElem.type->codeLoc.check(t == realType, "Can't handle variant element "
-            + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(t->getName()));
-    }
-    caseElem.block->check(stateCopy);
-  }
-  if (!defaultBlock) {
-    vector<string> unhandled;
-    for (auto& elem : inputType.members)
-      if (!handledTypes.count(elem.name))
-        unhandled.push_back(quote(elem.name));
-    codeLoc.check(unhandled.empty(), quote(typeName) + " subtypes " + combine(unhandled, ", ")
-        + " not handled in switch statement");
-  } else {
-    defaultBlock->codeLoc.check(handledTypes.size() < inputType.members.size(),
-        "Default switch statement unnecessary when all variant cases are handled");
-    defaultBlock->check(state);
-  }
+  expr->getType(state)->handleSwitchStatement(*this, state, expr->codeLoc);
 }
 
 bool SwitchStatement::hasReturnStatement(const State& state) const {
@@ -386,7 +308,7 @@ void VariantDefinition::addToState(State& state) {
   type = StructType::get(StructType::VARIANT, name);
   auto membersContext = state;
   for (auto& param : templateParams)
-    type->templateParams.push_back(shared<TemplateParameter>(param));
+    type->templateParams.push_back(shared<TemplateParameterType>(param));
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
   struct ConstructorInfo {
@@ -441,7 +363,7 @@ void StructDefinition::addToState(State& state) {
   auto membersContext = state;
   type = StructType::get(StructType::STRUCT, name);
   for (auto& param : templateParams)
-    type->templateParams.push_back(shared<TemplateParameter>(param));
+    type->templateParams.push_back(shared<TemplateParameterType>(param));
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
   vector<FunctionType::Param> constructorParams;

@@ -235,8 +235,6 @@ struct SwitchStatement : Statement {
   virtual bool hasReturnStatement(const State&) const override;
 
   private:
-  void checkVariant(State&, const StructType&, const string& typeName);
-  void checkEnum(State&, EnumType, const string& typeName);
   void codegenEnum(Accu&) const;
   void codegenVariant(Accu&) const;
 };
