@@ -94,7 +94,6 @@ using std::queue;
 using std::unique_ptr;
 template<typename T, typename... Args>
 std::unique_ptr<T> unique(Args&&... args) { return std::unique_ptr<T>(new T(std::forward<Args>(args)...)); }
-using std::weak_ptr;
 using std::default_random_engine;
 using std::function;
 using std::initializer_list;

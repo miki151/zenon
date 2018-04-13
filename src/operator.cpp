@@ -82,24 +82,22 @@ bool isUnary(Operator op) {
 }
 
 SType getUnaryOperationResult(CodeLoc codeLoc, Operator op, SType right) {
-  auto underlying = getUnderlying(right);
+  auto underlying = right->getUnderlying();
   CHECK(isUnary(op));
   switch (op) {
     case Operator::MULTIPLY:
-      if (auto pointer = underlying->getReferenceMaybe<PointerType>())
+      if (auto pointer = underlying.dynamicCast<PointerType>())
         return ReferenceType::get(pointer->underlying);
       else
-        codeLoc.error("Can't apply dereference operator to type " + quote(getName(right)));
-      break;
+        codeLoc.error("Can't apply dereference operator to type " + quote(right->getName()));
     case Operator::GET_ADDRESS:
-      if (auto reference = right->getReferenceMaybe<ReferenceType>())
+      if (auto reference = right.dynamicCast<ReferenceType>())
         return PointerType::get(reference->underlying);
       else
-        codeLoc.error("Can't apply address-of operator to type " + quote(getName(right)));
-      break;
+        codeLoc.error("Can't apply address-of operator to type " + quote(right->getName()));
     case Operator::PLUS:
     case Operator::MINUS:
-      codeLoc.check(underlying == ArithmeticType::INT, "Expected type: " + quote("int") + ", got: " + quote(getName(right)));
+      codeLoc.check(underlying == ArithmeticType::INT, "Expected type: " + quote("int") + ", got: " + quote(right->getName()));
       break;
     default:
       break;
@@ -132,60 +130,33 @@ static nullable<SType> getOperationResult(Operator op, SType underlyingOperands)
   }
 }
 
-static State getStringTypeContext() {
-  State ret;
-  ret.addFunction("size"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
-  ret.addFunction(Operator::SUBSCRIPT, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::CHAR,
-      {{"index", ArithmeticType::INT}}, {}));
-  return ret;
-}
-
-static State getTypeContext(CodeLoc codeLoc, SType type, const char* op) {
-  return type->visit(
-      [&](const StructType& t) {
-        return t.getContext();
-      },
-      [&](ArithmeticType t) {
-        if (type == ArithmeticType::STRING)
-          return getStringTypeContext();
-        codeLoc.error("Type " + quote(getName(type)) + " doesn't support operator " + quote(op));
-        return State();
-      },
-      [&] (const auto&) {
-        codeLoc.error("Type " + quote(getName(getUnderlying(type))) + " doesn't support operator " + quote(op));
-        return State();
-      }
-  );
-}
-
 SType getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expression& leftExpr, Expression& rightExpr) {
   auto left = leftExpr.getType(state);
   auto right = [&]() { return rightExpr.getType(state); };
   switch (op) {
     case Operator::MEMBER_ACCESS: {
-      auto context = getTypeContext(codeLoc, getUnderlying(left), ".");
-      if (auto rightType = rightExpr.getDotOperatorType(context, state)) {
-        if (!left->contains<ReferenceType>())
-          rightType = getUnderlying(rightType.get());
-        return rightType.get();
-      } else
-        codeLoc.error("Bad use of operator " + quote("."));
+      if (auto context = left->getTypeContext())
+        if (auto rightType = rightExpr.getDotOperatorType(*context, state)) {
+          if (!left.dynamicCast<ReferenceType>())
+            rightType = rightType->getUnderlying();
+          return rightType.get();
+        }
+      codeLoc.error("Bad use of operator " + quote("."));
     }
     case Operator::SUBSCRIPT: {
-      auto context = getTypeContext(codeLoc, getUnderlying(left), "[]");
-      if (auto t = context.getOperatorType(Operator::SUBSCRIPT)) {
-        codeLoc.check(getUnderlying(right()) == t->params.at(0).type,
-            "Expected expression of type " + quote(getName(t->params.at(0).type)) + " inside operator " + quote("[]"));
-        return t->retVal;
-      }
-      codeLoc.error("Type " + quote(getName(getUnderlying(left))) + " doesn't support operator " + quote("[]"));
+      if (auto context = left->getTypeContext())
+        if (auto t = context->getOperatorType(Operator::SUBSCRIPT)) {
+          codeLoc.check(right()->getUnderlying() == t->params.at(0).type,
+              "Expected expression of type " + quote(t->params.at(0).type->getName()) + " inside operator " + quote("[]"));
+          return t->retVal;
+        }
+      codeLoc.error("Type " + quote(left->getUnderlying()->getName()) + " doesn't support operator " + quote("[]"));
     }
     case Operator::ASSIGNMENT:
-      if (getUnderlying(left) == getUnderlying(right()) && left->contains<ReferenceType>())
+      if (left->getUnderlying() == right()->getUnderlying() && left.dynamicCast<ReferenceType>())
         return left;
       else
-        codeLoc.error("Can't assign " + quote(getName(right())) + " to " + quote(getName(left)));
-      break;
+        codeLoc.error("Can't assign " + quote(right()->getName()) + " to " + quote(left->getName()));
     case Operator::LESS_THAN:
     case Operator::MORE_THAN:
     case Operator::MULTIPLY:
@@ -193,16 +164,14 @@ SType getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expre
     case Operator::EQUALS:
     case Operator::MINUS: {
       auto rightType = right();
-      auto operand = getUnderlying(left);
-      if (operand == getUnderlying(rightType))
+      auto operand = left->getUnderlying();
+      if (operand == rightType->getUnderlying())
         if (auto res = getOperationResult(op, operand))
           return res.get();
-      codeLoc.error("Unsupported operation: " + quote(getName(left)) + " " + getString(op)
-          + " " + quote(getName(rightType)));
-      break;
+      codeLoc.error("Unsupported operation: " + quote(left->getName()) + " " + getString(op)
+          + " " + quote(rightType->getName()));
     }
     case Operator::GET_ADDRESS:
       codeLoc.error("Address-of is not a binary operator");
-      break;
   }
 }

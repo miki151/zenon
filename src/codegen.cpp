@@ -82,7 +82,7 @@ void StatementBlock::codegen(Accu& accu, CodegenStage stage) const {
 
 void VariableDeclaration::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage == DEFINE);
-  accu.add(getName(realType.get()) + " " + identifier);
+  accu.add(realType.get()->getName() + " " + identifier);
   if (initExpr) {
     accu.add(" = ");
     initExpr->codegen(accu, stage);
@@ -135,9 +135,9 @@ static void genFunctionCall(Accu& accu, const IdentifierInfo& identifier, const 
   string prefix;
   string suffix;
   string id = identifier.parts.back().name +
-      joinTemplateParams(transform(functionType.templateParams, [](const auto& arg) { return getName(arg); } ));
+      joinTemplateParams(transform(functionType.templateParams, [](const auto& arg) { return arg->getName(); } ));
   if (functionType.parentType)
-    id = getName(functionType.parentType.get()) + "::" + id;
+    id = functionType.parentType->getName() + "::" + id;
   switch (functionType.callType) {
     case FunctionCallType::FUNCTION:
       prefix = id + "("; suffix = ")";
@@ -193,9 +193,9 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
   considerTemplateParams(accu, templateParams);
   if (!structName.empty())
     structName += "::";
-  string ret = getName(functionType->retVal) + " " + structName + getFunctionName(nameOrOp) + "(";
+  string ret = functionType->retVal->getName() + " " + structName + getFunctionName(nameOrOp) + "(";
   for (auto& param : functionType->params)
-    ret.append(getName(param.type) + " " + param.name + ", ");
+    ret.append(param.type->getName() + " " + param.name + ", ");
   if (!parameters.empty()) {
     ret.pop_back();
     ret.pop_back();
@@ -248,8 +248,8 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
       method->addSignature(accu, "");
       accu.add(";");
     }
-    for (auto& member : type->getReferenceMaybe<StructType>()->members)
-      accu.newLine(getName(member.type) + " " + member.name + ";");
+    for (auto& member : type->members)
+      accu.newLine(member.type->getName() + " " + member.name + ";");
     --accu.indent;
     accu.newLine("};");
   }
@@ -285,10 +285,10 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       typeNames.push_back(subtype.name);
     accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
         + variantUnionElem + ";");
-    for (auto& elem : type->getReferenceMaybe<StructType>()->members) {
+    for (auto& elem : type->members) {
       string signature = elem.name + "(";
       if (elem.type != ArithmeticType::VOID)
-        signature += "const " + getName(elem.type) + "& elem";
+        signature += "const " + elem.type->getName() + "& elem";
       signature += ")";
       string params = joinTemplateParams(templateParams);
       accu.newLine("static " + name + params + " " + signature + ";");
@@ -296,9 +296,9 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
     accu.newLine("union {");
     ++accu.indent;
     accu.newLine("bool dummy;");
-    for (auto& elem : type->getReferenceMaybe<StructType>()->members)
+    for (auto& elem : type->members)
       if (elem.type != ArithmeticType::VOID)
-        accu.newLine(getName(elem.type) + " " + variantUnionEntryPrefix + elem.name + ";");
+        accu.newLine(elem.type->getName() + " " + variantUnionEntryPrefix + elem.name + ";");
     --accu.indent;
     accu.newLine("};");
     --accu.indent;
@@ -314,10 +314,10 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       accu.newLine();
     }
   if (stage == DEFINE || (!templateParams.empty() && stage == IMPORT))
-    for (auto& elem : type->getReferenceMaybe<StructType>()->members) {
+    for (auto& elem : type->members) {
       string signature = elem.name + "(";
       if (elem.type != ArithmeticType::VOID)
-        signature += "const " + getName(elem.type) + "& elem";
+        signature += "const " + elem.type->getName() + "& elem";
       signature += ")";
       string params = joinTemplateParams(templateParams);
       considerTemplateParams(accu, templateParams);

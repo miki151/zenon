@@ -44,7 +44,7 @@ nullable<SType> State::getTypeFromString(IdentifierInfo id) const {
   auto name = id.parts.at(0).name;
   if (!types.count(name))
     return nullptr;
-  auto ret = instantiate(types.at(name), getTypeList(id.parts.at(0).templateArguments));
+  auto ret = types.at(name)->instantiate(getTypeList(id.parts.at(0).templateArguments));
   if (ret && id.pointer)
     ret = PointerType::get(ret.get());
   return ret;
@@ -76,8 +76,8 @@ FunctionType State::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) cons
   string funName = id.parts.at(0).name;
   if (id.parts.size() == 2) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0)))) {
-      INFO << "Looking for static method in type " << getName(type.get());
-      if (auto fun = getStaticMethod(*type, id.parts.at(1).name)) {
+      INFO << "Looking for static method in type " << type->getName();
+      if (auto fun = type->getStaticMethod(id.parts.at(1).name)) {
         fun->parentType = type.get();
         return *fun;
       } else
@@ -119,7 +119,7 @@ FunctionType State::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType te
   auto templateArgNames = id.parts.back().templateArguments;
   auto templateArgs = getTypeList(templateArgNames);
   instantiateFunction(templateType, codeLoc, templateArgs, argTypes, argLoc);
-  INFO << "Function " << id.toString() << " return type " << getName(templateType.retVal);
+  INFO << "Function " << id.toString() << " return type " << templateType.retVal->getName();
   return templateType;
 }
 

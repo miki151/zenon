@@ -171,7 +171,7 @@ struct StructDefinition : Statement {
   vector<Member> members;
   vector<unique_ptr<FunctionDefinition>> methods;
   vector<string> templateParams;
-  nullable<SType> type;
+  nullable<shared_ptr<StructType>> type;
   virtual void addToState(State&) override;
   virtual void check(State&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -192,7 +192,7 @@ struct VariantDefinition : Statement {
   vector<Element> elements;
   vector<unique_ptr<FunctionDefinition>> methods;
   vector<string> templateParams;
-  nullable<SType> type;
+  nullable<shared_ptr<StructType>> type;
   virtual void addToState(State&) override;
   virtual void check(State&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -235,7 +235,7 @@ struct SwitchStatement : Statement {
   virtual bool hasReturnStatement(const State&) const override;
 
   private:
-  void checkVariant(State&, StructType, const string& typeName);
+  void checkVariant(State&, const StructType&, const string& typeName);
   void checkEnum(State&, EnumType, const string& typeName);
   void codegenEnum(Accu&) const;
   void codegenVariant(Accu&) const;

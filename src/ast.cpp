@@ -19,7 +19,7 @@ IfStatement::IfStatement(CodeLoc loc, unique_ptr<Expression> c, unique_ptr<State
 }
 
 Constant::Constant(CodeLoc l, SType t, string v) : Expression(l), type(t), value(v) {
-  INFO << "Created constant " << quote(v) << " of type " << getName(t);
+  INFO << "Created constant " << quote(v) << " of type " << t->getName();
 }
 
 Variable::Variable(CodeLoc l, string id) : Expression(l), identifier(id) {
@@ -71,7 +71,7 @@ void StatementBlock::check(State& state) {
 void IfStatement::check(State& state) {
   auto condType = cond->getType(state);
   codeLoc.check(canConvert(condType, ArithmeticType::BOOL), "Expected a type convertible to bool inside if statement, got "
-      + quote(getName(condType)));
+      + quote(condType->getName()));
   ifTrue->check(state);
   if (ifFalse)
     ifFalse->check(state);
@@ -92,13 +92,13 @@ void VariableDeclaration::check(State& state) {
       codeLoc.error("Initializing expression needed to infer variable type");
   };
   realType = inferType();
-  INFO << "Adding variable " << identifier << " of type " << getName(realType.get());
+  INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (initExpr) {
     auto exprType = initExpr->getType(state);
-    initExpr->codeLoc.check(canAssign(ReferenceType::get(realType.get()), exprType), "Can't initialize variable of type "
-        + quote(getName(realType.get())) + " with value of type " + quote(getName(exprType)));
+    initExpr->codeLoc.check(ReferenceType::get(realType.get())->canAssign(exprType), "Can't initialize variable of type "
+        + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
   } else
-    codeLoc.check(!requiresInitialization(realType.get()), "Type " + quote(getName(realType.get())) + " requires initialization");
+    codeLoc.check(!requiresInitialization(realType.get()), "Type " + quote(realType->getName()) + " requires initialization");
   state.addVariable(identifier, ReferenceType::get(realType.get()));
 }
 
@@ -108,9 +108,9 @@ void ReturnStatement::check(State& state) {
         "Expected an expression in return statement in a function returning non-void");
   else {
     auto returnType = expr->getType(state);
-    codeLoc.check(canAssign(ReferenceType::get(state.getReturnType().get()), returnType),
-        "Attempting to return value of type "s + quote(getName(returnType)) +
-         " in a function returning "s + quote(getName(state.getReturnType().get())));
+    codeLoc.check(ReferenceType::get(state.getReturnType().get())->canAssign(returnType),
+        "Attempting to return value of type "s + quote(returnType->getName()) +
+         " in a function returning "s + quote(state.getReturnType()->getName()));
   }
 }
 
@@ -145,7 +145,7 @@ void FunctionDefinition::setFunctionType(const State& state) {
   }
   vector<SType> templateTypes;
   for (auto& param : templateParams) {
-    templateTypes.push_back(make_shared<Type>(TemplateParameter{param}));
+    templateTypes.push_back(shared<TemplateParameter>(param));
     stateCopy.addType(param, templateTypes.back());
   }
   if (auto returnType = stateCopy.getTypeFromString(this->returnType)) {
@@ -175,7 +175,7 @@ void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
     }
   }
   for (auto& param : templateParams) {
-    templateTypes.push_back(make_shared<Type>(TemplateParameter{param}));
+    templateTypes.push_back(shared<TemplateParameter>(param));
     stateCopy.addType(param, templateTypes.back());
   }
   if (auto returnType = stateCopy.getTypeFromString(this->returnType)) {
@@ -206,7 +206,7 @@ void correctness(const AST& ast) {
   State state;
   for (auto type : {ArithmeticType::INT, ArithmeticType::BOOL,
        ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
-    state.addType(getName(type), type);
+    state.addType(type->getName(), type);
   for (auto& elem : ast.elems)
     elem->addToState(state);
   for (auto& elem : ast.elems) {
@@ -239,7 +239,7 @@ nullable<SType> FunctionCall::getDotOperatorType(const State& idContext, const S
   for (int i = 0; i < arguments.size(); ++i) {
     argTypes.push_back(arguments[i]->getType(callContext));
     argLocs.push_back(arguments[i]->codeLoc);
-    INFO << "Function argument " << getName(argTypes.back());
+    INFO << "Function argument " << argTypes.back()->getName();
   }
   functionType = getFunction(idContext, callContext, codeLoc, identifier, argTypes, argLocs);
   return functionType->retVal;
@@ -288,16 +288,16 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(const State& idContext
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
 void SwitchStatement::check(State& state) {
-  auto exprType = getUnderlying(expr->getType(state));
-  if (auto t = exprType->getValueMaybe<StructType>()) {
+  auto exprType = expr->getType(state)->getUnderlying();
+  if (auto t = exprType.dynamicCast<StructType>()) {
     expr->codeLoc.check(t->kind == StructType::VARIANT, "Expected a variant or enum type");
-    checkVariant(state, *t, getName(exprType));
+    checkVariant(state, *t, exprType->getName());
     type = VARIANT;
-  } else if (auto t = exprType->getValueMaybe<EnumType>()) {
-    checkEnum(state, *t, getName(exprType));
+  } else if (auto t = exprType.dynamicCast<EnumType>()) {
+    checkEnum(state, *t, exprType->getName());
     type = ENUM;
   } else
-    expr->codeLoc.error("Can't switch on value of type " + quote(getName(exprType)));
+    expr->codeLoc.error("Can't switch on value of type " + quote(exprType->getName()));
 }
 
 void SwitchStatement::checkEnum(State& state, EnumType inputType, const string& typeName) {
@@ -326,12 +326,12 @@ void SwitchStatement::checkEnum(State& state, EnumType inputType, const string& 
   }
 }
 
-void SwitchStatement::checkVariant(State& state, StructType inputType, const string& typeName) {
+void SwitchStatement::checkVariant(State& state, const StructType& inputType, const string& typeName) {
   subtypesPrefix = inputType.name;
   if (!inputType.templateParams.empty()) {
     subtypesPrefix += "<";
     for (auto& t : inputType.templateParams)
-      subtypesPrefix += getName(t) + ",";
+      subtypesPrefix += t->getName() + ",";
     subtypesPrefix.pop_back();
     subtypesPrefix += ">";
   }
@@ -351,7 +351,7 @@ void SwitchStatement::checkVariant(State& state, StructType inputType, const str
     if (caseElem.type) {
       if (auto t = state.getTypeFromString(*caseElem.type))
         caseElem.type->codeLoc.check(t == realType, "Can't handle variant element "
-            + quote(caseElem.id) + " of type " + quote(getName(realType)) + " as type " + quote(getName(t.get())));
+            + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(t->getName()));
     }
     caseElem.block->check(stateCopy);
   }
@@ -385,11 +385,10 @@ void VariantDefinition::addToState(State& state) {
   state.checkNameConflict(codeLoc, name, "Type");
   type = StructType::get(StructType::VARIANT, name);
   auto membersContext = state;
-  auto& structType = *type->getReferenceMaybe<StructType>();
   for (auto& param : templateParams)
-    structType.templateParams.push_back(make_shared<Type>(TemplateParameter{param}));
-  for (auto& param : structType.templateParams)
-    membersContext.addType(getName(param), param);
+    type->templateParams.push_back(shared<TemplateParameter>(param));
+  for (auto& param : type->templateParams)
+    membersContext.addType(param->getName(), param);
   struct ConstructorInfo {
     string subtypeName;
     FunctionCallType callType;
@@ -408,21 +407,20 @@ void VariantDefinition::addToState(State& state) {
     constructors.push_back(constructorInfo);
   }
   for (auto& elem : constructors)
-    structType.staticMethods.push_back({elem.subtypeName, FunctionType(elem.callType, type.get(), elem.constructorParams, {})});
+    type->staticMethods.push_back({elem.subtypeName, FunctionType(elem.callType, type.get(), elem.constructorParams, {})});
   state.addType(name, type.get());
 }
 
 void VariantDefinition::check(State& state) {
-  auto& structType = *type->getReferenceMaybe<StructType>();
   unordered_set<string> subtypeNames;
   State methodBodyContext = state;
-  for (auto& param : structType.templateParams)
-    methodBodyContext.addType(getName(param), param);
+  for (auto& param : type->templateParams)
+    methodBodyContext.addType(param->getName(), param);
   for (auto& subtype : elements) {
     subtype.codeLoc.check(!subtypeNames.count(subtype.name), "Duplicate variant alternative: " + quote(subtype.name));
     subtypeNames.insert(subtype.name);
     if (auto subtypeInfo = methodBodyContext.getTypeFromString(subtype.type))
-      structType.members.push_back({subtype.name, subtypeInfo.get()});
+      type->members.push_back({subtype.name, subtypeInfo.get()});
     else
       subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
   }
@@ -433,38 +431,36 @@ void VariantDefinition::check(State& state) {
   methodBodyContext.addVariable("this", PointerType::get(type.get()));
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
-    structType.methods.push_back({methods[i]->nameOrOp, *methods[i]->functionType});
+    type->methods.push_back({methods[i]->nameOrOp, *methods[i]->functionType});
   }
-  structType.updateInstantations();
+  type->updateInstantations();
 }
 
 void StructDefinition::addToState(State& state) {
   state.checkNameConflict(codeLoc, name, "Type");
   auto membersContext = state;
   type = StructType::get(StructType::STRUCT, name);
-  auto& structType = *type->getReferenceMaybe<StructType>();
   for (auto& param : templateParams)
-    structType.templateParams.push_back(make_shared<Type>(TemplateParameter{param}));
-  for (auto& param : structType.templateParams)
-    membersContext.addType(getName(param), param);
+    type->templateParams.push_back(shared<TemplateParameter>(param));
+  for (auto& param : type->templateParams)
+    membersContext.addType(param->getName(), param);
   vector<FunctionType::Param> constructorParams;
   for (auto& member : members)
     if (auto memberType = membersContext.getTypeFromString(member.type))
       constructorParams.push_back({member.name, memberType.get()});
-  auto constructor = FunctionType(FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), structType.templateParams);
+  auto constructor = FunctionType(FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
   state.addFunction(name, constructor);
   state.addType(name, type.get());
 }
 
 void StructDefinition::check(State& state) {
-  auto& structType = *type->getReferenceMaybe<StructType>();
   auto methodBodyContext = state;
-  for (auto& param : structType.templateParams)
-    methodBodyContext.addType(getName(param), param);
+  for (auto& param : type->templateParams)
+    methodBodyContext.addType(param->getName(), param);
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
     if (auto memberType = methodBodyContext.getTypeFromString(member.type)) {
-      structType.members.push_back({member.name, memberType.get()});
+      type->members.push_back({member.name, memberType.get()});
       methodBodyContext.addVariable(member.name, ReferenceType::get(memberType.get()));
     } else
       member.codeLoc.error("Type " + quote(member.type.toString()) + " not recognized");
@@ -476,9 +472,9 @@ void StructDefinition::check(State& state) {
   }
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
-    structType.methods.push_back({methods[i]->nameOrOp, *methods[i]->functionType});
+    type->methods.push_back({methods[i]->nameOrOp, *methods[i]->functionType});
   }
-  structType.updateInstantations();
+  type->updateInstantations();
 }
 
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
@@ -551,7 +547,7 @@ void EnumDefinition::addToState(State& s) {
   unordered_set<string> occurences;
   for (auto& e : elements)
     codeLoc.check(!occurences.count(e), "Duplicate enum element: " + quote(e));
-  s.addType(name, make_shared<Type>(EnumType(name, elements)));
+  s.addType(name, shared<EnumType>(name, elements));
 }
 
 void EnumDefinition::check(State& s) {
