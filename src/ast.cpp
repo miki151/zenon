@@ -145,8 +145,8 @@ void FunctionDefinition::setFunctionType(const State& state) {
   }
   vector<SType> templateTypes;
   for (auto& param : templateParams) {
-    templateTypes.push_back(shared<TemplateParameterType>(param));
-    stateCopy.addType(param, templateTypes.back());
+    templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+    stateCopy.addType(param.name, templateTypes.back());
   }
   if (auto returnType = stateCopy.getTypeFromString(this->returnType)) {
     vector<FunctionType::Param> params;
@@ -175,8 +175,8 @@ void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
     }
   }
   for (auto& param : templateParams) {
-    templateTypes.push_back(shared<TemplateParameterType>(param));
-    stateCopy.addType(param, templateTypes.back());
+    templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+    stateCopy.addType(param.name, templateTypes.back());
   }
   if (auto returnType = stateCopy.getTypeFromString(this->returnType)) {
     for (auto& p : parameters)
@@ -308,7 +308,7 @@ void VariantDefinition::addToState(State& state) {
   type = StructType::get(StructType::VARIANT, name);
   auto membersContext = state;
   for (auto& param : templateParams)
-    type->templateParams.push_back(shared<TemplateParameterType>(param));
+    type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
   struct ConstructorInfo {
@@ -363,7 +363,7 @@ void StructDefinition::addToState(State& state) {
   auto membersContext = state;
   type = StructType::get(StructType::STRUCT, name);
   for (auto& param : templateParams)
-    type->templateParams.push_back(shared<TemplateParameterType>(param));
+    type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
   vector<FunctionType::Param> constructorParams;

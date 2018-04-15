@@ -69,8 +69,9 @@ struct TemplateParameterType : public Type {
   virtual string getName() const override;
   virtual SType replace(SType from, SType to) const override;
 
-  TemplateParameterType(string name);
+  TemplateParameterType(string name, CodeLoc);
   string name;
+  CodeLoc declarationLoc;
 };
 
 struct StructType : public Type {

@@ -188,14 +188,14 @@ unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Toke
   return ret;
 }
 
-static vector<string> parseTemplateParams(Tokens& tokens) {
+static vector<TemplateParameter> parseTemplateParams(Tokens& tokens) {
   tokens.eat(Keyword::TEMPLATE);
   tokens.eat(Operator::LESS_THAN);
-  vector<string> params;
+  vector<TemplateParameter> params;
   while (tokens.peek("template definition") != Operator::MORE_THAN) {
     auto paramToken = tokens.popNext();
     paramToken.codeLoc.check(paramToken.contains<IdentifierToken>(), "Type parameter expected");
-    params.push_back(paramToken.value);
+    params.push_back({paramToken.value, paramToken.codeLoc});
     if (tokens.peek("template definition") != Operator::MORE_THAN)
       tokens.eat(Keyword::COMMA);
   }
@@ -217,7 +217,7 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
       tokens.popNext();
       break;
     }
-    vector<string> templateParams;
+    vector<TemplateParameter> templateParams;
     if (memberToken == Keyword::TEMPLATE)
       templateParams = parseTemplateParams(tokens);
     auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
@@ -284,7 +284,7 @@ unique_ptr<VariantDefinition> parseVariantDefinition(Tokens& tokens) {
       tokens.popNext();
       break;
     }
-    vector<string> templateParams;
+    vector<TemplateParameter> templateParams;
     if (memberToken == Keyword::TEMPLATE)
       templateParams = parseTemplateParams(tokens);
     auto typeIdent = IdentifierInfo::parseFrom(tokens, true);

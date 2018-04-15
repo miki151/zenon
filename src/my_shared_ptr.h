@@ -13,7 +13,7 @@ class shared_ptr : public std::shared_ptr<T> {
   shared_ptr& operator = (std::nullptr_t) = delete;
   void reset() = delete;
   template <typename U>
-  shared_ptr<U> dynamicCast() {
+  shared_ptr<U> dynamicCast() const {
     return shared_ptr<U>(std::dynamic_pointer_cast<U>(*this));
   }
   bool operator == (const T* o) const {

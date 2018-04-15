@@ -160,6 +160,11 @@ struct ForLoopStatement : Statement {
 
 struct FunctionDefinition;
 
+struct TemplateParameter {
+  string name;
+  CodeLoc codeLoc;
+};
+
 struct StructDefinition : Statement {
   StructDefinition(CodeLoc, string name);
   string name;
@@ -170,7 +175,7 @@ struct StructDefinition : Statement {
   };
   vector<Member> members;
   vector<unique_ptr<FunctionDefinition>> methods;
-  vector<string> templateParams;
+  vector<TemplateParameter> templateParams;
   nullable<shared_ptr<StructType>> type;
   virtual void addToState(State&) override;
   virtual void check(State&) override;
@@ -191,7 +196,7 @@ struct VariantDefinition : Statement {
   };
   vector<Element> elements;
   vector<unique_ptr<FunctionDefinition>> methods;
-  vector<string> templateParams;
+  vector<TemplateParameter> templateParams;
   nullable<shared_ptr<StructType>> type;
   virtual void addToState(State&) override;
   virtual void check(State&) override;
@@ -251,7 +256,7 @@ struct FunctionDefinition : Statement {
   };
   vector<Parameter> parameters;
   unique_ptr<Statement> body;
-  vector<string> templateParams;
+  vector<TemplateParameter> templateParams;
   optional<FunctionType> functionType;
   virtual void check(State&) override;
   virtual void addToState(State&) override;

@@ -250,7 +250,7 @@ bool requiresInitialization(SType) {
   return true;
 }
 
-TemplateParameterType::TemplateParameterType(string n) : name(n) {}
+TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l) {}
 
 SType Type::replace(SType from, SType to) const {
   return get_this().get();
@@ -281,8 +281,12 @@ SType StructType::replace(SType from, SType to) const {
   if (ret->templateParams != newTemplateParams) {
     ret->templateParams = newTemplateParams;
     INFO << "New instantiation: " << ret->getName();
-    for (auto& member : members)
+    for (auto& member : members) {
+      if (auto param = member.type.dynamicCast<TemplateParameterType>())
+        param->declarationLoc.check(to != ArithmeticType::VOID,
+            "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
       ret->members.push_back({member.name, member.type->replace(from, to)});
+    }
     for (auto& method : methods) {
       ret->methods.push_back(method);
       replaceInFunction(*ret->methods.back().type, from, to);

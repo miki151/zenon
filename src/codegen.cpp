@@ -123,11 +123,11 @@ void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
 // variant { variant::enumId, { variant::identifier{args}}}
 
 
-static string joinTemplateParams(const vector<string>& params) {
+static string joinTemplateParams(const vector<SType>& params) {
   if (params.empty())
     return "";
   else
-    return "<" + combine(params, ", ") + ">";
+    return "<" + combine(transform(params, [](const auto& arg) { return arg->getName(); } ), ", ") + ">";
 }
 
 static void genFunctionCall(Accu& accu, const IdentifierInfo& identifier, const FunctionType& functionType,
@@ -135,7 +135,7 @@ static void genFunctionCall(Accu& accu, const IdentifierInfo& identifier, const 
   string prefix;
   string suffix;
   string id = identifier.parts.back().name +
-      joinTemplateParams(transform(functionType.templateParams, [](const auto& arg) { return arg->getName(); } ));
+      joinTemplateParams(functionType.templateParams);
   if (functionType.parentType)
     id = functionType.parentType->getName() + "::" + id;
   switch (functionType.callType) {
@@ -166,11 +166,11 @@ void FunctionCallNamedArgs::codegen(Accu& accu, CodegenStage) const {
   genFunctionCall(accu, identifier, *functionType, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
 }
 
-static void considerTemplateParams(Accu& accu, const vector<string>& params) {
+static void considerTemplateParams(Accu& accu, const vector<TemplateParameter>& params) {
   if (!params.empty()) {
     accu.add("template <");
     for (auto& param : params)
-      accu.add("typename " + param + ", ");
+      accu.add("typename " + param.name + ", ");
     accu.pop_back();
     accu.pop_back();
     accu.add(">");
@@ -257,7 +257,7 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
   for (auto& method : methods)
     if (stage == DEFINE || ((!templateParams.empty() || !method->templateParams.empty()) && stage == IMPORT)) {
       considerTemplateParams(accu, templateParams);
-      method->addSignature(accu, name + joinTemplateParams(templateParams));
+      method->addSignature(accu, name + joinTemplateParams(type->templateParams));
       accu.newLine();
       method->body->codegen(accu, DEFINE);
       accu.newLine();
@@ -290,7 +290,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       if (elem.type != ArithmeticType::VOID)
         signature += "const " + elem.type->getName() + "& elem";
       signature += ")";
-      string params = joinTemplateParams(templateParams);
+      string params = joinTemplateParams(type->templateParams);
       accu.newLine("static " + name + params + " " + signature + ";");
     }
     accu.newLine("union {");
@@ -308,7 +308,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
   for (auto& method : methods)
     if (stage == DEFINE || ((!templateParams.empty() || !method->templateParams.empty()) && stage == IMPORT)) {
       considerTemplateParams(accu, templateParams);
-      method->addSignature(accu, name + joinTemplateParams(templateParams));
+      method->addSignature(accu, name + joinTemplateParams(type->templateParams));
       accu.newLine();
       method->body->codegen(accu, DEFINE);
       accu.newLine();
@@ -319,7 +319,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       if (elem.type != ArithmeticType::VOID)
         signature += "const " + elem.type->getName() + "& elem";
       signature += ")";
-      string params = joinTemplateParams(templateParams);
+      string params = joinTemplateParams(type->templateParams);
       considerTemplateParams(accu, templateParams);
       accu.add(name + params + " " + name + params + "::" + signature + " {");
       ++accu.indent;
