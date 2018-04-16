@@ -124,13 +124,6 @@ shared_ptr<StructType> StructType::get(Kind kind, string name) {
   return ret;
 }
 
-nullable<SType> StructType::getMember(const string& name) const {
-  for (auto& member : members)
-    if (member.name == name)
-      return member.type;
-  return nullptr;
-}
-
 static State getStringTypeContext() {
   State ret;
   ret.addFunction("size"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
@@ -155,16 +148,13 @@ void ReferenceType::handleSwitchStatement(SwitchStatement& statement, State& sta
 }
 
 optional<State> StructType::getTypeContext() const {
-  State state;
-  if (kind != VARIANT)
-    for (auto& member : members)
-      state.addVariable(member.name, ReferenceType::get(member.type));
+  State ret = state;
   for (auto& method : methods)
-    state.addFunction(method.nameOrOp, *method.type);
-  return state;
+    ret.addFunction(method.nameOrOp, *method.type);
+  return ret;
 }
 
-void StructType::handleSwitchStatement(SwitchStatement& statement, State& state, CodeLoc codeLoc) const {
+void StructType::handleSwitchStatement(SwitchStatement& statement, State& outsideState, CodeLoc codeLoc) const {
   codeLoc.check(kind == StructType::VARIANT, "Expected a variant or enum type");
   statement.type = SwitchStatement::VARIANT;
   statement.subtypesPrefix = name;
@@ -178,34 +168,34 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, State& state,
   statement.subtypesPrefix += "::";
   unordered_set<string> handledTypes;
   for (auto& caseElem : statement.caseElems) {
-    caseElem.codeloc.check(!!getMember(caseElem.id), "Element " + quote(caseElem.id) +
+    caseElem.codeloc.check(!!state.getAlternatives().getType(caseElem.id), "Element " + quote(caseElem.id) +
         " not present in variant " + quote(name));
     caseElem.codeloc.check(!handledTypes.count(caseElem.id), "Variant element " + quote(caseElem.id)
         + " handled more than once in switch statement");
     handledTypes.insert(caseElem.id);
-    auto stateCopy = state;
-    auto realType = getMember(caseElem.id).get();
+    auto caseBodyState = outsideState;
+    auto realType = state.getAlternatives().getType(caseElem.id).get();
     caseElem.declareVar = !(realType == ArithmeticType::VOID);
     if (caseElem.declareVar)
-      stateCopy.addVariable(caseElem.id, realType);
+      caseBodyState.getVariables().add(caseElem.id, realType);
     if (caseElem.type) {
-      if (auto t = state.getTypeFromString(*caseElem.type))
+      if (auto t = outsideState.getTypeFromString(*caseElem.type))
         caseElem.type->codeLoc.check(t == realType, "Can't handle variant element "
             + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(t->getName()));
     }
-    caseElem.block->check(stateCopy);
+    caseElem.block->check(caseBodyState);
   }
   if (!statement.defaultBlock) {
     vector<string> unhandled;
-    for (auto& elem : members)
-      if (!handledTypes.count(elem.name))
-        unhandled.push_back(quote(elem.name));
+    for (auto& member : state.getAlternatives().getNames())
+      if (!handledTypes.count(member))
+        unhandled.push_back(quote(member));
     codeLoc.check(unhandled.empty(), quote(name) + " subtypes " + combine(unhandled, ", ")
         + " not handled in switch statement");
   } else {
-    statement.defaultBlock->codeLoc.check(handledTypes.size() < members.size(),
+    statement.defaultBlock->codeLoc.check(handledTypes.size() < state.getAlternatives().getNames().size(),
         "Default switch statement unnecessary when all variant cases are handled");
-    statement.defaultBlock->check(state);
+    statement.defaultBlock->check(outsideState);
   }
 }
 
@@ -235,9 +225,8 @@ void StructType::updateInstantations() {
       type->staticMethods = staticMethods;
       for (auto& method : type->staticMethods)
         replaceInFunction(method.second, templateParams[i], type->templateParams[i]);
-      type->members = members;
-      for (auto& member : type->members)
-        member.type = member.type->replace(templateParams[i], type->templateParams[i]);
+      type->state = state;
+      type->state.replace(templateParams[i], type->templateParams[i]);
     }
   }
 }
@@ -281,12 +270,19 @@ SType StructType::replace(SType from, SType to) const {
   if (ret->templateParams != newTemplateParams) {
     ret->templateParams = newTemplateParams;
     INFO << "New instantiation: " << ret->getName();
-    for (auto& member : members) {
-      if (auto param = member.type.dynamicCast<TemplateParameterType>())
-        param->declarationLoc.check(to != ArithmeticType::VOID,
-            "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
-      ret->members.push_back({member.name, member.type->replace(from, to)});
-    }
+    ret->state = state;
+    auto checkVoidMembers = [&] (const Variables& vars) {
+      for (auto& member : vars.getNames()) {
+        auto memberType = vars.getType(member).get();
+        if (auto param = memberType.dynamicCast<TemplateParameterType>())
+          param->declarationLoc.check(to != ArithmeticType::VOID,
+              "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
+      }
+    };
+    checkVoidMembers(ret->state.getVariables());
+    checkVoidMembers(ret->state.getAlternatives());
+    checkVoidMembers(ret->state.getConstants());
+    ret->state.replace(from, to);
     for (auto& method : methods) {
       ret->methods.push_back(method);
       replaceInFunction(*ret->methods.back().type, from, to);

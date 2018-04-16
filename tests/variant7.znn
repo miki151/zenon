@@ -1,0 +1,32 @@
+// 5
+
+struct S {
+  int a;
+  void f() {
+    a = 5;
+  }
+};
+
+variant V {
+  int i;
+  string s;
+  int get(int a) {
+    S s1 = S(1);
+    s1.f();
+    switch (*this) {
+      case (int i) {
+        i = 4;
+        return i + a;
+      }
+      case (string s) {
+        return 1 + a;
+      }
+    }
+  }
+};
+
+int main() {
+  int a = 1;
+  auto v = V::i(5);
+  return v.get(1);
+}

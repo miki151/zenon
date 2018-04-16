@@ -47,7 +47,9 @@ SType Constant::getType(const State&) {
 }
 
 SType Variable::getType(const State& state) {
-  if (auto ret = state.getTypeOfVariable(identifier))
+  if (auto ret = state.getVariables().getType(identifier))
+    return ReferenceType::get(ret.get());
+  else if (auto ret = state.getConstants().getType(identifier))
     return ret.get();
   else
     codeLoc.error("Undefined variable: " + identifier);
@@ -99,7 +101,7 @@ void VariableDeclaration::check(State& state) {
         + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
   } else
     codeLoc.check(!requiresInitialization(realType.get()), "Type " + quote(realType->getName()) + " requires initialization");
-  state.addVariable(identifier, ReferenceType::get(realType.get()));
+  state.getVariables().add(identifier, realType.get());
 }
 
 void ReturnStatement::check(State& state) {
@@ -181,7 +183,7 @@ void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
   if (auto returnType = stateCopy.getTypeFromString(this->returnType)) {
     for (auto& p : parameters)
       if (auto paramType = stateCopy.getTypeFromString(p.type))
-        stateCopy.addVariable(p.name, paramType.get());
+        stateCopy.getConstants().add(p.name, paramType.get());
       else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
     stateCopy.setReturnType(returnType.get());
@@ -342,7 +344,7 @@ void VariantDefinition::check(State& state) {
     subtype.codeLoc.check(!subtypeNames.count(subtype.name), "Duplicate variant alternative: " + quote(subtype.name));
     subtypeNames.insert(subtype.name);
     if (auto subtypeInfo = methodBodyContext.getTypeFromString(subtype.type))
-      type->members.push_back({subtype.name, subtypeInfo.get()});
+      type->state.getAlternatives().add(subtype.name, subtypeInfo.get());
     else
       subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
   }
@@ -350,7 +352,8 @@ void VariantDefinition::check(State& state) {
     method->setFunctionType(methodBodyContext);
     methodBodyContext.addFunction(method->nameOrOp, *method->functionType);
   }
-  methodBodyContext.addVariable("this", PointerType::get(type.get()));
+  methodBodyContext.getVariables().add("this", PointerType::get(type.get()));
+  methodBodyContext.merge(type->state);
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
     type->methods.push_back({methods[i]->nameOrOp, *methods[i]->functionType});
@@ -381,10 +384,9 @@ void StructDefinition::check(State& state) {
     methodBodyContext.addType(param->getName(), param);
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
-    if (auto memberType = methodBodyContext.getTypeFromString(member.type)) {
-      type->members.push_back({member.name, memberType.get()});
-      methodBodyContext.addVariable(member.name, ReferenceType::get(memberType.get()));
-    } else
+    if (auto memberType = methodBodyContext.getTypeFromString(member.type))
+      type->state.getVariables().add(member.name, memberType.get());
+    else
       member.codeLoc.error("Type " + quote(member.type.toString()) + " not recognized");
   }
   vector<FunctionType> methodTypes;
@@ -392,6 +394,7 @@ void StructDefinition::check(State& state) {
     method->setFunctionType(methodBodyContext);
     methodBodyContext.addFunction(method->nameOrOp, *method->functionType);
   }
+  methodBodyContext.merge(type->state);
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
     type->methods.push_back({methods[i]->nameOrOp, *methods[i]->functionType});

@@ -2,16 +2,23 @@
 #include "stdafx.h"
 #include "optional.h"
 #include "variant.h"
-#include "type.h"
 #include "identifier.h"
+#include "variables.h"
 
 struct IdentifierInfo;
+struct Type;
+struct FunctionType;
 
 class State {
   public:
-
-  nullable<SType> getTypeOfVariable(const string&) const;
-  void addVariable(const string& ident, SType);
+  const Variables& getVariables() const;
+  Variables& getVariables();
+  const Variables& getAlternatives() const;
+  Variables& getAlternatives();
+  const Variables& getConstants() const;
+  Variables& getConstants();
+  void merge(const State&);
+  void replace(SType from, SType to);
   nullable<SType> getReturnType() const;
   void setReturnType(SType);
   void addType(const string& name, SType);
@@ -28,9 +35,11 @@ class State {
   void checkNameConflict(CodeLoc loc, const string& name, const string& type) const;
 
   private:
-  unordered_map<string, SType> vars;
-  unordered_map<string, SType> types;
-  unordered_map<string, FunctionType> functions;
+  Variables variables;
+  Variables alternatives;
+  Variables constants;
+  map<string, SType> types;
+  map<string, FunctionType> functions;
   map<Operator, FunctionType> operators;
   nullable<SType> returnType;
   vector<SType> getTypeList(const vector<IdentifierInfo>&) const;

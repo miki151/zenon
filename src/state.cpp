@@ -2,16 +2,40 @@
 #include "ast.h"
 #include "type.h"
 
-nullable<SType> State::getTypeOfVariable(const string& name) const {
-  if (vars.count(name))
-    return vars.at(name);
-  else
-    return nullptr;
+void State::merge(const State& state) {
+  variables.merge(state.variables);
+  alternatives.merge(state.alternatives);
+  constants.merge(state.constants);
 }
 
-void State::addVariable(const string& id, SType t) {
-  CHECK(!vars.count(id));
-  vars.insert({id, t});
+const Variables& State::getVariables() const {
+  return variables;
+}
+
+Variables& State::getVariables() {
+  return variables;
+}
+
+const Variables& State::getAlternatives() const {
+  return alternatives;
+}
+
+Variables& State::getAlternatives() {
+  return alternatives;
+}
+
+const Variables& State::getConstants() const {
+  return constants;
+}
+
+Variables& State::getConstants() {
+  return constants;
+}
+
+void State::replace(SType from, SType to) {
+  variables.replace(from, to);
+  alternatives.replace(from, to);
+  constants.replace(from, to);
 }
 
 nullable<SType> State::getReturnType() const {
@@ -53,7 +77,8 @@ nullable<SType> State::getTypeFromString(IdentifierInfo id) const {
 void State::checkNameConflict(CodeLoc loc, const string& name, const string& type) const {
   auto desc = type + " " + quote(name);
   loc.check(!types.count(name), desc + " conflicts with an existing type");
-  loc.check(!vars.count(name), desc + " conflicts with an existing variable or function");
+  loc.check(!constants.getType(name) && !alternatives.getType(name) && !variables.getType(name),
+      desc + " conflicts with an existing variable or function");
   loc.check(!functions.count(name), desc + " conflicts with existing function");
 }
 

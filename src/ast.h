@@ -7,6 +7,7 @@
 #include "operator.h"
 #include "identifier.h"
 #include "function_call_type.h"
+#include "type.h"
 
 struct Accu;
 

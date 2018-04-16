@@ -5,6 +5,7 @@
 #include "operator.h"
 #include "code_loc.h"
 #include "function_call_type.h"
+#include "state.h"
 
 class State;
 struct TypeMapping;
@@ -22,6 +23,8 @@ struct Type : public owned_object<Type> {
   virtual optional<State> getTypeContext() const;
   virtual optional<FunctionType> getStaticMethod(const string&) const;
   virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const;
+  State state;
+  State staticState;
 };
 
 struct ArithmeticType : public Type {
@@ -90,12 +93,6 @@ struct StructType : public Type {
   static shared_ptr<StructType> get(Kind, string name);
   Kind kind;
   string name;
-  struct Member {
-    string name;
-    SType type;
-  };
-  nullable<SType> getMember(const string&) const;
-  vector<Member> members;
   struct Method {
     variant<string, Operator> nameOrOp;
     HeapAllocated<FunctionType> type;
