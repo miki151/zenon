@@ -217,7 +217,10 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
 
 string codegen(const AST& ast) {
   Accu accu;
-  accu.add("#include \"codegen_includes/lite_str.h\"\n using string = lite_str<>;");
+  accu.add(
+        "#include \"codegen_includes/variant_helpers.h\"\n"
+        "#include \"codegen_includes/lite_str.h\"\n"
+        "using string = lite_str<>;");
   accu.newLine();
   for (auto& elem : ast.elems) {
     elem->codegen(accu, Node::DECLARE);
@@ -301,6 +304,34 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
         accu.newLine(elem.type->getName() + " " + variantUnionEntryPrefix + elem.name + ";");
     --accu.indent;
     accu.newLine("};");
+    auto visitBody = [&] {
+      ++accu.indent;
+      accu.newLine("switch (unionElem) {");
+      ++accu.indent;
+      for (auto& elem : type->members)
+        if (elem.type != ArithmeticType::VOID) {
+          accu.newLine("case "s + variantEnumeratorPrefix + elem.name + ":");
+          ++accu.indent;
+          accu.newLine("std::forward<Visitor>(v)("s + variantUnionEntryPrefix + elem.name + ");");
+          accu.newLine("break;");
+          --accu.indent;
+        } else
+          accu.newLine("case "s + variantEnumeratorPrefix + elem.name + ": break;");
+      --accu.indent;
+      accu.newLine("}");
+      --accu.indent;
+    };
+    accu.newLine("template <typename Visitor>");
+    accu.newLine("void visit(Visitor&& v) const {");
+    visitBody();
+    accu.newLine("}");
+    accu.newLine("template <typename Visitor>");
+    accu.newLine("void visit(Visitor&& v) {");
+    visitBody();
+    accu.newLine("}");
+    accu.newLine(name + "(const " + name + "& o) { VariantHelper<" + name + ">::copy(o, *this);  }");
+    accu.newLine("~" + name + "() { VariantHelper<" + name + ">::destroy(*this); }");
+    accu.newLine("private: " + name + "() {}");
     --accu.indent;
     accu.newLine("};");
     accu.newLine();
