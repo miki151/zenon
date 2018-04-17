@@ -251,8 +251,8 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
       method->addSignature(accu, "");
       accu.add(";");
     }
-    for (auto& member : type->state.getVariables().getNames())
-      accu.newLine(type->state.getVariables().getType(member)->getName() + " " + member + ";");
+    for (auto& member : type->context.getVariables().getNames())
+      accu.newLine(type->context.getVariables().getType(member)->getName() + " " + member + ";");
     --accu.indent;
     accu.newLine("};");
   }
@@ -288,8 +288,8 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       typeNames.push_back(subtype.name);
     accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
         + variantUnionElem + ";");
-    for (auto& member : type->state.getAlternatives().getNames()) {
-      auto memberType = type->state.getAlternatives().getType(member);
+    for (auto& member : type->context.getAlternatives().getNames()) {
+      auto memberType = type->context.getAlternatives().getType(member);
       string signature = member + "(";
       if (memberType != ArithmeticType::VOID)
         signature += "const " + memberType->getName() + "& elem";
@@ -300,8 +300,8 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
     accu.newLine("union {");
     ++accu.indent;
     accu.newLine("bool dummy;");
-    for (auto& member : type->state.getAlternatives().getNames()) {
-      auto memberType = type->state.getAlternatives().getType(member);
+    for (auto& member : type->context.getAlternatives().getNames()) {
+      auto memberType = type->context.getAlternatives().getType(member);
       if (memberType != ArithmeticType::VOID)
         accu.newLine(memberType->getName() + " " + variantUnionEntryPrefix + member + ";");
     }
@@ -311,8 +311,8 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       ++accu.indent;
       accu.newLine("switch (unionElem) {");
       ++accu.indent;
-      for (auto& member : type->state.getAlternatives().getNames()) {
-        auto memberType = type->state.getAlternatives().getType(member);
+      for (auto& member : type->context.getAlternatives().getNames()) {
+        auto memberType = type->context.getAlternatives().getType(member);
         if (memberType != ArithmeticType::VOID) {
           accu.newLine("case "s + variantEnumeratorPrefix + member + ":");
           ++accu.indent;
@@ -350,8 +350,8 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       accu.newLine();
     }
   if (stage == DEFINE || (!templateParams.empty() && stage == IMPORT))
-    for (auto& member : type->state.getAlternatives().getNames()) {
-      auto memberType = type->state.getAlternatives().getType(member);
+    for (auto& member : type->context.getAlternatives().getNames()) {
+      auto memberType = type->context.getAlternatives().getType(member);
       string signature = member + "(";
       if (memberType != ArithmeticType::VOID)
         signature += "const " + memberType->getName() + "& elem";
@@ -456,7 +456,7 @@ void EmbedStatement::codegen(Accu& accu, CodegenStage stage) const {
     accu.newLine(value);
 }
 
-bool EmbedStatement::hasReturnStatement(const State&) const {
+bool EmbedStatement::hasReturnStatement(const Context&) const {
   return true;
 }
 

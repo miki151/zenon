@@ -130,12 +130,12 @@ static nullable<SType> getOperationResult(Operator op, SType underlyingOperands)
   }
 }
 
-SType getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expression& leftExpr, Expression& rightExpr) {
-  auto left = leftExpr.getType(state);
-  auto right = [&]() { return rightExpr.getType(state); };
+SType getOperationResult(CodeLoc codeLoc, Operator op, const Context& context, Expression& leftExpr, Expression& rightExpr) {
+  auto left = leftExpr.getType(context);
+  auto right = [&]() { return rightExpr.getType(context); };
   switch (op) {
     case Operator::MEMBER_ACCESS: {
-      if (auto rightType = rightExpr.getDotOperatorType(left->getContext(), state)) {
+      if (auto rightType = rightExpr.getDotOperatorType(left->getContext(), context)) {
         if (!left.dynamicCast<ReferenceType>())
           rightType = rightType->getUnderlying();
         return rightType.get();

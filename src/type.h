@@ -5,9 +5,9 @@
 #include "operator.h"
 #include "code_loc.h"
 #include "function_call_type.h"
-#include "state.h"
+#include "context.h"
 
-class State;
+class Context;
 struct TypeMapping;
 struct FunctionType;
 struct SwitchStatement;
@@ -20,19 +20,19 @@ struct Type : public owned_object<Type> {
   virtual SType replace(SType from, SType to) const;
   virtual ~Type() {}
   virtual nullable<SType> instantiate(vector<SType> templateParams) const;
-  virtual const State& getContext() const;
-  virtual const State& getStaticContext() const;
-  virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const;
+  virtual const Context& getContext() const;
+  virtual const Context& getStaticContext() const;
+  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const;
 
   static SType STRING;
 };
 
 struct TypeWithContext : public Type {
-  virtual const State& getContext() const override;
-  virtual const State& getStaticContext() const override;
+  virtual const Context& getContext() const override;
+  virtual const Context& getStaticContext() const override;
 
-  State state;
-  State staticState;
+  Context context;
+  Context staticContext;
 };
 
 struct ArithmeticType : public Type {
@@ -50,7 +50,7 @@ struct ArithmeticType : public Type {
 };
 
 struct StringType : public ArithmeticType {
-  virtual const State& getContext() const override;
+  virtual const Context& getContext() const override;
   using ArithmeticType::ArithmeticType;
 };
 
@@ -60,8 +60,8 @@ struct ReferenceType : public Type {
   virtual bool canAssign(SType from) const override;
   virtual bool canMap(TypeMapping& mapping, SType from) const override;
   virtual SType replace(SType from, SType to) const override;
-  virtual const State& getContext() const override;
-  virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const override;
+  virtual const Context& getContext() const override;
+  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const override;
 
   static shared_ptr<ReferenceType> get(SType);
   SType underlying;
@@ -93,7 +93,7 @@ struct StructType : public TypeWithContext {
   virtual SType replace(SType from, SType to) const override;
   virtual nullable<SType> instantiate(vector<SType> templateParams) const override;
   virtual bool canMap(TypeMapping&, SType argType) const override;
-  virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const override;
+  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const override;
 
   enum Kind {
     STRUCT,
@@ -115,7 +115,7 @@ struct EnumType : public Type {
   EnumType(string name, vector<string> elements);
 
   virtual string getName() const override;
-  virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const override;
+  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const override;
 
   string name;
   vector<string> elements;
@@ -135,7 +135,7 @@ struct FunctionType {
 };
 
 struct Expression;
-class State;
+class Context;
 
 extern bool requiresInitialization(SType);
 struct IdentifierInfo;

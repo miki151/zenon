@@ -42,118 +42,118 @@ FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, string n) : 
 
 FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, Operator op) : Statement(l), returnType(r), nameOrOp(op) {}
 
-SType Constant::getType(const State&) {
+SType Constant::getType(const Context&) {
   return type;
 }
 
-SType Variable::getType(const State& state) {
-  if (auto ret = state.getVariables().getType(identifier))
+SType Variable::getType(const Context& context) {
+  if (auto ret = context.getVariables().getType(identifier))
     return ReferenceType::get(ret.get());
-  else if (auto ret = state.getConstants().getType(identifier))
+  else if (auto ret = context.getConstants().getType(identifier))
     return ret.get();
   else
     codeLoc.error("Undefined variable: " + identifier);
 }
 
-nullable<SType> Variable::getDotOperatorType(const State& idContext, const State& callContext) {
+nullable<SType> Variable::getDotOperatorType(const Context& idContext, const Context& callContext) {
   return getType(idContext);
 }
 
-SType BinaryExpression::getType(const State& state) {
-  return getOperationResult(e1->codeLoc, op, state, *e1, *e2);
+SType BinaryExpression::getType(const Context& context) {
+  return getOperationResult(e1->codeLoc, op, context, *e1, *e2);
 }
 
-void StatementBlock::check(State& state) {
-  auto stateCopy = state;
+void StatementBlock::check(Context& context) {
+  auto bodyContext = context;
   for (auto& s : elems) {
-    s->check(stateCopy);
+    s->check(bodyContext);
   }
 }
 
-void IfStatement::check(State& state) {
-  auto condType = cond->getType(state);
+void IfStatement::check(Context& context) {
+  auto condType = cond->getType(context);
   codeLoc.check(canConvert(condType, ArithmeticType::BOOL), "Expected a type convertible to bool inside if statement, got "
       + quote(condType->getName()));
-  ifTrue->check(state);
+  ifTrue->check(context);
   if (ifFalse)
-    ifFalse->check(state);
+    ifFalse->check(context);
 }
 
-void VariableDeclaration::check(State& state) {
-  state.checkNameConflict(codeLoc, identifier, "Variable");
+void VariableDeclaration::check(Context& context) {
+  context.checkNameConflict(codeLoc, identifier, "Variable");
   auto inferType = [&] () -> SType {
     if (type) {
-      if (auto typeId = state.getTypeFromString(*type))
+      if (auto typeId = context.getTypeFromString(*type))
         return typeId.get();
       else
         codeLoc.error("Type " + quote(type->toString()) + " not recognized");
     }
     else if (initExpr)
-      return initExpr->getType(state);
+      return initExpr->getType(context);
     else
       codeLoc.error("Initializing expression needed to infer variable type");
   };
   realType = inferType();
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (initExpr) {
-    auto exprType = initExpr->getType(state);
+    auto exprType = initExpr->getType(context);
     initExpr->codeLoc.check(ReferenceType::get(realType.get())->canAssign(exprType), "Can't initialize variable of type "
         + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
   } else
     codeLoc.check(!requiresInitialization(realType.get()), "Type " + quote(realType->getName()) + " requires initialization");
-  state.getVariables().add(identifier, realType.get());
+  context.getVariables().add(identifier, realType.get());
 }
 
-void ReturnStatement::check(State& state) {
+void ReturnStatement::check(Context& context) {
   if (!expr)
-    codeLoc.check(state.getReturnType() && state.getReturnType() == ArithmeticType::VOID,
+    codeLoc.check(context.getReturnType() && context.getReturnType() == ArithmeticType::VOID,
         "Expected an expression in return statement in a function returning non-void");
   else {
-    auto returnType = expr->getType(state);
-    codeLoc.check(ReferenceType::get(state.getReturnType().get())->canAssign(returnType),
+    auto returnType = expr->getType(context);
+    codeLoc.check(ReferenceType::get(context.getReturnType().get())->canAssign(returnType),
         "Attempting to return value of type "s + quote(returnType->getName()) +
-         " in a function returning "s + quote(state.getReturnType()->getName()));
+         " in a function returning "s + quote(context.getReturnType()->getName()));
   }
 }
 
-void Statement::addToState(State&) {}
+void Statement::addToContext(Context&) {}
 
-bool Statement::hasReturnStatement(const State&) const {
+bool Statement::hasReturnStatement(const Context&) const {
   return false;
 }
 
-bool IfStatement::hasReturnStatement(const State& state) const {
-  return ifTrue->hasReturnStatement(state) && ifFalse && ifFalse->hasReturnStatement(state);
+bool IfStatement::hasReturnStatement(const Context& context) const {
+  return ifTrue->hasReturnStatement(context) && ifFalse && ifFalse->hasReturnStatement(context);
 }
 
-bool StatementBlock::hasReturnStatement(const State& state) const {
+bool StatementBlock::hasReturnStatement(const Context& context) const {
   for (auto& s : elems)
-    if (s->hasReturnStatement(state))
+    if (s->hasReturnStatement(context))
       return true;
   return false;
 }
 
-bool ReturnStatement::hasReturnStatement(const State&) const {
+bool ReturnStatement::hasReturnStatement(const Context&) const {
   return true;
 }
 
-void FunctionDefinition::setFunctionType(const State& state) {
-  State stateCopy = state;
+void FunctionDefinition::setFunctionType(const Context& context) {
+  Context contextWithTemplateParams = context;
   if (auto name = nameOrOp.getReferenceMaybe<string>())
-    state.checkNameConflict(codeLoc, *name, "Function");
+    context.checkNameConflict(codeLoc, *name, "Function");
   else {
     auto op = *nameOrOp.getValueMaybe<Operator>();
-    codeLoc.check(!state.getOperatorType(op), "Operator " + quote(getString(op)) + " already defined");
+    codeLoc.check(!context.getOperatorType(op), "Operator " + quote(getString(op)) + " already defined");
   }
   vector<SType> templateTypes;
   for (auto& param : templateParams) {
     templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-    stateCopy.addType(param.name, templateTypes.back());
+    contextWithTemplateParams.addType(param.name, templateTypes.back());
   }
-  if (auto returnType = stateCopy.getTypeFromString(this->returnType)) {
+  if (auto returnType = contextWithTemplateParams.getTypeFromString(this->returnType)) {
     vector<FunctionType::Param> params;
     for (auto& p : parameters)
-      if (auto paramType = stateCopy.getTypeFromString(p.type)) {
+      if (auto paramType = contextWithTemplateParams.getTypeFromString(p.type)) {
         params.push_back({p.name, paramType.get()});
       } else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
@@ -162,8 +162,8 @@ void FunctionDefinition::setFunctionType(const State& state) {
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
 }
 
-void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
-  State stateCopy = state;
+void FunctionDefinition::checkFunction(Context& context, bool templateStruct) {
+  Context bodyContext = context;
   vector<SType> templateTypes;
   if (auto op = nameOrOp.getValueMaybe<Operator>()) {
     codeLoc.check(templateParams.empty(), "Operator overload can't have template parameters.");
@@ -173,69 +173,68 @@ void FunctionDefinition::checkFunction(State& state, bool templateStruct) {
         break;
       default:
         codeLoc.error("Operator " + quote(getString(*op)) + " overload not supported.");
-        break;
     }
   }
   for (auto& param : templateParams) {
     templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-    stateCopy.addType(param.name, templateTypes.back());
+    bodyContext.addType(param.name, templateTypes.back());
   }
-  if (auto returnType = stateCopy.getTypeFromString(this->returnType)) {
+  if (auto returnType = bodyContext.getTypeFromString(this->returnType)) {
     for (auto& p : parameters)
-      if (auto paramType = stateCopy.getTypeFromString(p.type))
-        stateCopy.getConstants().add(p.name, paramType.get());
+      if (auto paramType = bodyContext.getTypeFromString(p.type))
+        bodyContext.getConstants().add(p.name, paramType.get());
       else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
-    stateCopy.setReturnType(returnType.get());
-    if (returnType != ArithmeticType::VOID && body && !body->hasReturnStatement(state))
+    bodyContext.setReturnType(returnType.get());
+    if (returnType != ArithmeticType::VOID && body && !body->hasReturnStatement(context))
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
   } else
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
-  if (body && (!templateParams.empty() || templateStruct || state.getImports().empty()))
-    body->check(stateCopy);
+  if (body && (!templateParams.empty() || templateStruct || context.getImports().empty()))
+    body->check(bodyContext);
 }
 
-void FunctionDefinition::check(State& state) {
-  checkFunction(state, false);
+void FunctionDefinition::check(Context& context) {
+  checkFunction(context, false);
 }
 
-void FunctionDefinition::addToState(State& state) {
-  setFunctionType(state);
-  state.addFunction(nameOrOp, *functionType);
+void FunctionDefinition::addToContext(Context& context) {
+  setFunctionType(context);
+  context.addFunction(nameOrOp, *functionType);
 }
 
 void correctness(const AST& ast) {
-  State state;
+  Context context;
   for (auto type : {ArithmeticType::INT, ArithmeticType::BOOL,
        ArithmeticType::VOID, ArithmeticType::CHAR, Type::STRING})
-    state.addType(type->getName(), type);
+    context.addType(type->getName(), type);
   for (auto& elem : ast.elems)
-    elem->addToState(state);
+    elem->addToContext(context);
   for (auto& elem : ast.elems) {
-    elem->check(state);
+    elem->check(context);
   }
 }
 
 ExpressionStatement::ExpressionStatement(unique_ptr<Expression> e) : Statement(e->codeLoc), expr(std::move(e)) {}
 
-void ExpressionStatement::check(State& state) {
-  expr->getType(state);
+void ExpressionStatement::check(Context& context) {
+  expr->getType(context);
 }
 
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-SType FunctionCall::getType(const State& state) {
-  return getDotOperatorType(state, state).get();
+SType FunctionCall::getType(const Context& context) {
+  return getDotOperatorType(context, context).get();
 }
 
-static FunctionType getFunction(const State& idContext, const State& callContext, CodeLoc codeLoc, IdentifierInfo id,
+static FunctionType getFunction(const Context& idContext, const Context& callContext, CodeLoc codeLoc, IdentifierInfo id,
     const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
   auto templateType = idContext.getFunctionTemplate(codeLoc, id);
   return callContext.instantiateFunctionTemplate(codeLoc, templateType, id, argTypes, argLoc);
 }
 
-nullable<SType> FunctionCall::getDotOperatorType(const State& idContext, const State& callContext) {
+nullable<SType> FunctionCall::getDotOperatorType(const Context& idContext, const Context& callContext) {
   vector<SType> argTypes;
   vector<CodeLoc> argLocs;
   for (int i = 0; i < arguments.size(); ++i) {
@@ -249,11 +248,11 @@ nullable<SType> FunctionCall::getDotOperatorType(const State& idContext, const S
 
 FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {}
 
-SType FunctionCallNamedArgs::getType(const State& state) {
-  return getDotOperatorType(state, state).get();
+SType FunctionCallNamedArgs::getType(const Context& context) {
+  return getDotOperatorType(context, context).get();
 }
 
-nullable<SType> FunctionCallNamedArgs::getDotOperatorType(const State& idContext, const State& callContext) {
+nullable<SType> FunctionCallNamedArgs::getDotOperatorType(const Context& idContext, const Context& callContext) {
   set<string> toInitialize;
   set<string> initialized;
   map<string, int> paramIndex;
@@ -289,15 +288,15 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(const State& idContext
 
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
-void SwitchStatement::check(State& state) {
-  expr->getType(state)->handleSwitchStatement(*this, state, expr->codeLoc);
+void SwitchStatement::check(Context& context) {
+  expr->getType(context)->handleSwitchStatement(*this, context, expr->codeLoc);
 }
 
-bool SwitchStatement::hasReturnStatement(const State& state) const {
+bool SwitchStatement::hasReturnStatement(const Context& context) const {
   for (auto& elem : caseElems)
-    if (!elem.block->hasReturnStatement(state))
+    if (!elem.block->hasReturnStatement(context))
       return false;
-  if (defaultBlock && !defaultBlock->hasReturnStatement(state))
+  if (defaultBlock && !defaultBlock->hasReturnStatement(context))
     return false;
   return true;
 }
@@ -305,10 +304,10 @@ bool SwitchStatement::hasReturnStatement(const State& state) const {
 VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-void VariantDefinition::addToState(State& state) {
-  state.checkNameConflict(codeLoc, name, "Type");
+void VariantDefinition::addToContext(Context& context) {
+  context.checkNameConflict(codeLoc, name, "Type");
   type = StructType::get(StructType::VARIANT, name);
-  auto membersContext = state;
+  auto membersContext = context;
   for (auto& param : templateParams)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
   for (auto& param : type->templateParams)
@@ -323,18 +322,18 @@ void VariantDefinition::addToState(State& state) {
         params.push_back(FunctionType::Param{"", subtypeInfo.get()});
     } else
       subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
-    type->staticState.addFunction(subtype.name, FunctionType(FunctionCallType::FUNCTION, type.get(), params, {}));
+    type->staticContext.addFunction(subtype.name, FunctionType(FunctionCallType::FUNCTION, type.get(), params, {}));
   }
-  state.addType(name, type.get());
+  context.addType(name, type.get());
 }
 
-void VariantDefinition::check(State& state) {
-  State methodBodyContext = state;
+void VariantDefinition::check(Context& context) {
+  Context methodBodyContext = context;
   for (auto& param : type->templateParams)
     methodBodyContext.addType(param->getName(), param);
   for (auto& subtype : elements) {
     if (auto subtypeInfo = methodBodyContext.getTypeFromString(subtype.type))
-      type->state.getAlternatives().add(subtype.name, subtypeInfo.get());
+      type->context.getAlternatives().add(subtype.name, subtypeInfo.get());
     else
       subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
   }
@@ -343,17 +342,17 @@ void VariantDefinition::check(State& state) {
     methodBodyContext.addFunction(method->nameOrOp, *method->functionType);
   }
   methodBodyContext.getVariables().add("this", PointerType::get(type.get()));
-  methodBodyContext.merge(type->state);
+  methodBodyContext.merge(type->context);
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
-    type->state.addFunction(methods[i]->nameOrOp, *methods[i]->functionType);
+    type->context.addFunction(methods[i]->nameOrOp, *methods[i]->functionType);
   }
   type->updateInstantations();
 }
 
-void StructDefinition::addToState(State& state) {
-  state.checkNameConflict(codeLoc, name, "Type");
-  auto membersContext = state;
+void StructDefinition::addToContext(Context& context) {
+  context.checkNameConflict(codeLoc, name, "Type");
+  auto membersContext = context;
   type = StructType::get(StructType::STRUCT, name);
   for (auto& param : templateParams)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
@@ -364,18 +363,18 @@ void StructDefinition::addToState(State& state) {
     if (auto memberType = membersContext.getTypeFromString(member.type))
       constructorParams.push_back({member.name, memberType.get()});
   auto constructor = FunctionType(FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
-  state.addFunction(name, constructor);
-  state.addType(name, type.get());
+  context.addFunction(name, constructor);
+  context.addType(name, type.get());
 }
 
-void StructDefinition::check(State& state) {
-  auto methodBodyContext = state;
+void StructDefinition::check(Context& context) {
+  auto methodBodyContext = context;
   for (auto& param : type->templateParams)
     methodBodyContext.addType(param->getName(), param);
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
     if (auto memberType = methodBodyContext.getTypeFromString(member.type))
-      type->state.getVariables().add(member.name, memberType.get());
+      type->context.getVariables().add(member.name, memberType.get());
     else
       member.codeLoc.error("Type " + quote(member.type.toString()) + " not recognized");
   }
@@ -384,10 +383,10 @@ void StructDefinition::check(State& state) {
     method->setFunctionType(methodBodyContext);
     methodBodyContext.addFunction(method->nameOrOp, *method->functionType);
   }
-  methodBodyContext.merge(type->state);
+  methodBodyContext.merge(type->context);
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
-    type->state.addFunction(methods[i]->nameOrOp, *methods[i]->functionType);
+    type->context.addFunction(methods[i]->nameOrOp, *methods[i]->functionType);
   }
   type->updateInstantations();
 }
@@ -395,14 +394,14 @@ void StructDefinition::check(State& state) {
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
     : Expression(l), op(o), expr(std::move(e)) {}
 
-SType UnaryExpression::getType(const State& state) {
-  return getUnaryOperationResult(expr->codeLoc, op, expr->getType(state));
+SType UnaryExpression::getType(const Context& context) {
+  return getUnaryOperationResult(expr->codeLoc, op, expr->getType(context));
 }
 
 EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {
 }
 
-void EmbedStatement::check(State&) {
+void EmbedStatement::check(Context&) {
 }
 
 Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
@@ -416,26 +415,26 @@ ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<Statement> i, unique_pt
                                    unique_ptr<Expression> it, unique_ptr<Statement> b)
   : Statement(l), init(std::move(i)), cond(std::move(c)), iter(std::move(it)), body(std::move(b)) {}
 
-bool ForLoopStatement::hasReturnStatement(const State& s) const {
+bool ForLoopStatement::hasReturnStatement(const Context& s) const {
   return body->hasReturnStatement(s);
 }
 
-void ForLoopStatement::check(State& s) {
-  auto stateCopy = s;
-  init->check(stateCopy);
-  cond->codeLoc.check(cond->getType(stateCopy) == ArithmeticType::BOOL,
+void ForLoopStatement::check(Context& context) {
+  auto bodyContext = context;
+  init->check(bodyContext);
+  cond->codeLoc.check(cond->getType(bodyContext) == ArithmeticType::BOOL,
       "Loop condition must be of type " + quote("bool"));
-  iter->getType(stateCopy);
-  body->check(stateCopy);
+  iter->getType(bodyContext);
+  body->check(bodyContext);
 }
 
 ImportStatement::ImportStatement(CodeLoc l, string p, bool pub) : Statement(l), path(p), isPublic(pub) {
 }
 
-void ImportStatement::check(State& s) {
+void ImportStatement::check(Context& s) {
 }
 
-void ImportStatement::addToState(State& s) {
+void ImportStatement::addToContext(Context& s) {
   if ((!isPublic && !s.getImports().empty()) || contains(s.getAllImports(), path))
     return;
   codeLoc.check(!contains(s.getImports(), path), "Public import cycle: " + combine(s.getImports(), ", "));
@@ -445,19 +444,19 @@ void ImportStatement::addToState(State& s) {
   auto tokens = lex(content, path);
   ast = unique<AST>(parse(tokens));
   for (auto& elem : ast->elems)
-    elem->addToState(s);
+    elem->addToContext(s);
   for (auto& elem : ast->elems)
     elem->check(s);
   s.popImport();
 }
 
-nullable<SType> Expression::getDotOperatorType(const State& idContext, const State& callContext) {
+nullable<SType> Expression::getDotOperatorType(const Context& idContext, const Context& callContext) {
   return nullptr;
 }
 
 EnumDefinition::EnumDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
 
-void EnumDefinition::addToState(State& s) {
+void EnumDefinition::addToContext(Context& s) {
   codeLoc.check(!elements.empty(), "Enum requires at least one element");
   unordered_set<string> occurences;
   for (auto& e : elements)
@@ -465,14 +464,14 @@ void EnumDefinition::addToState(State& s) {
   s.addType(name, shared<EnumType>(name, elements));
 }
 
-void EnumDefinition::check(State& s) {
+void EnumDefinition::check(Context& s) {
 }
 
 EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(l), enumName(name), enumElement(element) {
 }
 
-SType EnumConstant::getType(const State& state) {
-  if (auto type = state.getTypeFromString(IdentifierInfo(enumName)))
+SType EnumConstant::getType(const Context& context) {
+  if (auto type = context.getTypeFromString(IdentifierInfo(enumName)))
     return type.get();
   else
     codeLoc.error("Unrecognized type: " + quote(enumName));

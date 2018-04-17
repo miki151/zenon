@@ -1,5 +1,5 @@
 #include "type.h"
-#include "state.h"
+#include "context.h"
 #include "ast.h"
 
 ArithmeticType::DefType ArithmeticType::INT = shared<ArithmeticType>("int");
@@ -44,7 +44,7 @@ string EnumType::getName() const {
   return name;
 }
 
-void EnumType::handleSwitchStatement(SwitchStatement& statement, State& state, CodeLoc codeLoc) const {
+void EnumType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc) const {
   statement.type = SwitchStatement::ENUM;
   unordered_set<string> handledElems;
   statement.subtypesPrefix = name + "::";
@@ -55,7 +55,7 @@ void EnumType::handleSwitchStatement(SwitchStatement& statement, State& state, C
     caseElem.codeloc.check(!handledElems.count(caseElem.id), "Enum element " + quote(caseElem.id)
         + " handled more than once in switch statement");
     handledElems.insert(caseElem.id);
-    caseElem.block->check(state);
+    caseElem.block->check(context);
   }
   if (!statement.defaultBlock) {
     vector<string> unhandled;
@@ -67,7 +67,7 @@ void EnumType::handleSwitchStatement(SwitchStatement& statement, State& state, C
   } else {
     statement.defaultBlock->codeLoc.check(handledElems.size() < elements.size(),
         "Default switch statement unnecessary when all enum elements are handled");
-    statement.defaultBlock->check(state);
+    statement.defaultBlock->check(context);
   }
 }
 
@@ -124,15 +124,15 @@ shared_ptr<StructType> StructType::get(Kind kind, string name) {
   return ret;
 }
 
-const State& ReferenceType::getContext() const {
+const Context& ReferenceType::getContext() const {
   return underlying->getContext();
 }
 
-void ReferenceType::handleSwitchStatement(SwitchStatement& statement, State& state, CodeLoc codeLoc) const {
-  underlying->handleSwitchStatement(statement, state, codeLoc);
+void ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc) const {
+  underlying->handleSwitchStatement(statement, context, codeLoc);
 }
 
-void StructType::handleSwitchStatement(SwitchStatement& statement, State& outsideState, CodeLoc codeLoc) const {
+void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext, CodeLoc codeLoc) const {
   codeLoc.check(kind == StructType::VARIANT, "Expected a variant or enum type");
   statement.type = SwitchStatement::VARIANT;
   statement.subtypesPrefix = name;
@@ -146,34 +146,34 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, State& outsid
   statement.subtypesPrefix += "::";
   unordered_set<string> handledTypes;
   for (auto& caseElem : statement.caseElems) {
-    caseElem.codeloc.check(!!state.getAlternatives().getType(caseElem.id), "Element " + quote(caseElem.id) +
+    caseElem.codeloc.check(!!context.getAlternatives().getType(caseElem.id), "Element " + quote(caseElem.id) +
         " not present in variant " + quote(name));
     caseElem.codeloc.check(!handledTypes.count(caseElem.id), "Variant element " + quote(caseElem.id)
         + " handled more than once in switch statement");
     handledTypes.insert(caseElem.id);
-    auto caseBodyState = outsideState;
-    auto realType = state.getAlternatives().getType(caseElem.id).get();
+    auto caseBodyContext = outsideContext;
+    auto realType = context.getAlternatives().getType(caseElem.id).get();
     caseElem.declareVar = !(realType == ArithmeticType::VOID);
     if (caseElem.declareVar)
-      caseBodyState.getVariables().add(caseElem.id, realType);
+      caseBodyContext.getVariables().add(caseElem.id, realType);
     if (caseElem.type) {
-      if (auto t = outsideState.getTypeFromString(*caseElem.type))
+      if (auto t = outsideContext.getTypeFromString(*caseElem.type))
         caseElem.type->codeLoc.check(t == realType, "Can't handle variant element "
             + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(t->getName()));
     }
-    caseElem.block->check(caseBodyState);
+    caseElem.block->check(caseBodyContext);
   }
   if (!statement.defaultBlock) {
     vector<string> unhandled;
-    for (auto& member : state.getAlternatives().getNames())
+    for (auto& member : context.getAlternatives().getNames())
       if (!handledTypes.count(member))
         unhandled.push_back(quote(member));
     codeLoc.check(unhandled.empty(), quote(name) + " subtypes " + combine(unhandled, ", ")
         + " not handled in switch statement");
   } else {
-    statement.defaultBlock->codeLoc.check(handledTypes.size() < state.getAlternatives().getNames().size(),
+    statement.defaultBlock->codeLoc.check(handledTypes.size() < context.getAlternatives().getNames().size(),
         "Default switch statement unnecessary when all variant cases are handled");
-    statement.defaultBlock->check(outsideState);
+    statement.defaultBlock->check(outsideContext);
   }
 }
 
@@ -195,10 +195,10 @@ void StructType::updateInstantations() {
   for (auto type1 : instantations) {
     auto type = type1.dynamicCast<StructType>();
     for (int i = 0; i < templateParams.size(); ++i) {
-      type->state = state;
-      type->staticState = staticState;
-      type->state.replace(templateParams[i], type->templateParams[i]);
-      type->staticState.replace(templateParams[i], type->templateParams[i]);
+      type->context = context;
+      type->staticContext = staticContext;
+      type->context.replace(templateParams[i], type->templateParams[i]);
+      type->staticContext.replace(templateParams[i], type->templateParams[i]);
     }
   }
 }
@@ -242,8 +242,8 @@ SType StructType::replace(SType from, SType to) const {
   if (ret->templateParams != newTemplateParams) {
     ret->templateParams = newTemplateParams;
     INFO << "New instantiation: " << ret->getName();
-    ret->state = state;
-    ret->staticState = staticState;
+    ret->context = context;
+    ret->staticContext = staticContext;
     auto checkVoidMembers = [&] (const Variables& vars) {
       for (auto& member : vars.getNames()) {
         auto memberType = vars.getType(member).get();
@@ -252,11 +252,11 @@ SType StructType::replace(SType from, SType to) const {
               "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
       }
     };
-    checkVoidMembers(ret->state.getVariables());
-    checkVoidMembers(ret->state.getAlternatives());
-    checkVoidMembers(ret->state.getConstants());
-    ret->state.replace(from, to);
-    ret->staticState.replace(from, to);
+    checkVoidMembers(ret->context.getVariables());
+    checkVoidMembers(ret->context.getAlternatives());
+    checkVoidMembers(ret->context.getConstants());
+    ret->context.replace(from, to);
+    ret->staticContext.replace(from, to);
   } else
     INFO << "Found instantiated: " << ret->getName();
   return ret;
@@ -275,17 +275,17 @@ nullable<SType> Type::instantiate(vector<SType> templateParams) const {
     return nullptr;
 }
 
-const State& Type::getContext() const {
-  static State empty;
+const Context& Type::getContext() const {
+  static Context empty;
   return empty;
 }
 
-const State& Type::getStaticContext() const {
-  static State empty;
+const Context& Type::getStaticContext() const {
+  static Context empty;
   return empty;
 }
 
-void Type::handleSwitchStatement(SwitchStatement&, State&, CodeLoc codeLoc) const {
+void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc) const {
   codeLoc.error("Can't switch on value of type " + quote(getName()));
 }
 
@@ -382,23 +382,23 @@ void instantiateFunction(FunctionType& type, CodeLoc codeLoc, vector<SType> temp
 EnumType::EnumType(string n, vector<string> e) : name(n), elements(e) {}
 
 
-const State& TypeWithContext::getContext() const {
-  return state;
+const Context& TypeWithContext::getContext() const {
+  return context;
 }
 
-const State& TypeWithContext::getStaticContext() const {
-  return staticState;
+const Context& TypeWithContext::getStaticContext() const {
+  return staticContext;
 }
 
-static State getStringTypeContext() {
-  State ret;
+static Context getStringTypeContext() {
+  Context ret;
   ret.addFunction("size"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
   ret.addFunction(Operator::SUBSCRIPT, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::CHAR,
       {{"index", ArithmeticType::INT}}, {}));
   return ret;
 }
 
-const State& StringType::getContext() const {
-  static State s = getStringTypeContext();
+const Context& StringType::getContext() const {
+  static Context s = getStringTypeContext();
   return s;
 }

@@ -9,7 +9,7 @@ struct IdentifierInfo;
 struct Type;
 struct FunctionType;
 
-class State {
+class Context {
   public:
   const Variables& getVariables() const;
   Variables& getVariables();
@@ -17,7 +17,7 @@ class State {
   Variables& getAlternatives();
   const Variables& getConstants() const;
   Variables& getConstants();
-  void merge(const State&);
+  void merge(const Context&);
   void replace(SType from, SType to);
   nullable<SType> getReturnType() const;
   void setReturnType(SType);
