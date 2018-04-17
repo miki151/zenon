@@ -148,10 +148,7 @@ void ReferenceType::handleSwitchStatement(SwitchStatement& statement, State& sta
 }
 
 optional<State> StructType::getTypeContext() const {
-  State ret = state;
-  for (auto& method : methods)
-    ret.addFunction(method.nameOrOp, *method.type);
-  return ret;
+  return state;
 }
 
 void StructType::handleSwitchStatement(SwitchStatement& statement, State& outsideState, CodeLoc codeLoc) const {
@@ -213,20 +210,14 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
   return type;
 }
 
-void replaceInFunction(FunctionType&, SType from, SType to);
-
 void StructType::updateInstantations() {
   for (auto type1 : instantations) {
     auto type = type1.dynamicCast<StructType>();
     for (int i = 0; i < templateParams.size(); ++i) {
-      type->methods = methods;
-      for (auto& method : type->methods)
-        replaceInFunction(*method.type, templateParams[i], type->templateParams[i]);
-      type->staticMethods = staticMethods;
-      for (auto& method : type->staticMethods)
-        replaceInFunction(method.second, templateParams[i], type->templateParams[i]);
       type->state = state;
+      type->staticState = staticState;
       type->state.replace(templateParams[i], type->templateParams[i]);
+      type->staticState.replace(templateParams[i], type->templateParams[i]);
     }
   }
 }
@@ -271,6 +262,7 @@ SType StructType::replace(SType from, SType to) const {
     ret->templateParams = newTemplateParams;
     INFO << "New instantiation: " << ret->getName();
     ret->state = state;
+    ret->staticState = staticState;
     auto checkVoidMembers = [&] (const Variables& vars) {
       for (auto& member : vars.getNames()) {
         auto memberType = vars.getType(member).get();
@@ -283,14 +275,7 @@ SType StructType::replace(SType from, SType to) const {
     checkVoidMembers(ret->state.getAlternatives());
     checkVoidMembers(ret->state.getConstants());
     ret->state.replace(from, to);
-    for (auto& method : methods) {
-      ret->methods.push_back(method);
-      replaceInFunction(*ret->methods.back().type, from, to);
-    }
-    for (auto& method : staticMethods) {
-      ret->staticMethods.push_back(method);
-      replaceInFunction(ret->staticMethods.back().second, from, to);
-    }
+    ret->staticState.replace(from, to);
   } else
     INFO << "Found instantiated: " << ret->getName();
   return ret;
@@ -313,19 +298,8 @@ optional<State> Type::getTypeContext() const {
   return none;
 }
 
-optional<FunctionType> Type::getStaticMethod(const string&) const {
-  return none;
-}
-
 void Type::handleSwitchStatement(SwitchStatement&, State&, CodeLoc codeLoc) const {
   codeLoc.error("Can't switch on value of type " + quote(getName()));
-}
-
-optional<FunctionType> StructType::getStaticMethod(const string& methodName) const {
-  for (auto& elem : staticMethods)
-    if (elem.first == methodName)
-      return elem.second;
-  return none;
 }
 
 nullable<SType> StructType::instantiate(vector<SType> newTemplateParams) const {

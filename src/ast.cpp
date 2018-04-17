@@ -313,36 +313,26 @@ void VariantDefinition::addToState(State& state) {
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
-  struct ConstructorInfo {
-    string subtypeName;
-    FunctionCallType callType;
-    vector<FunctionType::Param> constructorParams;
-  };
-  vector<ConstructorInfo> constructors;
+  unordered_set<string> subtypeNames;
   for (auto& subtype : elements) {
-    ConstructorInfo constructorInfo;
-    constructorInfo.callType = FunctionCallType::FUNCTION;
-    constructorInfo.subtypeName = subtype.name;
+    subtype.codeLoc.check(!subtypeNames.count(subtype.name), "Duplicate variant alternative: " + quote(subtype.name));
+    subtypeNames.insert(subtype.name);
+    vector<FunctionType::Param> params;
     if (auto subtypeInfo = membersContext.getTypeFromString(subtype.type)) {
       if (subtypeInfo != ArithmeticType::VOID)
-        constructorInfo.constructorParams.push_back(FunctionType::Param{"", subtypeInfo.get()});
+        params.push_back(FunctionType::Param{"", subtypeInfo.get()});
     } else
       subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
-    constructors.push_back(constructorInfo);
+    type->staticState.addFunction(subtype.name, FunctionType(FunctionCallType::FUNCTION, type.get(), params, {}));
   }
-  for (auto& elem : constructors)
-    type->staticMethods.push_back({elem.subtypeName, FunctionType(elem.callType, type.get(), elem.constructorParams, {})});
   state.addType(name, type.get());
 }
 
 void VariantDefinition::check(State& state) {
-  unordered_set<string> subtypeNames;
   State methodBodyContext = state;
   for (auto& param : type->templateParams)
     methodBodyContext.addType(param->getName(), param);
   for (auto& subtype : elements) {
-    subtype.codeLoc.check(!subtypeNames.count(subtype.name), "Duplicate variant alternative: " + quote(subtype.name));
-    subtypeNames.insert(subtype.name);
     if (auto subtypeInfo = methodBodyContext.getTypeFromString(subtype.type))
       type->state.getAlternatives().add(subtype.name, subtypeInfo.get());
     else
@@ -356,7 +346,7 @@ void VariantDefinition::check(State& state) {
   methodBodyContext.merge(type->state);
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
-    type->methods.push_back({methods[i]->nameOrOp, *methods[i]->functionType});
+    type->state.addFunction(methods[i]->nameOrOp, *methods[i]->functionType);
   }
   type->updateInstantations();
 }
@@ -397,7 +387,7 @@ void StructDefinition::check(State& state) {
   methodBodyContext.merge(type->state);
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
-    type->methods.push_back({methods[i]->nameOrOp, *methods[i]->functionType});
+    type->state.addFunction(methods[i]->nameOrOp, *methods[i]->functionType);
   }
   type->updateInstantations();
 }

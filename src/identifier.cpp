@@ -56,6 +56,14 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
   return ret;
 }
 
+IdentifierInfo IdentifierInfo::getWithoutFirstPart() const {
+  IdentifierInfo ret(*this);
+  ret.parts.clear();
+  for (int i = 1; i < parts.size(); ++i)
+    ret.parts.push_back(parts[i]);
+  return ret;
+}
+
 string IdentifierInfo::toString() const {
   string ret;
   for (auto& part : parts) {

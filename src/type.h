@@ -21,7 +21,6 @@ struct Type : public owned_object<Type> {
   virtual ~Type() {}
   virtual nullable<SType> instantiate(vector<SType> templateParams) const;
   virtual optional<State> getTypeContext() const;
-  virtual optional<FunctionType> getStaticMethod(const string&) const;
   virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const;
   State state;
   State staticState;
@@ -82,7 +81,6 @@ struct StructType : public Type {
   virtual SType replace(SType from, SType to) const override;
   virtual nullable<SType> instantiate(vector<SType> templateParams) const override;
   virtual bool canMap(TypeMapping&, SType argType) const override;
-  virtual optional<FunctionType> getStaticMethod(const string&) const override;
   virtual optional<State> getTypeContext() const override;
   virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const override;
 
@@ -93,12 +91,6 @@ struct StructType : public Type {
   static shared_ptr<StructType> get(Kind, string name);
   Kind kind;
   string name;
-  struct Method {
-    variant<string, Operator> nameOrOp;
-    HeapAllocated<FunctionType> type;
-  };
-  vector<Method> methods;
-  vector<pair<string, FunctionType>> staticMethods;
   shared_ptr<StructType> getInstance(vector<SType> templateParams);
   vector<SType> templateParams;
   vector<shared_ptr<StructType>> instantations;
@@ -135,6 +127,7 @@ struct Expression;
 class State;
 
 extern bool requiresInitialization(SType);
-class IdentifierInfo;
+struct IdentifierInfo;
 extern void instantiateFunction(FunctionType&, CodeLoc, vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc);
 extern bool canConvert(SType from, SType to);
+extern void replaceInFunction(FunctionType&, SType from, SType to);

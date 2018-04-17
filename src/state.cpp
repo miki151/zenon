@@ -6,6 +6,10 @@ void State::merge(const State& state) {
   variables.merge(state.variables);
   alternatives.merge(state.alternatives);
   constants.merge(state.constants);
+  for (auto& function : state.functions)
+    functions.insert(function);
+  for (auto& function : state.operators)
+    operators.insert(function);
 }
 
 const Variables& State::getVariables() const {
@@ -36,6 +40,10 @@ void State::replace(SType from, SType to) {
   variables.replace(from, to);
   alternatives.replace(from, to);
   constants.replace(from, to);
+  for (auto& function : functions)
+    replaceInFunction(function.second, from, to);
+  for (auto& function : operators)
+    replaceInFunction(function.second, from, to);
 }
 
 nullable<SType> State::getReturnType() const {
@@ -98,23 +106,20 @@ void State::addFunction(variant<string, Operator> nameOrOp, FunctionType f) {
 }
 
 FunctionType State::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) const {
-  string funName = id.parts.at(0).name;
-  if (id.parts.size() == 2) {
+  if (id.parts.size() > 1) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0)))) {
-      INFO << "Looking for static method in type " << type->getName();
-      if (auto fun = type->getStaticMethod(id.parts.at(1).name)) {
-        fun->parentType = type.get();
-        return *fun;
-      } else
-        id.codeLoc.error("Static method not found: " + id.toString());
+      auto ret = type->staticState.getFunctionTemplate(codeLoc, id.getWithoutFirstPart());
+      ret.parentType = type.get();
+      return ret;
     } else
       id.codeLoc.error("Type not found: " + id.toString());
   } else {
+    string funName = id.parts.at(0).name;
     id.codeLoc.check(id.parts.size() == 1, "Bad function identifier: " + id.toString());
     if (functions.count(funName))
       return functions.at(funName);
   }
-  codeLoc.error("Function not found: " + quote(funName));
+  codeLoc.error("Function not found: " + quote(id.toString()));
 }
 
 vector<string> State::getFunctionParamNames(CodeLoc codeLoc, IdentifierInfo id) const {

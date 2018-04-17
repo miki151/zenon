@@ -17,6 +17,7 @@ struct IdentifierInfo {
   IdentifierInfo(IdentifierPart);
   //IdentifierInfo(vector<string> namespaces, string name, vector<IdentifierInfo> templateParams = {});
   static IdentifierInfo parseFrom(Tokens&, bool allowPointer);
+  IdentifierInfo getWithoutFirstPart() const;
   vector<IdentifierPart> parts;
   bool pointer = false;
   CodeLoc codeLoc;
