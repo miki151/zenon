@@ -108,7 +108,7 @@ void State::addFunction(variant<string, Operator> nameOrOp, FunctionType f) {
 FunctionType State::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) const {
   if (id.parts.size() > 1) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0)))) {
-      auto ret = type->staticState.getFunctionTemplate(codeLoc, id.getWithoutFirstPart());
+      auto ret = type->getStaticContext().getFunctionTemplate(codeLoc, id.getWithoutFirstPart());
       ret.parentType = type.get();
       return ret;
     } else

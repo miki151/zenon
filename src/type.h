@@ -20,8 +20,17 @@ struct Type : public owned_object<Type> {
   virtual SType replace(SType from, SType to) const;
   virtual ~Type() {}
   virtual nullable<SType> instantiate(vector<SType> templateParams) const;
-  virtual optional<State> getTypeContext() const;
+  virtual const State& getContext() const;
+  virtual const State& getStaticContext() const;
   virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const;
+
+  static SType STRING;
+};
+
+struct TypeWithContext : public Type {
+  virtual const State& getContext() const override;
+  virtual const State& getStaticContext() const override;
+
   State state;
   State staticState;
 };
@@ -32,14 +41,17 @@ struct ArithmeticType : public Type {
   static DefType INT;
   static DefType BOOL;
   static DefType VOID;
-  static DefType STRING;
   static DefType CHAR;
 
   ArithmeticType(const char* name);
-  virtual optional<State> getTypeContext() const override;
 
   private:
   const char* name;
+};
+
+struct StringType : public ArithmeticType {
+  virtual const State& getContext() const override;
+  using ArithmeticType::ArithmeticType;
 };
 
 struct ReferenceType : public Type {
@@ -48,7 +60,7 @@ struct ReferenceType : public Type {
   virtual bool canAssign(SType from) const override;
   virtual bool canMap(TypeMapping& mapping, SType from) const override;
   virtual SType replace(SType from, SType to) const override;
-  virtual optional<State> getTypeContext() const override;
+  virtual const State& getContext() const override;
   virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const override;
 
   static shared_ptr<ReferenceType> get(SType);
@@ -76,12 +88,11 @@ struct TemplateParameterType : public Type {
   CodeLoc declarationLoc;
 };
 
-struct StructType : public Type {
+struct StructType : public TypeWithContext {
   virtual string getName() const override;
   virtual SType replace(SType from, SType to) const override;
   virtual nullable<SType> instantiate(vector<SType> templateParams) const override;
   virtual bool canMap(TypeMapping&, SType argType) const override;
-  virtual optional<State> getTypeContext() const override;
   virtual void handleSwitchStatement(SwitchStatement&, State&, CodeLoc) const override;
 
   enum Kind {

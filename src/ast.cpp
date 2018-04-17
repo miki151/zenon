@@ -207,7 +207,7 @@ void FunctionDefinition::addToState(State& state) {
 void correctness(const AST& ast) {
   State state;
   for (auto type : {ArithmeticType::INT, ArithmeticType::BOOL,
-       ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
+       ArithmeticType::VOID, ArithmeticType::CHAR, Type::STRING})
     state.addType(type->getName(), type);
   for (auto& elem : ast.elems)
     elem->addToState(state);

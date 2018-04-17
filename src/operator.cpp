@@ -135,22 +135,20 @@ SType getOperationResult(CodeLoc codeLoc, Operator op, const State& state, Expre
   auto right = [&]() { return rightExpr.getType(state); };
   switch (op) {
     case Operator::MEMBER_ACCESS: {
-      if (auto context = left->getTypeContext())
-        if (auto rightType = rightExpr.getDotOperatorType(*context, state)) {
-          if (!left.dynamicCast<ReferenceType>())
-            rightType = rightType->getUnderlying();
-          return rightType.get();
-        }
-      codeLoc.error("Bad use of operator " + quote("."));
+      if (auto rightType = rightExpr.getDotOperatorType(left->getContext(), state)) {
+        if (!left.dynamicCast<ReferenceType>())
+          rightType = rightType->getUnderlying();
+        return rightType.get();
+      } else
+        codeLoc.error("Bad use of operator " + quote("."));
     }
     case Operator::SUBSCRIPT: {
-      if (auto context = left->getTypeContext())
-        if (auto t = context->getOperatorType(Operator::SUBSCRIPT)) {
-          codeLoc.check(right()->getUnderlying() == t->params.at(0).type,
-              "Expected expression of type " + quote(t->params.at(0).type->getName()) + " inside operator " + quote("[]"));
-          return t->retVal;
-        }
-      codeLoc.error("Type " + quote(left->getUnderlying()->getName()) + " doesn't support operator " + quote("[]"));
+      if (auto t = left->getContext().getOperatorType(Operator::SUBSCRIPT)) {
+        codeLoc.check(right()->getUnderlying() == t->params.at(0).type,
+            "Expected expression of type " + quote(t->params.at(0).type->getName()) + " inside operator " + quote("[]"));
+        return t->retVal;
+      } else
+        codeLoc.error("Type " + quote(left->getUnderlying()->getName()) + " doesn't support operator " + quote("[]"));
     }
     case Operator::ASSIGNMENT:
       if (left->getUnderlying() == right()->getUnderlying() && left.dynamicCast<ReferenceType>())

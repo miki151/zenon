@@ -5,7 +5,7 @@
 ArithmeticType::DefType ArithmeticType::INT = shared<ArithmeticType>("int");
 ArithmeticType::DefType ArithmeticType::VOID = shared<ArithmeticType>("void");
 ArithmeticType::DefType ArithmeticType::BOOL = shared<ArithmeticType>("bool");
-ArithmeticType::DefType ArithmeticType::STRING = shared<ArithmeticType>("string");
+SType Type::STRING = shared<StringType>("string");
 ArithmeticType::DefType ArithmeticType::CHAR = shared<ArithmeticType>("char");
 
 string getTemplateParamNames(const vector<SType>& templateParams) {
@@ -124,31 +124,12 @@ shared_ptr<StructType> StructType::get(Kind kind, string name) {
   return ret;
 }
 
-static State getStringTypeContext() {
-  State ret;
-  ret.addFunction("size"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
-  ret.addFunction(Operator::SUBSCRIPT, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::CHAR,
-      {{"index", ArithmeticType::INT}}, {}));
-  return ret;
-}
-
-optional<State> ArithmeticType::getTypeContext() const {
-  if (get_this().get() == ArithmeticType::STRING)
-    return getStringTypeContext();
-  else
-    return none;
-}
-
-optional<State> ReferenceType::getTypeContext() const {
-  return underlying->getTypeContext();
+const State& ReferenceType::getContext() const {
+  return underlying->getContext();
 }
 
 void ReferenceType::handleSwitchStatement(SwitchStatement& statement, State& state, CodeLoc codeLoc) const {
   underlying->handleSwitchStatement(statement, state, codeLoc);
-}
-
-optional<State> StructType::getTypeContext() const {
-  return state;
 }
 
 void StructType::handleSwitchStatement(SwitchStatement& statement, State& outsideState, CodeLoc codeLoc) const {
@@ -294,8 +275,14 @@ nullable<SType> Type::instantiate(vector<SType> templateParams) const {
     return nullptr;
 }
 
-optional<State> Type::getTypeContext() const {
-  return none;
+const State& Type::getContext() const {
+  static State empty;
+  return empty;
+}
+
+const State& Type::getStaticContext() const {
+  static State empty;
+  return empty;
 }
 
 void Type::handleSwitchStatement(SwitchStatement&, State&, CodeLoc codeLoc) const {
@@ -394,3 +381,24 @@ void instantiateFunction(FunctionType& type, CodeLoc codeLoc, vector<SType> temp
 
 EnumType::EnumType(string n, vector<string> e) : name(n), elements(e) {}
 
+
+const State& TypeWithContext::getContext() const {
+  return state;
+}
+
+const State& TypeWithContext::getStaticContext() const {
+  return staticState;
+}
+
+static State getStringTypeContext() {
+  State ret;
+  ret.addFunction("size"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
+  ret.addFunction(Operator::SUBSCRIPT, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::CHAR,
+      {{"index", ArithmeticType::INT}}, {}));
+  return ret;
+}
+
+const State& StringType::getContext() const {
+  static State s = getStringTypeContext();
+  return s;
+}
