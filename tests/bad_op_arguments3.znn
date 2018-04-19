@@ -1,0 +1,8 @@
+// no_compile
+
+int main() {
+  int a = 5;
+  string s = "";
+  s = a;
+  return 0;
+}
