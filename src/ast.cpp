@@ -47,9 +47,7 @@ SType Constant::getType(const Context&) {
 }
 
 SType Variable::getType(const Context& context) {
-  if (auto ret = context.getVariables().getType(identifier))
-    return ReferenceType::get(ret.get());
-  else if (auto ret = context.getConstants().getType(identifier))
+  if (auto ret = context.getTypeOfVariable(identifier))
     return ret.get();
   else
     codeLoc.error("Undefined variable: " + identifier);
@@ -64,7 +62,7 @@ SType BinaryExpression::getType(const Context& context) {
 }
 
 void StatementBlock::check(Context& context) {
-  auto bodyContext = context;
+  auto bodyContext = Context::withParent(context);
   for (auto& s : elems) {
     s->check(bodyContext);
   }
@@ -101,7 +99,7 @@ void VariableDeclaration::check(Context& context) {
         + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
   } else
     codeLoc.check(!requiresInitialization(realType.get()), "Type " + quote(realType->getName()) + " requires initialization");
-  context.getVariables().add(identifier, realType.get());
+  context.addVariable(identifier, ReferenceType::get(realType.get()));
 }
 
 void ReturnStatement::check(Context& context) {
@@ -138,7 +136,7 @@ bool ReturnStatement::hasReturnStatement(const Context&) const {
 }
 
 void FunctionDefinition::setFunctionType(const Context& context) {
-  Context contextWithTemplateParams = context;
+  Context contextWithTemplateParams = Context::withParent(context);
   if (auto name = nameOrOp.getReferenceMaybe<string>())
     context.checkNameConflict(codeLoc, *name, "Function");
   else {
@@ -163,7 +161,7 @@ void FunctionDefinition::setFunctionType(const Context& context) {
 }
 
 void FunctionDefinition::checkFunction(Context& context, bool templateStruct) {
-  Context bodyContext = context;
+  Context bodyContext = Context::withParent(context);
   vector<SType> templateTypes;
   if (auto op = nameOrOp.getValueMaybe<Operator>()) {
     codeLoc.check(templateParams.empty(), "Operator overload can't have template parameters.");
@@ -182,7 +180,7 @@ void FunctionDefinition::checkFunction(Context& context, bool templateStruct) {
   if (auto returnType = bodyContext.getTypeFromString(this->returnType)) {
     for (auto& p : parameters)
       if (auto paramType = bodyContext.getTypeFromString(p.type))
-        bodyContext.getConstants().add(p.name, paramType.get());
+        bodyContext.addVariable(p.name, paramType.get());
       else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
     bodyContext.setReturnType(returnType.get());
@@ -307,7 +305,7 @@ VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n
 void VariantDefinition::addToContext(Context& context) {
   context.checkNameConflict(codeLoc, name, "Type");
   type = StructType::get(StructType::VARIANT, name);
-  auto membersContext = context;
+  auto membersContext = Context::withParent(context);
   for (auto& param : templateParams)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
   for (auto& param : type->templateParams)
@@ -328,12 +326,12 @@ void VariantDefinition::addToContext(Context& context) {
 }
 
 void VariantDefinition::check(Context& context) {
-  Context methodBodyContext = context;
+  auto methodBodyContext = Context::withParent({&context, &type->context});
   for (auto& param : type->templateParams)
     methodBodyContext.addType(param->getName(), param);
   for (auto& subtype : elements) {
     if (auto subtypeInfo = methodBodyContext.getTypeFromString(subtype.type))
-      type->context.getAlternatives().add(subtype.name, subtypeInfo.get());
+      type->alternatives.push_back({subtype.name, subtypeInfo.get()});
     else
       subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
   }
@@ -341,8 +339,7 @@ void VariantDefinition::check(Context& context) {
     method->setFunctionType(methodBodyContext);
     methodBodyContext.addFunction(method->nameOrOp, *method->functionType);
   }
-  methodBodyContext.getVariables().add("this", PointerType::get(type.get()));
-  methodBodyContext.merge(type->context);
+  methodBodyContext.addVariable("this", PointerType::get(type.get()));
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
     type->context.addFunction(methods[i]->nameOrOp, *methods[i]->functionType);
@@ -352,7 +349,7 @@ void VariantDefinition::check(Context& context) {
 
 void StructDefinition::addToContext(Context& context) {
   context.checkNameConflict(codeLoc, name, "Type");
-  auto membersContext = context;
+  auto membersContext = Context::withParent(context);
   type = StructType::get(StructType::STRUCT, name);
   for (auto& param : templateParams)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
@@ -368,13 +365,13 @@ void StructDefinition::addToContext(Context& context) {
 }
 
 void StructDefinition::check(Context& context) {
-  auto methodBodyContext = context;
+  auto methodBodyContext = Context::withParent({&context, &type->context});
   for (auto& param : type->templateParams)
     methodBodyContext.addType(param->getName(), param);
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
     if (auto memberType = methodBodyContext.getTypeFromString(member.type))
-      type->context.getVariables().add(member.name, memberType.get());
+      type->context.addVariable(member.name, ReferenceType::get(memberType.get()));
     else
       member.codeLoc.error("Type " + quote(member.type.toString()) + " not recognized");
   }
@@ -383,7 +380,6 @@ void StructDefinition::check(Context& context) {
     method->setFunctionType(methodBodyContext);
     methodBodyContext.addFunction(method->nameOrOp, *method->functionType);
   }
-  methodBodyContext.merge(type->context);
   for (int i = 0; i < methods.size(); ++i) {
     methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
     type->context.addFunction(methods[i]->nameOrOp, *methods[i]->functionType);
@@ -420,7 +416,7 @@ bool ForLoopStatement::hasReturnStatement(const Context& s) const {
 }
 
 void ForLoopStatement::check(Context& context) {
-  auto bodyContext = context;
+  auto bodyContext = Context::withParent(context);
   init->check(bodyContext);
   cond->codeLoc.check(cond->getType(bodyContext) == ArithmeticType::BOOL,
       "Loop condition must be of type " + quote("bool"));

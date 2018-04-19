@@ -60,15 +60,16 @@ struct ReferenceType : public Type {
   virtual bool canAssign(SType from) const override;
   virtual bool canMap(TypeMapping& mapping, SType from) const override;
   virtual SType replace(SType from, SType to) const override;
-  virtual const Context& getContext() const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const override;
+  virtual const Context& getContext() const override;
 
   static shared_ptr<ReferenceType> get(SType);
   SType underlying;
+  Context context;
   ReferenceType(SType);
 };
 
-struct PointerType : public Type {
+struct PointerType : public TypeWithContext {
   virtual string getName() const override;
   virtual SType replace(SType from, SType to) const override;
   virtual bool canMap(TypeMapping&, SType argType) const override;
@@ -106,6 +107,11 @@ struct StructType : public TypeWithContext {
   vector<SType> templateParams;
   vector<shared_ptr<StructType>> instantations;
   nullable<shared_ptr<StructType>> parent;
+  struct Alternative {
+    string name;
+    SType type;
+  };
+  vector<Alternative> alternatives;
   void updateInstantations();
   SType getInstantiated(vector<SType> templateParams);
   StructType() {}

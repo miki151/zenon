@@ -88,9 +88,11 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
       },
       [&](const Operator& op) -> unique_ptr<Expression> {
         tokens.popNext();
-        token.codeLoc.check(isUnary(op), getString(op) + " is not a unary operator"s);
-        auto exp = parseExpression(tokens, getPrecedence(op) + 1);
-        return unique<UnaryExpression>(token.codeLoc, op, std::move(exp));
+        if (auto opUnary = getUnary(op)) {
+          auto exp = parseExpression(tokens, getPrecedence(*opUnary) + 1);
+          return unique<UnaryExpression>(token.codeLoc, *opUnary, std::move(exp));
+        } else
+          token.codeLoc.error(getString(op) + " is not a unary operator"s);
       },
       [&](const auto&) -> unique_ptr<Expression> {
         token.codeLoc.error("Expected primary expression, got: " + quote(token.value));

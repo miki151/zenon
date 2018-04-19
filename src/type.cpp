@@ -90,12 +90,15 @@ SType ReferenceType::getUnderlying() {
 
 shared_ptr<ReferenceType> ReferenceType::get(SType type) {
   static map<SType, shared_ptr<ReferenceType>> generated;
-  if (!generated.count(type))
+  if (!generated.count(type)) {
     generated.insert({type, shared<ReferenceType>(type)});
+    generated.at(type)->context.addFunction(Operator::GET_ADDRESS,
+        FunctionType(FunctionCallType::FUNCTION, PointerType::get(type), {}, {}));
+  }
   return generated.at(type);
 }
 
-ReferenceType::ReferenceType(SType t) : underlying(t->getUnderlying()) {
+ReferenceType::ReferenceType(SType t) : underlying(t->getUnderlying()), context(Context::withParent(underlying->getContext())) {
 }
 
 shared_ptr<PointerType> PointerType::get(SType type) {
@@ -106,6 +109,8 @@ shared_ptr<PointerType> PointerType::get(SType type) {
 }
 
 PointerType::PointerType(SType t) : underlying(t->getUnderlying()) {
+  context.addFunction(Operator::POINTER_DEREFERENCE,
+      FunctionType(FunctionCallType::FUNCTION, ReferenceType::get(t), {}, {}));
 }
 
 bool Type::canAssign(SType from) const{
@@ -124,12 +129,12 @@ shared_ptr<StructType> StructType::get(Kind kind, string name) {
   return ret;
 }
 
-const Context& ReferenceType::getContext() const {
-  return underlying->getContext();
-}
-
 void ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc) const {
   underlying->handleSwitchStatement(statement, context, codeLoc);
+}
+
+const Context& ReferenceType::getContext() const {
+  return context;
 }
 
 void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext, CodeLoc codeLoc) const {
@@ -145,17 +150,23 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
   }
   statement.subtypesPrefix += "::";
   unordered_set<string> handledTypes;
+  auto getAlternativeType = [&] (const string& name) -> nullable<SType> {
+    for (auto& alternative : alternatives)
+      if (alternative.name == name)
+        return alternative.type;
+    return nullptr;
+  };
   for (auto& caseElem : statement.caseElems) {
-    caseElem.codeloc.check(!!context.getAlternatives().getType(caseElem.id), "Element " + quote(caseElem.id) +
-        " not present in variant " + quote(name));
+    caseElem.codeloc.check(!!getAlternativeType(caseElem.id), "Element " + quote(caseElem.id) +
+        " not present in variant " + quote(getName()));
     caseElem.codeloc.check(!handledTypes.count(caseElem.id), "Variant element " + quote(caseElem.id)
         + " handled more than once in switch statement");
     handledTypes.insert(caseElem.id);
-    auto caseBodyContext = outsideContext;
-    auto realType = context.getAlternatives().getType(caseElem.id).get();
+    auto caseBodyContext = Context::withParent(outsideContext);
+    auto realType = getAlternativeType(caseElem.id).get();
     caseElem.declareVar = !(realType == ArithmeticType::VOID);
     if (caseElem.declareVar)
-      caseBodyContext.getVariables().add(caseElem.id, realType);
+      caseBodyContext.addVariable(caseElem.id, ReferenceType::get(realType));
     if (caseElem.type) {
       if (auto t = outsideContext.getTypeFromString(*caseElem.type))
         caseElem.type->codeLoc.check(t == realType, "Can't handle variant element "
@@ -165,13 +176,13 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
   }
   if (!statement.defaultBlock) {
     vector<string> unhandled;
-    for (auto& member : context.getAlternatives().getNames())
-      if (!handledTypes.count(member))
-        unhandled.push_back(quote(member));
+    for (auto& alternative : alternatives)
+      if (!handledTypes.count(alternative.name))
+        unhandled.push_back(quote(alternative.name));
     codeLoc.check(unhandled.empty(), quote(name) + " subtypes " + combine(unhandled, ", ")
         + " not handled in switch statement");
   } else {
-    statement.defaultBlock->codeLoc.check(handledTypes.size() < context.getAlternatives().getNames().size(),
+    statement.defaultBlock->codeLoc.check(handledTypes.size() < alternatives.size(),
         "Default switch statement unnecessary when all variant cases are handled");
     statement.defaultBlock->check(outsideContext);
   }
@@ -186,6 +197,7 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
       return type;
   }
   auto type = StructType::get(kind, name);
+  type->alternatives = alternatives;
   type->parent = self;
   instantations.push_back(type);
   return type;
@@ -195,10 +207,13 @@ void StructType::updateInstantations() {
   for (auto type1 : instantations) {
     auto type = type1.dynamicCast<StructType>();
     for (int i = 0; i < templateParams.size(); ++i) {
-      type->context = context;
-      type->staticContext = staticContext;
+      type->context.deepCopyFrom(context);
+      type->staticContext.deepCopyFrom(staticContext);
       type->context.replace(templateParams[i], type->templateParams[i]);
       type->staticContext.replace(templateParams[i], type->templateParams[i]);
+      type->alternatives = alternatives;
+      for (auto& alternative : type->alternatives)
+        alternative.type = alternative.type->replace(templateParams[i], type->templateParams[i]);
     }
   }
 }
@@ -242,19 +257,22 @@ SType StructType::replace(SType from, SType to) const {
   if (ret->templateParams != newTemplateParams) {
     ret->templateParams = newTemplateParams;
     INFO << "New instantiation: " << ret->getName();
-    ret->context = context;
-    ret->staticContext = staticContext;
-    auto checkVoidMembers = [&] (const Variables& vars) {
-      for (auto& member : vars.getNames()) {
-        auto memberType = vars.getType(member).get();
-        if (auto param = memberType.dynamicCast<TemplateParameterType>())
-          param->declarationLoc.check(to != ArithmeticType::VOID,
-              "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
-      }
+    ret->context.deepCopyFrom(context);
+    ret->staticContext.deepCopyFrom(staticContext);
+    auto checkNonVoidMember = [&] (const SType& type) {
+      if (auto param = type.dynamicCast<TemplateParameterType>())
+        param->declarationLoc.check(to != ArithmeticType::VOID,
+            "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
     };
-    checkVoidMembers(ret->context.getVariables());
-    checkVoidMembers(ret->context.getAlternatives());
-    checkVoidMembers(ret->context.getConstants());
+    for (auto& member : ret->context.getBottomLevelVariables()) {
+      auto memberType = ret->context.getTypeOfVariable(member).get();
+      checkNonVoidMember(memberType);
+    }
+    ret->alternatives = alternatives;
+    for (auto& alternative : ret->alternatives) {
+      checkNonVoidMember(alternative.type);
+      alternative.type = alternative.type->replace(from, to);
+    }
     ret->context.replace(from, to);
     ret->staticContext.replace(from, to);
   } else

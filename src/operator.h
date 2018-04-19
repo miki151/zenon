@@ -11,6 +11,7 @@ enum class Operator {
   ASSIGNMENT,
   MEMBER_ACCESS,
   MULTIPLY,
+  POINTER_DEREFERENCE,
   GET_ADDRESS,
   SUBSCRIPT
 };
@@ -21,7 +22,7 @@ extern vector<string> getAllOperators();
 
 
 extern int getPrecedence(Operator);
-extern bool isUnary(Operator);
+extern optional<Operator> getUnary(Operator);
 extern bool isRightAssociative(Operator);
 struct Type;
 using SType = shared_ptr<Type>;

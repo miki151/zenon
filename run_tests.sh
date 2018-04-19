@@ -39,7 +39,7 @@ BINARY_TMP=$(mktemp)
 
 for I in `ls tests/*.znn`; do 
   EXPECTED=`head -n 1 $I | cut -c 4-`
-  echo -n "Running $I. Expecting: $EXPECTED"
+  echo -n "Running $I Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then
     echo -e "$RED No expected value specified$NC"
     continue
@@ -63,7 +63,7 @@ done
 
 for D in `ls -d tests/*/`; do
   EXPECTED=`head -n 1 $D/main.znn | grep "//"| cut -c 4-`
-  echo -n "Running directory $D. Expecting: $EXPECTED"
+  echo -n "Running directory $D Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then
     echo -e "$RED No expected value specified$NC"
     continue

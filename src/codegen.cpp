@@ -251,8 +251,8 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
       method->addSignature(accu, "");
       accu.add(";");
     }
-    for (auto& member : type->context.getVariables().getNames())
-      accu.newLine(type->context.getVariables().getType(member)->getName() + " " + member + ";");
+    for (auto& member : type->getContext().getBottomLevelVariables())
+      accu.newLine(type->getContext().getTypeOfVariable(member)->getUnderlying()->getName() + " " + member + ";");
     --accu.indent;
     accu.newLine("};");
   }
@@ -288,11 +288,10 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       typeNames.push_back(subtype.name);
     accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
         + variantUnionElem + ";");
-    for (auto& member : type->context.getAlternatives().getNames()) {
-      auto memberType = type->context.getAlternatives().getType(member);
-      string signature = member + "(";
-      if (memberType != ArithmeticType::VOID)
-        signature += "const " + memberType->getName() + "& elem";
+    for (auto& alternative : type->alternatives) {
+      string signature = alternative.name + "(";
+      if (alternative.type != ArithmeticType::VOID)
+        signature += "const " + alternative.type->getName() + "& elem";
       signature += ")";
       string params = joinTemplateParams(type->templateParams);
       accu.newLine("static " + name + params + " " + signature + ";");
@@ -300,10 +299,9 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
     accu.newLine("union {");
     ++accu.indent;
     accu.newLine("bool dummy;");
-    for (auto& member : type->context.getAlternatives().getNames()) {
-      auto memberType = type->context.getAlternatives().getType(member);
-      if (memberType != ArithmeticType::VOID)
-        accu.newLine(memberType->getName() + " " + variantUnionEntryPrefix + member + ";");
+    for (auto& alternative : type->alternatives) {
+      if (alternative.type != ArithmeticType::VOID)
+        accu.newLine(alternative.type->getName() + " " + variantUnionEntryPrefix + alternative.name + ";");
     }
     --accu.indent;
     accu.newLine("};");
@@ -311,16 +309,15 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       ++accu.indent;
       accu.newLine("switch (unionElem) {");
       ++accu.indent;
-      for (auto& member : type->context.getAlternatives().getNames()) {
-        auto memberType = type->context.getAlternatives().getType(member);
-        if (memberType != ArithmeticType::VOID) {
-          accu.newLine("case "s + variantEnumeratorPrefix + member + ":");
+      for (auto& alternative : type->alternatives) {
+        if (alternative.type != ArithmeticType::VOID) {
+          accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
           ++accu.indent;
-          accu.newLine("std::forward<Visitor>(v)("s + variantUnionEntryPrefix + member + ");");
+          accu.newLine("std::forward<Visitor>(v)("s + variantUnionEntryPrefix + alternative.name + ");");
           accu.newLine("break;");
           --accu.indent;
         } else
-          accu.newLine("case "s + variantEnumeratorPrefix + member + ": break;");
+          accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ": break;");
       }
       --accu.indent;
       accu.newLine("}");
@@ -350,20 +347,19 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       accu.newLine();
     }
   if (stage == DEFINE || (!templateParams.empty() && stage == IMPORT))
-    for (auto& member : type->context.getAlternatives().getNames()) {
-      auto memberType = type->context.getAlternatives().getType(member);
-      string signature = member + "(";
-      if (memberType != ArithmeticType::VOID)
-        signature += "const " + memberType->getName() + "& elem";
+    for (auto& alternative : type->alternatives) {
+      string signature = alternative.name + "(";
+      if (alternative.type != ArithmeticType::VOID)
+        signature += "const " + alternative.type->getName() + "& elem";
       signature += ")";
       string params = joinTemplateParams(type->templateParams);
       considerTemplateParams(accu, templateParams);
       accu.add(name + params + " " + name + params + "::" + signature + " {");
       ++accu.indent;
       accu.newLine(name + " ret;");
-      accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + member + ";");
-      if (!(memberType == ArithmeticType::VOID))
-        accu.newLine("ret."s + variantUnionEntryPrefix + member + " = elem;");
+      accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + alternative.name + ";");
+      if (!(alternative.type == ArithmeticType::VOID))
+        accu.newLine("ret."s + variantUnionEntryPrefix + alternative.name + " = elem;");
       accu.newLine("return ret;");
       --accu.indent;
       accu.newLine("}");

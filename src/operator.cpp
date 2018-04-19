@@ -3,12 +3,14 @@
 #include "code_loc.h"
 #include "ast.h"
 
-const static unordered_map<string, Operator> operators {
+const static vector<pair<string, Operator>> operators {
   {"<", Operator::LESS_THAN},
   {">", Operator::MORE_THAN},
   {"==", Operator::EQUALS},
   {"+", Operator::PLUS},
   {"*", Operator::MULTIPLY},
+// order is important so * gets initially parsed as multiply and is replaced later if found to be a unary op.
+  {"*", Operator::POINTER_DEREFERENCE},
   {"-", Operator::MINUS},
   {"=", Operator::ASSIGNMENT},
   {".", Operator::MEMBER_ACCESS},
@@ -17,10 +19,10 @@ const static unordered_map<string, Operator> operators {
 };
 
 optional<Operator> getOperator(const string& s) {
-  if (operators.count(s))
-    return operators.at(s);
-  else
-    return none;
+  for (auto& elem : operators)
+    if (elem.first == s)
+      return elem.second;
+  return none;
 }
 
 vector<string> getAllOperators() {
@@ -51,8 +53,10 @@ int getPrecedence(Operator op) {
       return 3;
     case Operator::MULTIPLY:
       return 4;
-    case Operator::GET_ADDRESS:
+    case Operator::POINTER_DEREFERENCE:
       return 5;
+    case Operator::GET_ADDRESS:
+      return 6;
     case Operator::SUBSCRIPT:
       return 7;
     case Operator::MEMBER_ACCESS:
@@ -69,40 +73,36 @@ bool isRightAssociative(Operator op) {
   }
 }
 
-bool isUnary(Operator op) {
+optional<Operator> getUnary(Operator op) {
   switch (op) {
     case Operator::PLUS:
     case Operator::MINUS:
     case Operator::GET_ADDRESS:
+      return op;
     case Operator::MULTIPLY:
-      return true;
+      return Operator::POINTER_DEREFERENCE;
     default:
-      return false;
+      return none;
   }
 }
 
 SType getUnaryOperationResult(CodeLoc codeLoc, Operator op, SType right) {
   auto underlying = right->getUnderlying();
-  CHECK(isUnary(op));
   switch (op) {
-    case Operator::MULTIPLY:
-      if (auto pointer = underlying.dynamicCast<PointerType>())
-        return ReferenceType::get(pointer->underlying);
-      else
-        codeLoc.error("Can't apply dereference operator to type " + quote(right->getName()));
     case Operator::GET_ADDRESS:
-      if (auto reference = right.dynamicCast<ReferenceType>())
-        return PointerType::get(reference->underlying);
+    case Operator::POINTER_DEREFERENCE:
+      if (auto fun = right->getContext().getOperatorType(op))
+        return fun->retVal;
       else
-        codeLoc.error("Can't apply address-of operator to type " + quote(right->getName()));
+        break;
     case Operator::PLUS:
     case Operator::MINUS:
       codeLoc.check(underlying == ArithmeticType::INT, "Expected type: " + quote("int") + ", got: " + quote(right->getName()));
-      break;
+      return right;
     default:
       break;
   }
-  return right;
+  codeLoc.error("Can't apply unary operator: " + quote(getString(op)) + " to type: " + quote(right->getName()));
 }
 
 static nullable<SType> getOperationResult(Operator op, SType underlyingOperands) {
@@ -169,6 +169,8 @@ SType getOperationResult(CodeLoc codeLoc, Operator op, const Context& context, E
       codeLoc.error("Unsupported operation: " + quote(left->getName()) + " " + getString(op)
           + " " + quote(rightType->getName()));
     }
+    case Operator::POINTER_DEREFERENCE:
+      codeLoc.error("Pointer-dereference is not a binary operator");
     case Operator::GET_ADDRESS:
       codeLoc.error("Address-of is not a binary operator");
   }

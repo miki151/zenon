@@ -87,3 +87,32 @@ bool contains(const Container& v, const V& elem) {
 extern vector<string> split(const string& s, const std::set<char>& delim);
 
 extern string getParentPath(const string&);
+
+template <typename Container>
+struct ReverseRange {
+  ReverseRange(const Container& c) : container(c) {}
+
+  using iterator = typename Container::const_reverse_iterator;
+
+  iterator begin() const {
+    return container.crbegin();
+  }
+
+  iterator end() const {
+    return container.crend();
+  }
+
+  const Container& container;
+};
+
+template <typename Container>
+auto reverse(const Container& c) {
+  return ReverseRange<Container>(c);
+}
+
+template <typename T>
+void append(vector<T>& v, const vector<T>& w) {
+  v.reserve(v.size() + w.size());
+  for (T elem : w)
+    v.push_back(elem);
+}
