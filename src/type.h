@@ -24,7 +24,6 @@ struct Type : public owned_object<Type> {
   virtual const Context& getStaticContext() const;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const;
 
-  static SType STRING;
 };
 
 struct TypeWithContext : public Type {
@@ -35,23 +34,19 @@ struct TypeWithContext : public Type {
   Context staticContext;
 };
 
-struct ArithmeticType : public Type {
+struct ArithmeticType : public TypeWithContext {
   virtual string getName() const override;
-  using DefType = SType;
+  using DefType = shared_ptr<ArithmeticType>;
   static DefType INT;
   static DefType BOOL;
   static DefType VOID;
   static DefType CHAR;
+  static DefType STRING;
 
   ArithmeticType(const char* name);
 
   private:
   const char* name;
-};
-
-struct StringType : public ArithmeticType {
-  virtual const Context& getContext() const override;
-  using ArithmeticType::ArithmeticType;
 };
 
 struct ReferenceType : public Type {

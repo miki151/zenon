@@ -5,7 +5,7 @@
 ArithmeticType::DefType ArithmeticType::INT = shared<ArithmeticType>("int");
 ArithmeticType::DefType ArithmeticType::VOID = shared<ArithmeticType>("void");
 ArithmeticType::DefType ArithmeticType::BOOL = shared<ArithmeticType>("bool");
-SType Type::STRING = shared<StringType>("string");
+ArithmeticType::DefType ArithmeticType::STRING = shared<ArithmeticType>("string");
 ArithmeticType::DefType ArithmeticType::CHAR = shared<ArithmeticType>("char");
 
 string getTemplateParamNames(const vector<SType>& templateParams) {
@@ -91,9 +91,12 @@ SType ReferenceType::getUnderlying() {
 shared_ptr<ReferenceType> ReferenceType::get(SType type) {
   static map<SType, shared_ptr<ReferenceType>> generated;
   if (!generated.count(type)) {
-    generated.insert({type, shared<ReferenceType>(type)});
-    generated.at(type)->context.addFunction(Operator::GET_ADDRESS,
+    auto ret = shared<ReferenceType>(type);
+    generated.insert({type, ret});
+    ret->context.addFunction(Operator::GET_ADDRESS,
         FunctionType(FunctionCallType::FUNCTION, PointerType::get(type), {}, {}));
+    ret->context.addFunction(Operator::ASSIGNMENT,
+        FunctionType(FunctionCallType::FUNCTION, ret, {{"right side", type}}, {}));
   }
   return generated.at(type);
 }
@@ -406,17 +409,4 @@ const Context& TypeWithContext::getContext() const {
 
 const Context& TypeWithContext::getStaticContext() const {
   return staticContext;
-}
-
-static Context getStringTypeContext() {
-  Context ret;
-  ret.addFunction("size"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
-  ret.addFunction(Operator::SUBSCRIPT, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::CHAR,
-      {{"index", ArithmeticType::INT}}, {}));
-  return ret;
-}
-
-const Context& StringType::getContext() const {
-  static Context s = getStringTypeContext();
-  return s;
 }

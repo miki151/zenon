@@ -201,10 +201,32 @@ void FunctionDefinition::addToContext(Context& context) {
   context.addFunction(nameOrOp, *functionType);
 }
 
+static void initializeArithmeticTypes() {
+  ArithmeticType::STRING->context.addFunction("size"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
+  ArithmeticType::STRING->context.addFunction(Operator::SUBSCRIPT, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::CHAR,
+      {{"index", ArithmeticType::INT}}, {}));
+  ArithmeticType::STRING->context.addFunction(Operator::PLUS, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::STRING,
+      {{"right side", ArithmeticType::STRING}}, {}));
+  for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
+    ArithmeticType::INT->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT,
+        {}, {}));
+  for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY})
+    ArithmeticType::INT->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT,
+        {{"right side", ArithmeticType::INT}}, {}));
+  for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
+    for (auto type : {ArithmeticType::INT, ArithmeticType::STRING})
+      type->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+          {{"right side", type}}, {}));
+  for (auto op : {Operator::EQUALS})
+    for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
+      type->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{"right sie", type}}, {}));
+}
+
 void correctness(const AST& ast) {
   Context context;
+  initializeArithmeticTypes();
   for (auto type : {ArithmeticType::INT, ArithmeticType::BOOL,
-       ArithmeticType::VOID, ArithmeticType::CHAR, Type::STRING})
+       ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
     context.addType(type->getName(), type);
   for (auto& elem : ast.elems)
     elem->addToContext(context);
