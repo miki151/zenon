@@ -1,0 +1,24 @@
+// 4
+
+template <T>
+concept CanAdd {
+  T {
+    T operator + (T t);
+  };
+};
+
+template <T>
+concept CanSubtract {
+  T {
+    T operator - (T t);
+  };
+};
+
+template <A> requires CanAdd<A>, CanSubtract<A>
+A add(A a, A b) {
+  return a + b - (a - b);
+}
+
+int main() {
+  return add(1, 2);
+}

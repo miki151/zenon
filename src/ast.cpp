@@ -144,7 +144,7 @@ void FunctionDefinition::setFunctionType(const Context& context) {
     codeLoc.check(!context.getOperatorType(op), "Operator " + quote(getString(op)) + " already defined");
   }
   vector<SType> templateTypes;
-  for (auto& param : templateParams) {
+  for (auto& param : templateInfo.params) {
     templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
     contextWithTemplateParams.addType(param.name, templateTypes.back());
   }
@@ -160,11 +160,35 @@ void FunctionDefinition::setFunctionType(const Context& context) {
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
 }
 
+static void applyConcept(const Context& from, const TemplateInfo& templateInfo, const vector<SType>& templateTypes) {
+  auto getTemplateParam = [&](CodeLoc codeLoc, const string& name) {
+    for (int i = 0; i < templateInfo.params.size(); ++i)
+      if (templateInfo.params[i].name == name)
+        return templateTypes[i];
+    codeLoc.error("Type " + quote(name) + " not part of template arguments");
+  };
+  for (auto& requirement : templateInfo.requirements) {
+    if (auto concept = from.getConcept(requirement.parts[0].name)) {
+      auto& requirementArgs = requirement.parts[0].templateArguments;
+      requirement.codeLoc.check(requirementArgs.size() == concept->params.size(),
+          "Wrong number of template arguments to concept " + quote(concept->name));
+      for (int i = 0; i < requirementArgs.size(); ++i) {
+        auto& requirementArg = requirementArgs[i].parts[0].name;
+        auto upgradedParam = getTemplateParam(requirementArgs[i].codeLoc, requirementArg);
+        Context addedContext;
+        addedContext.deepCopyFrom(concept->params[i]->context);
+        addedContext.replace(concept->params[i], upgradedParam);
+        upgradedParam->context.merge(std::move(addedContext));
+      }
+    }
+  }
+}
+
 void FunctionDefinition::checkFunction(Context& context, bool templateStruct) {
   Context bodyContext = Context::withParent(context);
   vector<SType> templateTypes;
   if (auto op = nameOrOp.getValueMaybe<Operator>()) {
-    codeLoc.check(templateParams.empty(), "Operator overload can't have template parameters.");
+    codeLoc.check(templateInfo.params.empty(), "Operator overload can't have template parameters.");
     switch (*op) {
       case Operator::SUBSCRIPT:
         codeLoc.check(parameters.size() == 1, "Operator " + quote("[]") + " must take one parameter.");
@@ -173,10 +197,11 @@ void FunctionDefinition::checkFunction(Context& context, bool templateStruct) {
         codeLoc.error("Operator " + quote(getString(*op)) + " overload not supported.");
     }
   }
-  for (auto& param : templateParams) {
+  for (auto& param : templateInfo.params) {
     templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
     bodyContext.addType(param.name, templateTypes.back());
   }
+  applyConcept(context, templateInfo, templateTypes);
   if (auto returnType = bodyContext.getTypeFromString(this->returnType)) {
     for (auto& p : parameters)
       if (auto paramType = bodyContext.getTypeFromString(p.type))
@@ -188,7 +213,7 @@ void FunctionDefinition::checkFunction(Context& context, bool templateStruct) {
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
   } else
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
-  if (body && (!templateParams.empty() || templateStruct || context.getImports().empty()))
+  if (body && (!templateInfo.params.empty() || templateStruct || context.getImports().empty()))
     body->check(bodyContext);
 }
 
@@ -328,8 +353,9 @@ void VariantDefinition::addToContext(Context& context) {
   context.checkNameConflict(codeLoc, name, "Type");
   type = StructType::get(StructType::VARIANT, name);
   auto membersContext = Context::withParent(context);
-  for (auto& param : templateParams)
+  for (auto& param : templateInfo.params)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+  applyConcept(context, templateInfo, type->templateParams);
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
   unordered_set<string> subtypeNames;
@@ -363,7 +389,7 @@ void VariantDefinition::check(Context& context) {
   }
   methodBodyContext.addVariable("this", PointerType::get(type.get()));
   for (int i = 0; i < methods.size(); ++i) {
-    methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
+    methods[i]->checkFunction(methodBodyContext, !templateInfo.params.empty());
     type->context.addFunction(methods[i]->nameOrOp, *methods[i]->functionType);
   }
   type->updateInstantations();
@@ -373,8 +399,9 @@ void StructDefinition::addToContext(Context& context) {
   context.checkNameConflict(codeLoc, name, "Type");
   auto membersContext = Context::withParent(context);
   type = StructType::get(StructType::STRUCT, name);
-  for (auto& param : templateParams)
+  for (auto& param : templateInfo.params)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+  applyConcept(context, templateInfo, type->templateParams);
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
   vector<FunctionType::Param> constructorParams;
@@ -403,7 +430,7 @@ void StructDefinition::check(Context& context) {
     methodBodyContext.addFunction(method->nameOrOp, *method->functionType);
   }
   for (int i = 0; i < methods.size(); ++i) {
-    methods[i]->checkFunction(methodBodyContext, !templateParams.empty());
+    methods[i]->checkFunction(methodBodyContext, !templateInfo.params.empty());
     type->context.addFunction(methods[i]->nameOrOp, *methods[i]->functionType);
   }
   type->updateInstantations();
@@ -493,4 +520,30 @@ SType EnumConstant::getType(const Context& context) {
     return type.get();
   else
     codeLoc.error("Unrecognized type: " + quote(enumName));
+}
+
+ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
+
+}
+
+void ConceptDefinition::addToContext(Context& context) {
+  shared_ptr<Concept> concept = shared<Concept>(name);
+  auto declarationsContext = Context::withParent(context);
+  for (auto& param : templateInfo.params) {
+    concept->params.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+    concept->paramNames.push_back(param.name);
+    declarationsContext.addType(param.name, concept->params.back());
+  }
+  for (auto& type : types)
+    for (int i = 0; i < templateInfo.params.size(); ++i)
+      if (type.name == templateInfo.params[i].name) {
+        for (auto& method : type.methods) {
+          method->setFunctionType(declarationsContext);
+          concept->params[i]->context.addFunction(method->nameOrOp, *method->functionType);
+        }
+      }
+  context.addConcept(name, concept);
+}
+
+void ConceptDefinition::check(Context& context) {
 }

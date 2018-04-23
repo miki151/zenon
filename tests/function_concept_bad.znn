@@ -1,0 +1,18 @@
+// no_compile
+
+template <T>
+concept CanAdd {
+  T {
+    T operator + (T t);
+  };
+};
+
+template <A> requires CanAdd<A>
+A add(A a, A b) {
+  return a + b;
+}
+
+int main() {
+  auto c = add('a', 'b');
+  return 0;
+}

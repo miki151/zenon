@@ -190,7 +190,7 @@ string getFunctionName(const variant<string, Operator>& nameOrOp) {
 }
 
 void FunctionDefinition::addSignature(Accu& accu, string structName) const {
-  considerTemplateParams(accu, templateParams);
+  considerTemplateParams(accu, templateInfo.params);
   if (!structName.empty())
     structName += "::";
   string ret = functionType->retVal->getName() + " " + structName + getFunctionName(nameOrOp) + "(";
@@ -206,7 +206,7 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
 
 void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   addSignature(accu, "");
-  if (stage == DECLARE || (stage == IMPORT && templateParams.empty())) {
+  if (stage == DECLARE || (stage == IMPORT && templateInfo.params.empty())) {
     accu.add(";");
     accu.newLine("");
   } else {
@@ -243,7 +243,7 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (external)
     return;
   if (stage != DEFINE) {
-    considerTemplateParams(accu, templateParams);
+    considerTemplateParams(accu, templateInfo.params);
     accu.add("struct " + name + " {");
     ++accu.indent;
     for (auto& method : methods) {
@@ -258,8 +258,8 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
   }
   accu.newLine();
   for (auto& method : methods)
-    if (stage == DEFINE || ((!templateParams.empty() || !method->templateParams.empty()) && stage == IMPORT)) {
-      considerTemplateParams(accu, templateParams);
+    if (stage == DEFINE || ((!templateInfo.params.empty() || !method->templateInfo.params.empty()) && stage == IMPORT)) {
+      considerTemplateParams(accu, templateInfo.params);
       method->addSignature(accu, name + joinTemplateParams(type->templateParams));
       accu.newLine();
       method->body->codegen(accu, DEFINE);
@@ -273,7 +273,7 @@ constexpr const char* variantUnionElem = "unionElem";
 
 void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (stage != DEFINE) {
-    considerTemplateParams(accu, templateParams);
+    considerTemplateParams(accu, templateInfo.params);
     accu.add("struct " + name + " {");
     ++accu.indent;
     for (auto& method : methods) {
@@ -339,21 +339,21 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
     accu.newLine();
   }
   for (auto& method : methods)
-    if (stage == DEFINE || ((!templateParams.empty() || !method->templateParams.empty()) && stage == IMPORT)) {
-      considerTemplateParams(accu, templateParams);
+    if (stage == DEFINE || ((!templateInfo.params.empty() || !method->templateInfo.params.empty()) && stage == IMPORT)) {
+      considerTemplateParams(accu, templateInfo.params);
       method->addSignature(accu, name + joinTemplateParams(type->templateParams));
       accu.newLine();
       method->body->codegen(accu, DEFINE);
       accu.newLine();
     }
-  if (stage == DEFINE || (!templateParams.empty() && stage == IMPORT))
+  if (stage == DEFINE || (!templateInfo.params.empty() && stage == IMPORT))
     for (auto& alternative : type->alternatives) {
       string signature = alternative.name + "(";
       if (alternative.type != ArithmeticType::VOID)
         signature += "const " + alternative.type->getName() + "& elem";
       signature += ")";
       string params = joinTemplateParams(type->templateParams);
-      considerTemplateParams(accu, templateParams);
+      considerTemplateParams(accu, templateInfo.params);
       accu.add(name + params + " " + name + params + "::" + signature + " {");
       ++accu.indent;
       accu.newLine(name + " ret;");
@@ -493,4 +493,7 @@ void EnumDefinition::codegen(Accu& accu, CodegenStage stage) const {
 
 void EnumConstant::codegen(Accu& accu, CodegenStage) const {
   accu.add(enumName + "::" + enumElement);
+}
+
+void ConceptDefinition::codegen(Accu&, Node::CodegenStage) const {
 }

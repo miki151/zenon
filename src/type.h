@@ -23,18 +23,11 @@ struct Type : public owned_object<Type> {
   virtual const Context& getContext() const;
   virtual const Context& getStaticContext() const;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const;
-
-};
-
-struct TypeWithContext : public Type {
-  virtual const Context& getContext() const override;
-  virtual const Context& getStaticContext() const override;
-
   Context context;
   Context staticContext;
 };
 
-struct ArithmeticType : public TypeWithContext {
+struct ArithmeticType : public Type {
   virtual string getName() const override;
   using DefType = shared_ptr<ArithmeticType>;
   static DefType INT;
@@ -43,10 +36,10 @@ struct ArithmeticType : public TypeWithContext {
   static DefType CHAR;
   static DefType STRING;
 
-  ArithmeticType(const char* name);
+  ArithmeticType(const string& name);
 
   private:
-  const char* name;
+  string name;
 };
 
 struct ReferenceType : public Type {
@@ -56,15 +49,13 @@ struct ReferenceType : public Type {
   virtual bool canMap(TypeMapping& mapping, SType from) const override;
   virtual SType replace(SType from, SType to) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const override;
-  virtual const Context& getContext() const override;
 
   static shared_ptr<ReferenceType> get(SType);
   SType underlying;
-  Context context;
   ReferenceType(SType);
 };
 
-struct PointerType : public TypeWithContext {
+struct PointerType : public Type {
   virtual string getName() const override;
   virtual SType replace(SType from, SType to) const override;
   virtual bool canMap(TypeMapping&, SType argType) const override;
@@ -77,14 +68,13 @@ struct PointerType : public TypeWithContext {
 
 struct TemplateParameterType : public Type {
   virtual string getName() const override;
-  virtual SType replace(SType from, SType to) const override;
 
   TemplateParameterType(string name, CodeLoc);
   string name;
   CodeLoc declarationLoc;
 };
 
-struct StructType : public TypeWithContext {
+struct StructType : public Type {
   virtual string getName() const override;
   virtual SType replace(SType from, SType to) const override;
   virtual nullable<SType> instantiate(vector<SType> templateParams) const override;
@@ -133,6 +123,13 @@ struct FunctionType {
   vector<Param> params;
   vector<SType> templateParams;
   nullable<SType> parentType;
+};
+
+struct Concept : public owned_object<Concept> {
+  Concept(const string& name);
+  string name;
+  vector<string> paramNames;
+  vector<SType> params;
 };
 
 struct Expression;

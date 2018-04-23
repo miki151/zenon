@@ -1,0 +1,35 @@
+// 1
+
+struct A1 {
+  string s;
+  string toString() {
+    return "A1(" + s + ")";
+  }
+};
+
+struct B {
+  string toString() {
+    return "B";
+  }
+};
+
+template <T>
+concept Printable {
+  T {
+    string toString();
+  };
+};
+
+template <A> requires Printable<A>
+string print(A* a) {
+  return (*a).toString();
+}
+
+int main() {
+  auto a = A1("pok");
+  auto b = B();
+  if (print(&a) + print(&b) == "A1(pok)B")
+    return 1;
+  else
+    return 0;
+}

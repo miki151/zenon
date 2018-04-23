@@ -160,9 +160,14 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
   auto token2 = tokens.popNext("function definition");
   unique_ptr<FunctionDefinition> ret;
   if (token2 == Keyword::OPERATOR) {
-    tokens.eat(Keyword::OPEN_SQUARE_BRACKET);
-    tokens.eat(Keyword::CLOSE_SQUARE_BRACKET);
-    ret = unique<FunctionDefinition>(type.codeLoc, type, Operator::SUBSCRIPT);
+    if (auto op = tokens.peek("operator").getValueMaybe<Operator>()) {
+      tokens.popNext();
+      ret = unique<FunctionDefinition>(type.codeLoc, type, *op);
+    } else {
+      tokens.eat(Keyword::OPEN_SQUARE_BRACKET);
+      tokens.eat(Keyword::CLOSE_SQUARE_BRACKET);
+      ret = unique<FunctionDefinition>(type.codeLoc, type, Operator::SUBSCRIPT);
+    }
   } else {
     token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected identifier, got: " + quote(token2.value));
     ret = unique<FunctionDefinition>(type.codeLoc, type, token2.value);
@@ -190,19 +195,27 @@ unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Toke
   return ret;
 }
 
-static vector<TemplateParameter> parseTemplateParams(Tokens& tokens) {
+static TemplateInfo parseTemplateInfo(Tokens& tokens) {
   tokens.eat(Keyword::TEMPLATE);
   tokens.eat(Operator::LESS_THAN);
-  vector<TemplateParameter> params;
+  TemplateInfo ret;
   while (tokens.peek("template definition") != Operator::MORE_THAN) {
     auto paramToken = tokens.popNext();
     paramToken.codeLoc.check(paramToken.contains<IdentifierToken>(), "Type parameter expected");
-    params.push_back({paramToken.value, paramToken.codeLoc});
+    ret.params.push_back({paramToken.value, paramToken.codeLoc});
     if (tokens.peek("template definition") != Operator::MORE_THAN)
       tokens.eat(Keyword::COMMA);
   }
   tokens.eat(Operator::MORE_THAN);
-  return params;
+  if (tokens.peek("function or struct definition") == Keyword::REQUIRES) {
+    tokens.popNext();
+    while (1) {
+      ret.requirements.push_back(IdentifierInfo::parseFrom(tokens, false));
+      if (!tokens.eatMaybe(Keyword::COMMA))
+        break;
+    }
+  }
+  return ret;
 }
 
 unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external) {
@@ -219,9 +232,9 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
       tokens.popNext();
       break;
     }
-    vector<TemplateParameter> templateParams;
+    TemplateInfo templateParams;
     if (memberToken == Keyword::TEMPLATE)
-      templateParams = parseTemplateParams(tokens);
+      templateParams = parseTemplateInfo(tokens);
     auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
     auto memberName = tokens.popNext("member name");
     if (memberName == Keyword::OPERATOR || tokens.peek("struct definition") == Keyword::OPEN_BRACKET) {
@@ -231,13 +244,50 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
         tokens.eat(Keyword::SEMICOLON);
       } else
         ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));
-      ret->methods.back()->templateParams = templateParams;
+      ret->methods.back()->templateInfo = templateParams;
     } else {
-      memberToken.codeLoc.check(templateParams.empty(), "Member variable can't have template parameters");
+      memberToken.codeLoc.check(templateParams.params.empty(), "Member variable can't have template parameters");
       memberName.codeLoc.check(memberName.contains<IdentifierToken>(), "Expected identifier");
       ret->members.push_back({typeIdent, memberName.value, token2.codeLoc});
       tokens.eat(Keyword::SEMICOLON);
     }
+  }
+  tokens.eat(Keyword::SEMICOLON);
+  return ret;
+}
+
+static void parseTypeConceptBody(Tokens& tokens, ConceptDefinition::Type& type) {
+  tokens.eat(Keyword::OPEN_BLOCK);
+  while (1) {
+    auto memberToken = tokens.peek("method signature");
+    if (memberToken == Keyword::CLOSE_BLOCK) {
+      tokens.popNext();
+      break;
+    }
+    type.methods.push_back(parseFunctionSignature(IdentifierInfo::parseFrom(tokens, true), tokens));
+    tokens.eat(Keyword::SEMICOLON);
+  }
+}
+
+unique_ptr<ConceptDefinition> parseConceptDefinition(Tokens& tokens) {
+  tokens.eat(Keyword::CONCEPT);
+  auto token2 = tokens.popNext("concept name");
+  token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected struct name");
+  auto ret = unique<ConceptDefinition>(token2.codeLoc, token2.value);
+  tokens.eat(Keyword::OPEN_BLOCK);
+  while (1) {
+    auto memberToken = tokens.peek("type or function signature");
+    if (memberToken == Keyword::CLOSE_BLOCK) {
+      tokens.popNext();
+      break;
+    }
+    TemplateInfo templateParams;
+    if (memberToken == Keyword::TEMPLATE)
+      templateParams = parseTemplateInfo(tokens);
+    auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
+    ret->types.push_back({{}, typeIdent.parts[0].name, memberToken.codeLoc});
+    parseTypeConceptBody(tokens, ret->types.back());
+    tokens.eat(Keyword::SEMICOLON);
   }
   tokens.eat(Keyword::SEMICOLON);
   return ret;
@@ -286,15 +336,15 @@ unique_ptr<VariantDefinition> parseVariantDefinition(Tokens& tokens) {
       tokens.popNext();
       break;
     }
-    vector<TemplateParameter> templateParams;
+    TemplateInfo templateParams;
     if (memberToken == Keyword::TEMPLATE)
-      templateParams = parseTemplateParams(tokens);
+      templateParams = parseTemplateInfo(tokens);
     auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
     auto token2 = tokens.popNext("name of a variant alternative");
     if (token2 == Keyword::OPERATOR || tokens.peek("variant definition") == Keyword::OPEN_BRACKET) {
       tokens.rewind();
       ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));
-      ret->methods.back()->templateParams = templateParams;
+      ret->methods.back()->templateInfo = templateParams;
     } else {
       token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected name of a variant alternative");
       ret->elements.push_back(VariantDefinition::Element{typeIdent, token2.value, token2.codeLoc});
@@ -385,25 +435,31 @@ unique_ptr<Statement> parseVariableDeclaration(Tokens& tokens) {
 }
 
 unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
-  auto params = parseTemplateParams(tokens);
-  if (tokens.peek("Function or type definition") == Keyword::EXTERN) {
+  auto templateInfo = parseTemplateInfo(tokens);
+  auto nextToken = tokens.peek("Function or type definition");
+  if (nextToken == Keyword::EXTERN) {
     tokens.popNext();
     auto ret = parseStructDefinition(tokens, true);
-    ret->templateParams = params;
+    ret->templateInfo = templateInfo;
     return ret;
   } else
-  if (tokens.peek("Function or type definition") == Keyword::STRUCT) {
+  if (nextToken == Keyword::STRUCT) {
     auto ret = parseStructDefinition(tokens, false);
-    ret->templateParams = params;
+    ret->templateInfo = templateInfo;
     return ret;
   } else
-  if (tokens.peek("Function or type definition") == Keyword::VARIANT) {
+  if (nextToken == Keyword::VARIANT) {
     auto ret = parseVariantDefinition(tokens);
-    ret->templateParams = params;
+    ret->templateInfo = templateInfo;
+    return ret;
+  }
+  if (nextToken == Keyword::CONCEPT) {
+    auto ret = parseConceptDefinition(tokens);
+    ret->templateInfo = templateInfo;
     return ret;
   } else {
     auto ret = parseFunctionDefinition(IdentifierInfo::parseFrom(tokens, true), tokens);
-    ret->templateParams = params;
+    ret->templateInfo = templateInfo;
     return ret;
   }
 }

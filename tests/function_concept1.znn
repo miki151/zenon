@@ -1,0 +1,17 @@
+// 3
+
+template <T>
+concept CanAdd {
+  T {
+    T operator + (T t);
+  };
+};
+
+template <A> requires CanAdd<A>
+A add(A a, A b) {
+  return a + b;
+}
+
+int main() {
+  return add(1, 2);
+}

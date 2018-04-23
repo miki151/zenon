@@ -21,7 +21,7 @@ string ArithmeticType::getName() const {
   return name;
 }
 
-ArithmeticType::ArithmeticType(const char* name) : name(name) {
+ArithmeticType::ArithmeticType(const string& name) : name(name) {
 }
 
 string ReferenceType::getName() const {
@@ -101,7 +101,8 @@ shared_ptr<ReferenceType> ReferenceType::get(SType type) {
   return generated.at(type);
 }
 
-ReferenceType::ReferenceType(SType t) : underlying(t->getUnderlying()), context(Context::withParent(underlying->getContext())) {
+ReferenceType::ReferenceType(SType t) : underlying(t->getUnderlying()) {
+  context.merge(underlying->getContext());
 }
 
 shared_ptr<PointerType> PointerType::get(SType type) {
@@ -134,10 +135,6 @@ shared_ptr<StructType> StructType::get(Kind kind, string name) {
 
 void ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc) const {
   underlying->handleSwitchStatement(statement, context, codeLoc);
-}
-
-const Context& ReferenceType::getContext() const {
-  return context;
 }
 
 void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext, CodeLoc codeLoc) const {
@@ -232,7 +229,11 @@ bool requiresInitialization(SType) {
 TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l) {}
 
 SType Type::replace(SType from, SType to) const {
-  return get_this().get();
+  auto self = get_this().get();
+  if (from == self)
+    return to;
+  else
+    return self;
 }
 
 SType ReferenceType::replace(SType from, SType to) const {
@@ -241,14 +242,6 @@ SType ReferenceType::replace(SType from, SType to) const {
 
 SType PointerType::replace(SType from, SType to) const {
   return PointerType::get(underlying->replace(from, to));
-}
-
-SType TemplateParameterType::replace(SType from, SType to) const {
-  auto self = get_this().get();
-  if (from == self)
-    return to;
-  else
-    return self;
 }
 
 SType StructType::replace(SType from, SType to) const {
@@ -297,13 +290,11 @@ nullable<SType> Type::instantiate(vector<SType> templateParams) const {
 }
 
 const Context& Type::getContext() const {
-  static Context empty;
-  return empty;
+  return context;
 }
 
 const Context& Type::getStaticContext() const {
-  static Context empty;
-  return empty;
+  return staticContext;
 }
 
 void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc) const {
@@ -402,11 +393,5 @@ void instantiateFunction(FunctionType& type, CodeLoc codeLoc, vector<SType> temp
 
 EnumType::EnumType(string n, vector<string> e) : name(n), elements(e) {}
 
-
-const Context& TypeWithContext::getContext() const {
-  return context;
-}
-
-const Context& TypeWithContext::getStaticContext() const {
-  return staticContext;
+Concept::Concept(const string& name) : name(name) {
 }

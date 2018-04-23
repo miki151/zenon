@@ -166,6 +166,11 @@ struct TemplateParameter {
   CodeLoc codeLoc;
 };
 
+struct TemplateInfo {
+  vector<TemplateParameter> params;
+  vector<IdentifierInfo> requirements;
+};
+
 struct StructDefinition : Statement {
   StructDefinition(CodeLoc, string name);
   string name;
@@ -176,15 +181,13 @@ struct StructDefinition : Statement {
   };
   vector<Member> members;
   vector<unique_ptr<FunctionDefinition>> methods;
-  vector<TemplateParameter> templateParams;
+  TemplateInfo templateInfo;
   nullable<shared_ptr<StructType>> type;
   virtual void addToContext(Context&) override;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   bool external = false;
-  private:
-  void generate(Accu&, bool import) const;
 };
 
 struct VariantDefinition : Statement {
@@ -197,15 +200,28 @@ struct VariantDefinition : Statement {
   };
   vector<Element> elements;
   vector<unique_ptr<FunctionDefinition>> methods;
-  vector<TemplateParameter> templateParams;
+  TemplateInfo templateInfo;
   nullable<shared_ptr<StructType>> type;
   virtual void addToContext(Context&) override;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+};
 
-  private:
-  void generate(Accu&, bool import) const;
+struct ConceptDefinition : Statement {
+  ConceptDefinition(CodeLoc, string name);
+  string name;
+  struct Type {
+    vector<unique_ptr<FunctionDefinition>> methods;
+    string name;
+    CodeLoc codeLoc;
+  };
+  vector<Type> types;
+  TemplateInfo templateInfo;
+  virtual void addToContext(Context&) override;
+  virtual void check(Context&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 };
 
 struct EnumDefinition : Statement {
@@ -217,9 +233,6 @@ struct EnumDefinition : Statement {
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
-
-  private:
-  void generate(Accu&, bool import) const;
 };
 
 struct SwitchStatement : Statement {
@@ -257,7 +270,7 @@ struct FunctionDefinition : Statement {
   };
   vector<Parameter> parameters;
   unique_ptr<Statement> body;
-  vector<TemplateParameter> templateParams;
+  TemplateInfo templateInfo;
   optional<FunctionType> functionType;
   virtual void check(Context&) override;
   virtual void addToContext(Context&) override;

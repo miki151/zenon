@@ -1,0 +1,25 @@
+// 10
+
+template <T>
+concept CanAdd {
+  T {
+    T operator + (T t);
+  };
+};
+
+template <A> requires CanAdd<A>
+struct S1 {
+  A a;
+  A get() {
+    return a + a;
+  }
+};
+
+int main() {
+  auto s = S1(5);
+  auto s2 = S1("pok");
+  if (s2.get() == "pokpok")
+    return s.get();
+  else
+    return 0;
+}

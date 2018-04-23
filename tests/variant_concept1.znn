@@ -1,0 +1,45 @@
+// 5
+
+struct A {
+  int getValue() {
+    return 2;
+  }
+};
+
+struct B {
+  int a;
+  int getValue() {
+    return a;
+  }
+};
+
+template <S>
+concept hasValue {
+  S {
+    int getValue();
+  };
+};
+
+template <S> requires hasValue<S>
+variant V {
+  S s;
+  void null;
+  int getValue() {
+    switch (*this) {
+      case (S s) {
+        return s.getValue();
+      }
+      case (null) {
+        return -1;
+      }
+    }
+  }
+};
+
+
+int main() {
+  auto v1 = V<A>::s(A());
+  auto v2 = V<B>::s(B(4));
+  auto v3 = V<A>::null();
+  return v1.getValue() + v2.getValue() + v3.getValue();
+}

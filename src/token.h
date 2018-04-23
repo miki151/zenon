@@ -44,7 +44,9 @@ enum class Keyword {
   PUBLIC,
   AUTO,
   ENUM,
-  OPERATOR
+  OPERATOR,
+  CONCEPT,
+  REQUIRES
 };
 
 struct EmbedToken {

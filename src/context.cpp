@@ -19,6 +19,11 @@ Context Context::withParent(vector<Context*> parents) {
   return ret;
 }
 
+void Context::merge(const Context& context) {
+  append(parentStates, context.parentStates);
+  parentStates.push_back(context.state);
+}
+
 Context::Context() : state(shared<State>()) {
 }
 
@@ -51,6 +56,8 @@ void Context::replace(SType from, SType to) {
     replaceInFunction(function.second, from, to);
   for (auto& function : state->operators)
     replaceInFunction(function.second, from, to);
+  for (auto& type : state->types)
+    type.second = type.second->replace(from, to);
 }
 
 const Context::State& Context::getTopState() const {
@@ -92,6 +99,18 @@ vector<SType> Context::getTypeList(const vector<IdentifierInfo>& ids) const {
     else
       id.codeLoc.error("Unrecognized type: " + quote(id.toString()));
   return params;
+}
+
+void Context::addConcept(const string& name, shared_ptr<Concept> i) {
+  state->concepts.insert({name, i});
+}
+
+nullable<SConcept> Context::getConcept(const string& name) const {
+  for (auto& state : getReversedStates())
+    if (state->concepts.count(name))
+      return state->concepts.at(name);
+  return nullptr;
+
 }
 
 nullable<SType> Context::getType(const string& s) const {

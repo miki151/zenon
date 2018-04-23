@@ -7,14 +7,17 @@
 struct IdentifierInfo;
 struct Type;
 struct FunctionType;
+struct Concept;
 class Context;
 using SContext = shared_ptr<Context>;
+using SConcept = shared_ptr<Concept>;
 using SConstContext = shared_ptr<const Context>;
 
 class Context : public owned_object<Context> {
   public:
   static Context withParent(const Context&);
   static Context withParent(vector<Context*>);
+  void merge(const Context&);
   Context();
   Context(const Context&) = delete;
   Context(Context&&) = default;
@@ -38,6 +41,8 @@ class Context : public owned_object<Context> {
   const vector<string>& getAllImports() const;
   void checkNameConflict(CodeLoc loc, const string& name, const string& type) const;
   vector<SType> getTypeList(const vector<IdentifierInfo>&) const;
+  void addConcept(const string& name, SConcept);
+  nullable<SConcept> getConcept(const string& name) const;
 
   private:
   nullable<SType> getType(const string&) const;
@@ -53,6 +58,7 @@ class Context : public owned_object<Context> {
     nullable<SType> returnType;
     vector<string> imports;
     vector<string> allImports;
+    map<string, shared_ptr<Concept>> concepts;
   };
   vector<shared_ptr<const State>> parentStates;
   shared_ptr<State> state;
