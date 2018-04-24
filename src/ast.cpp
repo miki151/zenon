@@ -171,6 +171,7 @@ void FunctionDefinition::setFunctionType(const Context& context) {
   vector<SType> templateTypes;
   for (auto& param : templateInfo.params) {
     templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+    contextWithTemplateParams.checkNameConflict(param.codeLoc, param.name, "template parameter");
     contextWithTemplateParams.addType(param.name, templateTypes.back());
   }
   applyConcept(context, templateInfo, templateTypes);
