@@ -211,12 +211,12 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
 void StructType::updateInstantations() {
   for (auto type1 : instantations) {
     auto type = type1.dynamicCast<StructType>();
+    type->context.deepCopyFrom(context);
+    type->staticContext.deepCopyFrom(staticContext);
+    type->alternatives = alternatives;
     for (int i = 0; i < templateParams.size(); ++i) {
-      type->context.deepCopyFrom(context);
-      type->staticContext.deepCopyFrom(staticContext);
       type->context.replace(templateParams[i], type->templateParams[i]);
       type->staticContext.replace(templateParams[i], type->templateParams[i]);
-      type->alternatives = alternatives;
       for (auto& alternative : type->alternatives)
         alternative.type = alternative.type->replace(templateParams[i], type->templateParams[i]);
     }
