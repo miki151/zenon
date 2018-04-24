@@ -1,0 +1,38 @@
+// 3
+
+template <T, U, V>
+concept CanAdd {
+  T {
+    V add(U u);
+  };
+};
+
+struct S {
+  int add(bool a) {
+    if (a)
+      return 1;
+    else
+      return 2;
+  }
+};
+
+template <A, B, C> requires CanAdd<A, B, C>
+C add2(A a, B b) {
+  return a.add(b);
+}
+
+template <A, B, C> requires CanAdd<A, B, C>
+struct S2 {
+  C add3(A a, B b) {
+    return a.add(b);
+  }
+};
+
+void fun(S2<S, bool, int> s) {
+}
+
+int main() {
+  auto s = S();
+  S2<S, bool, int> s2 = S2<S, bool, int>();
+  return add2<S, bool, int>(s, false) + s2.add3(s, true);
+}

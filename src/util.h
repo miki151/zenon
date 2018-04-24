@@ -116,3 +116,31 @@ void append(vector<T>& v, const vector<T>& w) {
   for (T elem : w)
     v.push_back(elem);
 }
+
+
+template <typename Key, typename Map>
+optional<const typename Map::mapped_type&> getReferenceMaybe(const Map& m, const Key& key) {
+  auto it = m.find(key);
+  if (it != m.end())
+    return it->second;
+  else
+    return none;
+}
+
+template <typename Key, typename Map>
+optional<typename Map::mapped_type&> getReferenceMaybe(Map& m, const Key& key) {
+  auto it = m.find(key);
+  if (it != m.end())
+    return it->second;
+  else
+    return none;
+}
+
+template <typename Key, typename Map>
+optional<typename Map::mapped_type> getValueMaybe(const Map& m, const Key& key) {
+  auto it = m.find(key);
+  if (it != m.end())
+    return it->second;
+  else
+    return none;
+}

@@ -24,14 +24,56 @@ void Context::merge(const Context& context) {
   parentStates.push_back(context.state);
 }
 
+void Context::mergeAndCollapse(const Context& context) {
+  for (auto& s : context.getReversedStates())
+    state->merge(*s);
+}
+
 Context::Context() : state(shared<State>()) {
+}
+
+void Context::State::merge(const Context::State& o) {
+  for (auto& f : o.functions) {
+    CHECK(!functions.count(f.first));
+    functions.insert(f);
+  }
+  for (auto& f : o.operators) {
+    CHECK(!operators.count(f.first));
+    operators.insert(f);
+  }
 }
 
 void Context::deepCopyFrom(const Context& c) {
   CHECK(parentStates.empty());
   *state = *c.state;
-  for (auto state : c.parentStates)
-    parentStates.push_back(shared<State>(*state));
+  for (auto s : c.parentStates)
+    state->merge(*s);
+}
+
+static bool areEquivalent(const FunctionType& f1, const FunctionType& f2) {
+  if (f1.params.size() != f2.params.size())
+    return false;
+  for (int i = 0; i < f1.params.size(); ++i)
+    if (f1.params[i].type != f2.params[i].type)
+      return false;
+  return f1.retVal == f2.retVal;
+}
+
+vector<pair<string, FunctionType>> Context::getMissingFunctions(const Context& required) const {
+  vector<pair<string, FunctionType>> ret;
+  for (auto otherState : required.getReversedStates()) {
+    for (auto& function : otherState->functions) {
+      auto myFun = getFunction(function.first);
+      if (!myFun || !areEquivalent(*myFun, function.second))
+        ret.push_back(function);
+    }
+    for (auto& function : otherState->operators) {
+      auto myFun = getFunction(function.first);
+      if (!myFun || !areEquivalent(*myFun, function.second))
+        ret.push_back({"operator "s + getString(function.first), function.second});
+    }
+  }
+  return ret;
 }
 
 nullable<SType> Context::getTypeOfVariable(const string& s) const {
@@ -152,7 +194,7 @@ nullable<SType> Context::getTypeFromString(IdentifierInfo id) const {
   auto topType = getType(name);
   if (!topType)
     return nullptr;
-  auto ret = topType->instantiate(getTypeList(id.parts.at(0).templateArguments));
+  auto ret = topType->instantiate(id.codeLoc, getTypeList(id.parts.at(0).templateArguments));
   if (ret && id.pointer)
     ret = PointerType::get(ret.get());
   return ret;

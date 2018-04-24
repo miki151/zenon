@@ -1,0 +1,24 @@
+// 1
+
+struct S {
+  int add(bool a) {
+    return 1;
+  }
+};
+
+
+template <A, B, C> 
+struct S2 {
+  int add3(A a, B b) {
+    return 1;
+  }
+};
+
+void fun(S2<S, bool, int> s) {
+}
+
+int main() {
+  auto s = S();
+  S2<S, bool, int> s2 = S2<S, bool, int>();
+  return s2.add3(s, true);
+}

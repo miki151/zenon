@@ -18,10 +18,12 @@ class Context : public owned_object<Context> {
   static Context withParent(const Context&);
   static Context withParent(vector<Context*>);
   void merge(const Context&);
+  void mergeAndCollapse(const Context&);
   Context();
   Context(const Context&) = delete;
   Context(Context&&) = default;
   void deepCopyFrom(const Context&);
+  vector<pair<string, FunctionType>> getMissingFunctions(const Context&) const;
   nullable<SType> getTypeOfVariable(const string&) const;
   void addVariable(const string& ident, SType);
   const vector<string>& getBottomLevelVariables() const;
@@ -59,6 +61,7 @@ class Context : public owned_object<Context> {
     vector<string> imports;
     vector<string> allImports;
     map<string, shared_ptr<Concept>> concepts;
+    void merge(const State&);
   };
   vector<shared_ptr<const State>> parentStates;
   shared_ptr<State> state;

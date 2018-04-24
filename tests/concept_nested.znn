@@ -1,0 +1,34 @@
+// 2
+
+template <T>
+concept CanAdd {
+  T {
+    T operator + (T t);
+  };
+};
+
+template <T>
+concept CanAdd2 {
+  T {
+    T operator + (T t);
+  };
+};
+
+template <A> requires CanAdd2<A>
+void times2(A* a) {
+  *a = *a + *a;
+}
+
+template <A> requires CanAdd<A>
+struct S {
+  A a;
+  void t2() {
+    times2(&a);
+  }
+};
+
+int main() {
+  S<int> s = S<int>(1);
+  s.t2();
+  return s.a;
+}

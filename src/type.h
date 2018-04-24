@@ -19,7 +19,7 @@ struct Type : public owned_object<Type> {
   virtual bool canMap(TypeMapping&, SType argType) const;
   virtual SType replace(SType from, SType to) const;
   virtual ~Type() {}
-  virtual nullable<SType> instantiate(vector<SType> templateParams) const;
+  virtual nullable<SType> instantiate(CodeLoc, vector<SType> templateParams) const;
   virtual const Context& getContext() const;
   virtual const Context& getStaticContext() const;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const;
@@ -77,7 +77,7 @@ struct TemplateParameterType : public Type {
 struct StructType : public Type {
   virtual string getName() const override;
   virtual SType replace(SType from, SType to) const override;
-  virtual nullable<SType> instantiate(vector<SType> templateParams) const override;
+  virtual nullable<SType> instantiate(CodeLoc, vector<SType> templateParams) const override;
   virtual bool canMap(TypeMapping&, SType argType) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const override;
 
@@ -122,14 +122,18 @@ struct FunctionType {
   SType retVal;
   vector<Param> params;
   vector<SType> templateParams;
+  nullable<SConcept> parentConcept;
   nullable<SType> parentType;
+  string toString(const string& name) const;
 };
 
 struct Concept : public owned_object<Concept> {
   Concept(const string& name);
-  string name;
-  vector<string> paramNames;
   vector<SType> params;
+  string getName() const;
+
+  private:
+  string name;
 };
 
 struct Expression;
@@ -140,3 +144,4 @@ struct IdentifierInfo;
 extern void instantiateFunction(FunctionType&, CodeLoc, vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc);
 extern bool canConvert(SType from, SType to);
 extern void replaceInFunction(FunctionType&, SType from, SType to);
+extern string joinTemplateParams(const vector<SType>& params);

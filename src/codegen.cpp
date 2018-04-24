@@ -118,18 +118,6 @@ void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.add(";");
 }
 
-// identifier(args)
-// identifier{args}
-// variant { variant::enumId, { variant::identifier{args}}}
-
-
-static string joinTemplateParams(const vector<SType>& params) {
-  if (params.empty())
-    return "";
-  else
-    return "<" + combine(transform(params, [](const auto& arg) { return arg->getName(); } ), ", ") + ">";
-}
-
 static void genFunctionCall(Accu& accu, const IdentifierInfo& identifier, const FunctionType& functionType,
     vector<Expression*> arguments) {
   string prefix;

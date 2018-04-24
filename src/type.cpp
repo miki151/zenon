@@ -77,7 +77,12 @@ int getNewId() {
 }
 
 FunctionType::FunctionType(FunctionCallType t, SType returnType, vector<Param> p, vector<SType> tpl)
-    : callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
+  : callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
+}
+
+string FunctionType::toString(const string& name) const {
+  return retVal->getName() + " " + name + joinTemplateParams(templateParams) + "(" +
+      combine(transform(params, [](const Param& t) { return t.type->getName(); }), ", ") + ")";
 }
 
 SType Type::getUnderlying() {
@@ -244,6 +249,12 @@ SType PointerType::replace(SType from, SType to) const {
   return PointerType::get(underlying->replace(from, to));
 }
 
+static void checkNonVoidMember (const SType& type, const SType& to) {
+  if (auto param = type.dynamicCast<TemplateParameterType>())
+    param->declarationLoc.check(to != ArithmeticType::VOID,
+        "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
+}
+
 SType StructType::replace(SType from, SType to) const {
   vector<SType> newTemplateParams;
   for (auto& param : templateParams)
@@ -255,18 +266,13 @@ SType StructType::replace(SType from, SType to) const {
     INFO << "New instantiation: " << ret->getName();
     ret->context.deepCopyFrom(context);
     ret->staticContext.deepCopyFrom(staticContext);
-    auto checkNonVoidMember = [&] (const SType& type) {
-      if (auto param = type.dynamicCast<TemplateParameterType>())
-        param->declarationLoc.check(to != ArithmeticType::VOID,
-            "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
-    };
     for (auto& member : ret->context.getBottomLevelVariables()) {
       auto memberType = ret->context.getTypeOfVariable(member).get();
-      checkNonVoidMember(memberType);
+      checkNonVoidMember(memberType, to);
     }
     ret->alternatives = alternatives;
     for (auto& alternative : ret->alternatives) {
-      checkNonVoidMember(alternative.type);
+      checkNonVoidMember(alternative.type, to);
       alternative.type = alternative.type->replace(from, to);
     }
     ret->context.replace(from, to);
@@ -280,9 +286,14 @@ void replaceInFunction(FunctionType& in, SType from, SType to) {
   in.retVal = in.retVal->replace(from, to);
   for (auto& param : in.params)
     param.type = param.type->replace(from, to);
+  if (in.parentConcept) {
+    in.parentConcept = shared<Concept>(*in.parentConcept);
+    for (auto& t : in.parentConcept->params)
+      t = t->replace(from, to);
+  }
 }
 
-nullable<SType> Type::instantiate(vector<SType> templateParams) const {
+nullable<SType> Type::instantiate(CodeLoc codeLoc, vector<SType> templateParams) const {
   if (templateParams.empty())
     return get_this().get();
   else
@@ -301,12 +312,27 @@ void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc) co
   codeLoc.error("Can't switch on value of type " + quote(getName()));
 }
 
-nullable<SType> StructType::instantiate(vector<SType> newTemplateParams) const {
-  if (newTemplateParams.size() != templateParams.size())
+void checkConcepts(CodeLoc codeLoc, const vector<SType>& params, const vector<SType>& args) {
+  for (int i = 0; i < params.size(); ++i) {
+    Context tmp;
+    tmp.deepCopyFrom(params[i]->context);
+    for (int j = 0; j < params.size(); ++j)
+      tmp.replace(params[j], args[j]);
+    auto missingFunctions = args[i]->context.getMissingFunctions(tmp);
+    if (!missingFunctions.empty())
+      codeLoc.error("Function not implemented by type: " + quote(args[i]->getName()) + ": " +
+          missingFunctions[0].second.toString(missingFunctions[0].first) + ", required by concept: " +
+          quote(missingFunctions[0].second.parentConcept->getName()));
+  }
+}
+
+nullable<SType> StructType::instantiate(CodeLoc codeLoc, vector<SType> templateArgs) const {
+  if (templateArgs.size() != templateParams.size())
     return nullptr;
   auto ret = get_this().get();
+  checkConcepts(codeLoc, templateParams, templateArgs);
   for (int i = 0; i < templateParams.size(); ++i)
-    ret = ret->replace(templateParams[i], newTemplateParams[i]);
+    ret = ret->replace(templateParams[i], templateArgs[i]);
   return ret;
 }
 
@@ -386,6 +412,9 @@ void instantiateFunction(FunctionType& type, CodeLoc codeLoc, vector<SType> temp
       else
         codeLoc.error("Couldn't deduce template argument " + quote(type.templateParams[i]->getName()));
     }
+  }
+  checkConcepts(codeLoc, type.templateParams, templateArgs);
+  for (int i = 0; i < type.templateParams.size(); ++i) {
     replaceInFunction(type, type.templateParams[i], templateArgs[i]);
     type.templateParams[i] = templateArgs[i];
   }
@@ -394,4 +423,15 @@ void instantiateFunction(FunctionType& type, CodeLoc codeLoc, vector<SType> temp
 EnumType::EnumType(string n, vector<string> e) : name(n), elements(e) {}
 
 Concept::Concept(const string& name) : name(name) {
+}
+
+string Concept::getName() const {
+  return name + joinTemplateParams(params);
+}
+
+string joinTemplateParams(const vector<SType>& params) {
+  if (params.empty())
+    return "";
+  else
+    return "<" + combine(transform(params, [](const auto& arg) { return arg->getName(); } ), ", ") + ">";
 }
