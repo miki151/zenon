@@ -1,15 +1,18 @@
 #pragma once
 
 #include <type_traits>
+#include <new>
 
 template<typename T>
-struct destroy_helper { static void destroy(T& ptr) { ptr.~T(); }; };
+struct destroy_helper {
+  static void destroy(T& ptr) { ptr.~T(); };
+};
 
 template<typename T>
 struct CopyVisitor {
   CopyVisitor(T& myElem) : myElem(myElem) {}
   void operator()(const T& hisElem) {
-    myElem = hisElem;
+    new (&myElem) T(hisElem);
   }
   template <typename U>
   void operator()(const U&) {}
@@ -19,6 +22,7 @@ struct CopyVisitor {
 
 template <typename T>
 struct VariantHelper {
+ 
   static void copy(const T& from, T& to) {
     to.unionElem = from.unionElem;
     to.visit([&](auto& myElem) {

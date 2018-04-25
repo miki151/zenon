@@ -14,9 +14,9 @@ variant V {
     S s1 = S(1);
     s1.f();
     switch (*this) {
-      case (int i) {
-        i = 4;
-        return i + a;
+      case (int* i) {
+        *i = 4;
+        return *i + a;
       }
       case (string s) {
         return 1 + a;

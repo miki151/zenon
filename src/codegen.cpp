@@ -321,7 +321,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
     accu.newLine("}");
     accu.newLine(name + "(const " + name + "& o) { VariantHelper<" + name + ">::copy(o, *this);  }");
     accu.newLine("~" + name + "() { VariantHelper<" + name + ">::destroy(*this); }");
-    accu.newLine("private: " + name + "() {}");
+    accu.newLine("private:" + name + "() {}");
     --accu.indent;
     accu.newLine("};");
     accu.newLine();
@@ -347,7 +347,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       accu.newLine(name + " ret;");
       accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + alternative.name + ";");
       if (!(alternative.type == ArithmeticType::VOID))
-        accu.newLine("ret."s + variantUnionEntryPrefix + alternative.name + " = elem;");
+        accu.newLine("new (&ret."s + variantUnionEntryPrefix + alternative.name + ") " + alternative.type->getName() + "(elem);");
       accu.newLine("return ret;");
       --accu.indent;
       accu.newLine("}");
@@ -405,9 +405,10 @@ void SwitchStatement::codegenVariant(Accu& accu) const {
   for (auto& caseElem : caseElems) {
     accu.newLine("case "s + subtypesPrefix + variantEnumeratorPrefix + caseElem.id + ": {");
     ++accu.indent;
-    if (caseElem.declareVar) {
+    if (caseElem.varType == caseElem.VALUE)
       accu.newLine("auto&& "s + caseElem.id + " = " + variantTmpRef + "." + variantUnionEntryPrefix + caseElem.id + ";");
-    }
+    else if (caseElem.varType == caseElem.POINTER)
+      accu.newLine("auto "s + caseElem.id + " = &" + variantTmpRef + "." + variantUnionEntryPrefix + caseElem.id + ";");
     accu.newLine();
     caseElem.block->codegen(accu, DEFINE);
     accu.newLine("break;");

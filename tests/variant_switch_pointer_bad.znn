@@ -1,0 +1,17 @@
+// no_compile
+
+variant V {
+  void null;
+  int a;
+};
+
+int main() {
+  auto v = V::null();
+  switch (v) {
+    case (int a) {
+    }
+    case (void* null) {
+    }
+  }
+  return 0;
+}

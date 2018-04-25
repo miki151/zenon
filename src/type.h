@@ -22,7 +22,7 @@ struct Type : public owned_object<Type> {
   virtual nullable<SType> instantiate(CodeLoc, vector<SType> templateParams) const;
   virtual const Context& getContext() const;
   virtual const Context& getStaticContext() const;
-  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const;
+  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
   Context context;
   Context staticContext;
 };
@@ -48,7 +48,7 @@ struct ReferenceType : public Type {
   virtual bool canAssign(SType from) const override;
   virtual bool canMap(TypeMapping& mapping, SType from) const override;
   virtual SType replace(SType from, SType to) const override;
-  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const override;
+  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
 
   static shared_ptr<ReferenceType> get(SType);
   SType underlying;
@@ -79,7 +79,7 @@ struct StructType : public Type {
   virtual SType replace(SType from, SType to) const override;
   virtual nullable<SType> instantiate(CodeLoc, vector<SType> templateParams) const override;
   virtual bool canMap(TypeMapping&, SType argType) const override;
-  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const override;
+  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
 
   enum Kind {
     STRUCT,
@@ -106,7 +106,7 @@ struct EnumType : public Type {
   EnumType(string name, vector<string> elements);
 
   virtual string getName() const override;
-  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc) const override;
+  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
 
   string name;
   vector<string> elements;

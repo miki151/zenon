@@ -1,0 +1,22 @@
+// no_compile
+
+variant V {
+  int i;
+  string s;
+};
+
+V getV() {
+  return V::s("pok");
+}
+
+int main() {
+  auto v = V::i(5);
+  switch (getV()) {
+    case (string* s) {
+      *s = "pak";
+    }
+    default {
+    }
+  }
+  return 1;
+}

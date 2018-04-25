@@ -1,0 +1,26 @@
+// no_compile
+
+template <T>
+concept C1 {
+  T {
+    void f();
+  };
+};
+
+template <T> requires C1<T>
+struct A {
+};
+
+template <T>
+void f1() {
+  A<T> a = A<T>();
+}
+
+struct C {
+  void f() {}
+};
+
+int main() {
+  f1<C>();
+  return 0;
+}

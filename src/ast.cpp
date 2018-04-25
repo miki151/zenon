@@ -333,7 +333,7 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(const Context& idConte
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
 void SwitchStatement::check(Context& context) {
-  expr->getType(context)->handleSwitchStatement(*this, context, expr->codeLoc);
+  expr->getType(context)->handleSwitchStatement(*this, context, expr->codeLoc, false);
 }
 
 bool SwitchStatement::hasReturnStatement(const Context& context) const {

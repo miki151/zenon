@@ -1,0 +1,33 @@
+// 3
+
+template <T>
+concept C1 {
+};
+
+template <T> requires C1<T>
+struct A1 {
+};
+
+template <T>
+int f1(A1<T> a) {
+  return 1;
+}
+
+template <T>
+concept C2 {
+  T {
+  };
+};
+
+template <T> requires C2<T>
+struct A2 {
+};
+
+template <T>
+int f2(A2<T> a) {
+  return 2;
+}
+
+int main() {
+  return f1(A1<int>()) + f2(A2<string>());
+}

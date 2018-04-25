@@ -44,7 +44,7 @@ string EnumType::getName() const {
   return name;
 }
 
-void EnumType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc) const {
+void EnumType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc, bool isReference) const {
   statement.type = SwitchStatement::ENUM;
   unordered_set<string> handledElems;
   statement.subtypesPrefix = name + "::";
@@ -138,11 +138,11 @@ shared_ptr<StructType> StructType::get(Kind kind, string name) {
   return ret;
 }
 
-void ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc) const {
-  underlying->handleSwitchStatement(statement, context, codeLoc);
+void ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc, bool isReference) const {
+  underlying->handleSwitchStatement(statement, context, codeLoc, true);
 }
 
-void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext, CodeLoc codeLoc) const {
+void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext, CodeLoc codeLoc, bool isReference) const {
   codeLoc.check(kind == StructType::VARIANT, "Expected a variant or enum type");
   statement.type = SwitchStatement::VARIANT;
   statement.subtypesPrefix = name;
@@ -169,14 +169,23 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
     handledTypes.insert(caseElem.id);
     auto caseBodyContext = Context::withParent(outsideContext);
     auto realType = getAlternativeType(caseElem.id).get();
-    caseElem.declareVar = !(realType == ArithmeticType::VOID);
-    if (caseElem.declareVar)
-      caseBodyContext.addVariable(caseElem.id, ReferenceType::get(realType));
+    if (realType != ArithmeticType::VOID)
+      caseElem.varType = caseElem.VALUE;
     if (caseElem.type) {
-      if (auto t = outsideContext.getTypeFromString(*caseElem.type))
-        caseElem.type->codeLoc.check(t == realType, "Can't handle variant element "
-            + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(t->getName()));
+      auto t = outsideContext.getTypeFromString(*caseElem.type);
+      caseElem.type->codeLoc.check(!!t, "Unrecognized type: " + quote(caseElem.type->toString()));
+      caseElem.type->codeLoc.check(t == realType || t == PointerType::get(realType), "Can't handle variant element "
+          + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(t->getName()));
+      if (t == PointerType::get(realType)) {
+        caseElem.varType = caseElem.POINTER;
+        caseElem.type->codeLoc.check(isReference, "Can't bind element to pointer when switching on a non-reference variant");
+        caseElem.type->codeLoc.check(realType != ArithmeticType::VOID, "Can't bind void element to pointer");
+      }
     }
+    if (caseElem.varType == caseElem.VALUE)
+      caseBodyContext.addVariable(caseElem.id, realType);
+    else if (caseElem.varType == caseElem.POINTER)
+      caseBodyContext.addVariable(caseElem.id, PointerType::get(realType));
     caseElem.block->check(caseBodyContext);
   }
   if (!statement.defaultBlock) {
@@ -308,7 +317,7 @@ const Context& Type::getStaticContext() const {
   return staticContext;
 }
 
-void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc) const {
+void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc, bool isReference) const {
   codeLoc.error("Can't switch on value of type " + quote(getName()));
 }
 

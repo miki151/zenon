@@ -242,7 +242,7 @@ struct SwitchStatement : Statement {
     optional<IdentifierInfo> type;
     string id;
     unique_ptr<StatementBlock> block;
-    bool declareVar;
+    enum VarType { VALUE, POINTER, NONE } varType = NONE;
   };
   string subtypesPrefix;
   vector<CaseElem> caseElems;
