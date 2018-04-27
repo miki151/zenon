@@ -191,13 +191,8 @@ void FunctionDefinition::checkFunction(Context& context, bool templateStruct) {
   Context bodyContext = Context::withParent(context);
   if (auto op = nameOrOp.getValueMaybe<Operator>()) {
     codeLoc.check(templateInfo.params.empty(), "Operator overload can't have template parameters.");
-    switch (*op) {
-      case Operator::SUBSCRIPT:
-        codeLoc.check(parameters.size() == 1, "Operator " + quote("[]") + " must take one parameter.");
-        break;
-      default:
-        codeLoc.error("Operator " + quote(getString(*op)) + " overload not supported.");
-    }
+    codeLoc.check(canOverload(*op, parameters.size()), "Can't overload operator " + quote(getString(*op)) +
+        " with " + to_string(parameters.size()) + " arguments.");
   }
   for (auto& param : functionType->templateParams)
     bodyContext.addType(param->getName(), param);
@@ -351,6 +346,7 @@ VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n
 void VariantDefinition::addToContext(Context& context) {
   context.checkNameConflict(codeLoc, name, "Type");
   type = StructType::get(StructType::VARIANT, name);
+  context.addType(name, type.get());
   auto membersContext = Context::withParent({&context, &type->context});
   for (auto& param : templateInfo.params)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
@@ -373,7 +369,6 @@ void VariantDefinition::addToContext(Context& context) {
     method->setFunctionType(membersContext);
     type->context.addFunction(method->nameOrOp, *method->functionType);
   }
-  context.addType(name, type.get());
 }
 
 void VariantDefinition::check(Context& context) {
@@ -393,6 +388,7 @@ void VariantDefinition::check(Context& context) {
 void StructDefinition::addToContext(Context& context) {
   context.checkNameConflict(codeLoc, name, "Type");
   type = StructType::get(StructType::STRUCT, name);
+  context.addType(name, type.get());
   auto membersContext = Context::withParent({&context, &type->context});
   for (auto& param : templateInfo.params)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
@@ -409,13 +405,13 @@ void StructDefinition::addToContext(Context& context) {
   }
   auto constructor = FunctionType(FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
   context.addFunction(name, constructor);
-  context.addType(name, type.get());
 }
 
 void StructDefinition::check(Context& context) {
   auto methodBodyContext = Context::withParent({&context, &type->context});
   for (auto& param : type->templateParams)
     methodBodyContext.addType(param->getName(), param);
+  methodBodyContext.addVariable("this", PointerType::get(type.get()));
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
     if (auto memberType = methodBodyContext.getTypeFromString(member.type))
@@ -530,6 +526,7 @@ void ConceptDefinition::addToContext(Context& context) {
       if (type.name == templateInfo.params[i].name) {
         for (auto& method : type.methods) {
           method->setFunctionType(declarationsContext);
+          method->check(declarationsContext);
           method->functionType->parentConcept = concept;
           concept->params[i]->context.addFunction(method->nameOrOp, *method->functionType);
         }

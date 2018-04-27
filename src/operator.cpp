@@ -77,6 +77,22 @@ bool isRightAssociative(Operator op) {
   }
 }
 
+bool canOverload(Operator op, int numArguments) {
+  switch (op) {
+    case Operator::SUBSCRIPT:
+    case Operator::PLUS:
+    case Operator::MINUS:
+    case Operator::MULTIPLY:
+      return numArguments == 1;
+    case Operator::POINTER_DEREFERENCE:
+    case Operator::PLUS_UNARY:
+    case Operator::MINUS_UNARY:
+      return numArguments == 0;
+    default:
+      return false;
+  }
+}
+
 optional<Operator> getUnary(Operator op) {
   switch (op) {
     case Operator::PLUS:

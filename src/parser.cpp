@@ -186,6 +186,10 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
     tokens.check(nameToken.contains<IdentifierToken>(), "Expected function parameter");
     ret->parameters.push_back({type.codeLoc, typeId, nameToken.value});
   }
+  if (ret->parameters.size() == 0)
+    if (auto op = ret->nameOrOp.getValueMaybe<Operator>())
+      if (auto opUnary = getUnary(*op))
+        ret->nameOrOp = *opUnary;
   return ret;
 }
 

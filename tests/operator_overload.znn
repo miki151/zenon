@@ -1,0 +1,45 @@
+// 105
+
+template <A>
+concept Arithmetic {
+  A {
+    A operator + (A a);
+    A operator - (A a);
+    A operator - ();
+    A operator + ();
+    A operator * (int a);
+  };
+};
+
+template <T, U> requires Arithmetic<T>, Arithmetic<U>
+struct Vec {
+  T x;
+  U y;
+  Vec<T, U> operator + (Vec<T, U> o) {
+    return Vec(x + o.x, y + o.y);
+  }
+  Vec<T, U> operator - (Vec<T, U> o) {
+    return Vec(x - o.x, y - o.y);
+  }
+  Vec<T, U> operator * (int a) {
+    return Vec(x * a, y * a);
+  }
+  Vec<T, U> operator + () {
+    return *this;
+  }
+  Vec<T, U> operator - () {
+    return Vec(-x, -y);
+  }
+};
+
+template <T> requires Arithmetic<T>
+T getResult(T t1, T t2) {
+  auto t3 = t1 + t2;
+  auto t4 = -t3 * -5;
+  return t4;
+}
+
+int main() {
+  auto v = getResult(Vec(1, 2), Vec(3, 4));
+  return v.x + v.y + getResult(5, 6);
+}

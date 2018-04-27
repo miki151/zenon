@@ -25,6 +25,7 @@ extern vector<string> getAllOperators();
 
 extern int getPrecedence(Operator);
 extern optional<Operator> getUnary(Operator);
+extern bool canOverload(Operator, int numArguments);
 extern bool isRightAssociative(Operator);
 struct Type;
 using SType = shared_ptr<Type>;

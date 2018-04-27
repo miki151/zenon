@@ -1,0 +1,17 @@
+// no_compile
+
+template <A>
+concept Arithmetic {
+  A {
+    A operator + (A a, A b);
+  };
+};
+
+template <T> requires Arithmetic<T>
+T getResult(T t1, T t2) {
+  return t1;
+}
+
+int main() {
+  return 0;
+}
