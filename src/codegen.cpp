@@ -460,6 +460,18 @@ void ForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.newLine();
 }
 
+void WhileLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
+  CHECK(stage == DEFINE);
+  accu.add("while (");
+  cond->codegen(accu, DEFINE);
+  accu.add(")");
+  ++accu.indent;
+  accu.newLine();
+  body->codegen(accu, DEFINE);
+  --accu.indent;
+  accu.newLine();
+}
+
 void ImportStatement::codegen(Accu& accu, CodegenStage stage) const {
   // ast can be null if import was already generated or is secondary and not public
   if (ast && stage != DEFINE)

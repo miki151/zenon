@@ -372,6 +372,16 @@ unique_ptr<ForLoopStatement> parseForLoopStatement(Tokens& tokens) {
   return unique<ForLoopStatement>(codeLoc, std::move(init), std::move(cond), std::move(iter), std::move(body));
 }
 
+unique_ptr<WhileLoopStatement> parseWhileLoopStatement(Tokens& tokens) {
+  auto codeLoc = tokens.peek().codeLoc;
+  tokens.eat(Keyword::WHILE);
+  tokens.eat(Keyword::OPEN_BRACKET);
+  auto cond = parseExpression(tokens);
+  tokens.eat(Keyword::CLOSE_BRACKET);
+  auto body = parseNonTopLevelStatement(tokens);
+  return unique<WhileLoopStatement>(codeLoc, std::move(cond), std::move(body));
+}
+
 unique_ptr<SwitchStatement> parseSwitchStatement(Tokens& tokens) {
   auto codeLoc = tokens.eat(Keyword::SWITCH).codeLoc;
   tokens.eat(Keyword::OPEN_BRACKET);
@@ -513,6 +523,9 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseBlock(tokens);
           case Keyword::RETURN:
             return parseReturnStatement(tokens);
+          case Keyword::EXTERN:
+            tokens.popNext();
+            return parseStructDefinition(tokens, true);
           case Keyword::STRUCT:
             return parseStructDefinition(tokens, false);
           case Keyword::VARIANT:
@@ -523,6 +536,8 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseEnumStatement(tokens);
           case Keyword::FOR:
             return parseForLoopStatement(tokens);
+          case Keyword::WHILE:
+            return parseWhileLoopStatement(tokens);
           case Keyword::PUBLIC: {
             tokens.popNext();
             auto next = tokens.peek("Import or embed block definition");

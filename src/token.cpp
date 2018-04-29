@@ -18,6 +18,7 @@ static const unordered_map<string, Keyword> keywords {
   {"default", Keyword::DEFAULT},
   {"template", Keyword::TEMPLATE},
   {"for", Keyword::FOR},
+  {"while", Keyword::WHILE},
   {"import", Keyword::IMPORT},
   {"public", Keyword::PUBLIC},
   {"auto", Keyword::AUTO},

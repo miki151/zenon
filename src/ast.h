@@ -159,6 +159,15 @@ struct ForLoopStatement : Statement {
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
+struct WhileLoopStatement : Statement {
+  WhileLoopStatement(CodeLoc l, unique_ptr<Expression> cond, unique_ptr<Statement> body);
+  unique_ptr<Expression> cond;
+  unique_ptr<Statement> body;
+  virtual bool hasReturnStatement(const Context&) const override;
+  virtual void check(Context&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+};
+
 struct FunctionDefinition;
 
 struct TemplateParameter {

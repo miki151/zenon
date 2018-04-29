@@ -40,6 +40,7 @@ enum class Keyword {
   MAYBE,
   TEMPLATE,
   FOR,
+  WHILE,
   IMPORT,
   PUBLIC,
   AUTO,

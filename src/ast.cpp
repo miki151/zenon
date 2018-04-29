@@ -4,6 +4,7 @@
 #include "reader.h"
 #include "lexer.h"
 #include "parser.h"
+#include "code_loc.h"
 
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
@@ -222,6 +223,8 @@ void FunctionDefinition::addToContext(Context& context) {
 
 static void initializeArithmeticTypes() {
   ArithmeticType::STRING->context.addFunction("size"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
+  ArithmeticType::STRING->context.addFunction("substring"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::STRING,
+      {{"index", ArithmeticType::INT}, {"length", ArithmeticType::INT}}, {}));
   ArithmeticType::STRING->context.addFunction(Operator::SUBSCRIPT, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::CHAR,
       {{"index", ArithmeticType::INT}}, {}));
   ArithmeticType::STRING->context.addFunction(Operator::PLUS, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::STRING,
@@ -458,6 +461,20 @@ void ForLoopStatement::check(Context& context) {
   cond->codeLoc.check(cond->getType(bodyContext) == ArithmeticType::BOOL,
       "Loop condition must be of type " + quote("bool"));
   iter->getType(bodyContext);
+  body->check(bodyContext);
+}
+
+WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
+  : Statement(l), cond(std::move(c)), body(std::move(b)) {}
+
+bool WhileLoopStatement::hasReturnStatement(const Context& s) const {
+  return body->hasReturnStatement(s);
+}
+
+void WhileLoopStatement::check(Context& context) {
+  auto bodyContext = Context::withParent(context);
+  cond->codeLoc.check(cond->getType(bodyContext) == ArithmeticType::BOOL,
+      "Loop condition must be of type " + quote("bool"));
   body->check(bodyContext);
 }
 
