@@ -22,9 +22,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+#pragma once
+
 #include <cstring>
 #include <utility>
 #include <cstdint>
+#include <cctype>
 
 namespace detail {
   template<typename char_type>
@@ -113,6 +116,7 @@ class basic_lite_str {
     auto alloc_info_size = (sizeof(ref_counter_t) - 1) / sizeof(char_type) + 1;
     // Allocate enough for the string, the '\0' and the ref count at the end.
     auto buf = allocator_t::allocate(length + 1 + alloc_info_size);
+    buf[length] = '\0';
     ptr = buf;
     get_ref_counter() = 1;
     type = ALLOCATED;
@@ -140,6 +144,13 @@ class basic_lite_str {
   const char_type* data() const {
     return ptr;
   }
+
+  basic_lite_str substring(int index, int length) {
+    basic_lite_str<char_type, char_traits, allocator_t> ret;
+    auto buf = ret.create_buffer(length);
+    memcpy(buf, ptr + index, length * sizeof(char_type));
+    return ret;
+  }
 };
 
 template <typename allocator = detail::lite_str_allocator<char>>
@@ -148,6 +159,20 @@ using lite_str = basic_lite_str<char, detail::char_char_traits, allocator>;
 template <typename stream, typename char_type, typename char_traits, typename alloc>
 stream& operator << (stream& os, const basic_lite_str<char_type, char_traits, alloc>& s) {
   os << s.data();
+  return os;
+}
+
+template <typename stream, typename char_type, typename char_traits, typename alloc>
+stream& operator >> (stream& os, basic_lite_str<char_type, char_traits, alloc>& s) {
+  s = "";
+  while (1) {
+    char buf[2] = {0};
+    os.get(buf[0]);
+    if (isspace(buf[0]) || !os.good())
+      break;
+    else
+      s = s + buf;
+  }
   return os;
 }
 
@@ -217,5 +242,10 @@ bool operator != (const basic_lite_str<char_type, char_traits, alloc>& s1, const
 template <typename char_type, typename char_traits, typename alloc>
 bool operator != (const char_type* s1, const basic_lite_str<char_type, char_traits, alloc>& s2) {
   return !(s1 == s2);
+}
+
+template <typename char_type, typename char_traits, typename alloc>
+bool operator < (const basic_lite_str<char_type, char_traits, alloc>& s1, const basic_lite_str<char_type, char_traits, alloc>& s2) {
+  return s1.data() != s2.data() && (strcmp(s1.data(), s2.data()) < 0);
 }
 
