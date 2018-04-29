@@ -98,7 +98,7 @@ namespace po {
 			m_console = GetStdHandle( STD_OUTPUT_HANDLE );
 			assert( m_console != INVALID_HANDLE_VALUE );
 			CONSOLE_SCREEN_BUFFER_INFO info;
-			const bool result = GetConsoleScreenBufferInfo( m_console, &info );
+			if (const bool result = GetConsoleScreenBufferInfo( m_console, &info )) {
 			assert( result );
 			( void )result;
 			m_old_attributes = info.wAttributes;
@@ -114,6 +114,7 @@ namespace po {
 			if( color == navy || color == purple || color == teal || color == light_gray )
 				attribute |= FOREGROUND_BLUE;
 			SetConsoleTextAttribute( m_console, attribute );
+			}
 #endif // ProgramOptions_windows
 #ifdef ProgramOptions_ansi
 			m_stream << "\x1B[";
