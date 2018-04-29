@@ -41,33 +41,6 @@
 #endif
 
 
-#if defined(__has_include) && !defined(STX_NO_STD_VARIANT)
-#    if __has_include(<variant>) && (__cplusplus > 201402)
-        namespace STX_NAMESPACE_NAME {
-            using std::variant;
-            using std::visit;
-            using std::holds_alternative;
-            using std::get_if;
-            using std::monostate;
-            using std::bad_variant_access;
-            using std::variant_size;
-            using std::variant_size_v;
-            using std::variant_alternative;
-            using std::variant_alternative_t;
-#           ifndef STX_HAVE_IN_PLACE_T
-            using std::in_place_t;
-            using std::in_place;
-#           define STX_IN_PLACE_T 1
-#           endif
-            using std::in_place_type_t;
-            using std::in_place_type;
-            using std::in_place_index_t;
-            using std::in_place_index;
-        }
-#       define STX_HAVE_STD_VARIANT 1
-#    endif // __hasinclude(any)
-#endif // defined(__hasinclude)
-
 
 #ifndef STX_HAVE_STD_VARIANT
 
