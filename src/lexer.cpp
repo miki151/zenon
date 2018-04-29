@@ -28,8 +28,8 @@ static string getOperators() {
   auto ops = getAllOperators();
   sort(ops.begin(), ops.end(), [](const string& o1, const string& o2) { return o1.size() > o2.size(); });
   for (auto& k : ops) {
-    ret.append("\\");
-    ret.append(k);
+    for (char c : k)
+      ret += "\\" + string(1, c);
     ret.append("|");
   }
   ret.pop_back();

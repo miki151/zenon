@@ -17,7 +17,10 @@ const static vector<pair<string, Operator>> operators {
   {"=", Operator::ASSIGNMENT},
   {".", Operator::MEMBER_ACCESS},
   {"&", Operator::GET_ADDRESS},
-  {"[]", Operator::SUBSCRIPT}
+  {"[]", Operator::SUBSCRIPT},
+  {"!", Operator::LOGICAL_NOT},
+  {"&&", Operator::LOGICAL_AND},
+  {"||", Operator::LOGICAL_OR},
 };
 
 optional<Operator> getOperator(const string& s) {
@@ -52,11 +55,14 @@ int getPrecedence(Operator op) {
       return 2;
     case Operator::PLUS:
     case Operator::PLUS_UNARY:
+    case Operator::LOGICAL_OR:
     case Operator::MINUS:
     case Operator::MINUS_UNARY:
       return 3;
+    case Operator::LOGICAL_AND:
     case Operator::MULTIPLY:
       return 4;
+    case Operator::LOGICAL_NOT:
     case Operator::POINTER_DEREFERENCE:
       return 5;
     case Operator::GET_ADDRESS:
@@ -86,6 +92,7 @@ bool canOverload(Operator op, int numArguments) {
       return numArguments == 1;
     case Operator::POINTER_DEREFERENCE:
     case Operator::PLUS_UNARY:
+    case Operator::LOGICAL_NOT:
     case Operator::MINUS_UNARY:
       return numArguments == 0;
     default:
@@ -99,10 +106,11 @@ optional<Operator> getUnary(Operator op) {
       return Operator::PLUS_UNARY;
     case Operator::MINUS:
       return Operator::MINUS_UNARY;
-    case Operator::GET_ADDRESS:
-      return op;
     case Operator::MULTIPLY:
       return Operator::POINTER_DEREFERENCE;
+    case Operator::LOGICAL_NOT:
+    case Operator::GET_ADDRESS:
+      return op;
     default:
       return none;
   }

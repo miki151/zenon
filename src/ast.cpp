@@ -230,11 +230,14 @@ static void initializeArithmeticTypes() {
   ArithmeticType::STRING->context.addFunction(Operator::PLUS, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::STRING,
       {{"right side", ArithmeticType::STRING}}, {}));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
-    ArithmeticType::INT->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT,
-        {}, {}));
+    ArithmeticType::INT->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
   for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY})
     ArithmeticType::INT->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT,
         {{"right side", ArithmeticType::INT}}, {}));
+  for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
+    ArithmeticType::BOOL->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+        {{"right side", ArithmeticType::BOOL}}, {}));
+  ArithmeticType::BOOL->context.addFunction(Operator::LOGICAL_NOT, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::BOOL, {}, {}));
   for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
     for (auto type : {ArithmeticType::INT, ArithmeticType::STRING})
       type->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::BOOL,

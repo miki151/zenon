@@ -15,7 +15,10 @@ enum class Operator {
   MULTIPLY,
   POINTER_DEREFERENCE,
   GET_ADDRESS,
-  SUBSCRIPT
+  SUBSCRIPT,
+  LOGICAL_NOT,
+  LOGICAL_AND,
+  LOGICAL_OR
 };
 
 extern optional<Operator> getOperator(const string&);
