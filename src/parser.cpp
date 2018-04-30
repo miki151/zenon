@@ -466,7 +466,7 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
     auto ret = parseVariantDefinition(tokens);
     ret->templateInfo = templateInfo;
     return ret;
-  }
+  } else
   if (nextToken == Keyword::CONCEPT) {
     auto ret = parseConceptDefinition(tokens);
     ret->templateInfo = templateInfo;

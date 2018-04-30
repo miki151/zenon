@@ -5,11 +5,8 @@ variant V {
   void null;
 };
 
-void f() {
-}
-
 V getV() {
-  return f();
+  return 5;
 }
 
 int main() {

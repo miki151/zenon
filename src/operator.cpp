@@ -128,7 +128,7 @@ SType getOperationResult(CodeLoc codeLoc, Operator op, const Context& context, E
   auto right = [&]() { return rightExpr.getType(context); };
   switch (op) {
     case Operator::MEMBER_ACCESS: {
-      if (auto rightType = rightExpr.getDotOperatorType(left->getContext(), context)) {
+      if (auto rightType = rightExpr.getDotOperatorType(&leftExpr, context)) {
         if (!left.dynamicCast<ReferenceType>())
           rightType = rightType->getUnderlying();
         return rightType.get();
@@ -137,8 +137,7 @@ SType getOperationResult(CodeLoc codeLoc, Operator op, const Context& context, E
     }
     default:
       if (auto fun = left->getContext().getOperatorType(op)) {
-        instantiateFunction(*fun, codeLoc, {}, {right()}, {codeLoc});
-        return fun->retVal;
+        return instantiateFunction(*fun, codeLoc, {}, {right()}, {codeLoc}).get().retVal;
       } else
         codeLoc.error("Can't apply operator: " + quote(getString(op)) + " to types: " +
             quote(left->getName()) + " and " + quote(right()->getName()));

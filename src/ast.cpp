@@ -54,8 +54,11 @@ SType Variable::getType(const Context& context) {
     codeLoc.error("Undefined variable: " + identifier);
 }
 
-nullable<SType> Variable::getDotOperatorType(const Context& idContext, const Context& callContext) {
-  return getType(idContext);
+nullable<SType> Variable::getDotOperatorType(Expression* left, const Context& callContext) {
+  if (left)
+    return getType(left->getType(callContext)->getContext());
+  else
+    return nullptr;
 }
 
 SType BinaryExpression::getType(const Context& context) {
@@ -165,13 +168,13 @@ static void applyConcept(const Context& from, const TemplateInfo& templateInfo, 
 }
 
 void FunctionDefinition::setFunctionType(const Context& context) {
-  Context contextWithTemplateParams = Context::withParent(context);
   if (auto name = nameOrOp.getReferenceMaybe<string>())
     context.checkNameConflict(codeLoc, *name, "Function");
   else {
     auto op = *nameOrOp.getValueMaybe<Operator>();
     codeLoc.check(!context.getOperatorType(op), "Operator " + quote(getString(op)) + " already defined");
   }
+  Context contextWithTemplateParams = Context::withParent(context);
   vector<SType> templateTypes;
   for (auto& param : templateInfo.params) {
     templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
@@ -273,16 +276,18 @@ StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) 
 }
 
 SType FunctionCall::getType(const Context& context) {
-  return getDotOperatorType(context, context).get();
+  return getDotOperatorType(nullptr, context).get();
 }
 
-static FunctionType getFunction(const Context& idContext, const Context& callContext, CodeLoc codeLoc, IdentifierInfo id,
+static WithErrorLine<FunctionType> getFunction(const Context& idContext, const Context& callContext, CodeLoc codeLoc, IdentifierInfo id,
     const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
-  auto templateType = idContext.getFunctionTemplate(codeLoc, id);
-  return callContext.instantiateFunctionTemplate(codeLoc, templateType, id, argTypes, argLoc);
+  if (auto templateType = idContext.getFunctionTemplate(id))
+    return callContext.instantiateFunctionTemplate(codeLoc, *templateType, id, argTypes, argLoc);
+  else
+    return codeLoc.getError(templateType.get_error());
 }
 
-nullable<SType> FunctionCall::getDotOperatorType(const Context& idContext, const Context& callContext) {
+nullable<SType> FunctionCall::getDotOperatorType(Expression* left, const Context& callContext) {
   vector<SType> argTypes;
   vector<CodeLoc> argLocs;
   for (int i = 0; i < arguments.size(); ++i) {
@@ -290,38 +295,94 @@ nullable<SType> FunctionCall::getDotOperatorType(const Context& idContext, const
     argLocs.push_back(arguments[i]->codeLoc);
     INFO << "Function argument " << argTypes.back()->getName();
   }
-  functionType = getFunction(idContext, callContext, codeLoc, identifier, argTypes, argLocs);
-  return functionType->retVal;
+  nullable<SType> leftType;
+  if (left)
+    leftType = left->getType(callContext);
+  ErrorLoc error;
+  getFunction(leftType ? leftType->getContext() : callContext, callContext, codeLoc, identifier, argTypes, argLocs)
+      .unpack(functionType, error);
+  if (!functionType && leftType) {
+    getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs))
+        .unpack(functionType, error);
+    if (!functionType) {
+      if (leftType.get().dynamicCast<ReferenceType>())
+        leftType = PointerType::get(leftType->getUnderlying());
+      getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs))
+          .unpack(functionType, error);
+      extractPointer = true;
+    }
+    methodCall = true;
+  }
+  if (functionType)
+    return functionType->retVal;
+  else
+    error.execute();
 }
 
 FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {}
 
 SType FunctionCallNamedArgs::getType(const Context& context) {
-  return getDotOperatorType(context, context).get();
+  return getDotOperatorType(nullptr, context).get();
 }
 
-nullable<SType> FunctionCallNamedArgs::getDotOperatorType(const Context& idContext, const Context& callContext) {
+nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, const Context& callContext) {
+  const auto& leftContext = left ? left->getType(callContext)->getContext() : callContext;
+  ErrorLoc error { codeLoc, "Function not found: " + identifier.toString()};
+  nullable<SType> leftType;
+  if (left)
+    leftType = left->getType(callContext);
+  optional<ArgMatching> matching;
+  matchArgs(leftContext, callContext, false).unpack(matching, error);
+  if (matching)
+    getFunction(leftContext, callContext, codeLoc, identifier, matching->args, matching->codeLocs).unpack(functionType, error);
+  if (!functionType && leftType) {
+    matchArgs(callContext, callContext, true).unpack(matching, error);
+    if (matching) {
+      getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, matching->args), concat({left->codeLoc}, matching->codeLocs))
+          .unpack(functionType, error);
+      if (!functionType) {
+        if (leftType.get().dynamicCast<ReferenceType>())
+          leftType = PointerType::get(leftType->getUnderlying());
+        getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, matching->args), concat({left->codeLoc}, matching->codeLocs))
+            .unpack(functionType, error);
+        extractPointer = true;
+      }
+    }
+    methodCall = true;
+  }
+  if (functionType)
+    return functionType->retVal;
+  else
+    error.execute();
+}
+
+WithErrorLine<FunctionCallNamedArgs::ArgMatching> FunctionCallNamedArgs::matchArgs(const Context& functionContext, const Context& callContext, bool skipFirst) {
   set<string> toInitialize;
   set<string> initialized;
   map<string, int> paramIndex;
-  vector<string> paramNames = idContext.getFunctionParamNames(codeLoc, identifier);
+  auto paramNames = functionContext.getFunctionParamNames(identifier);
+  if (!paramNames)
+    return codeLoc.getError(paramNames.get_error());
   int count = 0;
-  for (auto& param : paramNames) {
-    toInitialize.insert(param);
-    paramIndex[param] = count++;
+  for (int i = (skipFirst ? 1 : 0); i < paramNames->size(); ++i) {
+    toInitialize.insert(paramNames->at(i));
+    paramIndex[paramNames->at(i)] = count++;
   }
   for (auto& elem : arguments) {
-    elem.codeLoc.check(toInitialize.count(elem.name), "No parameter named " + quote(elem.name)
+    if (!toInitialize.count(elem.name))
+      return elem.codeLoc.getError("No parameter named " + quote(elem.name)
         + " in function " + quote(identifier.toString()));
-    elem.codeLoc.check(!initialized.count(elem.name), "Parameter " + quote(elem.name) + " listed more than once");
+    if (initialized.count(elem.name))
+      return elem.codeLoc.getError("Parameter " + quote(elem.name) + " listed more than once");
     initialized.insert(elem.name);
   }
   vector<string> notInitialized;
   for (auto& elem : toInitialize)
     if (!initialized.count(elem))
       notInitialized.push_back("" + quote(elem));
-  codeLoc.check(notInitialized.empty(), "Function parameters: " + combine(notInitialized, ",")
-      + " were not initialized" );
+  if (!notInitialized.empty())
+    return codeLoc.getError("Function parameters: " + combine(notInitialized, ",")
+      + " were not initialized");
   sort(arguments.begin(), arguments.end(),
       [&](const Argument& m1, const Argument& m2) { return paramIndex[m1.name] < paramIndex[m2.name]; });
   vector<SType> argTypes;
@@ -330,8 +391,7 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(const Context& idConte
     argTypes.push_back(arg.expr->getType(callContext));
     argLocs.push_back(arg.codeLoc);
   }
-  functionType = getFunction(idContext, callContext, codeLoc, identifier, argTypes, argLocs);
-  return functionType->retVal;
+  return ArgMatching{argTypes, argLocs};
 }
 
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
@@ -508,7 +568,7 @@ void ImportStatement::addToContext(Context& s) {
   s.popImport();
 }
 
-nullable<SType> Expression::getDotOperatorType(const Context& idContext, const Context& callContext) {
+nullable<SType> Expression::getDotOperatorType(Expression* left, const Context& callContext) {
   return nullptr;
 }
 

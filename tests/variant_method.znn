@@ -3,17 +3,18 @@
 variant V {
   int value;
   void null;
-  int getValueOr(int a) {
-    switch (*this) {
-      case (int value) {
-        return value;
-      }
-      case (null) {
-        return a;
-      }
+};
+
+int getValueOr(V* v, int a) {
+  switch (*v) {
+    case (int value) {
+      return value;
+    }
+    case (null) {
+      return a;
     }
   }
-};
+}
 
 int main() {
   auto v = V::value(5);

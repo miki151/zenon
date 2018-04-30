@@ -2,11 +2,10 @@
 
 CFLAGS = -Wall -std=c++17 -Wno-sign-compare -Wno-unused-variable -Wno-shift-count-overflow -Wno-tautological-constant-out-of-range-compare -Wno-mismatched-tags -ftemplate-depth=512
 
-CC = g++
-LD = g++
+CC = clang++
+LD = clang++
 
-CFLAGS += -Werror -Wimplicit-fallthrough -g
-LDFLAGS += -fuse-ld=lld
+CFLAGS += -Werror -g
 
 OBJDIR = obj
 

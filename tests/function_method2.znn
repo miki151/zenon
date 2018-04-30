@@ -1,0 +1,29 @@
+// 8
+
+void increment(int* a) {
+  *a = *a + 1;
+}
+
+string concat(string s1, string s2) {
+  return s1 + s2;
+}
+
+void clear(string* s) {
+  *s = "";
+}
+
+int plusOne(int a) {
+  return a + 1;
+}
+
+int main() {
+  int a = 4.plusOne();
+  increment(&a);
+  a.increment();
+  auto str1 = "ddd";
+  str1.clear();
+  str1 = str1.concat("xxx");
+  if ("pok".concat({s2 = str1}) == "pokxxx")
+    increment({a = &a});
+  return a;
+}

@@ -14,3 +14,11 @@ void CodeLoc::check(bool b, const string& e) const {
   if (!b)
     error(e);
 }
+
+ErrorLoc CodeLoc::getError(string s) const {
+  return ErrorLoc{*this, s};
+}
+
+void ErrorLoc::execute() const {
+  loc.error(error);
+}

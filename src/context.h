@@ -33,9 +33,9 @@ class Context : public owned_object<Context> {
   void addType(const string& name, SType);
   nullable<SType> getTypeFromString(IdentifierInfo) const;
   void addFunction(FunctionType);
-  vector<string> getFunctionParamNames(CodeLoc, IdentifierInfo) const;
-  FunctionType getFunctionTemplate(CodeLoc, IdentifierInfo) const;
-  FunctionType instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<SType> argTypes, vector<CodeLoc> argLoc) const;
+  WithError<vector<string>> getFunctionParamNames(IdentifierInfo) const;
+  WithError<FunctionType> getFunctionTemplate(IdentifierInfo) const;
+  WithErrorLine<FunctionType> instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<SType> argTypes, vector<CodeLoc> argLoc) const;
   optional<FunctionType> getOperatorType(Operator) const;
   void pushImport(const string& name);
   void popImport();
@@ -47,9 +47,6 @@ class Context : public owned_object<Context> {
   nullable<SConcept> getConcept(const string& name) const;
 
   private:
-  nullable<SType> getType(const string&) const;
-  const FunctionType* getFunction(variant<string, Operator>) const;
-  nullable<SType> getVariable(const string&) const;
 
   struct State : public owned_object<State> {
     map<string, SType> vars;
@@ -65,6 +62,9 @@ class Context : public owned_object<Context> {
   };
   vector<shared_ptr<const State>> parentStates;
   shared_ptr<State> state;
-  vector<shared_ptr<const Context::State> > getReversedStates() const;
+  vector<shared_ptr<const State>> getReversedStates() const;
   const State& getTopState() const;
+  nullable<SType> getType(const string&) const;
+  const FunctionType* getFunction(variant<string, Operator>) const;
+  nullable<SType> getVariable(const string&) const;
 };

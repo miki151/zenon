@@ -25,7 +25,7 @@ ArithmeticType::ArithmeticType(const string& name) : name(name) {
 }
 
 string ReferenceType::getName() const {
-  return "reference("s + underlying->getName() + ")";
+  return underlying->getName() + "&";
 }
 
 string PointerType::getName() const {
@@ -152,7 +152,7 @@ unique_ptr<Expression> StructType::getConversionFrom(unique_ptr<Expression> expr
     for (auto& alternative : alternatives)
       if (alternative.type == from) {
         auto ret = unique<FunctionCall>(CodeLoc(), IdentifierInfo("pok"));
-        ret->functionType = staticContext.getFunctionTemplate(CodeLoc(), IdentifierInfo(alternative.name));
+        ret->functionType = *staticContext.getFunctionTemplate(IdentifierInfo(alternative.name));
         ret->arguments.push_back(std::move(expr));
         return ret;
       }
@@ -416,21 +416,24 @@ bool Type::canMap(TypeMapping&, SType argType) const {
   return argType == get_this().get();
 }
 
-void instantiateFunction(FunctionType& type, CodeLoc codeLoc, vector<SType> templateArgs, vector<SType> argTypes,
+WithErrorLine<FunctionType> instantiateFunction(const FunctionType& input, CodeLoc codeLoc, vector<SType> templateArgs, vector<SType> argTypes,
     vector<CodeLoc> argLoc) {
+  FunctionType type = input;
   vector<SType> funParams = transform(type.params, [](const FunctionType::Param& p) { return p.type; });
-  codeLoc.check(templateArgs.size() <= type.templateParams.size(), "Too many template arguments.");
+  if (templateArgs.size() > type.templateParams.size())
+    return codeLoc.getError("Too many template arguments.");
   TypeMapping mapping { type.templateParams, vector<nullable<SType>>(type.templateParams.size()) };
   for (int i = 0; i < templateArgs.size(); ++i)
     mapping.templateArgs[i] = templateArgs[i];
-  codeLoc.check(funParams.size() == argTypes.size(), "Wrong number of function arguments.");
+  if (funParams.size() != argTypes.size())
+    return codeLoc.getError("Wrong number of function arguments.");
   for (int i = 0; i < argTypes.size(); ++i)
     if (!canDeduce(mapping, funParams[i], argTypes[i])) {
       string deducedAsString;
       if (auto index = mapping.getParamIndex(funParams[i]))
         if (auto deduced = mapping.templateArgs.at(*index))
           deducedAsString = ", deduced as " + quote(deduced->getName());
-      argLoc[i].error("Can't bind argument of type "
+      return argLoc[i].getError("Can't bind argument of type "
         + quote(argTypes[i]->getName()) + " to parameter " + quote(funParams[i]->getName()) + deducedAsString);
     }
   for (int i = 0; i < type.templateParams.size(); ++i) {
@@ -438,7 +441,7 @@ void instantiateFunction(FunctionType& type, CodeLoc codeLoc, vector<SType> temp
       if (auto deduced = mapping.templateArgs[i])
         templateArgs.push_back(deduced.get());
       else
-        codeLoc.error("Couldn't deduce template argument " + quote(type.templateParams[i]->getName()));
+        return codeLoc.getError("Couldn't deduce template argument " + quote(type.templateParams[i]->getName()));
     }
   }
   checkConcepts(codeLoc, type.templateParams, templateArgs);
@@ -446,6 +449,7 @@ void instantiateFunction(FunctionType& type, CodeLoc codeLoc, vector<SType> temp
     replaceInFunction(type, type.templateParams[i], templateArgs[i]);
     type.templateParams[i] = templateArgs[i];
   }
+  return type;
 }
 
 EnumType::EnumType(string n, vector<string> e) : name(n), elements(e) {}
