@@ -1,0 +1,18 @@
+// no_compile
+
+variant V {
+  int elem;
+  void null;
+};
+
+void f() {
+}
+
+V getV() {
+  return f();
+}
+
+int main() {
+  auto v = getV();
+  return 0;
+}

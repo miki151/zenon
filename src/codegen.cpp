@@ -118,11 +118,17 @@ void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.add(";");
 }
 
-static void genFunctionCall(Accu& accu, const IdentifierInfo& identifier, const FunctionType& functionType,
+static string getFunctionName(variant<string, Operator> name) {
+  return name.visit(
+      [&](const string& s) { return s; },
+      [&](Operator op) { return "operator "s + getString(op); });
+}
+
+static void genFunctionCall(Accu& accu, const FunctionType& functionType,
     vector<Expression*> arguments) {
   string prefix;
   string suffix;
-  string id = identifier.parts.back().name +
+  string id = getFunctionName(functionType.name) +
       joinTemplateParams(functionType.templateParams);
   if (functionType.parentType)
     id = functionType.parentType->getName() + "::" + id;
@@ -147,11 +153,11 @@ static void genFunctionCall(Accu& accu, const IdentifierInfo& identifier, const 
 }
 
 void FunctionCall::codegen(Accu& accu, CodegenStage) const {
-  genFunctionCall(accu, identifier, *functionType, extractRefs(arguments));
+  genFunctionCall(accu, *functionType, extractRefs(arguments));
 }
 
 void FunctionCallNamedArgs::codegen(Accu& accu, CodegenStage) const {
-  genFunctionCall(accu, identifier, *functionType, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
+  genFunctionCall(accu, *functionType, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
 }
 
 static void considerTemplateParams(Accu& accu, const vector<TemplateParameter>& params) {
@@ -164,17 +170,6 @@ static void considerTemplateParams(Accu& accu, const vector<TemplateParameter>& 
     accu.add(">");
     accu.newLine();
   }
-}
-
-string getFunctionName(const variant<string, Operator>& nameOrOp) {
-  return nameOrOp.visit(
-      [&](const string& s) {
-        return s;
-      },
-      [&](Operator op) {
-        return "operator "s + getString(op);
-      }
-  );
 }
 
 void FunctionDefinition::addSignature(Accu& accu, string structName) const {

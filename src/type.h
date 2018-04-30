@@ -17,6 +17,7 @@ struct Type : public owned_object<Type> {
   virtual SType getUnderlying();
   virtual bool canAssign(SType from) const;
   virtual bool canMap(TypeMapping&, SType argType) const;
+  virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, const Context& callContext) const;
   virtual SType replace(SType from, SType to) const;
   virtual ~Type() {}
   virtual nullable<SType> instantiate(CodeLoc, vector<SType> templateParams) const;
@@ -80,6 +81,7 @@ struct StructType : public Type {
   virtual nullable<SType> instantiate(CodeLoc, vector<SType> templateParams) const override;
   virtual bool canMap(TypeMapping&, SType argType) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
+  virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, const Context& callContext) const override;
 
   enum Kind {
     STRUCT,
@@ -117,7 +119,8 @@ struct FunctionType {
     string name;
     SType type;
   };
-  FunctionType(FunctionCallType, SType returnType, vector<Param> params, vector<SType> templateParams);
+  FunctionType(variant<string, Operator> name, FunctionCallType, SType returnType, vector<Param> params, vector<SType> templateParams);
+  variant<string, Operator> name;
   FunctionCallType callType;
   SType retVal;
   vector<Param> params;

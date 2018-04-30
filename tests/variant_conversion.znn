@@ -1,0 +1,25 @@
+// 5
+
+variant V {
+  int elem;
+  void null;
+};
+
+void f() {
+}
+
+V getV() {
+  return f();
+}
+
+int main() {
+  auto v = getV();
+  switch (v) {
+    case (int elem) {
+      return elem;
+    }
+    default {
+      return 4;
+    }
+  }
+}

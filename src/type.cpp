@@ -76,8 +76,8 @@ int getNewId() {
   return ++idCounter;
 }
 
-FunctionType::FunctionType(FunctionCallType t, SType returnType, vector<Param> p, vector<SType> tpl)
-  : callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
+FunctionType::FunctionType(variant<string, Operator> name, FunctionCallType t, SType returnType, vector<Param> p, vector<SType> tpl)
+  : name(name), callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
 
 string FunctionType::toString(const string& name) const {
@@ -98,10 +98,10 @@ shared_ptr<ReferenceType> ReferenceType::get(SType type) {
   if (!generated.count(type)) {
     auto ret = shared<ReferenceType>(type);
     generated.insert({type, ret});
-    ret->context.addFunction(Operator::GET_ADDRESS,
-        FunctionType(FunctionCallType::FUNCTION, PointerType::get(type), {}, {}));
-    ret->context.addFunction(Operator::ASSIGNMENT,
-        FunctionType(FunctionCallType::FUNCTION, ret, {{"right side", type}}, {}));
+    ret->context.addFunction(
+        FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION, PointerType::get(type), {}, {}));
+    ret->context.addFunction(
+        FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION, ret, {{"right side", type}}, {}));
   }
   return generated.at(type);
 }
@@ -118,12 +118,16 @@ shared_ptr<PointerType> PointerType::get(SType type) {
 }
 
 PointerType::PointerType(SType t) : underlying(t->getUnderlying()) {
-  context.addFunction(Operator::POINTER_DEREFERENCE,
-      FunctionType(FunctionCallType::FUNCTION, ReferenceType::get(t), {}, {}));
+  context.addFunction(
+      FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION, ReferenceType::get(t), {}, {}));
 }
 
 bool Type::canAssign(SType from) const{
   return false;
+}
+
+unique_ptr<Expression> Type::getConversionFrom(unique_ptr<Expression> expr, const Context& callContext) const{
+  return nullptr;
 }
 
 bool ReferenceType::canAssign(SType from) const {
@@ -140,6 +144,19 @@ shared_ptr<StructType> StructType::get(Kind kind, string name) {
 
 void ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc, bool isReference) const {
   underlying->handleSwitchStatement(statement, context, codeLoc, true);
+}
+
+unique_ptr<Expression> StructType::getConversionFrom(unique_ptr<Expression> expr, const Context& callContext) const {
+  SType from = expr->getType(callContext)->getUnderlying();
+  if (from != ArithmeticType::VOID)
+    for (auto& alternative : alternatives)
+      if (alternative.type == from) {
+        auto ret = unique<FunctionCall>(CodeLoc(), IdentifierInfo("pok"));
+        ret->functionType = staticContext.getFunctionTemplate(CodeLoc(), IdentifierInfo(alternative.name));
+        ret->arguments.push_back(std::move(expr));
+        return ret;
+      }
+  return nullptr;
 }
 
 void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext, CodeLoc codeLoc, bool isReference) const {
@@ -293,6 +310,8 @@ SType StructType::replace(SType from, SType to) const {
 
 void replaceInFunction(FunctionType& in, SType from, SType to) {
   in.retVal = in.retVal->replace(from, to);
+  if (in.parentType)
+    in.parentType = in.parentType->replace(from, to);
   for (auto& param : in.params)
     param.type = param.type->replace(from, to);
   if (in.parentConcept) {

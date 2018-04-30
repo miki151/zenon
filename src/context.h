@@ -32,7 +32,7 @@ class Context : public owned_object<Context> {
   void setReturnType(SType);
   void addType(const string& name, SType);
   nullable<SType> getTypeFromString(IdentifierInfo) const;
-  void addFunction(variant<string, Operator> nameOrOp, FunctionType);
+  void addFunction(FunctionType);
   vector<string> getFunctionParamNames(CodeLoc, IdentifierInfo) const;
   FunctionType getFunctionTemplate(CodeLoc, IdentifierInfo) const;
   FunctionType instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<SType> argTypes, vector<CodeLoc> argLoc) const;

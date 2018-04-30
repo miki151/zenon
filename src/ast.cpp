@@ -109,9 +109,12 @@ void ReturnStatement::check(Context& context) {
         "Expected an expression in return statement in a function returning non-void");
   else {
     auto returnType = expr->getType(context);
-    codeLoc.check(ReferenceType::get(context.getReturnType().get())->canAssign(returnType),
-        "Attempting to return value of type "s + quote(returnType->getName()) +
-         " in a function returning "s + quote(context.getReturnType()->getName()));
+    if (!ReferenceType::get(context.getReturnType().get())->canAssign(returnType)) {
+      expr = context.getReturnType()->getConversionFrom(std::move(expr), context);
+      codeLoc.check(!!expr,
+          "Attempting to return value of type "s + quote(returnType->getName()) +
+          " in a function returning "s + quote(context.getReturnType()->getName()));
+    }
   }
 }
 
@@ -183,7 +186,7 @@ void FunctionDefinition::setFunctionType(const Context& context) {
         params.push_back({p.name, paramType.get()});
       } else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
-    functionType = FunctionType(FunctionCallType::FUNCTION, returnType.get(), params, templateTypes );
+    functionType = FunctionType(nameOrOp, FunctionCallType::FUNCTION, returnType.get(), params, templateTypes );
   } else
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
 }
@@ -218,33 +221,33 @@ void FunctionDefinition::check(Context& context) {
 
 void FunctionDefinition::addToContext(Context& context) {
   setFunctionType(context);
-  context.addFunction(nameOrOp, *functionType);
+  context.addFunction(*functionType);
 }
 
 static void initializeArithmeticTypes() {
-  ArithmeticType::STRING->context.addFunction("size"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
-  ArithmeticType::STRING->context.addFunction("substring"s, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::STRING,
+  ArithmeticType::STRING->context.addFunction(FunctionType("size"s, FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
+  ArithmeticType::STRING->context.addFunction(FunctionType("substring"s, FunctionCallType::FUNCTION, ArithmeticType::STRING,
       {{"index", ArithmeticType::INT}, {"length", ArithmeticType::INT}}, {}));
-  ArithmeticType::STRING->context.addFunction(Operator::SUBSCRIPT, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::CHAR,
+  ArithmeticType::STRING->context.addFunction(FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION, ArithmeticType::CHAR,
       {{"index", ArithmeticType::INT}}, {}));
-  ArithmeticType::STRING->context.addFunction(Operator::PLUS, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::STRING,
+  ArithmeticType::STRING->context.addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
       {{"right side", ArithmeticType::STRING}}, {}));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
-    ArithmeticType::INT->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
+    ArithmeticType::INT->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
   for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY})
-    ArithmeticType::INT->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::INT,
+    ArithmeticType::INT->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT,
         {{"right side", ArithmeticType::INT}}, {}));
   for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
-    ArithmeticType::BOOL->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+    ArithmeticType::BOOL->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
         {{"right side", ArithmeticType::BOOL}}, {}));
-  ArithmeticType::BOOL->context.addFunction(Operator::LOGICAL_NOT, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::BOOL, {}, {}));
+  ArithmeticType::BOOL->context.addFunction(FunctionType(Operator::LOGICAL_NOT, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {}, {}));
   for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
     for (auto type : {ArithmeticType::INT, ArithmeticType::STRING})
-      type->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+      type->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
           {{"right side", type}}, {}));
   for (auto op : {Operator::EQUALS})
     for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
-      type->context.addFunction(op, FunctionType(FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{"right sie", type}}, {}));
+      type->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{"right sie", type}}, {}));
 }
 
 void correctness(const AST& ast) {
@@ -369,11 +372,13 @@ void VariantDefinition::addToContext(Context& context) {
         params.push_back(FunctionType::Param{"", subtypeInfo.get()});
     } else
       subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
-    type->staticContext.addFunction(subtype.name, FunctionType(FunctionCallType::FUNCTION, type.get(), params, {}));
+    auto constructor = FunctionType(subtype.name, FunctionCallType::FUNCTION, type.get(), params, {});
+    constructor.parentType = type.get();
+    type->staticContext.addFunction(constructor);
   }
   for (auto& method : methods) {
     method->setFunctionType(membersContext);
-    type->context.addFunction(method->nameOrOp, *method->functionType);
+    type->context.addFunction(*method->functionType);
   }
 }
 
@@ -407,10 +412,10 @@ void StructDefinition::addToContext(Context& context) {
       constructorParams.push_back({member.name, memberType.get()});
   for (auto& method : methods) {
     method->setFunctionType(membersContext);
-    type->context.addFunction(method->nameOrOp, *method->functionType);
+    type->context.addFunction(*method->functionType);
   }
-  auto constructor = FunctionType(FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
-  context.addFunction(name, constructor);
+  auto constructor = FunctionType(name, FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
+  context.addFunction(constructor);
 }
 
 void StructDefinition::check(Context& context) {
@@ -548,7 +553,7 @@ void ConceptDefinition::addToContext(Context& context) {
           method->setFunctionType(declarationsContext);
           method->check(declarationsContext);
           method->functionType->parentConcept = concept;
-          concept->params[i]->context.addFunction(method->nameOrOp, *method->functionType);
+          concept->params[i]->context.addFunction(*method->functionType);
         }
       }
   context.addConcept(name, concept);

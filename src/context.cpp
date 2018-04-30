@@ -207,8 +207,8 @@ void Context::checkNameConflict(CodeLoc loc, const string& name, const string& t
   loc.check(!getFunction(name), desc + " conflicts with existing function");
 }
 
-void Context::addFunction(variant<string, Operator> nameOrOp, FunctionType f) {
-  nameOrOp.visit(
+void Context::addFunction(FunctionType f) {
+  f.name.visit(
       [&](const string& id) {
         INFO << "Inserting function " << id;
         CHECK(!getFunction(id));
