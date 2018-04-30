@@ -22,7 +22,8 @@ struct Node {
 struct Expression : Node {
   using Node::Node;
   virtual SType getType(const Context&) = 0;
-  virtual nullable<SType> getDotOperatorType(const Context& idContext, const Context& callContext);
+  virtual nullable<SType> getDotOperatorType(Expression* left, const Context& callContext);
+  virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const;
 };
 
 struct Constant : Expression {
@@ -45,7 +46,7 @@ struct Variable : Expression {
   Variable(CodeLoc, string);
   virtual SType getType(const Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
-  virtual nullable<SType> getDotOperatorType(const Context& idContext, const Context& callContext) override;
+  virtual nullable<SType> getDotOperatorType(Expression* left, const Context& callContext) override;
   string identifier;
 };
 
@@ -69,17 +70,26 @@ struct FunctionCall : Expression {
   FunctionCall(CodeLoc, IdentifierInfo);
   virtual SType getType(const Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
-  virtual nullable<SType> getDotOperatorType(const Context& idContext, const Context& callContext) override;
+  virtual nullable<SType> getDotOperatorType(Expression* left, const Context& callContext) override;
+  virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const override;
   IdentifierInfo identifier;
   optional<FunctionType> functionType;
   vector<unique_ptr<Expression>> arguments;
+  bool methodCall = false;
+  bool extractPointer = false;
 };
 
 struct FunctionCallNamedArgs : Expression {
   FunctionCallNamedArgs(CodeLoc, IdentifierInfo);
   virtual SType getType(const Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
-  virtual nullable<SType> getDotOperatorType(const Context& idContext, const Context& callContext) override;
+  virtual nullable<SType> getDotOperatorType(Expression* left, const Context& callContext) override;
+  virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const override;
+  struct ArgMatching {
+    vector<SType> args;
+    vector<CodeLoc> codeLocs;
+  };
+  WithErrorLine<ArgMatching> matchArgs(const Context& functionContext, const Context& callContext, bool skipFirst);
   IdentifierInfo identifier;
   struct Argument {
     CodeLoc codeLoc;
@@ -88,6 +98,8 @@ struct FunctionCallNamedArgs : Expression {
   };
   optional<FunctionType> functionType;
   vector<Argument> arguments;
+  bool methodCall = false;
+  bool extractPointer = false;
 };
 
 struct Statement : Node {

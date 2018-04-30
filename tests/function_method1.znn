@@ -1,0 +1,24 @@
+// 1
+
+struct S1 {
+  bool b;
+  int i;
+  string value() {
+    return "pak";
+  }
+};
+
+string print(S1 self) {
+  if (self.b)
+    return "pok";
+  else
+    return self.value();
+}
+
+int main() {
+  auto s1 = S1(false, 1);
+  if (s1.print() == "pak")
+    return 1;
+  else
+    return 2;
+}

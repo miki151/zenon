@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stdafx.h"
+#include "expected.h"
 
 extern string combine(const vector<string>& adj, const string& separator);
 extern string quote(const string&);
@@ -117,6 +118,11 @@ void append(vector<T>& v, const vector<T>& w) {
     v.push_back(elem);
 }
 
+template <typename T>
+vector<T> concat(vector<T> v, const vector<T>& w) {
+  append(v, w);
+  return v;
+}
 
 template <typename Key, typename Map>
 optional<const typename Map::mapped_type&> getReferenceMaybe(const Map& m, const Key& key) {

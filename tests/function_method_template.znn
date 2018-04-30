@@ -1,0 +1,28 @@
+// 14
+
+template <T>
+concept CanAdd {
+  T {
+    T operator + (T a);
+  };
+};
+
+template <T> requires CanAdd<T>
+void increment(T* a, T b) {
+  *a = *a + b;
+}
+
+struct A {
+  int v;
+  A operator + (A a) {
+    return A(v + a.v);
+  }
+};
+
+int main() {
+  int x = 2;
+  x.increment(3);
+  auto a = A(4);
+  a.increment({b = A(5)});
+  return x + a.v;
+}

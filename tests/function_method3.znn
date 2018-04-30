@@ -1,0 +1,10 @@
+// no_compile
+
+void increment(int* a) {
+  *a = *a + 1;
+}
+
+int main() {
+  3.increment();
+  return 0;
+}

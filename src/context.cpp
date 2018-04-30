@@ -222,25 +222,29 @@ void Context::addFunction(variant<string, Operator> nameOrOp, FunctionType f) {
   );
 }
 
-FunctionType Context::getFunctionTemplate(CodeLoc codeLoc, IdentifierInfo id) const {
+WithError<FunctionType> Context::getFunctionTemplate(IdentifierInfo id) const {
   if (id.parts.size() > 1) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0)))) {
-      auto ret = type->getStaticContext().getFunctionTemplate(codeLoc, id.getWithoutFirstPart());
-      ret.parentType = type.get();
+      auto ret = type->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
+      if (ret)
+        ret->parentType = type.get();
       return ret;
-    } else
-      id.codeLoc.error("Type not found: " + id.toString());
+    }
+    return "Type not found: " + id.toString();
   } else {
     string funName = id.parts.at(0).name;
     if (auto fun = getFunction(funName))
       return *fun;
   }
-  codeLoc.error("Function not found: " + quote(id.toString()));
+  return "Function not found: " + quote(id.toString());
 }
 
-vector<string> Context::getFunctionParamNames(CodeLoc codeLoc, IdentifierInfo id) const {
-  auto fun = getFunctionTemplate(codeLoc, id);
-  return transform(fun.params, [](const FunctionType::Param& p) { return p.name; });
+WithError<vector<string>> Context::getFunctionParamNames(IdentifierInfo id) const {
+  auto fun = getFunctionTemplate(id);
+  if (fun)
+    return transform(fun->params, [](const FunctionType::Param& p) { return p.name; });
+  else
+    return fun.get_error();
 }
 
 void Context::pushImport(const string& name) {
@@ -261,13 +265,11 @@ const vector<string>& Context::getAllImports() const {
   return getTopState().allImports;
 }
 
-FunctionType Context::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType templateType, IdentifierInfo id, vector<SType> argTypes,
+WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType templateType, IdentifierInfo id, vector<SType> argTypes,
     vector<CodeLoc> argLoc) const {
   auto templateArgNames = id.parts.back().templateArguments;
   auto templateArgs = getTypeList(templateArgNames);
-  instantiateFunction(templateType, codeLoc, templateArgs, argTypes, argLoc);
-  INFO << "Function " << id.toString() << " return type " << templateType.retVal->getName();
-  return templateType;
+  return instantiateFunction(templateType, codeLoc, templateArgs, argTypes, argLoc);
 }
 
 optional<FunctionType> Context::getOperatorType(Operator op) const {

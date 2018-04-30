@@ -50,8 +50,19 @@ void Variable::codegen(Accu& accu, CodegenStage) const {
   accu.add(identifier);
 }
 
+void Expression::codegenDotOperator(Accu& accu, Node::CodegenStage stage, Expression* leftSide) const {
+  accu.add("(");
+  leftSide->codegen(accu, stage);
+  accu.add(").");
+  codegen(accu, stage);
+}
+
 void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage == DEFINE);
+  if (op == Operator::MEMBER_ACCESS) {
+    e2->codegenDotOperator(accu, stage, e1.get());
+    return;
+  }
   accu.add("(");
   e1->codegen(accu, stage);
   accu.add(") ");
@@ -119,7 +130,7 @@ void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 static void genFunctionCall(Accu& accu, const IdentifierInfo& identifier, const FunctionType& functionType,
-    vector<Expression*> arguments) {
+    vector<Expression*> arguments, bool extractPointer = false) {
   string prefix;
   string suffix;
   string id = identifier.parts.back().name +
@@ -136,7 +147,13 @@ static void genFunctionCall(Accu& accu, const IdentifierInfo& identifier, const 
   }
   accu.add(prefix);
   for (auto& arg : arguments) {
+    if (extractPointer)
+      accu.add("&(");
     arg->codegen(accu, Node::DEFINE);
+    if (extractPointer) {
+      accu.add(")");
+      extractPointer = false;
+    }
     accu.add(", ");
   }
   if (!arguments.empty()) {
@@ -146,11 +163,37 @@ static void genFunctionCall(Accu& accu, const IdentifierInfo& identifier, const 
   accu.add(suffix);
 }
 
+void FunctionCall::codegenDotOperator(Accu& accu, Node::CodegenStage stage, Expression* leftSide) const {
+  if (methodCall) {
+    vector<Expression*> args {leftSide};
+    append(args, extractRefs(arguments));
+    genFunctionCall(accu, identifier, *functionType, args, extractPointer);
+  } else {
+    accu.add("(");
+    leftSide->codegen(accu, stage);
+    accu.add(").");
+    codegen(accu, stage);
+  }
+}
+
 void FunctionCall::codegen(Accu& accu, CodegenStage) const {
   genFunctionCall(accu, identifier, *functionType, extractRefs(arguments));
 }
 
-void FunctionCallNamedArgs::codegen(Accu& accu, CodegenStage) const {
+void FunctionCallNamedArgs::codegenDotOperator(Accu& accu, Node::CodegenStage stage, Expression* leftSide) const {
+  if (methodCall) {
+    vector<Expression*> args {leftSide};
+    append(args, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
+    genFunctionCall(accu, identifier, *functionType, args, extractPointer);
+  } else {
+    accu.add("(");
+    leftSide->codegen(accu, stage);
+    accu.add(").");
+    codegen(accu, stage);
+  }
+}
+
+void FunctionCallNamedArgs::codegen(Accu& accu, CodegenStage stage) const {
   genFunctionCall(accu, identifier, *functionType, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
 }
 
@@ -184,7 +227,7 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
   string ret = functionType->retVal->getName() + " " + structName + getFunctionName(nameOrOp) + "(";
   for (auto& param : functionType->params)
     ret.append(param.type->getName() + " " + param.name + ", ");
-  if (!parameters.empty()) {
+  if (!functionType->params.empty()) {
     ret.pop_back();
     ret.pop_back();
   }
