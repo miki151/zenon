@@ -3,6 +3,7 @@
 #include "optional.h"
 #include "variant.h"
 #include "identifier.h"
+#include "function_name.h"
 
 struct IdentifierInfo;
 struct Type;
@@ -23,7 +24,7 @@ class Context : public owned_object<Context> {
   Context(const Context&) = delete;
   Context(Context&&) = default;
   void deepCopyFrom(const Context&);
-  vector<pair<string, FunctionType>> getMissingFunctions(const Context&) const;
+  vector<FunctionType> getMissingFunctions(const Context&) const;
   nullable<SType> getTypeOfVariable(const string&) const;
   void addVariable(const string& ident, SType);
   const vector<string>& getBottomLevelVariables() const;
@@ -52,8 +53,7 @@ class Context : public owned_object<Context> {
     map<string, SType> vars;
     vector<string> varsList;
     map<string, SType> types;
-    map<string, FunctionType> functions;
-    map<Operator, FunctionType> operators;
+    map<FunctionName, FunctionType> functions;
     nullable<SType> returnType;
     vector<string> imports;
     vector<string> allImports;
@@ -65,6 +65,6 @@ class Context : public owned_object<Context> {
   vector<shared_ptr<const State>> getReversedStates() const;
   const State& getTopState() const;
   nullable<SType> getType(const string&) const;
-  const FunctionType* getFunction(variant<string, Operator>) const;
+  const FunctionType* getFunction(FunctionName) const;
   nullable<SType> getVariable(const string&) const;
 };

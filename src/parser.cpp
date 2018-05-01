@@ -187,9 +187,9 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
     ret->parameters.push_back({type.codeLoc, typeId, nameToken.value});
   }
   if (ret->parameters.size() == 0)
-    if (auto op = ret->nameOrOp.getValueMaybe<Operator>())
+    if (auto op = ret->name.getValueMaybe<Operator>())
       if (auto opUnary = getUnary(*op))
-        ret->nameOrOp = *opUnary;
+        ret->name = *opUnary;
   return ret;
 }
 

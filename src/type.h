@@ -6,6 +6,7 @@
 #include "code_loc.h"
 #include "function_call_type.h"
 #include "context.h"
+#include "function_name.h"
 
 class Context;
 struct TypeMapping;
@@ -119,15 +120,15 @@ struct FunctionType {
     string name;
     SType type;
   };
-  FunctionType(variant<string, Operator> name, FunctionCallType, SType returnType, vector<Param> params, vector<SType> templateParams);
-  variant<string, Operator> name;
+  FunctionType(FunctionName name, FunctionCallType, SType returnType, vector<Param> params, vector<SType> templateParams);
+  FunctionName name;
   FunctionCallType callType;
   SType retVal;
   vector<Param> params;
   vector<SType> templateParams;
   nullable<SConcept> parentConcept;
   nullable<SType> parentType;
-  string toString(const string& name) const;
+  string toString() const;
 };
 
 struct Concept : public owned_object<Concept> {

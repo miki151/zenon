@@ -280,10 +280,9 @@ struct SwitchStatement : Statement {
 };
 
 struct FunctionDefinition : Statement {
-  FunctionDefinition(CodeLoc, IdentifierInfo returnType, string name);
-  FunctionDefinition(CodeLoc, IdentifierInfo returnType, Operator);
+  FunctionDefinition(CodeLoc, IdentifierInfo returnType, FunctionName);
   IdentifierInfo returnType;
-  variant<string, Operator> nameOrOp;
+  FunctionName name;
   struct Parameter {
     CodeLoc codeLoc;
     IdentifierInfo type;

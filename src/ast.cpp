@@ -39,9 +39,7 @@ VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, 
   INFO << "Declared variable " << quote(id) << " of type " << quote(type);
 }
 
-FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, string n) : Statement(l), returnType(r), nameOrOp(n) {}
-
-FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, Operator op) : Statement(l), returnType(r), nameOrOp(op) {}
+FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionName name) : Statement(l), returnType(r), name(name) {}
 
 SType Constant::getType(const Context&) {
   return type;
@@ -168,10 +166,10 @@ static void applyConcept(const Context& from, const TemplateInfo& templateInfo, 
 }
 
 void FunctionDefinition::setFunctionType(const Context& context) {
-  if (auto name = nameOrOp.getReferenceMaybe<string>())
-    context.checkNameConflict(codeLoc, *name, "Function");
+  if (auto s = name.getReferenceMaybe<string>())
+    context.checkNameConflict(codeLoc, *s, "Function");
   else {
-    auto op = *nameOrOp.getValueMaybe<Operator>();
+    auto op = *name.getValueMaybe<Operator>();
     codeLoc.check(!context.getOperatorType(op), "Operator " + quote(getString(op)) + " already defined");
   }
   Context contextWithTemplateParams = Context::withParent(context);
@@ -189,14 +187,14 @@ void FunctionDefinition::setFunctionType(const Context& context) {
         params.push_back({p.name, paramType.get()});
       } else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
-    functionType = FunctionType(nameOrOp, FunctionCallType::FUNCTION, returnType.get(), params, templateTypes );
+    functionType = FunctionType(name, FunctionCallType::FUNCTION, returnType.get(), params, templateTypes );
   } else
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
 }
 
 void FunctionDefinition::checkFunction(Context& context, bool templateStruct) {
   Context bodyContext = Context::withParent(context);
-  if (auto op = nameOrOp.getValueMaybe<Operator>()) {
+  if (auto op = name.getValueMaybe<Operator>()) {
     codeLoc.check(templateInfo.params.empty(), "Operator overload can't have template parameters.");
     codeLoc.check(canOverload(*op, parameters.size()), "Can't overload operator " + quote(getString(*op)) +
         " with " + to_string(parameters.size()) + " arguments.");

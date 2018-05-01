@@ -37,10 +37,6 @@ void Context::State::merge(const Context::State& o) {
     CHECK(!functions.count(f.first));
     functions.insert(f);
   }
-  for (auto& f : o.operators) {
-    CHECK(!operators.count(f.first));
-    operators.insert(f);
-  }
 }
 
 void Context::deepCopyFrom(const Context& c) {
@@ -59,18 +55,13 @@ static bool areEquivalent(const FunctionType& f1, const FunctionType& f2) {
   return f1.retVal == f2.retVal;
 }
 
-vector<pair<string, FunctionType>> Context::getMissingFunctions(const Context& required) const {
-  vector<pair<string, FunctionType>> ret;
+vector<FunctionType> Context::getMissingFunctions(const Context& required) const {
+  vector<FunctionType> ret;
   for (auto otherState : required.getReversedStates()) {
     for (auto& function : otherState->functions) {
       auto myFun = getFunction(function.first);
       if (!myFun || !areEquivalent(*myFun, function.second))
-        ret.push_back(function);
-    }
-    for (auto& function : otherState->operators) {
-      auto myFun = getFunction(function.first);
-      if (!myFun || !areEquivalent(*myFun, function.second))
-        ret.push_back({"operator "s + getString(function.first), function.second});
+        ret.push_back(function.second);
     }
   }
   return ret;
@@ -95,8 +86,6 @@ void Context::replace(SType from, SType to) {
     var = var->replace(from, to);
   }
   for (auto& function : state->functions)
-    replaceInFunction(function.second, from, to);
-  for (auto& function : state->operators)
     replaceInFunction(function.second, from, to);
   for (auto& type : state->types)
     type.second = type.second->replace(from, to);
@@ -162,22 +151,10 @@ nullable<SType> Context::getType(const string& s) const {
   return nullptr;
 }
 
-const FunctionType* Context::getFunction(variant<string, Operator> op) const {
+const FunctionType* Context::getFunction(FunctionName name) const {
   for (auto& state : getReversedStates())
-    if (auto f = op.visit(
-        [&](const string& s) -> const FunctionType* {
-          if (state->functions.count(s))
-            return &state->functions.at(s);
-          else
-            return nullptr;
-        },
-        [&](Operator op) -> const FunctionType* {
-          if (state->operators.count(op))
-            return &state->operators.at(op);
-          else
-            return nullptr;
-        }))
-      return f;
+    if (state->functions.count(name))
+      return &state->functions.at(name);
   return nullptr;
 }
 
@@ -208,18 +185,9 @@ void Context::checkNameConflict(CodeLoc loc, const string& name, const string& t
 }
 
 void Context::addFunction(FunctionType f) {
-  f.name.visit(
-      [&](const string& id) {
-        INFO << "Inserting function " << id;
-        CHECK(!getFunction(id));
-        state->functions.insert(make_pair(id, f));
-      },
-      [&](Operator op) {
-        INFO << "Inserting operator " << getString(op);
-        CHECK(!getFunction(op));
-        state->operators.insert(make_pair(op, f));
-      }
-  );
+//  INFO << "Inserting function " << id;
+  CHECK(!getFunction(f.name));
+  state->functions.insert(make_pair(f.name, f));
 }
 
 WithError<FunctionType> Context::getFunctionTemplate(IdentifierInfo id) const {

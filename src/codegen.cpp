@@ -129,17 +129,19 @@ void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.add(";");
 }
 
-static string getFunctionName(variant<string, Operator> name) {
-  return name.visit(
+static string getFunctionName(const FunctionType& function) {
+  return function.name.visit(
       [&](const string& s) { return s; },
-      [&](Operator op) { return "operator "s + getString(op); });
+      [&](Operator op) { return "operator "s + getString(op); },
+      [&](ConstructorId) { return function.parentType->getName(); }
+  );
 }
 
 static void genFunctionCall(Accu& accu, const FunctionType& functionType,
     vector<Expression*> arguments, bool extractPointer = false) {
   string prefix;
   string suffix;
-  string id = getFunctionName(functionType.name) +
+  string id = getFunctionName(functionType) +
       joinTemplateParams(functionType.templateParams);
   if (functionType.parentType)
     id = functionType.parentType->getName() + "::" + id;
@@ -219,7 +221,7 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
   considerTemplateParams(accu, templateInfo.params);
   if (!structName.empty())
     structName += "::";
-  string ret = functionType->retVal->getName() + " " + structName + getFunctionName(nameOrOp) + "(";
+  string ret = functionType->retVal->getName() + " " + structName + getFunctionName(*functionType) + "(";
   for (auto& param : functionType->params)
     ret.append(param.type->getName() + " " + param.name + ", ");
   if (!functionType->params.empty()) {

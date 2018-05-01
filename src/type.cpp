@@ -76,12 +76,16 @@ int getNewId() {
   return ++idCounter;
 }
 
-FunctionType::FunctionType(variant<string, Operator> name, FunctionCallType t, SType returnType, vector<Param> p, vector<SType> tpl)
+FunctionType::FunctionType(FunctionName name, FunctionCallType t, SType returnType, vector<Param> p, vector<SType> tpl)
   : name(name), callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
 
-string FunctionType::toString(const string& name) const {
-  return retVal->getName() + " " + name + joinTemplateParams(templateParams) + "(" +
+string FunctionType::toString() const {
+  string myName = name.visit(
+      [&](const string& s) { return s; },
+      [&](Operator op) { return "operator "s + getString(op); },
+      [&](ConstructorId) { return "constructor"; });
+  return retVal->getName() + " " + myName + joinTemplateParams(templateParams) + "(" +
       combine(transform(params, [](const Param& t) { return t.type->getName(); }), ", ") + ")";
 }
 
@@ -349,8 +353,8 @@ void checkConcepts(CodeLoc codeLoc, const vector<SType>& params, const vector<ST
     auto missingFunctions = args[i]->context.getMissingFunctions(tmp);
     if (!missingFunctions.empty())
       codeLoc.error("Function not implemented by type: " + quote(args[i]->getName()) + ": " +
-          missingFunctions[0].second.toString(missingFunctions[0].first) + ", required by concept: " +
-          quote(missingFunctions[0].second.parentConcept->getName()));
+          missingFunctions[0].toString() + ", required by concept: " +
+          quote(missingFunctions[0].parentConcept->getName()));
   }
 }
 
