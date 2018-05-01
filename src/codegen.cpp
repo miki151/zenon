@@ -129,9 +129,12 @@ void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.add(";");
 }
 
-static string getFunctionName(const FunctionType& function) {
+static string getFunctionCallName(const FunctionType& function) {
+  string typePrefix;
+  if (function.parentType)
+    typePrefix = function.parentType->getName() + "::";
   return function.name.visit(
-      [&](const string& s) { return s; },
+      [&](const string& s) { return typePrefix + s + joinTemplateParams(function.templateParams); },
       [&](Operator op) { return "operator "s + getString(op); },
       [&](ConstructorId) { return function.parentType->getName(); }
   );
@@ -141,10 +144,7 @@ static void genFunctionCall(Accu& accu, const FunctionType& functionType,
     vector<Expression*> arguments, bool extractPointer = false) {
   string prefix;
   string suffix;
-  string id = getFunctionName(functionType) +
-      joinTemplateParams(functionType.templateParams);
-  if (functionType.parentType)
-    id = functionType.parentType->getName() + "::" + id;
+  string id = getFunctionCallName(functionType);
   switch (functionType.callType) {
     case FunctionCallType::FUNCTION:
       prefix = id + "("; suffix = ")";
@@ -217,11 +217,22 @@ static void considerTemplateParams(Accu& accu, const vector<TemplateParameter>& 
   }
 }
 
+static string getFunctionSignatureName(const FunctionType& function) {
+  string typePrefix;
+  if (function.parentType)
+    typePrefix = function.parentType->getName() + "::";
+  return function.name.visit(
+      [&](const string& s) { return typePrefix + s; },
+      [&](Operator op) { return "operator "s + getString(op); },
+      [&](ConstructorId) { return function.parentType->getName(); }
+  );
+}
+
 void FunctionDefinition::addSignature(Accu& accu, string structName) const {
   considerTemplateParams(accu, templateInfo.params);
   if (!structName.empty())
     structName += "::";
-  string ret = functionType->retVal->getName() + " " + structName + getFunctionName(*functionType) + "(";
+  string ret = functionType->retVal->getName() + " " + structName + getFunctionSignatureName(*functionType) + "(";
   for (auto& param : functionType->params)
     ret.append(param.type->getName() + " " + param.name + ", ");
   if (!functionType->params.empty()) {

@@ -472,8 +472,9 @@ void StructDefinition::addToContext(Context& context) {
     method->setFunctionType(membersContext);
     type->context.addFunction(*method->functionType);
   }
-  auto constructor = FunctionType(name, FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
-  context.addFunction(constructor);
+  auto constructor = FunctionType(ConstructorId{}, FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
+  constructor.parentType = type.get();
+  type->staticContext.addFunction(constructor);
 }
 
 void StructDefinition::check(Context& context) {

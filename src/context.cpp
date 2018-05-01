@@ -203,6 +203,8 @@ WithError<FunctionType> Context::getFunctionTemplate(IdentifierInfo id) const {
     string funName = id.parts.at(0).name;
     if (auto fun = getFunction(funName))
       return *fun;
+    if (auto type = getType(funName))
+      return *type->getStaticContext().getFunction(ConstructorId{});
   }
   return "Function not found: " + quote(id.toString());
 }
