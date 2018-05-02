@@ -192,19 +192,17 @@ void Context::addFunction(FunctionType f) {
 
 WithError<FunctionType> Context::getFunctionTemplate(IdentifierInfo id) const {
   if (id.parts.size() > 1) {
-    if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0)))) {
-      auto ret = type->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
-      if (ret)
-        ret->parentType = type.get();
-      return ret;
-    }
-    return "Type not found: " + id.toString();
+    if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0))))
+      return type->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
+    else
+      return "Type not found: " + id.toString();
   } else {
     string funName = id.parts.at(0).name;
     if (auto fun = getFunction(funName))
       return *fun;
     if (auto type = getType(funName))
-      return *type->getStaticContext().getFunction(ConstructorId{});
+      if (auto fun = type->getStaticContext().getFunction(ConstructorId{}))
+        return *fun;
   }
   return "Function not found: " + quote(id.toString());
 }
@@ -244,6 +242,13 @@ WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc
 
 optional<FunctionType> Context::getOperatorType(Operator op) const {
   if (auto fun = getFunction(op))
+    return *fun;
+  else
+    return none;
+}
+
+optional<FunctionType> Context::getConstructorType() const {
+  if (auto fun = getFunction(ConstructorId{}))
     return *fun;
   else
     return none;

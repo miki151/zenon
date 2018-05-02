@@ -100,7 +100,7 @@ void VariableDeclaration::check(Context& context) {
     initExpr->codeLoc.check(ReferenceType::get(realType.get())->canAssign(exprType), "Can't initialize variable of type "
         + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
   } else
-    codeLoc.check(!requiresInitialization(realType.get()), "Type " + quote(realType->getName()) + " requires initialization");
+    codeLoc.check(realType->canConstructWith({}), "Type " + quote(realType->getName()) + " requires initialization");
   context.addVariable(identifier, ReferenceType::get(realType.get()));
 }
 
@@ -142,10 +142,12 @@ bool ReturnStatement::hasReturnStatement(const Context&) const {
 
 static void applyConcept(const Context& from, const TemplateInfo& templateInfo, const vector<SType>& templateTypes) {
   auto getTemplateParam = [&](CodeLoc codeLoc, const string& name) {
+    if (auto type = from.getTypeFromString(IdentifierInfo(name)))
+      return type.get();
     for (int i = 0; i < templateInfo.params.size(); ++i)
       if (templateInfo.params[i].name == name)
         return templateTypes[i];
-    codeLoc.error("Type " + quote(name) + " not part of template arguments");
+    codeLoc.error("Uknown type: " + quote(name));
   };
   for (auto& requirement : templateInfo.requirements) {
     if (auto concept = from.getConcept(requirement.parts[0].name)) {
@@ -165,12 +167,14 @@ static void applyConcept(const Context& from, const TemplateInfo& templateInfo, 
   }
 }
 
-void FunctionDefinition::setFunctionType(const Context& context) {
+void FunctionDefinition::setFunctionType(const Context& context, nullable<SType> returnType) {
   if (auto s = name.getReferenceMaybe<string>())
     context.checkNameConflict(codeLoc, *s, "Function");
-  else {
-    auto op = *name.getValueMaybe<Operator>();
-    codeLoc.check(!context.getOperatorType(op), "Operator " + quote(getString(op)) + " already defined");
+  else if (auto op = name.getValueMaybe<Operator>()) {
+    codeLoc.check(!context.getOperatorType(*op), "Operator " + quote(getString(*op)) + " already defined");
+    codeLoc.check(templateInfo.params.empty(), "Operator overload can't have template parameters.");
+    codeLoc.check(canOverload(*op, (int) parameters.size()), "Can't overload operator " + quote(getString(*op)) +
+        " with " + to_string(parameters.size()) + " arguments.");
   }
   Context contextWithTemplateParams = Context::withParent(context);
   vector<SType> templateTypes;
@@ -180,7 +184,7 @@ void FunctionDefinition::setFunctionType(const Context& context) {
     contextWithTemplateParams.addType(param.name, templateTypes.back());
   }
   applyConcept(context, templateInfo, templateTypes);
-  if (auto returnType = contextWithTemplateParams.getTypeFromString(this->returnType)) {
+  if (returnType || (returnType = contextWithTemplateParams.getTypeFromString(this->returnType))) {
     vector<FunctionType::Param> params;
     for (auto& p : parameters)
       if (auto paramType = contextWithTemplateParams.getTypeFromString(p.type)) {
@@ -192,32 +196,25 @@ void FunctionDefinition::setFunctionType(const Context& context) {
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
 }
 
-void FunctionDefinition::checkFunction(Context& context, bool templateStruct) {
-  Context bodyContext = Context::withParent(context);
-  if (auto op = name.getValueMaybe<Operator>()) {
-    codeLoc.check(templateInfo.params.empty(), "Operator overload can't have template parameters.");
-    codeLoc.check(canOverload(*op, parameters.size()), "Can't overload operator " + quote(getString(*op)) +
-        " with " + to_string(parameters.size()) + " arguments.");
-  }
-  for (auto& param : functionType->templateParams)
-    bodyContext.addType(param->getName(), param);
-  if (auto returnType = bodyContext.getTypeFromString(this->returnType)) {
+void FunctionDefinition::checkFunctionBody(Context& context, bool templateStruct) const {
+  if (body && (!templateInfo.params.empty() || templateStruct || context.getImports().empty())) {
+    Context bodyContext = Context::withParent(context);
+    for (auto& param : functionType->templateParams)
+      bodyContext.addType(param->getName(), param);
     for (auto& p : parameters)
       if (auto paramType = bodyContext.getTypeFromString(p.type))
         bodyContext.addVariable(p.name, paramType.get());
       else
         p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
-    bodyContext.setReturnType(returnType.get());
-    if (returnType != ArithmeticType::VOID && body && !body->hasReturnStatement(context))
+    bodyContext.setReturnType(functionType->retVal);
+    if (functionType->retVal != ArithmeticType::VOID && body && !body->hasReturnStatement(context) && !name.contains<ConstructorId>())
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
-  } else
-    codeLoc.error("Unrecognized return type: " + this->returnType.toString());
-  if (body && (!templateInfo.params.empty() || templateStruct || context.getImports().empty()))
     body->check(bodyContext);
+  }
 }
 
 void FunctionDefinition::check(Context& context) {
-  checkFunction(context, false);
+  checkFunctionBody(context, false);
 }
 
 void FunctionDefinition::addToContext(Context& context) {
@@ -436,6 +433,7 @@ void VariantDefinition::addToContext(Context& context) {
   }
   for (auto& method : methods) {
     method->setFunctionType(membersContext);
+    method->functionType->parentType = type.get();
     type->context.addFunction(*method->functionType);
   }
 }
@@ -450,7 +448,7 @@ void VariantDefinition::check(Context& context) {
   }
   methodBodyContext.addVariable("this", PointerType::get(type.get()));
   for (int i = 0; i < methods.size(); ++i)
-    methods[i]->checkFunction(methodBodyContext, !templateInfo.params.empty());
+    methods[i]->checkFunctionBody(methodBodyContext, !templateInfo.params.empty());
   type->updateInstantations();
 }
 
@@ -464,21 +462,63 @@ void StructDefinition::addToContext(Context& context) {
   applyConcept(context, templateInfo, type->templateParams);
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
-  vector<FunctionType::Param> constructorParams;
-  for (auto& member : members)
-    if (auto memberType = membersContext.getTypeFromString(member.type))
-      constructorParams.push_back({member.name, memberType.get()});
+  bool hasConstructor = false;
   for (auto& method : methods) {
-    method->setFunctionType(membersContext);
-    type->context.addFunction(*method->functionType);
+    if (method->name.contains<ConstructorId>()) {
+      // We have to force the return type because it's not possible to get it from membersContext
+      method->setFunctionType(membersContext, (SType) type.get());
+      method->functionType->callType = FunctionCallType::CONSTRUCTOR;
+      method->codeLoc.check(method->functionType->templateParams.empty(), "Constructor can't have template parameters.");
+      method->functionType->templateParams = type->templateParams;
+      method->functionType->parentType = type.get();
+      type->staticContext.addFunction(*method->functionType);
+      hasConstructor = true;
+    } else {
+      method->setFunctionType(membersContext);
+      method->functionType->parentType = type.get();
+      type->context.addFunction(*method->functionType);
+    }
   }
-  auto constructor = FunctionType(ConstructorId{}, FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
-  constructor.parentType = type.get();
-  type->staticContext.addFunction(constructor);
+  if (!hasConstructor) {
+    vector<FunctionType::Param> constructorParams;
+    for (auto& member : members)
+      if (auto memberType = membersContext.getTypeFromString(member.type))
+        constructorParams.push_back({member.name, memberType.get()});
+    auto constructor = FunctionType(ConstructorId{}, FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
+    constructor.parentType = type.get();
+    type->staticContext.addFunction(constructor);
+  }
+}
+
+static void checkConstructor(const StructType& type, const Context& context, const FunctionDefinition& method) {
+  map<string, int> memberIndex;
+  int index =  0;
+  for (auto& member : type.context.getBottomLevelVariables())
+    memberIndex[member] = index++;
+  index = -1;
+  for (auto& initializer : method.initializers) {
+    auto memberType = type.context.getTypeOfVariable(initializer.paramName);
+    auto initContext = Context::withParent(context);
+    for (auto& p : method.functionType->params)
+      initContext.addVariable(p.name, p.type);
+    auto exprType = initializer.expr->getType(initContext);
+    initializer.codeLoc.check(!!memberType, type.getName() + " has no member named " + quote(initializer.paramName));
+    initializer.codeLoc.check(memberType->getUnderlying()->canConstructWith({exprType}),
+        "Can't assign to member " + quote(initializer.paramName) + " of type " + quote(memberType->getName()) +
+        " from expression of type " + quote(exprType->getName()));
+    int currentIndex = memberIndex.at(initializer.paramName);
+    initializer.codeLoc.check(currentIndex > index, "Can't initialize member " + quote(initializer.paramName) + " out of order");
+    index = currentIndex;
+    memberIndex.erase(initializer.paramName);
+  }
+  for (auto& nonInitialized : memberIndex)
+    method.codeLoc.check(type.context.getTypeOfVariable(nonInitialized.first)->getUnderlying()->canConstructWith({}),
+        "Member " + quote(nonInitialized.first) + " needs to be initialized");
 }
 
 void StructDefinition::check(Context& context) {
   auto methodBodyContext = Context::withParent({&context, &type->context});
+  auto staticFunContext = Context::withParent({&context, &type->staticContext});
   for (auto& param : type->templateParams)
     methodBodyContext.addType(param->getName(), param);
   methodBodyContext.addVariable("this", PointerType::get(type.get()));
@@ -489,8 +529,13 @@ void StructDefinition::check(Context& context) {
     else
       member.codeLoc.error("Type " + quote(member.type.toString()) + " not recognized");
   }
-  for (int i = 0; i < methods.size(); ++i)
-    methods[i]->checkFunction(methodBodyContext, !templateInfo.params.empty());
+  for (int i = 0; i < methods.size(); ++i) {
+    if (methods[i]->functionType->name.contains<ConstructorId>()) {
+      checkConstructor(*type, methodBodyContext, *methods[i]);
+      methods[i]->checkFunctionBody(staticFunContext, !templateInfo.params.empty());
+    } else
+      methods[i]->checkFunctionBody(methodBodyContext, !templateInfo.params.empty());
+  }
   type->updateInstantations();
 }
 

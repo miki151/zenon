@@ -14,7 +14,7 @@ struct FunctionType;
 struct SwitchStatement;
 
 struct Type : public owned_object<Type> {
-  virtual string getName() const = 0;
+  virtual string getName(bool withTemplateArguments = true) const = 0;
   virtual SType getUnderlying();
   virtual bool canAssign(SType from) const;
   virtual bool canMap(TypeMapping&, SType argType) const;
@@ -25,12 +25,13 @@ struct Type : public owned_object<Type> {
   virtual const Context& getContext() const;
   virtual const Context& getStaticContext() const;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
+  bool canConstructWith(vector<SType> args) const;
   Context context;
   Context staticContext;
 };
 
 struct ArithmeticType : public Type {
-  virtual string getName() const override;
+  virtual string getName(bool withTemplateArguments = true) const override;
   using DefType = shared_ptr<ArithmeticType>;
   static DefType INT;
   static DefType BOOL;
@@ -45,7 +46,7 @@ struct ArithmeticType : public Type {
 };
 
 struct ReferenceType : public Type {
-  virtual string getName() const override;
+  virtual string getName(bool withTemplateArguments = true) const override;
   virtual SType getUnderlying() override;
   virtual bool canAssign(SType from) const override;
   virtual bool canMap(TypeMapping& mapping, SType from) const override;
@@ -58,7 +59,7 @@ struct ReferenceType : public Type {
 };
 
 struct PointerType : public Type {
-  virtual string getName() const override;
+  virtual string getName(bool withTemplateArguments = true) const override;
   virtual SType replace(SType from, SType to) const override;
   virtual bool canMap(TypeMapping&, SType argType) const override;
 
@@ -69,7 +70,7 @@ struct PointerType : public Type {
 };
 
 struct TemplateParameterType : public Type {
-  virtual string getName() const override;
+  virtual string getName(bool withTemplateArguments = true) const override;
 
   TemplateParameterType(string name, CodeLoc);
   string name;
@@ -77,7 +78,7 @@ struct TemplateParameterType : public Type {
 };
 
 struct StructType : public Type {
-  virtual string getName() const override;
+  virtual string getName(bool withTemplateArguments = true) const override;
   virtual SType replace(SType from, SType to) const override;
   virtual nullable<SType> instantiate(CodeLoc, vector<SType> templateParams) const override;
   virtual bool canMap(TypeMapping&, SType argType) const override;
@@ -108,7 +109,7 @@ struct StructType : public Type {
 struct EnumType : public Type {
   EnumType(string name, vector<string> elements);
 
-  virtual string getName() const override;
+  virtual string getName(bool withTemplateArguments = true) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
 
   string name;
@@ -143,7 +144,6 @@ struct Concept : public owned_object<Concept> {
 struct Expression;
 class Context;
 
-extern bool requiresInitialization(SType);
 struct IdentifierInfo;
 extern WithErrorLine<FunctionType> instantiateFunction(const FunctionType&, CodeLoc, vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc);
 extern bool canConvert(SType from, SType to);

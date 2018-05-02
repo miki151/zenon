@@ -9,6 +9,7 @@ using namespace std;
 
 template <T>
 extern struct vector {
+  vector();
   void push_back(T elem);
   T at(int index);
   T operator [](int index);
@@ -16,7 +17,7 @@ extern struct vector {
 };
 
 int main() {
-  auto v = vector<int>();
+  vector<int> v;
   for (int i = 0; i < 6; i = i + 1)
     v.push_back(i * i);
   int sum = 0;

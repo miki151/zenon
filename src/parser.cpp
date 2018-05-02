@@ -199,6 +199,26 @@ unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Toke
   return ret;
 }
 
+unique_ptr<FunctionDefinition> parseConstructorDefinition(IdentifierInfo type, Tokens& tokens) {
+  auto ret = parseFunctionSignature(type, tokens);
+  if (tokens.eatMaybe(Keyword::COLON)) {
+    while (1) {
+      auto id = tokens.popNext("member name");
+      id.codeLoc.check(id.contains<IdentifierToken>(), "Expected member name");
+      tokens.eat(Keyword::OPEN_BRACKET);
+      auto expr = parseExpression(tokens);
+      tokens.eat(Keyword::CLOSE_BRACKET);
+      ret->initializers.push_back(FunctionDefinition::Initializer{id.codeLoc, id.value, std::move(expr)});
+      if (tokens.peek("constructor definition") == Keyword::OPEN_BLOCK)
+        break;
+      tokens.eat(Keyword::COMMA);
+    }
+  }
+  ret->name = ConstructorId{};
+  ret->body = parseBlock(tokens);
+  return ret;
+}
+
 static TemplateInfo parseTemplateInfo(Tokens& tokens) {
   tokens.eat(Keyword::TEMPLATE);
   tokens.eat(Operator::LESS_THAN);
@@ -241,7 +261,18 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
       templateParams = parseTemplateInfo(tokens);
     auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
     auto memberName = tokens.popNext("member name");
-    if (memberName == Keyword::OPERATOR || tokens.peek("struct definition") == Keyword::OPEN_BRACKET) {
+    if (memberName == Keyword::OPEN_BRACKET) { // constructor
+      tokens.rewind();
+      tokens.rewind();
+      if (external) {
+        ret->methods.push_back(parseFunctionSignature(typeIdent, tokens));
+        ret->methods.back()->name = ConstructorId{};
+        tokens.eat(Keyword::SEMICOLON);
+      } else
+        ret->methods.push_back(parseConstructorDefinition(typeIdent, tokens));
+      ret->methods.back()->templateInfo = templateParams;
+    } else
+    if (memberName == Keyword::OPERATOR || tokens.peek("struct definition") == Keyword::OPEN_BRACKET) { // method
       tokens.rewind();
       if (external) {
         ret->methods.push_back(parseFunctionSignature(typeIdent, tokens));
@@ -249,7 +280,7 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
       } else
         ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));
       ret->methods.back()->templateInfo = templateParams;
-    } else {
+    } else { // member
       memberToken.codeLoc.check(templateParams.params.empty(), "Member variable can't have template parameters");
       memberName.codeLoc.check(memberName.contains<IdentifierToken>(), "Expected identifier");
       ret->members.push_back({typeIdent, memberName.value, token2.codeLoc});

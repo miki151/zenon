@@ -292,12 +292,18 @@ struct FunctionDefinition : Statement {
   unique_ptr<Statement> body;
   TemplateInfo templateInfo;
   optional<FunctionType> functionType;
+  struct Initializer {
+    CodeLoc codeLoc;
+    string paramName;
+    unique_ptr<Expression> expr;
+  };
+  vector<Initializer> initializers;
   virtual void check(Context&) override;
   virtual void addToContext(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
-  void setFunctionType(const Context&);
-  void checkFunction(Context&, bool templateStruct);
+  void setFunctionType(const Context&, nullable<SType> forceReturnType = nullptr);
+  void checkFunctionBody(Context&, bool templateStruct) const;
   void addSignature(Accu& accu, string structName) const;
 };
 

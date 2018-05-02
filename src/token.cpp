@@ -35,6 +35,7 @@ static const unordered_map<string, Keyword> keywords {
   {"{", Keyword::OPEN_BLOCK},
   {"}", Keyword::CLOSE_BLOCK},
   {";", Keyword::SEMICOLON},
+  {":", Keyword::COLON},
   {",", Keyword::COMMA},
 };
 

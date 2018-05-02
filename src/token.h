@@ -48,6 +48,7 @@ enum class Keyword {
   OPERATOR,
   CONCEPT,
   REQUIRES,
+  COLON
 };
 
 struct EmbedToken {

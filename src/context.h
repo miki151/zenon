@@ -38,6 +38,7 @@ class Context : public owned_object<Context> {
   WithError<FunctionType> getFunctionTemplate(IdentifierInfo) const;
   WithErrorLine<FunctionType> instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<SType> argTypes, vector<CodeLoc> argLoc) const;
   optional<FunctionType> getOperatorType(Operator) const;
+  optional<FunctionType> getConstructorType() const;
   void pushImport(const string& name);
   void popImport();
   const vector<string>& getImports() const;

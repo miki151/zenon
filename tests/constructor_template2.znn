@@ -1,0 +1,27 @@
+// no_compile
+
+
+template<T, U>
+concept CanConvert {
+  T {
+    U convert();
+  };
+};
+
+struct X {
+  int convert() {
+    return 1;
+  }
+};
+
+template <T1>
+struct A {
+  template <T2> requires CanConvert<T2, T1>
+  A(T2 a) {}
+};
+
+int main() {
+  auto a = A<int, X>(X());
+  auto b = A<int>(X());
+  return 0;
+}

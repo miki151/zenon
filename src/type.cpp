@@ -17,30 +17,30 @@ string getTemplateParamNames(const vector<SType>& templateParams) {
   return ret;
 }
 
-string ArithmeticType::getName() const {
+string ArithmeticType::getName(bool withTemplateArguments) const {
   return name;
 }
 
 ArithmeticType::ArithmeticType(const string& name) : name(name) {
 }
 
-string ReferenceType::getName() const {
-  return underlying->getName() + "&";
+string ReferenceType::getName(bool withTemplateArguments) const {
+  return underlying->getName(withTemplateArguments) + "&";
 }
 
-string PointerType::getName() const {
-  return underlying->getName() + "*";
+string PointerType::getName(bool withTemplateArguments) const {
+  return underlying->getName(withTemplateArguments) + "*";
 }
 
-string StructType::getName() const {
-  return name + getTemplateParamNames(templateParams);
+string StructType::getName(bool withTemplateArguments) const {
+  return name + (withTemplateArguments ? getTemplateParamNames(templateParams) : "");
 }
 
-string TemplateParameterType::getName() const {
+string TemplateParameterType::getName(bool withTemplateArguments) const {
   return name;
 }
 
-string EnumType::getName() const {
+string EnumType::getName(bool withTemplateArguments) const {
   return name;
 }
 
@@ -257,10 +257,6 @@ bool canConvert(SType from, SType to) {
   return from->getUnderlying() == to;
 }
 
-bool requiresInitialization(SType) {
-  return true;
-}
-
 TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l) {}
 
 SType Type::replace(SType from, SType to) const {
@@ -318,6 +314,8 @@ void replaceInFunction(FunctionType& in, SType from, SType to) {
     in.parentType = in.parentType->replace(from, to);
   for (auto& param : in.params)
     param.type = param.type->replace(from, to);
+  //for (auto& param : in.templateParams)
+  //  param = param->replace(from, to);
   if (in.parentConcept) {
     in.parentConcept = shared<Concept>(*in.parentConcept);
     for (auto& t : in.parentConcept->params)
@@ -341,7 +339,15 @@ const Context& Type::getStaticContext() const {
 }
 
 void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc, bool isReference) const {
-  codeLoc.error("Can't switch on value of type " + quote(getName()));
+  codeLoc.error("Can't switch on the value of type " + quote(getName()));
+}
+
+bool Type::canConstructWith(vector<SType> args) const {
+  if (args.size() == 1 && args[0] == get_this().get())
+    return true;
+  if (auto f = staticContext.getConstructorType())
+    return args == transform(f->params, [](const auto& param) { return param.type; });
+  return false;
 }
 
 void checkConcepts(CodeLoc codeLoc, const vector<SType>& params, const vector<SType>& args) {

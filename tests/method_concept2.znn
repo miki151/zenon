@@ -1,0 +1,29 @@
+// 6
+
+template<T, U>
+concept CanConvert {
+  T {
+    U convert();
+  };
+};
+
+struct S1 {
+  int t;
+  template <U> requires CanConvert<U, int>
+  void set(U u) {
+    t = u.convert();
+  }
+};
+
+struct X {
+  int a;
+  int convert() {
+    return 1 + a;
+  }
+};
+
+int main() {
+  auto s1 = S1(1);
+  s1.set(X(5));
+  return s1.t;
+}

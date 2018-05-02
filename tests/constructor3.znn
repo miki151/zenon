@@ -1,0 +1,14 @@
+// no_compile
+
+
+struct A {
+  int a;
+  int b;
+  A(int x) : b(x), a(2 * x) {
+  }
+};
+
+int main() {
+  auto a = A(2);
+  return a.a + a.b;
+}

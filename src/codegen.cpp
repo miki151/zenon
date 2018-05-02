@@ -222,9 +222,9 @@ static string getFunctionSignatureName(const FunctionType& function) {
   if (function.parentType)
     typePrefix = function.parentType->getName() + "::";
   return function.name.visit(
-      [&](const string& s) { return typePrefix + s; },
+      [&](const string& s) { return s; },
       [&](Operator op) { return "operator "s + getString(op); },
-      [&](ConstructorId) { return function.parentType->getName(); }
+      [&](ConstructorId) { return function.parentType->getName(false); }
   );
 }
 
@@ -232,7 +232,10 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
   considerTemplateParams(accu, templateInfo.params);
   if (!structName.empty())
     structName += "::";
-  string ret = functionType->retVal->getName() + " " + structName + getFunctionSignatureName(*functionType) + "(";
+  string retVal;
+  if (!name.contains<ConstructorId>())
+    retVal = functionType->retVal->getName() + " ";
+  string ret = retVal + structName + getFunctionSignatureName(*functionType) + "(";
   for (auto& param : functionType->params)
     ret.append(param.type->getName() + " " + param.name + ", ");
   if (!functionType->params.empty()) {
@@ -242,6 +245,21 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
   ret.append(")");
   accu.add(ret);
 };
+
+static void addInitializers(Accu& accu, const vector<FunctionDefinition::Initializer>& initializers) {
+  if (!initializers.empty())
+    accu.add(" : ");
+  bool addComma = false;
+  for (auto& elem : initializers) {
+    if (addComma)
+      accu.add(", ");
+    addComma = true;
+    accu.add(elem.paramName + "(");
+    elem.expr->codegen(accu, Node::CodegenStage::DEFINE);
+    accu.add(")");
+  }
+  accu.add(" ");
+}
 
 void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   addSignature(accu, "");
@@ -300,6 +318,8 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
     if (stage == DEFINE || ((!templateInfo.params.empty() || !method->templateInfo.params.empty()) && stage == IMPORT)) {
       considerTemplateParams(accu, templateInfo.params);
       method->addSignature(accu, name + joinTemplateParams(type->templateParams));
+      if (method->functionType->name.contains<ConstructorId>())
+        addInitializers(accu, method->initializers);
       accu.newLine();
       method->body->codegen(accu, DEFINE);
       accu.newLine();

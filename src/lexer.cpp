@@ -11,7 +11,9 @@
 
 static string getKeywords() {
   string keywords;
-  for (auto& k : getAllKeywords()) {
+  auto all = getAllKeywords();
+  sort(all.begin(), all.end(), [](const string& o1, const string& o2) { return o1.size() > o2.size(); });
+  for (auto& k : all) {
     if (!isalpha(k[0]))
       keywords.append("\\");
     keywords.append(k);
@@ -116,7 +118,7 @@ Tokens lex(const string& input, const string& path) {
           break;
         }
         if (!all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); })) {
-          ERROR << "Unrecognized token " << quote(skipped);
+          codeLoc.error("Unrecognized token: " + quote(skipped));
         }
         if (auto token = v[index].second(matched)) {
           ret.push_back(*token);

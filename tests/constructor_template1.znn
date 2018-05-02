@@ -1,0 +1,13 @@
+// 5
+
+template <T>
+struct A {
+  A(T a) : a(a) {}
+  T a;
+};
+
+int main() {
+  auto a = A(5);
+  return a.a;
+}
+

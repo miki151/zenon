@@ -1,0 +1,14 @@
+// 6
+
+
+struct A {
+  int a;
+  int b;
+  A(int x) : a(x), b(2 * x) {
+  }
+};
+
+int main() {
+  auto a = A(2);
+  return a.a + a.b;
+}
