@@ -1,0 +1,14 @@
+// no_compile
+
+int f(int a) {
+  return 2;
+}
+
+template <T>
+int f(T t) {
+  return 1;
+}
+
+int main() {
+  return f(5);
+}

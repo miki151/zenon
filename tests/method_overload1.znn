@@ -1,0 +1,16 @@
+// 1
+
+int f(int a, bool b) {
+  return 1;
+}
+
+bool f(int a, int c) {
+  return true;
+}
+
+int main() {
+  if (1.f(5))
+    return 1.f(false);
+  else
+    return 0;
+}

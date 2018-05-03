@@ -169,9 +169,10 @@ static void applyConcept(const Context& from, const TemplateInfo& templateInfo, 
 
 void FunctionDefinition::setFunctionType(const Context& context, nullable<SType> returnType) {
   if (auto s = name.getReferenceMaybe<string>())
-    context.checkNameConflict(codeLoc, *s, "Function");
+    context.checkNameConflictExcludingFunctions(codeLoc, *s, "Function");
   else if (auto op = name.getValueMaybe<Operator>()) {
-    codeLoc.check(!context.getOperatorType(*op), "Operator " + quote(getString(*op)) + " already defined");
+    codeLoc.check(!parameters.empty() || context.getOperatorType(*op).empty(),
+        "Unary operator " + quote(getString(*op)) + " already defined");
     codeLoc.check(templateInfo.params.empty(), "Operator overload can't have template parameters.");
     codeLoc.check(canOverload(*op, (int) parameters.size()), "Can't overload operator " + quote(getString(*op)) +
         " with " + to_string(parameters.size()) + " arguments.");
@@ -219,33 +220,33 @@ void FunctionDefinition::check(Context& context) {
 
 void FunctionDefinition::addToContext(Context& context) {
   setFunctionType(context);
-  context.addFunction(*functionType);
+  codeLoc.checkNoError(context.addFunction(*functionType));
 }
 
 static void initializeArithmeticTypes() {
-  ArithmeticType::STRING->context.addFunction(FunctionType("size"s, FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
-  ArithmeticType::STRING->context.addFunction(FunctionType("substring"s, FunctionCallType::FUNCTION, ArithmeticType::STRING,
-      {{"index", ArithmeticType::INT}, {"length", ArithmeticType::INT}}, {}));
-  ArithmeticType::STRING->context.addFunction(FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION, ArithmeticType::CHAR,
-      {{"index", ArithmeticType::INT}}, {}));
-  ArithmeticType::STRING->context.addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
-      {{"right side", ArithmeticType::STRING}}, {}));
+  CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType("size"s, FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {})));
+  CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType("substring"s, FunctionCallType::FUNCTION, ArithmeticType::STRING,
+      {{"index", ArithmeticType::INT}, {"length", ArithmeticType::INT}}, {})));
+  CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION, ArithmeticType::CHAR,
+      {{"index", ArithmeticType::INT}}, {})));
+  CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
+      {{"right side", ArithmeticType::STRING}}, {})));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
-    ArithmeticType::INT->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {}));
+    CHECK(!ArithmeticType::INT->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {})));
   for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY})
-    ArithmeticType::INT->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT,
-        {{"right side", ArithmeticType::INT}}, {}));
+    CHECK(!ArithmeticType::INT->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT,
+        {{"right side", ArithmeticType::INT}}, {})));
   for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
-    ArithmeticType::BOOL->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-        {{"right side", ArithmeticType::BOOL}}, {}));
-  ArithmeticType::BOOL->context.addFunction(FunctionType(Operator::LOGICAL_NOT, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {}, {}));
+    CHECK(!ArithmeticType::BOOL->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+        {{"right side", ArithmeticType::BOOL}}, {})));
+  CHECK(!ArithmeticType::BOOL->context.addFunction(FunctionType(Operator::LOGICAL_NOT, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {}, {})));
   for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
     for (auto type : {ArithmeticType::INT, ArithmeticType::STRING})
-      type->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-          {{"right side", type}}, {}));
+      CHECK(!type->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+          {{"right side", type}}, {})));
   for (auto op : {Operator::EQUALS})
     for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
-      type->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{"right sie", type}}, {}));
+      CHECK(!type->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{"right sie", type}}, {})));
 }
 
 void correctness(const AST& ast) {
@@ -276,10 +277,16 @@ SType FunctionCall::getType(const Context& context) {
 
 static WithErrorLine<FunctionType> getFunction(const Context& idContext, const Context& callContext, CodeLoc codeLoc, IdentifierInfo id,
     const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
-  if (auto templateType = idContext.getFunctionTemplate(id))
-    return callContext.instantiateFunctionTemplate(codeLoc, *templateType, id, argTypes, argLoc);
-  else
-    return codeLoc.getError(templateType.get_error());
+  WithErrorLine<FunctionType> ret = codeLoc.getError("Couldn't find function overload matching arguments.");
+  if (auto templateType = idContext.getFunctionTemplate(id)) {
+    for (auto& overload : *templateType)
+      if (auto f = callContext.instantiateFunctionTemplate(codeLoc, overload, id, argTypes, argLoc)) {
+        if (ret)
+          return codeLoc.getError("Multiple function overloads found");
+        ret = f;
+      }
+  }
+  return ret;
 }
 
 nullable<SType> FunctionCall::getDotOperatorType(Expression* left, const Context& callContext) {
@@ -296,17 +303,20 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, const Context
   ErrorLoc error;
   getFunction(leftType ? leftType->getContext() : callContext, callContext, codeLoc, identifier, argTypes, argLocs)
       .unpack(functionType, error);
-  if (!functionType && leftType) {
-    getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs))
-        .unpack(functionType, error);
-    if (!functionType) {
-      if (leftType.get().dynamicCast<ReferenceType>())
+  if (leftType) {
+    auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
+    if (res)
+      callType = METHOD;
+    codeLoc.check(!res || !functionType, "Ambigous method call.");
+    res.unpack(functionType, error);
+    if (leftType.get().dynamicCast<ReferenceType>()) {
         leftType = PointerType::get(leftType->getUnderlying());
-      getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs))
-          .unpack(functionType, error);
-      extractPointer = true;
+      auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
+      if (res)
+        callType = METHOD_AS_POINTER;
+      codeLoc.check(!res || !functionType, "Ambigous method call.");
+      res.unpack(functionType, error);
     }
-    methodCall = true;
   }
   if (functionType)
     return functionType->retVal;
@@ -326,24 +336,34 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, cons
   nullable<SType> leftType;
   if (left)
     leftType = left->getType(callContext);
-  optional<ArgMatching> matching;
-  matchArgs(leftContext, callContext, false).unpack(matching, error);
-  if (matching)
-    getFunction(leftContext, callContext, codeLoc, identifier, matching->args, matching->codeLocs).unpack(functionType, error);
-  if (!functionType && leftType) {
-    matchArgs(callContext, callContext, true).unpack(matching, error);
-    if (matching) {
-      getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, matching->args), concat({left->codeLoc}, matching->codeLocs))
+  optional<vector<ArgMatching>> matchings;
+  matchArgs(leftContext, callContext, false).unpack(matchings, error);
+  if (matchings)
+    for (auto& matching : *matchings) {
+      callContext.instantiateFunctionTemplate(codeLoc, matching.function, identifier, matching.args, matching.codeLocs)
           .unpack(functionType, error);
-      if (!functionType) {
-        if (leftType.get().dynamicCast<ReferenceType>())
-          leftType = PointerType::get(leftType->getUnderlying());
-        getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, matching->args), concat({left->codeLoc}, matching->codeLocs))
-            .unpack(functionType, error);
-        extractPointer = true;
+      if (functionType)
+        break;
+    }
+  if (leftType) {
+    matchArgs(callContext, callContext, true).unpack(matchings, error);
+    if (matchings) {
+      auto tryMethodCall = [&] (CallType thisCallType) {
+        for (auto& matching : *matchings) {
+          auto res = callContext.instantiateFunctionTemplate(codeLoc, matching.function, identifier,
+              concat({leftType.get()}, matching.args), concat({left->codeLoc}, matching.codeLocs));
+          if (res)
+            callType = thisCallType;
+          codeLoc.check(!res || !functionType, "Ambigous method call.");
+          res.unpack(functionType, error);
+        }
+      };
+      tryMethodCall(CallType::METHOD);
+      if (leftType.get().dynamicCast<ReferenceType>()) {
+        leftType = PointerType::get(leftType->getUnderlying());
+        tryMethodCall(CallType::METHOD_AS_POINTER);
       }
     }
-    methodCall = true;
   }
   if (functionType)
     return functionType->retVal;
@@ -351,42 +371,57 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, cons
     error.execute();
 }
 
-WithErrorLine<FunctionCallNamedArgs::ArgMatching> FunctionCallNamedArgs::matchArgs(const Context& functionContext, const Context& callContext, bool skipFirst) {
-  set<string> toInitialize;
-  set<string> initialized;
-  map<string, int> paramIndex;
-  auto paramNames = functionContext.getFunctionParamNames(identifier);
-  if (!paramNames)
-    return codeLoc.getError(paramNames.get_error());
-  int count = 0;
-  for (int i = (skipFirst ? 1 : 0); i < paramNames->size(); ++i) {
-    toInitialize.insert(paramNames->at(i));
-    paramIndex[paramNames->at(i)] = count++;
+WithErrorLine<vector<FunctionCallNamedArgs::ArgMatching>> FunctionCallNamedArgs::matchArgs(const Context& functionContext, const Context& callContext, bool skipFirst) {
+  auto functionOverloads = functionContext.getFunctionTemplate(identifier);
+  if (!functionOverloads)
+    return codeLoc.getError(functionOverloads.get_error());
+  ErrorLoc error = codeLoc.getError("Couldn't find function overload matching arguments.");
+  vector<ArgMatching> ret;
+  for (auto& overload : *functionOverloads) {
+    set<string> toInitialize;
+    set<string> initialized;
+    map<string, int> paramIndex;
+    auto paramNames = transform(overload.params, [](const FunctionType::Param& p) { return p.name; });
+    int count = 0;
+    for (int i = (skipFirst ? 1 : 0); i < paramNames.size(); ++i) {
+      toInitialize.insert(paramNames.at(i));
+      paramIndex[paramNames.at(i)] = count++;
+    }
+    vector<string> notInitialized;
+    vector<SType> argTypes;
+    vector<CodeLoc> argLocs;
+    for (auto& elem : arguments) {
+      if (!toInitialize.count(elem.name)) {
+        error = elem.codeLoc.getError("No parameter named " + quote(elem.name)
+            + " in function " + quote(identifier.toString()));
+        goto nextOverload;
+      }
+      if (initialized.count(elem.name))
+        return elem.codeLoc.getError("Parameter " + quote(elem.name) + " listed more than once");
+      initialized.insert(elem.name);
+    }
+    for (auto& elem : toInitialize)
+      if (!initialized.count(elem))
+        notInitialized.push_back("" + quote(elem));
+    if (!notInitialized.empty()) {
+      error = codeLoc.getError("Function parameters: " + combine(notInitialized, ",")
+          + " were not initialized");
+      goto nextOverload;
+    }
+    sort(arguments.begin(), arguments.end(),
+        [&](const Argument& m1, const Argument& m2) { return paramIndex[m1.name] < paramIndex[m2.name]; });
+    for (auto& arg : arguments) {
+      argTypes.push_back(arg.expr->getType(callContext));
+      argLocs.push_back(arg.codeLoc);
+    }
+    ret.push_back(ArgMatching{argTypes, argLocs, overload});
+    nextOverload:
+    continue;
   }
-  for (auto& elem : arguments) {
-    if (!toInitialize.count(elem.name))
-      return elem.codeLoc.getError("No parameter named " + quote(elem.name)
-        + " in function " + quote(identifier.toString()));
-    if (initialized.count(elem.name))
-      return elem.codeLoc.getError("Parameter " + quote(elem.name) + " listed more than once");
-    initialized.insert(elem.name);
-  }
-  vector<string> notInitialized;
-  for (auto& elem : toInitialize)
-    if (!initialized.count(elem))
-      notInitialized.push_back("" + quote(elem));
-  if (!notInitialized.empty())
-    return codeLoc.getError("Function parameters: " + combine(notInitialized, ",")
-      + " were not initialized");
-  sort(arguments.begin(), arguments.end(),
-      [&](const Argument& m1, const Argument& m2) { return paramIndex[m1.name] < paramIndex[m2.name]; });
-  vector<SType> argTypes;
-  vector<CodeLoc> argLocs;
-  for (auto& arg : arguments) {
-    argTypes.push_back(arg.expr->getType(callContext));
-    argLocs.push_back(arg.codeLoc);
-  }
-  return ArgMatching{argTypes, argLocs};
+  if (!ret.empty())
+    return ret;
+  else
+    return error;
 }
 
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
@@ -429,12 +464,12 @@ void VariantDefinition::addToContext(Context& context) {
       subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
     auto constructor = FunctionType(subtype.name, FunctionCallType::FUNCTION, type.get(), params, {});
     constructor.parentType = type.get();
-    type->staticContext.addFunction(constructor);
+    CHECK(!type->staticContext.addFunction(constructor));
   }
   for (auto& method : methods) {
     method->setFunctionType(membersContext);
     method->functionType->parentType = type.get();
-    type->context.addFunction(*method->functionType);
+    method->codeLoc.checkNoError(type->context.addFunction(*method->functionType));
   }
 }
 
@@ -471,12 +506,12 @@ void StructDefinition::addToContext(Context& context) {
       method->codeLoc.check(method->functionType->templateParams.empty(), "Constructor can't have template parameters.");
       method->functionType->templateParams = type->templateParams;
       method->functionType->parentType = type.get();
-      type->staticContext.addFunction(*method->functionType);
+      method->codeLoc.checkNoError(type->staticContext.addFunction(*method->functionType));
       hasConstructor = true;
     } else {
       method->setFunctionType(membersContext);
       method->functionType->parentType = type.get();
-      type->context.addFunction(*method->functionType);
+      method->codeLoc.checkNoError(type->context.addFunction(*method->functionType));
     }
   }
   if (!hasConstructor) {
@@ -486,7 +521,7 @@ void StructDefinition::addToContext(Context& context) {
         constructorParams.push_back({member.name, memberType.get()});
     auto constructor = FunctionType(ConstructorId{}, FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
     constructor.parentType = type.get();
-    type->staticContext.addFunction(constructor);
+    CHECK(!type->staticContext.addFunction(constructor));
   }
 }
 
@@ -657,7 +692,7 @@ void ConceptDefinition::addToContext(Context& context) {
           method->setFunctionType(declarationsContext);
           method->check(declarationsContext);
           method->functionType->parentConcept = concept;
-          concept->params[i]->context.addFunction(*method->functionType);
+          method->codeLoc.checkNoError(concept->params[i]->context.addFunction(*method->functionType));
         }
       }
   context.addConcept(name, concept);

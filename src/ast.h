@@ -75,8 +75,8 @@ struct FunctionCall : Expression {
   IdentifierInfo identifier;
   optional<FunctionType> functionType;
   vector<unique_ptr<Expression>> arguments;
-  bool methodCall = false;
-  bool extractPointer = false;
+  enum CallType { METHOD, METHOD_AS_POINTER };
+  optional<CallType> callType;
 };
 
 struct FunctionCallNamedArgs : Expression {
@@ -88,8 +88,9 @@ struct FunctionCallNamedArgs : Expression {
   struct ArgMatching {
     vector<SType> args;
     vector<CodeLoc> codeLocs;
+    FunctionType function;
   };
-  WithErrorLine<ArgMatching> matchArgs(const Context& functionContext, const Context& callContext, bool skipFirst);
+  WithErrorLine<vector<ArgMatching>> matchArgs(const Context& functionContext, const Context& callContext, bool skipFirst);
   IdentifierInfo identifier;
   struct Argument {
     CodeLoc codeLoc;
@@ -98,8 +99,8 @@ struct FunctionCallNamedArgs : Expression {
   };
   optional<FunctionType> functionType;
   vector<Argument> arguments;
-  bool methodCall = false;
-  bool extractPointer = false;
+  enum CallType { METHOD, METHOD_AS_POINTER };
+  optional<CallType> callType;
 };
 
 struct Statement : Node {

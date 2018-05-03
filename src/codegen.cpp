@@ -172,10 +172,10 @@ static void genFunctionCall(Accu& accu, const FunctionType& functionType,
 }
 
 void FunctionCall::codegenDotOperator(Accu& accu, Node::CodegenStage stage, Expression* leftSide) const {
-  if (methodCall) {
+  if (callType) {
     vector<Expression*> args {leftSide};
     append(args, extractRefs(arguments));
-    genFunctionCall(accu, *functionType, args, extractPointer);
+    genFunctionCall(accu, *functionType, args, callType == METHOD_AS_POINTER);
   } else {
     accu.add("(");
     leftSide->codegen(accu, stage);
@@ -189,10 +189,10 @@ void FunctionCall::codegen(Accu& accu, CodegenStage) const {
 }
 
 void FunctionCallNamedArgs::codegenDotOperator(Accu& accu, Node::CodegenStage stage, Expression* leftSide) const {
-  if (methodCall) {
+  if (callType) {
     vector<Expression*> args {leftSide};
     append(args, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
-    genFunctionCall(accu, *functionType, args, extractPointer);
+    genFunctionCall(accu, *functionType, args, callType == METHOD_AS_POINTER);
   } else {
     accu.add("(");
     leftSide->codegen(accu, stage);

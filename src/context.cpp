@@ -46,23 +46,33 @@ void Context::deepCopyFrom(const Context& c) {
     state->merge(*s);
 }
 
-static bool areEquivalent(const FunctionType& f1, const FunctionType& f2) {
+static bool areParamsEquivalent(const FunctionType& f1, const FunctionType& f2) {
   if (f1.params.size() != f2.params.size())
     return false;
   for (int i = 0; i < f1.params.size(); ++i)
     if (f1.params[i].type != f2.params[i].type)
       return false;
-  return f1.retVal == f2.retVal;
+  return true;
+}
+
+static bool areEquivalent(const FunctionType& f1, const FunctionType& f2) {
+  return f1.retVal == f2.retVal && areParamsEquivalent(f1, f2);
 }
 
 vector<FunctionType> Context::getMissingFunctions(const Context& required) const {
   vector<FunctionType> ret;
   for (auto otherState : required.getReversedStates()) {
-    for (auto& function : otherState->functions) {
-      auto myFun = getFunction(function.first);
-      if (!myFun || !areEquivalent(*myFun, function.second))
-        ret.push_back(function.second);
-    }
+    for (auto& overloads : otherState->functions)
+      for (auto& function : overloads.second) {
+        bool found = false;
+        for (auto& myFun : getFunctions(overloads.first))
+          if (areEquivalent(myFun, function)) {
+            found = true;
+            break;
+          }
+        if (!found)
+          ret.push_back(function);
+      }
   }
   return ret;
 }
@@ -86,7 +96,8 @@ void Context::replace(SType from, SType to) {
     var = var->replace(from, to);
   }
   for (auto& function : state->functions)
-    replaceInFunction(function.second, from, to);
+    for (auto& overload : function.second)
+      replaceInFunction(overload, from, to);
   for (auto& type : state->types)
     type.second = type.second->replace(from, to);
 }
@@ -151,11 +162,12 @@ nullable<SType> Context::getType(const string& s) const {
   return nullptr;
 }
 
-const FunctionType* Context::getFunction(FunctionName name) const {
+vector<FunctionType> Context::getFunctions(FunctionName name) const {
+  vector<FunctionType> ret;
   for (auto& state : getReversedStates())
     if (state->functions.count(name))
-      return &state->functions.at(name);
-  return nullptr;
+      append(ret, state->functions.at(name));
+  return ret;
 }
 
 nullable<SType> Context::getVariable(const string& name) const {
@@ -181,16 +193,37 @@ void Context::checkNameConflict(CodeLoc loc, const string& name, const string& t
   auto desc = type + " " + quote(name);
   loc.check(!getType(name), desc + " conflicts with an existing type");
   loc.check(!getVariable(name), desc + " conflicts with an existing variable or function");
-  loc.check(!getFunction(name), desc + " conflicts with existing function");
+  loc.check(getFunctions(name).empty(), desc + " conflicts with existing function");
 }
 
-void Context::addFunction(FunctionType f) {
-//  INFO << "Inserting function " << id;
-  CHECK(!getFunction(f.name));
-  state->functions.insert(make_pair(f.name, f));
+void Context::checkNameConflictExcludingFunctions(CodeLoc loc, const string& name, const string& type) const {
+  auto desc = type + " " + quote(name);
+  loc.check(!getType(name), desc + " conflicts with an existing type");
+  loc.check(!getVariable(name), desc + " conflicts with an existing variable or function");
 }
 
-WithError<FunctionType> Context::getFunctionTemplate(IdentifierInfo id) const {
+static string getFunctionNameForError(const FunctionType& function) {
+  string typePrefix;
+  if (function.parentType)
+    typePrefix = function.parentType->getName() + "::";
+  return typePrefix + function.name.visit(
+      [&](const string& s) { return s; },
+      [&](Operator op) { return "operator "s + getString(op); },
+      [&](ConstructorId) { return function.parentType->getName(false); }
+  );
+}
+
+optional<string> Context::addFunction(FunctionType f) {
+  auto& overloads = state->functions[f.name];
+  for (auto& fun : overloads)
+    if (areParamsEquivalent(fun, f))
+      return "Can't overload " + quote(getFunctionNameForError(f)) + " with the same argument types."s;
+  overloads.push_back(f);
+  return none;
+}
+
+WithError<vector<FunctionType>> Context::getFunctionTemplate(IdentifierInfo id) const {
+  vector<FunctionType> ret;
   if (id.parts.size() > 1) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0))))
       return type->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
@@ -198,21 +231,11 @@ WithError<FunctionType> Context::getFunctionTemplate(IdentifierInfo id) const {
       return "Type not found: " + id.toString();
   } else {
     string funName = id.parts.at(0).name;
-    if (auto fun = getFunction(funName))
-      return *fun;
+    append(ret, getFunctions(funName));
     if (auto type = getType(funName))
-      if (auto fun = type->getStaticContext().getFunction(ConstructorId{}))
-        return *fun;
+      append(ret, type->getStaticContext().getFunctions(ConstructorId{}));
   }
-  return "Function not found: " + quote(id.toString());
-}
-
-WithError<vector<string>> Context::getFunctionParamNames(IdentifierInfo id) const {
-  auto fun = getFunctionTemplate(id);
-  if (fun)
-    return transform(fun->params, [](const FunctionType::Param& p) { return p.name; });
-  else
-    return fun.get_error();
+  return ret;
 }
 
 void Context::pushImport(const string& name) {
@@ -240,16 +263,10 @@ WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc
   return instantiateFunction(templateType, codeLoc, templateArgs, argTypes, argLoc);
 }
 
-optional<FunctionType> Context::getOperatorType(Operator op) const {
-  if (auto fun = getFunction(op))
-    return *fun;
-  else
-    return none;
+vector<FunctionType> Context::getOperatorType(Operator op) const {
+  return getFunctions(op);
 }
 
-optional<FunctionType> Context::getConstructorType() const {
-  if (auto fun = getFunction(ConstructorId{}))
-    return *fun;
-  else
-    return none;
+vector<FunctionType> Context::getConstructorType() const {
+  return getFunctions(ConstructorId{});
 }

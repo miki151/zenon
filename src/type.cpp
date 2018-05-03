@@ -102,10 +102,10 @@ shared_ptr<ReferenceType> ReferenceType::get(SType type) {
   if (!generated.count(type)) {
     auto ret = shared<ReferenceType>(type);
     generated.insert({type, ret});
-    ret->context.addFunction(
-        FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION, PointerType::get(type), {}, {}));
-    ret->context.addFunction(
-        FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION, ret, {{"right side", type}}, {}));
+    CHECK(!ret->context.addFunction(
+        FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION, PointerType::get(type), {}, {})));
+    CHECK(!ret->context.addFunction(
+        FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION, ret, {{"right side", type}}, {})));
   }
   return generated.at(type);
 }
@@ -122,8 +122,8 @@ shared_ptr<PointerType> PointerType::get(SType type) {
 }
 
 PointerType::PointerType(SType t) : underlying(t->getUnderlying()) {
-  context.addFunction(
-      FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION, ReferenceType::get(t), {}, {}));
+  CHECK(!context.addFunction(
+      FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION, ReferenceType::get(t), {}, {})));
 }
 
 bool Type::canAssign(SType from) const{
@@ -156,7 +156,7 @@ unique_ptr<Expression> StructType::getConversionFrom(unique_ptr<Expression> expr
     for (auto& alternative : alternatives)
       if (alternative.type == from) {
         auto ret = unique<FunctionCall>(CodeLoc(), IdentifierInfo("pok"));
-        ret->functionType = *staticContext.getFunctionTemplate(IdentifierInfo(alternative.name));
+        ret->functionType = *getOnlyElement(*staticContext.getFunctionTemplate(IdentifierInfo(alternative.name)));
         ret->arguments.push_back(std::move(expr));
         return ret;
       }
@@ -342,11 +342,13 @@ void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc, bo
   codeLoc.error("Can't switch on the value of type " + quote(getName()));
 }
 
-bool Type::canConstructWith(vector<SType> args) const {
+bool Type::canConstructWith(vector<SType> argsRef) const {
+  auto args = transform(argsRef, [](const auto& arg) { return arg->getUnderlying();});
   if (args.size() == 1 && args[0] == get_this().get())
     return true;
-  if (auto f = staticContext.getConstructorType())
-    return args == transform(f->params, [](const auto& param) { return param.type; });
+  for (auto f : staticContext.getConstructorType())
+    if (args == transform(f.params, [](const auto& param) { return param.type; }))
+      return true;
   return false;
 }
 

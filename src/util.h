@@ -150,3 +150,12 @@ optional<typename Map::mapped_type> getValueMaybe(const Map& m, const Key& key) 
   else
     return none;
 }
+
+template <typename T>
+optional<T> getOnlyElement(const vector<T>& v) {
+  CHECK(v.size() <= 1);
+  if (!v.empty())
+    return v[0];
+  else
+    return none;
+}

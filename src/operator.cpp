@@ -117,7 +117,7 @@ optional<Operator> getUnary(Operator op) {
 }
 
 SType getUnaryOperationResult(CodeLoc codeLoc, Operator op, SType right) {
-  if (auto fun = right->getContext().getOperatorType(op))
+  if (auto fun = getOnlyElement(right->getContext().getOperatorType(op)))
     return fun->retVal;
   else
     codeLoc.error("Can't apply unary operator: " + quote(getString(op)) + " to type: " + quote(right->getName()));
@@ -125,7 +125,6 @@ SType getUnaryOperationResult(CodeLoc codeLoc, Operator op, SType right) {
 
 SType getOperationResult(CodeLoc codeLoc, Operator op, const Context& context, Expression& leftExpr, Expression& rightExpr) {
   auto left = leftExpr.getType(context);
-  auto right = [&]() { return rightExpr.getType(context); };
   switch (op) {
     case Operator::MEMBER_ACCESS: {
       if (auto rightType = rightExpr.getDotOperatorType(&leftExpr, context)) {
@@ -135,11 +134,17 @@ SType getOperationResult(CodeLoc codeLoc, Operator op, const Context& context, E
       } else
         codeLoc.error("Bad use of operator " + quote("."));
     }
-    default:
-      if (auto fun = left->getContext().getOperatorType(op)) {
-        return instantiateFunction(*fun, codeLoc, {}, {right()}, {codeLoc}).get().retVal;
-      } else
-        codeLoc.error("Can't apply operator: " + quote(getString(op)) + " to types: " +
-            quote(left->getName()) + " and " + quote(right()->getName()));
+    default: {
+      nullable<SType> ret;
+      auto right = rightExpr.getType(context);
+      for (auto fun : left->getContext().getOperatorType(op))
+        if (auto inst = instantiateFunction(fun, codeLoc, {}, {right}, {codeLoc})) {
+          CHECK(!ret);
+          ret = inst->retVal;
+        }
+      codeLoc.check(!!ret, "Can't apply operator: " + quote(getString(op)) + " to types: " +
+          quote(left->getName()) + " and " + quote(right->getName()));
+      return ret.get();
+    }
   }
 }

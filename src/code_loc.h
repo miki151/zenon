@@ -10,6 +10,7 @@ struct CodeLoc {
   CodeLoc();
   [[noreturn]] void error(const string&) const;
   void check(bool, const string&) const;
+  void checkNoError(optional<string> error) const;
   ErrorLoc getError(string) const;
 
   string file;

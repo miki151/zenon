@@ -1,0 +1,13 @@
+// 68
+
+int f(int a) {
+  return a;
+}
+
+int f(int a, int b) {
+  return a + b;
+}
+
+int main() {
+  return f(1) + f(3, 4) + 10.f() + 20.f(30);
+}

@@ -1,0 +1,18 @@
+// 1
+
+int f(int a, bool b) {
+  return 1;
+}
+
+bool f(int a, int c) {
+  return true;
+}
+
+int main() {
+  bool b = f({a = 3, c = 3});
+  int x = f({a = 2, b = false});
+  if (b) 
+    return x;
+  else
+    return 0;
+}

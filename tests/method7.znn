@@ -1,0 +1,10 @@
+// no_compile
+
+void g(int x, int y) {
+}
+
+int main() {
+  int x = 1;
+  x.g(1, 2);
+  return 0;
+}

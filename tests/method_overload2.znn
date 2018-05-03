@@ -1,0 +1,17 @@
+// 1
+
+int f(int* a, int b) {
+  return 1;
+}
+
+int f(int a, int b) {
+  return 2;
+}
+
+int main() {
+  int x = 1;
+  if (1.f({b = 5}) == 2)
+    return 1;
+  else
+    return 0;
+}

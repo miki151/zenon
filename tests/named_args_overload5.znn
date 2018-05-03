@@ -1,0 +1,17 @@
+// 1
+
+int f(int* a, bool b) {
+  return 1;
+}
+
+bool f(int* a, int c) {
+  return true;
+}
+
+int main() {
+  int x = 1;
+  if (x.f({c = 5}))
+    return x.f({b = false});
+  else
+    return 0;
+}

@@ -1,0 +1,21 @@
+// 41
+
+struct X {
+  int value;
+  X(int a) : value(a) {}
+  X(X* x) : value(13 + (*x).value) {}
+  X operator + (int a) {
+    return X(value + a);
+  }
+  X operator + (X a) {
+    return X(value + a.value + 1);
+  }
+};
+
+int main() {
+  auto x1 = X(5);
+  auto x2 = X(&x1);
+  x2 = x1 + x2;
+  x2 = x2 + 17;
+  return x2.value;
+}

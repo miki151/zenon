@@ -1,0 +1,13 @@
+// 6
+
+struct X {
+  int value;
+  X() : value(1) {}
+  X(int a) : value(a) {}
+};
+
+int main() {
+  X x;
+  x = X(6);
+  return x.value;
+}
