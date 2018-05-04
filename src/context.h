@@ -37,7 +37,8 @@ class Context : public owned_object<Context> {
   WithError<vector<FunctionType>> getFunctionTemplate(IdentifierInfo) const;
   WithErrorLine<FunctionType> instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<SType> argTypes, vector<CodeLoc> argLoc) const;
   vector<FunctionType> getOperatorType(Operator) const;
-  vector<FunctionType> getConstructorType() const;
+  FunctionId getFunctionId(const FunctionName& name) const;
+  bool canConstructWith(SType, vector<SType> args) const;
   void pushImport(const string& name);
   void popImport();
   const vector<string>& getImports() const;
@@ -47,6 +48,7 @@ class Context : public owned_object<Context> {
   vector<SType> getTypeList(const vector<IdentifierInfo>&) const;
   void addConcept(const string& name, SConcept);
   nullable<SConcept> getConcept(const string& name) const;
+  void print() const;
 
   private:
 
@@ -54,18 +56,19 @@ class Context : public owned_object<Context> {
     map<string, SType> vars;
     vector<string> varsList;
     map<string, SType> types;
-    map<FunctionName, vector<FunctionType>> functions;
+    map<FunctionId, vector<FunctionType>> functions;
     nullable<SType> returnType;
     vector<string> imports;
     vector<string> allImports;
     map<string, shared_ptr<Concept>> concepts;
     void merge(const State&);
+    void print() const;
   };
   vector<shared_ptr<const State>> parentStates;
   shared_ptr<State> state;
   vector<shared_ptr<const State>> getReversedStates() const;
   const State& getTopState() const;
   nullable<SType> getType(const string&) const;
-  vector<FunctionType> getFunctions(FunctionName) const;
+  vector<FunctionType> getFunctions(FunctionId) const;
   nullable<SType> getVariable(const string&) const;
 };

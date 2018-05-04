@@ -93,14 +93,58 @@ const vector<string>& Context::getBottomLevelVariables() const {
   return state->varsList;
 }
 
+static string getFunctionIdName(const FunctionId& id) {
+  return id.visit(
+      [&](const string& s) { return s; },
+      [&](Operator op) { return "operator "s + getString(op); },
+      [&](SType type) { return type->getName(false); }
+  );
+}
+
+static string getFunctionNameForError(const FunctionType& function) {
+  string typePrefix;
+  if (function.parentType)
+    typePrefix = function.parentType->getName() + "::";
+  return typePrefix + getFunctionIdName(function.name) + "(" +
+      combine(transform(function.params, [](const auto& t) { return t.type->getName(); }), ", ") + ")";
+;
+}
+
+void Context::State::print() const {
+  for (auto& varName : varsList) {
+    auto& var = vars.at(varName);
+    cout << "Variable " << quote(varName) << " of type " << var->getName() << "\n";
+  }
+  for (auto& function : functions) {
+    cout << "Function " << quote(getFunctionIdName(function.first)) << " overloads: \n";
+    for (auto& overload : function.second)
+      cout << getFunctionNameForError(overload) << "\n";
+  }
+  for (auto& type : types)
+    cout << "Type: " << type.second->getName() << "\n";
+}
+
+void Context::print() const {
+  for (auto& state : getReversedStates())
+    state->print();
+}
+
 void Context::replace(SType from, SType to) {
   for (auto& varName : state->varsList) {
     auto& var = state->vars.at(varName);
     var = var->replace(from, to);
   }
-  for (auto& function : state->functions)
+  for (auto& function : copyOf(state->functions)) {
+    if (auto constructorName = function.first.getValueMaybe<SType>())
+      if (*constructorName == from) {
+        state->functions.erase(function.first);
+        state->functions.insert({to, function.second});
+      }
+    }
+  for (auto& function : state->functions) {
     for (auto& overload : function.second)
       replaceInFunction(overload, from, to);
+  }
   for (auto& type : state->types)
     type.second = type.second->replace(from, to);
 }
@@ -162,7 +206,7 @@ nullable<SType> Context::getType(const string& s) const {
   return nullptr;
 }
 
-vector<FunctionType> Context::getFunctions(FunctionName name) const {
+vector<FunctionType> Context::getFunctions(FunctionId name) const {
   vector<FunctionType> ret;
   for (auto& state : getReversedStates())
     if (state->functions.count(name))
@@ -202,17 +246,6 @@ void Context::checkNameConflictExcludingFunctions(CodeLoc loc, const string& nam
   loc.check(!getVariable(name), desc + " conflicts with an existing variable or function");
 }
 
-static string getFunctionNameForError(const FunctionType& function) {
-  string typePrefix;
-  if (function.parentType)
-    typePrefix = function.parentType->getName() + "::";
-  return typePrefix + function.name.visit(
-      [&](const string& s) { return s; },
-      [&](Operator op) { return "operator "s + getString(op); },
-      [&](ConstructorId) { return function.parentType->getName(false); }
-  );
-}
-
 optional<string> Context::addFunction(FunctionType f) {
   auto& overloads = state->functions[f.name];
   for (auto& fun : overloads)
@@ -233,7 +266,7 @@ WithError<vector<FunctionType>> Context::getFunctionTemplate(IdentifierInfo id) 
     string funName = id.parts.at(0).name;
     append(ret, getFunctions(funName));
     if (auto type = getType(funName))
-      append(ret, type->getStaticContext().getFunctions(ConstructorId{}));
+      append(ret, getFunctions(type.get()));
   }
   return ret;
 }
@@ -275,6 +308,27 @@ vector<FunctionType> Context::getOperatorType(Operator op) const {
   return getFunctions(op);
 }
 
-vector<FunctionType> Context::getConstructorType() const {
-  return getFunctions(ConstructorId{});
+FunctionId Context::getFunctionId(const FunctionName& name) const {
+  return name.visit(
+      [this](ConstructorId id) -> FunctionId { return getType(id.name).get(); },
+      [](const string& name) -> FunctionId { return name; },
+      [](Operator op) -> FunctionId { return op; }
+  );
+}
+
+bool Context::canConstructWith(SType type, vector<SType> argsRef) const {
+  //cout << "Trying to construct " << type->getName() << " with " << combine(transform(argsRef, [](const auto& t) { return t->getName(); }), ", ") << "\n";
+  //print();
+  auto args = transform(argsRef, [](const auto& arg) { return arg->getUnderlying();});
+  if (args.size() == 1 && args[0] == type)
+    return true;
+  vector<SType> templateParams;
+  if (auto s = type.dynamicCast<StructType>()) {
+    type = s->parent.get();
+    templateParams = s->templateParams;
+  }
+  for (auto f : getFunctions(type))
+    if (instantiateFunction(f, CodeLoc(), templateParams, args, vector<CodeLoc>(args.size())))
+      return true;
+  return false;
 }

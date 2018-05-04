@@ -25,7 +25,6 @@ struct Type : public owned_object<Type> {
   virtual const Context& getContext() const;
   virtual const Context& getStaticContext() const;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
-  bool canConstructWith(vector<SType> args) const;
   Context context;
   Context staticContext;
 };
@@ -125,8 +124,8 @@ struct FunctionType {
     optional<string> name;
     SType type;
   };
-  FunctionType(FunctionName name, FunctionCallType, SType returnType, vector<Param> params, vector<SType> templateParams);
-  FunctionName name;
+  FunctionType(FunctionId name, FunctionCallType, SType returnType, vector<Param> params, vector<SType> templateParams);
+  FunctionId name;
   FunctionCallType callType;
   SType retVal;
   vector<Param> params;

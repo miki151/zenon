@@ -159,3 +159,8 @@ optional<T> getOnlyElement(const vector<T>& v) {
   else
     return none;
 }
+
+template <typename T>
+T copyOf(const T& t) {
+  return t;
+}

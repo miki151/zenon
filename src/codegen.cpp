@@ -151,7 +151,7 @@ static string getFunctionCallName(const FunctionType& function, bool methodCall)
         else
           return "operator "s + getString(op);
       },
-      [&](ConstructorId) { return function.parentType->getName(); }
+      [&](SType type) { return type->getName(); }
   );
 }
 
@@ -245,7 +245,7 @@ static string getFunctionSignatureName(const FunctionType& function) {
         else
           return "operator "s + getString(op);
       },
-      [&](ConstructorId) { return function.parentType->getName(false); }
+      [&](SType type) { return type->getName(false); }
   );
 }
 
@@ -341,7 +341,7 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
     if (stage == DEFINE || ((!templateInfo.params.empty() || !method->templateInfo.params.empty()) && stage == IMPORT)) {
       considerTemplateParams(accu, templateInfo.params);
       method->addSignature(accu, name + joinTemplateParams(type->templateParams));
-      if (method->functionType->name.contains<ConstructorId>())
+      if (method->functionType->name.contains<SType>())
         addInitializers(accu, method->initializers);
       accu.newLine();
       method->body->codegen(accu, DEFINE);

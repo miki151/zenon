@@ -221,7 +221,7 @@ unique_ptr<FunctionDefinition> parseConstructorDefinition(IdentifierInfo type, T
       tokens.eat(Keyword::COMMA);
     }
   }
-  ret->name = ConstructorId{};
+  ret->name = ConstructorId{*ret->name.getValueMaybe<string>()};
   ret->body = parseBlock(tokens);
   return ret;
 }
@@ -273,7 +273,7 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
       tokens.rewind();
       if (external) {
         ret->methods.push_back(parseFunctionSignature(typeIdent, tokens));
-        ret->methods.back()->name = ConstructorId{};
+        ret->methods.back()->name = ConstructorId{*ret->methods.back()->name.getValueMaybe<string>()};
         tokens.eat(Keyword::SEMICOLON);
       } else
         ret->methods.push_back(parseConstructorDefinition(typeIdent, tokens));
@@ -310,7 +310,15 @@ unique_ptr<ConceptDefinition> parseConceptDefinition(Tokens& tokens) {
       tokens.popNext();
       break;
     }
-    ret->functions.push_back(parseFunctionSignature(IdentifierInfo::parseFrom(tokens, true), tokens));
+    auto typeId = IdentifierInfo::parseFrom(tokens, true);
+    bool constructor = false;
+    if (tokens.peek() == Keyword::OPEN_BRACKET) {
+      tokens.rewind();
+      constructor = true;
+    }
+    ret->functions.push_back(parseFunctionSignature(typeId, tokens));
+    if (constructor)
+      ret->functions.back()->name = ConstructorId{*ret->functions.back()->name.getValueMaybe<string>()};
     tokens.eat(Keyword::SEMICOLON);
   }
   tokens.eat(Keyword::SEMICOLON);

@@ -76,7 +76,7 @@ int getNewId() {
   return ++idCounter;
 }
 
-FunctionType::FunctionType(FunctionName name, FunctionCallType t, SType returnType, vector<Param> p, vector<SType> tpl)
+FunctionType::FunctionType(FunctionId name, FunctionCallType t, SType returnType, vector<Param> p, vector<SType> tpl)
   : name(name), callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
 
@@ -84,7 +84,7 @@ string FunctionType::toString() const {
   string myName = name.visit(
       [&](const string& s) { return s; },
       [&](Operator op) { return "operator "s + getString(op); },
-      [&](ConstructorId) { return "constructor"; });
+      [&](SType type) { return type->getName(false); });
   return retVal->getName() + " " + myName + joinTemplateParams(templateParams) + "(" +
       combine(transform(params, [](const Param& t) { return t.type->getName(); }), ", ") + ")";
 }
@@ -320,6 +320,10 @@ void replaceInFunction(FunctionType& in, SType from, SType to) {
   //  param = param->replace(from, to);
   for (auto& concept : in.requirements)
     concept = concept->replace(from, to);
+  in.name.visit(
+      [&](SType& type) { type = type->replace(from, to); },
+      [&](const auto&) {}
+  );
 }
 
 WithError<SType> Type::instantiate(const Context& context, vector<SType> templateArgs) const {
@@ -339,16 +343,6 @@ const Context& Type::getStaticContext() const {
 
 void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc, bool isReference) const {
   codeLoc.error("Can't switch on the value of type " + quote(getName()));
-}
-
-bool Type::canConstructWith(vector<SType> argsRef) const {
-  auto args = transform(argsRef, [](const auto& arg) { return arg->getUnderlying();});
-  if (args.size() == 1 && args[0] == get_this().get())
-    return true;
-  for (auto f : staticContext.getConstructorType())
-    if (args == transform(f.params, [](const auto& param) { return param.type; }))
-      return true;
-  return false;
 }
 
 WithError<SType> StructType::instantiate(const Context& context, vector<SType> templateArgs) const {
