@@ -2,7 +2,7 @@
 
 template <T, U, V>
 concept CanAdd {
-  V add(T t, U u);
+  V add(T, U);
 };
 
 variant S {
@@ -29,7 +29,7 @@ struct S2 {
   }
 };
 
-void fun(S2<S, bool, int> s) {
+void fun(S2<S, bool, int>) {
 }
 
 int main() {

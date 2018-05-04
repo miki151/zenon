@@ -182,9 +182,13 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
         tokens.eat(Keyword::COMMA);
     }
     auto typeId = IdentifierInfo::parseFrom(tokens, true);
-    auto nameToken = tokens.popNext("identifier");
-    tokens.check(nameToken.contains<IdentifierToken>(), "Expected function parameter");
-    ret->parameters.push_back({type.codeLoc, typeId, nameToken.value});
+    optional<string> paramName;
+    auto nameToken = tokens.peek("identifier");
+    if (nameToken.contains<IdentifierToken>()) {
+      paramName = nameToken.value;
+      tokens.popNext();
+    }
+    ret->parameters.push_back({type.codeLoc, typeId, paramName});
   }
   if (ret->parameters.size() == 1)
     if (auto op = ret->name.getValueMaybe<Operator>())

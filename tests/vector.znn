@@ -10,11 +10,11 @@ using namespace std;
 template <T>
 extern struct vector {
   vector();
-  vector(int cnt, T t);
-  void push_back(T elem);
+  vector(int cnt, T);
+  void push_back(T);
   T at(int index);
   int size();
-  T operator [](int index);
+  T operator [](int);
 };
 
 

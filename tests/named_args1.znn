@@ -1,0 +1,9 @@
+// no_compile
+
+void f(int a, string) {
+}
+
+int main() {
+  f({a = 3});
+  return 0;
+}

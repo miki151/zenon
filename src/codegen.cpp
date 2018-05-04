@@ -258,7 +258,7 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
     retVal = functionType->retVal->getName() + " ";
   string ret = retVal + structName + getFunctionSignatureName(*functionType) + "(";
   for (auto& param : functionType->params)
-    ret.append(param.type->getName() + " " + param.name + ", ");
+    ret.append(param.type->getName() + " " + param.name.value_or("") + ", ");
   if (!functionType->params.empty()) {
     ret.pop_back();
     ret.pop_back();

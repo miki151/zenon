@@ -225,7 +225,8 @@ void FunctionDefinition::checkFunctionBody(Context& context, bool templateStruct
     for (auto& param : functionType->templateParams)
       bodyContext.addType(param->getName(), param);
     for (auto& p : parameters)
-      bodyContext.addVariable(p.name, ReferenceType::get(bodyContext.getTypeFromString(p.type).get(p.codeLoc)));
+      if (p.name)
+        bodyContext.addVariable(*p.name, ReferenceType::get(bodyContext.getTypeFromString(p.type).get(p.codeLoc)));
     bodyContext.setReturnType(functionType->retVal);
     if (functionType->retVal != ArithmeticType::VOID && body && !body->hasReturnStatement(context) && !name.contains<ConstructorId>())
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
@@ -245,29 +246,28 @@ void FunctionDefinition::addToContext(Context& context) {
 static void initializeArithmeticTypes(Context& context) {
   CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType("size"s, FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {})));
   CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType("substring"s, FunctionCallType::FUNCTION, ArithmeticType::STRING,
-      {{"index", ArithmeticType::INT}, {"length", ArithmeticType::INT}}, {})));
+      {{ArithmeticType::INT}, {ArithmeticType::INT}}, {})));
   CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION, ArithmeticType::CHAR,
-      {{"index", ArithmeticType::INT}}, {})));
+      {{ArithmeticType::INT}}, {})));
   CHECK(!context.addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
-      {{"left side", ArithmeticType::STRING}, {"right side", ArithmeticType::STRING}}, {})));
+      {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {})));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
-    CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT, {{"value", ArithmeticType::INT}}, {})));
+    CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT, {{ArithmeticType::INT}}, {})));
   for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY})
     CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT,
-        {{"left side", ArithmeticType::INT}, {"right side", ArithmeticType::INT}}, {})));
+        {{ArithmeticType::INT}, {ArithmeticType::INT}}, {})));
   for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
     CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-        {{"left side", ArithmeticType::BOOL}, {"right side", ArithmeticType::BOOL}}, {})));
+        {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {})));
   CHECK(!context.addFunction(FunctionType(Operator::LOGICAL_NOT, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-      {{"value", ArithmeticType::BOOL}}, {})));
+      {{ArithmeticType::BOOL}}, {})));
   for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
     for (auto type : {ArithmeticType::INT, ArithmeticType::STRING})
       CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-          {{"left side", type}, {"right side", type}}, {})));
+          {{type}, {type}}, {})));
   for (auto op : {Operator::EQUALS})
     for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
-      CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-          {{"left side", type}, {"right sie", type}}, {})));
+      CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{type}, {type}}, {})));
 }
 
 void correctness(const AST& ast) {
@@ -409,13 +409,18 @@ WithErrorLine<vector<FunctionCallNamedArgs::ArgMatching>> FunctionCallNamedArgs:
     map<string, int> paramIndex;
     auto paramNames = transform(overload.params, [](const FunctionType::Param& p) { return p.name; });
     int count = 0;
-    for (int i = (skipFirst ? 1 : 0); i < paramNames.size(); ++i) {
-      toInitialize.insert(paramNames.at(i));
-      paramIndex[paramNames.at(i)] = count++;
-    }
     vector<string> notInitialized;
     vector<SType> argTypes;
     vector<CodeLoc> argLocs;
+    for (int i = (skipFirst ? 1 : 0); i < paramNames.size(); ++i) {
+      if (auto paramName = paramNames.at(i)) {
+        toInitialize.insert(*paramName);
+        paramIndex[*paramName] = count++;
+      } else {
+        error = codeLoc.getError("Can't call function that has an unnamed parameter this way");
+        goto nextOverload;
+      }
+    }
     for (auto& elem : arguments) {
       if (!toInitialize.count(elem.name)) {
         error = elem.codeLoc.getError("No parameter named " + quote(elem.name)
@@ -485,7 +490,7 @@ void VariantDefinition::addToContext(Context& context) {
     vector<FunctionType::Param> params;
     auto subtypeInfo = membersContext.getTypeFromString(subtype.type).get(subtype.codeLoc);
     if (subtypeInfo != ArithmeticType::VOID)
-      params.push_back(FunctionType::Param{"", subtypeInfo});
+      params.push_back(FunctionType::Param{none, subtypeInfo});
     auto constructor = FunctionType(subtype.name, FunctionCallType::FUNCTION, type.get(), params, {});
     constructor.parentType = type.get();
     CHECK(!type->staticContext.addFunction(constructor));
@@ -560,7 +565,8 @@ static void checkConstructor(const StructType& type, const Context& context, con
     auto memberType = type.context.getTypeOfVariable(initializer.paramName);
     auto initContext = Context::withParent(context);
     for (auto& p : method.functionType->params)
-      initContext.addVariable(p.name, p.type);
+      if (p.name)
+        initContext.addVariable(*p.name, p.type);
     auto exprType = initializer.expr->getType(initContext);
     initializer.codeLoc.check(!!memberType, type.getName() + " has no member named " + quote(initializer.paramName));
     initializer.codeLoc.check(memberType->getUnderlying()->canConstructWith({exprType}),

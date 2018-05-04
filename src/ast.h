@@ -283,7 +283,7 @@ struct FunctionDefinition : Statement {
   struct Parameter {
     CodeLoc codeLoc;
     IdentifierInfo type;
-    string name;
+    optional<string> name;
   };
   vector<Parameter> parameters;
   unique_ptr<Statement> body;

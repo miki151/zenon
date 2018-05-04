@@ -105,7 +105,7 @@ shared_ptr<ReferenceType> ReferenceType::get(SType type) {
     CHECK(!ret->context.addFunction(
         FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION, PointerType::get(type), {}, {})));
     CHECK(!ret->context.addFunction(
-        FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION, ret, {{"right side", type}}, {})));
+        FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION, ret, {{"right side"s, type}}, {})));
   }
   return generated.at(type);
 }

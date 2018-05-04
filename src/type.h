@@ -119,7 +119,9 @@ struct EnumType : public Type {
 
 struct FunctionType {
   struct Param {
-    string name;
+    Param(string name, SType type);
+    Param(SType type);
+    optional<string> name;
     SType type;
   };
   FunctionType(FunctionName name, FunctionCallType, SType returnType, vector<Param> params, vector<SType> templateParams);
