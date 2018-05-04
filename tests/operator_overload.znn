@@ -2,35 +2,43 @@
 
 template <A>
 concept Arithmetic {
-  A {
-    A operator + (A a);
-    A operator - (A a);
-    A operator - ();
-    A operator + ();
-    A operator * (int a);
-  };
+  A operator + (A a1, A a2);
+  A operator - (A a1, A a2);
+  A operator - (A a);
+  A operator + (A a);
+  A operator * (A a, int a);
 };
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
 struct Vec {
   T x;
   U y;
-  Vec<T, U> operator + (Vec<T, U> o) {
-    return Vec(x + o.x, y + o.y);
-  }
-  Vec<T, U> operator - (Vec<T, U> o) {
-    return Vec(x - o.x, y - o.y);
-  }
-  Vec<T, U> operator * (int a) {
-    return Vec(x * a, y * a);
-  }
-  Vec<T, U> operator + () {
-    return *this;
-  }
-  Vec<T, U> operator - () {
-    return Vec(-x, -y);
-  }
 };
+
+template <T, U> requires Arithmetic<T>, Arithmetic<U>
+Vec<T, U> operator + (Vec<T, U> v1, Vec<T, U> v2) {
+  return Vec(v1.x + v2.x, v1.y + v2.y);
+}
+
+template <T, U> requires Arithmetic<T>, Arithmetic<U>
+Vec<T, U> operator - (Vec<T, U> v1, Vec<T, U> v2) {
+  return Vec(v1.x - v2.x, v1.y - v2.y);
+}
+
+template <T, U> requires Arithmetic<T>, Arithmetic<U>
+Vec<T, U> operator * (Vec<T, U> v, int a) {
+  return Vec(v.x * a, v.y * a);
+}
+
+template <T, U> requires Arithmetic<T>, Arithmetic<U>
+Vec<T, U> operator + (Vec<T, U> v) {
+  return v;
+}
+
+template <T, U> requires Arithmetic<T>, Arithmetic<U>
+Vec<T, U> operator - (Vec<T, U> v) {
+  return Vec(-v.x, -v.y);
+}
 
 template <T> requires Arithmetic<T>
 T getResult(T t1, T t2) {

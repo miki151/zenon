@@ -3,16 +3,15 @@
 
 template<T, U>
 concept CanConvert {
-  T {
-    U convert();
-  };
+  U convert(T t);
 };
 
 struct X {
-  int convert() {
-    return 1;
-  }
 };
+
+int convert(X x) {
+  return 1;
+}
 
 template <T1>
 struct A {

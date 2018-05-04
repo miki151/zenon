@@ -2,19 +2,18 @@
 
 template <T, U, V>
 concept CanAdd {
-  T {
-    V add(U u);
-  };
+  V add(T t, U u);
 };
 
 struct S {
-  int add(bool a) {
-    if (a)
-      return 1;
-    else
-      return 2;
-  }
 };
+
+int add(S s, bool a) {
+  if (a)
+    return 1;
+  else
+    return 2;
+}
 
 template <A, B, C> requires CanAdd<A, B, C>
 C add2(A a, B b) {
@@ -23,10 +22,12 @@ C add2(A a, B b) {
 
 template <A, B, C> requires CanAdd<A, B, C>
 struct S2 {
-  C add3(A a, B b) {
-    return a.add(b);
-  }
 };
+
+template <A, B, C> requires CanAdd<A, B, C>
+C add3(S2<A, B, C> s, A a, B b) {
+  return a.add(b);
+}
 
 void fun(S2<S, bool, int> s) {
 }

@@ -89,12 +89,12 @@ bool canOverload(Operator op, int numArguments) {
     case Operator::PLUS:
     case Operator::MINUS:
     case Operator::MULTIPLY:
-      return numArguments == 1;
+      return numArguments == 2;
     case Operator::POINTER_DEREFERENCE:
     case Operator::PLUS_UNARY:
     case Operator::LOGICAL_NOT:
     case Operator::MINUS_UNARY:
-      return numArguments == 0;
+      return numArguments == 1;
     default:
       return false;
   }
@@ -113,38 +113,5 @@ optional<Operator> getUnary(Operator op) {
       return op;
     default:
       return none;
-  }
-}
-
-SType getUnaryOperationResult(CodeLoc codeLoc, Operator op, SType right) {
-  if (auto fun = getOnlyElement(right->getContext().getOperatorType(op)))
-    return fun->retVal;
-  else
-    codeLoc.error("Can't apply unary operator: " + quote(getString(op)) + " to type: " + quote(right->getName()));
-}
-
-SType getOperationResult(CodeLoc codeLoc, Operator op, const Context& context, Expression& leftExpr, Expression& rightExpr) {
-  auto left = leftExpr.getType(context);
-  switch (op) {
-    case Operator::MEMBER_ACCESS: {
-      if (auto rightType = rightExpr.getDotOperatorType(&leftExpr, context)) {
-        if (!left.dynamicCast<ReferenceType>())
-          rightType = rightType->getUnderlying();
-        return rightType.get();
-      } else
-        codeLoc.error("Bad use of operator " + quote("."));
-    }
-    default: {
-      nullable<SType> ret;
-      auto right = rightExpr.getType(context);
-      for (auto fun : left->getContext().getOperatorType(op))
-        if (auto inst = instantiateFunction(fun, codeLoc, {}, {right}, {codeLoc})) {
-          CHECK(!ret);
-          ret = inst->retVal;
-        }
-      codeLoc.check(!!ret, "Can't apply operator: " + quote(getString(op)) + " to types: " +
-          quote(left->getName()) + " and " + quote(right->getName()));
-      return ret.get();
-    }
   }
 }

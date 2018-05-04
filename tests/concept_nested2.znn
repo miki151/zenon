@@ -2,9 +2,7 @@
 
 template <T>
 concept C1 {
-  T {
-    void f();
-  };
+  void f(T t);
 };
 
 template <T> requires C1<T>
@@ -17,8 +15,9 @@ void f1() {
 }
 
 struct C {
-  void f() {}
 };
+
+void f(C c) {}
 
 int main() {
   f1<C>();

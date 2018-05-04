@@ -2,10 +2,12 @@
 
 template<T>
 struct X {
-  T operator[](T a) {
-    return a;
-  }
 };
+
+template<T>
+T operator[](X<T> t, T a) {
+  return a;
+}
 
 template<T>
 struct Y {

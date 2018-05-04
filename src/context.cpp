@@ -47,16 +47,19 @@ void Context::deepCopyFrom(const Context& c) {
 }
 
 static bool areParamsEquivalent(const FunctionType& f1, const FunctionType& f2) {
-  if (f1.params.size() != f2.params.size())
-    return false;
-  for (int i = 0; i < f1.params.size(); ++i)
-    if (f1.params[i].type != f2.params[i].type)
-      return false;
-  return true;
+  auto checkFun = [](const FunctionType& f1, const FunctionType& f2) {
+    return !!instantiateFunction(f1, CodeLoc(), {}, transform(f2.params, [](const auto& param) { return param.type; }),
+        vector<CodeLoc>(f2.params.size(), CodeLoc()));
+  };
+  return checkFun(f1, f2) && checkFun(f2, f1);
 }
 
-static bool areEquivalent(const FunctionType& f1, const FunctionType& f2) {
-  return f1.retVal == f2.retVal && areParamsEquivalent(f1, f2);
+static bool isGeneralization(const FunctionType& general, const FunctionType& specific) {
+  if (auto inst = instantiateFunction(general, CodeLoc(), {}, transform(specific.params, [](const auto& param) { return param.type; }),
+      vector<CodeLoc>(specific.params.size(), CodeLoc())))
+    return specific.retVal == inst->retVal;
+  else
+    return false;
 }
 
 vector<FunctionType> Context::getMissingFunctions(const Context& required) const {
@@ -66,7 +69,7 @@ vector<FunctionType> Context::getMissingFunctions(const Context& required) const
       for (auto& function : overloads.second) {
         bool found = false;
         for (auto& myFun : getFunctions(overloads.first))
-          if (areEquivalent(myFun, function)) {
+          if (isGeneralization(myFun, function)) {
             found = true;
             break;
           }
@@ -136,10 +139,7 @@ void Context::addType(const string& name, SType t) {
 vector<SType> Context::getTypeList(const vector<IdentifierInfo>& ids) const {
   vector<SType> params;
   for (auto& id : ids)
-    if (auto type = getTypeFromString(id))
-      params.push_back(type.get());
-    else
-      id.codeLoc.error("Unrecognized type: " + quote(id.toString()));
+    params.push_back(getTypeFromString(id).get(id.codeLoc));
   return params;
 }
 
@@ -177,15 +177,15 @@ nullable<SType> Context::getVariable(const string& name) const {
   return nullptr;
 }
 
-nullable<SType> Context::getTypeFromString(IdentifierInfo id) const {
+WithError<SType> Context::getTypeFromString(IdentifierInfo id) const {
   id.codeLoc.check(id.parts.size() == 1, "Bad type identifier: " + id.toString());
   auto name = id.parts.at(0).name;
   auto topType = getType(name);
   if (!topType)
-    return nullptr;
-  auto ret = topType->instantiate(id.codeLoc, getTypeList(id.parts.at(0).templateArguments));
+    return "Type not found: " + quote(name);
+  auto ret = topType->instantiate(*this, getTypeList(id.parts.at(0).templateArguments));
   if (ret && id.pointer)
-    ret = PointerType::get(ret.get());
+    *ret = PointerType::get(*ret);
   return ret;
 }
 
@@ -226,7 +226,7 @@ WithError<vector<FunctionType>> Context::getFunctionTemplate(IdentifierInfo id) 
   vector<FunctionType> ret;
   if (id.parts.size() > 1) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0))))
-      return type->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
+      return (*type)->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
     else
       return "Type not found: " + id.toString();
   } else {
@@ -260,7 +260,15 @@ WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc
     vector<CodeLoc> argLoc) const {
   auto templateArgNames = id.parts.back().templateArguments;
   auto templateArgs = getTypeList(templateArgNames);
-  return instantiateFunction(templateType, codeLoc, templateArgs, argTypes, argLoc);
+  auto ret = instantiateFunction(templateType, codeLoc, templateArgs, argTypes, argLoc);
+  if (ret)
+    for (auto& concept : ret->requirements) {
+      auto missing = getMissingFunctions(concept->context);
+      if (!missing.empty())
+        return codeLoc.getError("Required function not implemented: " +
+            missing[0].toString() + ", required by concept: " + quote(concept->getName()));
+    }
+  return ret;
 }
 
 vector<FunctionType> Context::getOperatorType(Operator op) const {

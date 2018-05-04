@@ -1,4 +1,4 @@
-// 6
+// no_compile
 
 template<T, U>
 concept CanConvert {
@@ -24,6 +24,6 @@ int convert(X* x) {
 
 int main() {
   auto s1 = S1(1);
-  s1.set(X(5));
+  s1.set(5);
   return s1.t;
 }

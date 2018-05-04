@@ -4,17 +4,19 @@ template<T>
 variant X {
   T elem;
   void null;
-  T operator[](T a) {
-    switch (*this) {
-      case (T elem) {
-        return elem;
-      }
-      case (null) {
-        return a;
-      }
+};
+
+template<T>
+T operator[](X<T> x, T a) {
+  switch (x) {
+    case (T elem) {
+      return elem;
+    }
+    case (null) {
+      return a;
     }
   }
-};
+}
 
 template<T>
 struct Y {

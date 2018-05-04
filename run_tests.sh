@@ -4,7 +4,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-CLANG_OPT="-fsanitize=address"
+#CLANG_OPT="-fsanitize=address"
 
 function compile() {
   OUTPUT=$3

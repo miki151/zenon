@@ -21,7 +21,7 @@ struct Type : public owned_object<Type> {
   virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, const Context& callContext) const;
   virtual SType replace(SType from, SType to) const;
   virtual ~Type() {}
-  virtual nullable<SType> instantiate(CodeLoc, vector<SType> templateParams) const;
+  virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const;
   virtual const Context& getContext() const;
   virtual const Context& getStaticContext() const;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
@@ -80,7 +80,7 @@ struct TemplateParameterType : public Type {
 struct StructType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual SType replace(SType from, SType to) const override;
-  virtual nullable<SType> instantiate(CodeLoc, vector<SType> templateParams) const override;
+  virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const override;
   virtual bool canMap(TypeMapping&, SType argType) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
   virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, const Context& callContext) const override;
@@ -96,6 +96,7 @@ struct StructType : public Type {
   vector<SType> templateParams;
   vector<shared_ptr<StructType>> instantations;
   nullable<shared_ptr<StructType>> parent;
+  vector<SConcept> requirements;
   struct Alternative {
     string name;
     SType type;
@@ -127,7 +128,7 @@ struct FunctionType {
   SType retVal;
   vector<Param> params;
   vector<SType> templateParams;
-  nullable<SConcept> parentConcept;
+  vector<SConcept> requirements;
   nullable<SType> parentType;
   string toString() const;
 };
@@ -135,7 +136,10 @@ struct FunctionType {
 struct Concept : public owned_object<Concept> {
   Concept(const string& name);
   vector<SType> params;
+  Context context;
   string getName() const;
+  SConcept translate(vector<SType> params) const;
+  SConcept replace(SType from, SType to) const;
 
   private:
   string name;

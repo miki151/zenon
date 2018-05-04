@@ -56,6 +56,7 @@ struct BinaryExpression : Expression {
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   unique_ptr<Expression> e1, e2;
+  bool subscriptOpWorkaround = true;
 };
 
 struct UnaryExpression : Expression {
@@ -66,6 +67,8 @@ struct UnaryExpression : Expression {
   unique_ptr<Expression> expr;
 };
 
+enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_POINTER };
+
 struct FunctionCall : Expression {
   FunctionCall(CodeLoc, IdentifierInfo);
   virtual SType getType(const Context&) override;
@@ -75,8 +78,7 @@ struct FunctionCall : Expression {
   IdentifierInfo identifier;
   optional<FunctionType> functionType;
   vector<unique_ptr<Expression>> arguments;
-  enum CallType { METHOD, METHOD_AS_POINTER };
-  optional<CallType> callType;
+  optional<MethodCallType> callType;
 };
 
 struct FunctionCallNamedArgs : Expression {
@@ -99,8 +101,7 @@ struct FunctionCallNamedArgs : Expression {
   };
   optional<FunctionType> functionType;
   vector<Argument> arguments;
-  enum CallType { METHOD, METHOD_AS_POINTER };
-  optional<CallType> callType;
+  optional<MethodCallType> callType;
 };
 
 struct Statement : Node {
@@ -233,12 +234,7 @@ struct VariantDefinition : Statement {
 struct ConceptDefinition : Statement {
   ConceptDefinition(CodeLoc, string name);
   string name;
-  struct Type {
-    vector<unique_ptr<FunctionDefinition>> methods;
-    string name;
-    CodeLoc codeLoc;
-  };
-  vector<Type> types;
+  vector<unique_ptr<FunctionDefinition>> functions;
   TemplateInfo templateInfo;
   virtual void addToContext(Context&) override;
   virtual void check(Context&) override;
@@ -303,7 +299,7 @@ struct FunctionDefinition : Statement {
   virtual void addToContext(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
-  void setFunctionType(const Context&, nullable<SType> forceReturnType = nullptr);
+  void setFunctionType(const Context&, bool method);
   void checkFunctionBody(Context&, bool templateStruct) const;
   void addSignature(Accu& accu, string structName) const;
 };

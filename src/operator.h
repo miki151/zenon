@@ -35,5 +35,3 @@ using SType = shared_ptr<Type>;
 class CodeLoc;
 class Context;
 struct Expression;
-extern SType getOperationResult(CodeLoc, Operator, const Context&, Expression& left, Expression& right);
-extern SType getUnaryOperationResult(CodeLoc, Operator, SType);

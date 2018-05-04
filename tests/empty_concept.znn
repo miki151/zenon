@@ -15,8 +15,6 @@ int f1(A1<T> a) {
 
 template <T>
 concept C2 {
-  T {
-  };
 };
 
 template <T> requires C2<T>

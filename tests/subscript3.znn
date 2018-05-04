@@ -1,10 +1,11 @@
 // 1
 
 struct A {
-  char operator[](string a) {
-    return a[0];
-  }
 };
+
+char operator[](A a, string s) {
+  return s[0];
+}
 
 int main() {
   auto a = A();

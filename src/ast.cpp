@@ -60,7 +60,37 @@ nullable<SType> Variable::getDotOperatorType(Expression* left, const Context& ca
 }
 
 SType BinaryExpression::getType(const Context& context) {
-  return getOperationResult(e1->codeLoc, op, context, *e1, *e2);
+  auto& leftExpr = *e1;
+  auto& rightExpr = *e2;
+  auto left = leftExpr.getType(context);
+  switch (op) {
+    case Operator::MEMBER_ACCESS: {
+      if (auto rightType = rightExpr.getDotOperatorType(&leftExpr, context)) {
+        if (!left.dynamicCast<ReferenceType>())
+          rightType = rightType->getUnderlying();
+        return rightType.get();
+      } else
+        codeLoc.error("Bad use of operator " + quote("."));
+    }
+    default: {
+      nullable<SType> ret;
+      auto right = rightExpr.getType(context);
+      for (auto fun : left->getContext().getOperatorType(op))
+        if (auto inst = instantiateFunction(fun, codeLoc, {}, {right}, {codeLoc})) {
+          CHECK(!ret);
+          ret = inst->retVal;
+          subscriptOpWorkaround = false;
+        }
+      for (auto fun : context.getOperatorType(op))
+        if (auto inst = instantiateFunction(fun, codeLoc, {}, {left, right}, {leftExpr.codeLoc, rightExpr.codeLoc})) {
+          CHECK(!ret);
+          ret = inst->retVal;
+        }
+      codeLoc.check(!!ret, "Can't apply operator: " + quote(getString(op)) + " to types: " +
+          quote(left->getName()) + " and " + quote(right->getName()));
+      return ret.get();
+    }
+  }
 }
 
 void StatementBlock::check(Context& context) {
@@ -82,12 +112,8 @@ void IfStatement::check(Context& context) {
 void VariableDeclaration::check(Context& context) {
   context.checkNameConflict(codeLoc, identifier, "Variable");
   auto inferType = [&] () -> SType {
-    if (type) {
-      if (auto typeId = context.getTypeFromString(*type))
-        return typeId.get();
-      else
-        codeLoc.error("Type " + quote(type->toString()) + " not recognized");
-    }
+    if (type)
+      return context.getTypeFromString(*type).get(codeLoc);
     else if (initExpr)
       return initExpr->getType(context);
     else
@@ -140,41 +166,38 @@ bool ReturnStatement::hasReturnStatement(const Context&) const {
   return true;
 }
 
-static void applyConcept(const Context& from, const TemplateInfo& templateInfo, const vector<SType>& templateTypes) {
+static vector<SConcept> applyConcept(Context& from, const TemplateInfo& templateInfo, const vector<SType>& templateTypes) {
   auto getTemplateParam = [&](CodeLoc codeLoc, const string& name) {
     if (auto type = from.getTypeFromString(IdentifierInfo(name)))
-      return type.get();
+      return *type;
     for (int i = 0; i < templateInfo.params.size(); ++i)
       if (templateInfo.params[i].name == name)
         return templateTypes[i];
     codeLoc.error("Uknown type: " + quote(name));
   };
+  vector<SConcept> ret;
   for (auto& requirement : templateInfo.requirements) {
     if (auto concept = from.getConcept(requirement.parts[0].name)) {
       auto& requirementArgs = requirement.parts[0].templateArguments;
       requirement.codeLoc.check(requirementArgs.size() == concept->params.size(),
           "Wrong number of template arguments to concept " + quote(requirement.parts[0].toString()));
-      for (int i = 0; i < requirementArgs.size(); ++i) {
-        auto& requirementArg = requirementArgs[i].parts[0].name;
-        auto upgradedParam = getTemplateParam(requirementArgs[i].codeLoc, requirementArg);
-        Context addedContext;
-        addedContext.deepCopyFrom(concept->params[i]->context);
-        for (int j = 0; j < requirementArgs.size(); ++j)
-          addedContext.replace(concept->params[j], getTemplateParam(requirementArgs[j].codeLoc, requirementArgs[j].parts[0].name));
-        upgradedParam->context.mergeAndCollapse(std::move(addedContext));
-      }
+      vector<SType> translatedParams;
+      for (int i = 0; i < requirementArgs.size(); ++i)
+        translatedParams.push_back(
+            getTemplateParam(requirementArgs[i].codeLoc, requirementArgs[i].parts[0].name));
+      auto translated = concept->translate(translatedParams);
+      from.merge(translated->context);
+      ret.push_back(translated);
     }
   }
+  return ret;
 }
 
-void FunctionDefinition::setFunctionType(const Context& context, nullable<SType> returnType) {
+void FunctionDefinition::setFunctionType(const Context& context, bool method) {
   if (auto s = name.getReferenceMaybe<string>())
     context.checkNameConflictExcludingFunctions(codeLoc, *s, "Function");
   else if (auto op = name.getValueMaybe<Operator>()) {
-    codeLoc.check(!parameters.empty() || context.getOperatorType(*op).empty(),
-        "Unary operator " + quote(getString(*op)) + " already defined");
-    codeLoc.check(templateInfo.params.empty(), "Operator overload can't have template parameters.");
-    codeLoc.check(canOverload(*op, (int) parameters.size()), "Can't overload operator " + quote(getString(*op)) +
+    codeLoc.check(canOverload(*op, (int) parameters.size() + (method ? 1 : 0)), "Can't overload operator " + quote(getString(*op)) +
         " with " + to_string(parameters.size()) + " arguments.");
   }
   Context contextWithTemplateParams = Context::withParent(context);
@@ -184,15 +207,13 @@ void FunctionDefinition::setFunctionType(const Context& context, nullable<SType>
     contextWithTemplateParams.checkNameConflict(param.codeLoc, param.name, "template parameter");
     contextWithTemplateParams.addType(param.name, templateTypes.back());
   }
-  applyConcept(context, templateInfo, templateTypes);
-  if (returnType || (returnType = contextWithTemplateParams.getTypeFromString(this->returnType))) {
+  auto requirements = applyConcept(contextWithTemplateParams, templateInfo, templateTypes);
+  if (auto returnType = contextWithTemplateParams.getTypeFromString(this->returnType)) {
     vector<FunctionType::Param> params;
     for (auto& p : parameters)
-      if (auto paramType = contextWithTemplateParams.getTypeFromString(p.type)) {
-        params.push_back({p.name, paramType.get()});
-      } else
-        p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
-    functionType = FunctionType(name, FunctionCallType::FUNCTION, returnType.get(), params, templateTypes );
+      params.push_back({p.name, contextWithTemplateParams.getTypeFromString(p.type).get(p.codeLoc)});
+    functionType = FunctionType(name, FunctionCallType::FUNCTION, returnType.get(codeLoc), params, templateTypes );
+    functionType->requirements = requirements;
   } else
     codeLoc.error("Unrecognized return type: " + this->returnType.toString());
 }
@@ -200,13 +221,11 @@ void FunctionDefinition::setFunctionType(const Context& context, nullable<SType>
 void FunctionDefinition::checkFunctionBody(Context& context, bool templateStruct) const {
   if (body && (!templateInfo.params.empty() || templateStruct || context.getImports().empty())) {
     Context bodyContext = Context::withParent(context);
+    applyConcept(bodyContext, templateInfo, functionType->templateParams);
     for (auto& param : functionType->templateParams)
       bodyContext.addType(param->getName(), param);
     for (auto& p : parameters)
-      if (auto paramType = bodyContext.getTypeFromString(p.type))
-        bodyContext.addVariable(p.name, paramType.get());
-      else
-        p.codeLoc.error("Unrecognized parameter type: " + quote(p.type.toString()));
+      bodyContext.addVariable(p.name, ReferenceType::get(bodyContext.getTypeFromString(p.type).get(p.codeLoc)));
     bodyContext.setReturnType(functionType->retVal);
     if (functionType->retVal != ArithmeticType::VOID && body && !body->hasReturnStatement(context) && !name.contains<ConstructorId>())
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
@@ -219,39 +238,41 @@ void FunctionDefinition::check(Context& context) {
 }
 
 void FunctionDefinition::addToContext(Context& context) {
-  setFunctionType(context);
+  setFunctionType(context, false);
   codeLoc.checkNoError(context.addFunction(*functionType));
 }
 
-static void initializeArithmeticTypes() {
+static void initializeArithmeticTypes(Context& context) {
   CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType("size"s, FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {})));
   CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType("substring"s, FunctionCallType::FUNCTION, ArithmeticType::STRING,
       {{"index", ArithmeticType::INT}, {"length", ArithmeticType::INT}}, {})));
   CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION, ArithmeticType::CHAR,
       {{"index", ArithmeticType::INT}}, {})));
-  CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
-      {{"right side", ArithmeticType::STRING}}, {})));
+  CHECK(!context.addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
+      {{"left side", ArithmeticType::STRING}, {"right side", ArithmeticType::STRING}}, {})));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
-    CHECK(!ArithmeticType::INT->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {})));
+    CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT, {{"value", ArithmeticType::INT}}, {})));
   for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY})
-    CHECK(!ArithmeticType::INT->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT,
-        {{"right side", ArithmeticType::INT}}, {})));
+    CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT,
+        {{"left side", ArithmeticType::INT}, {"right side", ArithmeticType::INT}}, {})));
   for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
-    CHECK(!ArithmeticType::BOOL->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-        {{"right side", ArithmeticType::BOOL}}, {})));
-  CHECK(!ArithmeticType::BOOL->context.addFunction(FunctionType(Operator::LOGICAL_NOT, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {}, {})));
+    CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+        {{"left side", ArithmeticType::BOOL}, {"right side", ArithmeticType::BOOL}}, {})));
+  CHECK(!context.addFunction(FunctionType(Operator::LOGICAL_NOT, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+      {{"value", ArithmeticType::BOOL}}, {})));
   for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
     for (auto type : {ArithmeticType::INT, ArithmeticType::STRING})
-      CHECK(!type->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-          {{"right side", type}}, {})));
+      CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+          {{"left side", type}, {"right side", type}}, {})));
   for (auto op : {Operator::EQUALS})
     for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
-      CHECK(!type->context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{"right sie", type}}, {})));
+      CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+          {{"left side", type}, {"right sie", type}}, {})));
 }
 
 void correctness(const AST& ast) {
   Context context;
-  initializeArithmeticTypes();
+  initializeArithmeticTypes(context);
   for (auto type : {ArithmeticType::INT, ArithmeticType::BOOL,
        ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
     context.addType(type->getName(), type);
@@ -284,7 +305,8 @@ static WithErrorLine<FunctionType> getFunction(const Context& idContext, const C
         if (ret)
           return codeLoc.getError("Multiple function overloads found");
         ret = f;
-      }
+      } else if (!ret)
+        ret = f.get_error();
   }
   return ret;
 }
@@ -298,22 +320,24 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, const Context
     INFO << "Function argument " << argTypes.back()->getName();
   }
   nullable<SType> leftType;
-  if (left)
+  if (left) {
     leftType = left->getType(callContext);
+    callType = MethodCallType::METHOD;
+  }
   ErrorLoc error;
   getFunction(leftType ? leftType->getContext() : callContext, callContext, codeLoc, identifier, argTypes, argLocs)
       .unpack(functionType, error);
   if (leftType) {
     auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
     if (res)
-      callType = METHOD;
+      callType = MethodCallType::FUNCTION_AS_METHOD;
     codeLoc.check(!res || !functionType, "Ambigous method call.");
     res.unpack(functionType, error);
     if (leftType.get().dynamicCast<ReferenceType>()) {
         leftType = PointerType::get(leftType->getUnderlying());
       auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
       if (res)
-        callType = METHOD_AS_POINTER;
+        callType = MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
       codeLoc.check(!res || !functionType, "Ambigous method call.");
       res.unpack(functionType, error);
     }
@@ -334,8 +358,10 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, cons
   const auto& leftContext = left ? left->getType(callContext)->getContext() : callContext;
   ErrorLoc error { codeLoc, "Function not found: " + identifier.toString()};
   nullable<SType> leftType;
-  if (left)
+  if (left) {
     leftType = left->getType(callContext);
+    callType = MethodCallType::METHOD;
+  }
   optional<vector<ArgMatching>> matchings;
   matchArgs(leftContext, callContext, false).unpack(matchings, error);
   if (matchings)
@@ -348,7 +374,7 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, cons
   if (leftType) {
     matchArgs(callContext, callContext, true).unpack(matchings, error);
     if (matchings) {
-      auto tryMethodCall = [&] (CallType thisCallType) {
+      auto tryMethodCall = [&] (MethodCallType thisCallType) {
         for (auto& matching : *matchings) {
           auto res = callContext.instantiateFunctionTemplate(codeLoc, matching.function, identifier,
               concat({leftType.get()}, matching.args), concat({left->codeLoc}, matching.codeLocs));
@@ -358,10 +384,10 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, cons
           res.unpack(functionType, error);
         }
       };
-      tryMethodCall(CallType::METHOD);
+      tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
       if (leftType.get().dynamicCast<ReferenceType>()) {
         leftType = PointerType::get(leftType->getUnderlying());
-        tryMethodCall(CallType::METHOD_AS_POINTER);
+        tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
       }
     }
   }
@@ -449,7 +475,7 @@ void VariantDefinition::addToContext(Context& context) {
   auto membersContext = Context::withParent({&context, &type->context});
   for (auto& param : templateInfo.params)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-  applyConcept(context, templateInfo, type->templateParams);
+  type->requirements = applyConcept(context, templateInfo, type->templateParams);
   for (auto& param : type->templateParams)
     type->context.addType(param->getName(), param);
   unordered_set<string> subtypeNames;
@@ -457,17 +483,16 @@ void VariantDefinition::addToContext(Context& context) {
     subtype.codeLoc.check(!subtypeNames.count(subtype.name), "Duplicate variant alternative: " + quote(subtype.name));
     subtypeNames.insert(subtype.name);
     vector<FunctionType::Param> params;
-    if (auto subtypeInfo = membersContext.getTypeFromString(subtype.type)) {
-      if (subtypeInfo != ArithmeticType::VOID)
-        params.push_back(FunctionType::Param{"", subtypeInfo.get()});
-    } else
-      subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
+    auto subtypeInfo = membersContext.getTypeFromString(subtype.type).get(subtype.codeLoc);
+    if (subtypeInfo != ArithmeticType::VOID)
+      params.push_back(FunctionType::Param{"", subtypeInfo});
     auto constructor = FunctionType(subtype.name, FunctionCallType::FUNCTION, type.get(), params, {});
     constructor.parentType = type.get();
     CHECK(!type->staticContext.addFunction(constructor));
   }
   for (auto& method : methods) {
-    method->setFunctionType(membersContext);
+    method->codeLoc.check(!method->name.contains<Operator>(), "Defining operators inside variant body is not allowed.");
+    method->setFunctionType(membersContext, true);
     method->functionType->parentType = type.get();
     method->codeLoc.checkNoError(type->context.addFunction(*method->functionType));
   }
@@ -475,12 +500,8 @@ void VariantDefinition::addToContext(Context& context) {
 
 void VariantDefinition::check(Context& context) {
   auto methodBodyContext = Context::withParent({&context, &type->context});
-  for (auto& subtype : elements) {
-    if (auto subtypeInfo = methodBodyContext.getTypeFromString(subtype.type))
-      type->alternatives.push_back({subtype.name, subtypeInfo.get()});
-    else
-      subtype.codeLoc.error("Unrecognized type: " + quote(subtype.type.toString()));
-  }
+  for (auto& subtype : elements)
+    type->alternatives.push_back({subtype.name, methodBodyContext.getTypeFromString(subtype.type).get(subtype.codeLoc)});
   methodBodyContext.addVariable("this", PointerType::get(type.get()));
   for (int i = 0; i < methods.size(); ++i)
     methods[i]->checkFunctionBody(methodBodyContext, !templateInfo.params.empty());
@@ -494,14 +515,18 @@ void StructDefinition::addToContext(Context& context) {
   auto membersContext = Context::withParent({&context, &type->context});
   for (auto& param : templateInfo.params)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-  applyConcept(context, templateInfo, type->templateParams);
+  type->requirements = applyConcept(context, templateInfo, type->templateParams);
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
   bool hasConstructor = false;
   for (auto& method : methods) {
+    if (!external)
+      method->codeLoc.check(!method->name.contains<Operator>(), "Defining operators inside struct body is not allowed.");
     if (method->name.contains<ConstructorId>()) {
-      // We have to force the return type because it's not possible to get it from membersContext
-      method->setFunctionType(membersContext, (SType) type.get());
+      // We have to fix the return type of the constructor otherwise it can't be looked up in the context
+      method->returnType.parts[0].templateArguments =
+          transform(templateInfo.params, [](const auto& p) { return IdentifierInfo(p.name); });
+      method->setFunctionType(membersContext, true);
       method->functionType->callType = FunctionCallType::CONSTRUCTOR;
       method->codeLoc.check(method->functionType->templateParams.empty(), "Constructor can't have template parameters.");
       method->functionType->templateParams = type->templateParams;
@@ -509,7 +534,7 @@ void StructDefinition::addToContext(Context& context) {
       method->codeLoc.checkNoError(type->staticContext.addFunction(*method->functionType));
       hasConstructor = true;
     } else {
-      method->setFunctionType(membersContext);
+      method->setFunctionType(membersContext, true);
       method->functionType->parentType = type.get();
       method->codeLoc.checkNoError(type->context.addFunction(*method->functionType));
     }
@@ -518,7 +543,7 @@ void StructDefinition::addToContext(Context& context) {
     vector<FunctionType::Param> constructorParams;
     for (auto& member : members)
       if (auto memberType = membersContext.getTypeFromString(member.type))
-        constructorParams.push_back({member.name, memberType.get()});
+        constructorParams.push_back({member.name, *memberType});
     auto constructor = FunctionType(ConstructorId{}, FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
     constructor.parentType = type.get();
     CHECK(!type->staticContext.addFunction(constructor));
@@ -559,10 +584,7 @@ void StructDefinition::check(Context& context) {
   methodBodyContext.addVariable("this", PointerType::get(type.get()));
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
-    if (auto memberType = methodBodyContext.getTypeFromString(member.type))
-      type->context.addVariable(member.name, ReferenceType::get(memberType.get()));
-    else
-      member.codeLoc.error("Type " + quote(member.type.toString()) + " not recognized");
+    type->context.addVariable(member.name, ReferenceType::get(methodBodyContext.getTypeFromString(member.type).get(member.codeLoc)));
   }
   for (int i = 0; i < methods.size(); ++i) {
     if (methods[i]->functionType->name.contains<ConstructorId>()) {
@@ -578,7 +600,20 @@ UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e
     : Expression(l), op(o), expr(std::move(e)) {}
 
 SType UnaryExpression::getType(const Context& context) {
-  return getUnaryOperationResult(expr->codeLoc, op, expr->getType(context));
+  nullable<SType> ret;
+  auto right = expr->getType(context);
+  for (auto fun : right->getContext().getOperatorType(op))
+    if (auto inst = instantiateFunction(fun, codeLoc, {}, {}, {})) {
+      CHECK(!ret);
+      ret = inst->retVal;
+    }
+  for (auto fun : context.getOperatorType(op))
+    if (auto inst = instantiateFunction(fun, codeLoc, {}, {right}, {expr->codeLoc})) {
+      CHECK(!ret);
+      ret = inst->retVal;
+    }
+  codeLoc.check(!!ret, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName()));
+  return ret.get();
 }
 
 EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {
@@ -668,10 +703,7 @@ EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(
 }
 
 SType EnumConstant::getType(const Context& context) {
-  if (auto type = context.getTypeFromString(IdentifierInfo(enumName)))
-    return type.get();
-  else
-    codeLoc.error("Unrecognized type: " + quote(enumName));
+  return context.getTypeFromString(IdentifierInfo(enumName)).get(codeLoc);
 }
 
 ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
@@ -685,16 +717,11 @@ void ConceptDefinition::addToContext(Context& context) {
     concept->params.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
     declarationsContext.addType(param.name, concept->params.back());
   }
-  for (auto& type : types)
-    for (int i = 0; i < templateInfo.params.size(); ++i)
-      if (type.name == templateInfo.params[i].name) {
-        for (auto& method : type.methods) {
-          method->setFunctionType(declarationsContext);
-          method->check(declarationsContext);
-          method->functionType->parentConcept = concept;
-          method->codeLoc.checkNoError(concept->params[i]->context.addFunction(*method->functionType));
-        }
-      }
+  for (auto& function : functions) {
+    function->setFunctionType(declarationsContext, false);
+    function->check(declarationsContext);
+    function->codeLoc.checkNoError(concept->context.addFunction(*function->functionType));
+  }
   context.addConcept(name, concept);
 }
 

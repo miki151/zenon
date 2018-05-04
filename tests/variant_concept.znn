@@ -2,21 +2,20 @@
 
 template <T, U, V>
 concept CanAdd {
-  T {
-    V add(U u);
-  };
+  V add(T t, U u);
 };
 
 variant S {
   int i;
   bool b;
-  int add(bool a) {
-    if (a)
-      return 1;
-    else
-      return 2;
-  }
 };
+
+int add(S s, bool a) {
+  if (a)
+    return 1;
+  else
+    return 2;
+}
 
 template <A, B, C> requires CanAdd<A, B, C>
 C add2(A a, B b) {

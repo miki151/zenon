@@ -2,16 +2,12 @@
 
 template <T>
 concept CanAdd {
-  T {
-    T operator + (T t);
-  };
+  T operator + (T t1, T t2);
 };
 
 template <T>
 concept CanAdd2 {
-  T {
-    T operator + (T t);
-  };
+  T operator + (T t1, T t2);
 };
 
 template <A> requires CanAdd2<A>
@@ -22,10 +18,12 @@ void times2(A* a) {
 template <A> requires CanAdd<A>
 struct S {
   A a;
-  void t2() {
-    times2(&a);
-  }
 };
+
+template <A> requires CanAdd<A>
+void t2(S<A>* s) {
+  times2(&(*s).a);
+}
 
 int main() {
   S<int> s = S<int>(1);

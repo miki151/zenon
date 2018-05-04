@@ -2,22 +2,22 @@
 
 struct A1 {
   string s;
-  string toString() {
-    return "A1(" + s + ")";
-  }
 };
 
+string toString(A1* a) {
+  return "A1(" + (*a).s + ")";
+}
+
 struct B {
-  string toString() {
-    return "B";
-  }
 };
+
+string toString(B* b) {
+  return "B";
+}
 
 template <T>
 concept Printable {
-  T {
-    string toString();
-  };
+  string toString(T* t);
 };
 
 template <A> requires Printable<A>

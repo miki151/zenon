@@ -1,40 +1,42 @@
 // 5
 
 struct A {
-  int getValue() {
-    return 2;
-  }
 };
+
+int getValue(A* a) {
+  return 2;
+}
 
 struct B {
   int a;
-  int getValue() {
-    return a;
-  }
 };
+
+int getValue(B* b) {
+  return (*b).a;
+}
 
 template <S>
 concept hasValue {
-  S {
-    int getValue();
-  };
+  int getValue(S* s);
 };
 
 template <S> requires hasValue<S>
 variant V {
   S s;
   void null;
-  int getValue() {
-    switch (*this) {
-      case (S s) {
-        return s.getValue();
-      }
-      case (null) {
-        return -1;
-      }
+};
+
+template <S> requires hasValue<S>
+int getValue(V<S>* v) {
+  switch (*v) {
+    case (S s) {
+      return s.getValue();
+    }
+    case (null) {
+      return -1;
     }
   }
-};
+}
 
 
 int main() {

@@ -2,9 +2,7 @@
 
 template<T, U>
 concept CanConvert {
-  T {
-    U convert();
-  };
+  U convert(T* t);
 };
 
 struct S1 {
@@ -17,10 +15,11 @@ struct S1 {
 
 struct X {
   int a;
-  int convert() {
-    return 1 + a;
-  }
 };
+
+int convert(X* x) {
+  return 1 + (*x).a;
+}
 
 int main() {
   auto s1 = S1(1);

@@ -2,10 +2,11 @@
 
 struct A {
   string s;
-  char operator[](int a) {
-    return s[a];
-  }
 };
+
+char operator[](A a, int x) {
+  return a.s[x];
+}
 
 int main() {
   auto a = A("dupa");

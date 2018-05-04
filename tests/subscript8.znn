@@ -1,10 +1,11 @@
 // 37
 
 struct X {
-  int operator[](int a) {
-    return 2 * a;
-  }
 };
+
+int operator[](X x, int a) {
+  return 2 * a;
+}
 
 struct Y {
   X x;

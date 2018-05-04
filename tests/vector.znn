@@ -13,9 +13,10 @@ extern struct vector {
   vector(int cnt, T t);
   void push_back(T elem);
   T at(int index);
-  T operator [](int index);
   int size();
+  T operator [](int index);
 };
+
 
 int main() {
   vector<int> v;

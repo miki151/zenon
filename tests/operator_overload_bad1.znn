@@ -2,9 +2,7 @@
 
 template <A>
 concept Arithmetic {
-  A {
-    A operator + (A a, A b);
-  };
+  A operator + (A a, A b, A c);
 };
 
 template <T> requires Arithmetic<T>

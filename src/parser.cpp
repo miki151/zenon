@@ -186,7 +186,7 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
     tokens.check(nameToken.contains<IdentifierToken>(), "Expected function parameter");
     ret->parameters.push_back({type.codeLoc, typeId, nameToken.value});
   }
-  if (ret->parameters.size() == 0)
+  if (ret->parameters.size() == 1)
     if (auto op = ret->name.getValueMaybe<Operator>())
       if (auto opUnary = getUnary(*op))
         ret->name = *opUnary;
@@ -195,7 +195,10 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
 
 unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Tokens& tokens) {
   auto ret = parseFunctionSignature(type, tokens);
-  ret->body = parseBlock(tokens);
+  if (tokens.peek("Function definition") == Keyword::OPEN_BLOCK)
+    ret->body = parseBlock(tokens);
+  else
+    tokens.eat(Keyword::SEMICOLON);
   return ret;
 }
 
@@ -291,19 +294,6 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
   return ret;
 }
 
-static void parseTypeConceptBody(Tokens& tokens, ConceptDefinition::Type& type) {
-  tokens.eat(Keyword::OPEN_BLOCK);
-  while (1) {
-    auto memberToken = tokens.peek("method signature");
-    if (memberToken == Keyword::CLOSE_BLOCK) {
-      tokens.popNext();
-      break;
-    }
-    type.methods.push_back(parseFunctionSignature(IdentifierInfo::parseFrom(tokens, true), tokens));
-    tokens.eat(Keyword::SEMICOLON);
-  }
-}
-
 unique_ptr<ConceptDefinition> parseConceptDefinition(Tokens& tokens) {
   tokens.eat(Keyword::CONCEPT);
   auto token2 = tokens.popNext("concept name");
@@ -316,12 +306,7 @@ unique_ptr<ConceptDefinition> parseConceptDefinition(Tokens& tokens) {
       tokens.popNext();
       break;
     }
-    TemplateInfo templateParams;
-    if (memberToken == Keyword::TEMPLATE)
-      templateParams = parseTemplateInfo(tokens);
-    auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
-    ret->types.push_back({{}, typeIdent.parts[0].name, memberToken.codeLoc});
-    parseTypeConceptBody(tokens, ret->types.back());
+    ret->functions.push_back(parseFunctionSignature(IdentifierInfo::parseFrom(tokens, true), tokens));
     tokens.eat(Keyword::SEMICOLON);
   }
   tokens.eat(Keyword::SEMICOLON);
@@ -461,9 +446,9 @@ unique_ptr<Statement> parseVariableDeclaration(Tokens& tokens) {
   if (!tokens.eatMaybe(Keyword::AUTO))
     type = IdentifierInfo::parseFrom(tokens, true);
   auto token2 = tokens.peek("identifier");
-  if (token2.contains<IdentifierToken>()) {
+  if (token2.contains<IdentifierToken>() || token2 == Keyword::OPERATOR) {
     tokens.popNext("identifier");
-    if (tokens.peek("variable or function declaration") == Keyword::OPEN_BRACKET) {
+    if (tokens.peek("variable or function declaration") == Keyword::OPEN_BRACKET || token2 == Keyword::OPERATOR) {
       tokens.rewind();
       typeLoc.check(!!type, "Auto return type not supported for functions");
       return parseFunctionDefinition(*type, tokens);

@@ -1,0 +1,14 @@
+// no_compile
+
+template <A>
+struct A {
+};
+
+template <A>
+A operator + (A a, A b, A c) {
+  return a;
+}
+
+int main() {
+  return 0;
+}

@@ -193,8 +193,7 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
     if (realType != ArithmeticType::VOID)
       caseElem.varType = caseElem.VALUE;
     if (caseElem.type) {
-      auto t = outsideContext.getTypeFromString(*caseElem.type);
-      caseElem.type->codeLoc.check(!!t, "Unrecognized type: " + quote(caseElem.type->toString()));
+      auto t = outsideContext.getTypeFromString(*caseElem.type).get(caseElem.type->codeLoc);
       caseElem.type->codeLoc.check(t == realType || t == PointerType::get(realType), "Can't handle variant element "
           + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(t->getName()));
       if (t == PointerType::get(realType)) {
@@ -204,7 +203,7 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
       }
     }
     if (caseElem.varType == caseElem.VALUE)
-      caseBodyContext.addVariable(caseElem.id, realType);
+      caseBodyContext.addVariable(caseElem.id, ReferenceType::get(realType));
     else if (caseElem.varType == caseElem.POINTER)
       caseBodyContext.addVariable(caseElem.id, PointerType::get(realType));
     caseElem.block->check(caseBodyContext);
@@ -301,6 +300,9 @@ SType StructType::replace(SType from, SType to) const {
       checkNonVoidMember(alternative.type, to);
       alternative.type = alternative.type->replace(from, to);
     }
+    ret->requirements = requirements;
+    for (auto& concept : ret->requirements)
+      concept = concept->replace(from, to);
     ret->context.replace(from, to);
     ret->staticContext.replace(from, to);
   } else
@@ -316,18 +318,15 @@ void replaceInFunction(FunctionType& in, SType from, SType to) {
     param.type = param.type->replace(from, to);
   //for (auto& param : in.templateParams)
   //  param = param->replace(from, to);
-  if (in.parentConcept) {
-    in.parentConcept = shared<Concept>(*in.parentConcept);
-    for (auto& t : in.parentConcept->params)
-      t = t->replace(from, to);
-  }
+  for (auto& concept : in.requirements)
+    concept = concept->replace(from, to);
 }
 
-nullable<SType> Type::instantiate(CodeLoc codeLoc, vector<SType> templateParams) const {
-  if (templateParams.empty())
+WithError<SType> Type::instantiate(const Context& context, vector<SType> templateArgs) const {
+  if (templateArgs.empty())
     return get_this().get();
   else
-    return nullptr;
+    return "Type " + quote(getName()) + " is not a template";
 }
 
 const Context& Type::getContext() const {
@@ -352,27 +351,18 @@ bool Type::canConstructWith(vector<SType> argsRef) const {
   return false;
 }
 
-void checkConcepts(CodeLoc codeLoc, const vector<SType>& params, const vector<SType>& args) {
-  for (int i = 0; i < params.size(); ++i) {
-    Context tmp;
-    tmp.deepCopyFrom(params[i]->context);
-    for (int j = 0; j < params.size(); ++j)
-      tmp.replace(params[j], args[j]);
-    auto missingFunctions = args[i]->context.getMissingFunctions(tmp);
-    if (!missingFunctions.empty())
-      codeLoc.error("Function not implemented by type: " + quote(args[i]->getName()) + ": " +
-          missingFunctions[0].toString() + ", required by concept: " +
-          quote(missingFunctions[0].parentConcept->getName()));
-  }
-}
-
-nullable<SType> StructType::instantiate(CodeLoc codeLoc, vector<SType> templateArgs) const {
+WithError<SType> StructType::instantiate(const Context& context, vector<SType> templateArgs) const {
   if (templateArgs.size() != templateParams.size())
-    return nullptr;
+    return "Wrong number of template parameters"s;
   auto ret = get_this().get();
-  checkConcepts(codeLoc, templateParams, templateArgs);
   for (int i = 0; i < templateParams.size(); ++i)
     ret = ret->replace(templateParams[i], templateArgs[i]);
+  for (auto& concept : ret.dynamicCast<StructType>()->requirements) {
+    auto missing = context.getMissingFunctions(concept->context);
+    if (!missing.empty())
+      return "Required function not implemented: " +
+          missing[0].toString() + ", required by concept: " + quote(concept->getName());
+  }
   return ret;
 }
 
@@ -456,7 +446,6 @@ WithErrorLine<FunctionType> instantiateFunction(const FunctionType& input, CodeL
         return codeLoc.getError("Couldn't deduce template argument " + quote(type.templateParams[i]->getName()));
     }
   }
-  checkConcepts(codeLoc, type.templateParams, templateArgs);
   for (int i = 0; i < type.templateParams.size(); ++i) {
     replaceInFunction(type, type.templateParams[i], templateArgs[i]);
     type.templateParams[i] = templateArgs[i];
@@ -471,6 +460,26 @@ Concept::Concept(const string& name) : name(name) {
 
 string Concept::getName() const {
   return name + joinTemplateParams(params);
+}
+
+SConcept Concept::translate(vector<SType> newParams) const {
+  auto ret = shared<Concept>(name);
+  ret->context.deepCopyFrom(context);
+  ret->params = newParams;
+  CHECK(params.size() == newParams.size());
+  for (int i = 0; i < params.size(); ++i)
+    ret->context.replace(params[i], newParams[i]);
+  return ret;
+}
+
+SConcept Concept::replace(SType from, SType to) const {
+  auto ret = shared<Concept>(name);
+  ret->context.deepCopyFrom(context);
+  ret->params = params;
+  for (auto& param : ret->params)
+    param = param->replace(from, to);
+  ret->context.replace(from, to);
+  return ret;
 }
 
 string joinTemplateParams(const vector<SType>& params) {
