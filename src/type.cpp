@@ -488,3 +488,12 @@ string joinTemplateParams(const vector<SType>& params) {
   else
     return "<" + combine(transform(params, [](const auto& arg) { return arg->getName(); } ), ", ") + ">";
 }
+
+FunctionType::Param::Param(optional<string> name, SType type) : name(name), type(type) {
+}
+
+FunctionType::Param::Param(string name, SType type) : name(name), type(type) {
+}
+
+FunctionType::Param::Param(SType type) : type(type) {
+}

@@ -490,7 +490,7 @@ void VariantDefinition::addToContext(Context& context) {
     vector<FunctionType::Param> params;
     auto subtypeInfo = membersContext.getTypeFromString(subtype.type).get(subtype.codeLoc);
     if (subtypeInfo != ArithmeticType::VOID)
-      params.push_back(FunctionType::Param{none, subtypeInfo});
+      params.push_back(FunctionType::Param{subtypeInfo});
     auto constructor = FunctionType(subtype.name, FunctionCallType::FUNCTION, type.get(), params, {});
     constructor.parentType = type.get();
     CHECK(!type->staticContext.addFunction(constructor));
