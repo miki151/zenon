@@ -89,6 +89,9 @@ bool canOverload(Operator op, int numArguments) {
     case Operator::PLUS:
     case Operator::MINUS:
     case Operator::MULTIPLY:
+    case Operator::EQUALS:
+    case Operator::LESS_THAN:
+    case Operator::MORE_THAN:
       return numArguments == 2;
     case Operator::POINTER_DEREFERENCE:
     case Operator::PLUS_UNARY:
