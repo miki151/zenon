@@ -476,11 +476,15 @@ SConcept Concept::replace(SType from, SType to) const {
   return ret;
 }
 
+string joinParams(const vector<SType>& params) {
+    return combine(transform(params, [](const auto& arg) { return arg->getName(); } ), ", ");
+}
+
 string joinTemplateParams(const vector<SType>& params) {
   if (params.empty())
     return "";
   else
-    return "<" + combine(transform(params, [](const auto& arg) { return arg->getName(); } ), ", ") + ">";
+    return "<" + joinParams(params) + ">";
 }
 
 FunctionType::Param::Param(optional<string> name, SType type) : name(name), type(type) {

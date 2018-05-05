@@ -155,3 +155,4 @@ extern WithErrorLine<FunctionType> instantiateFunction(const FunctionType&, Code
 extern bool canConvert(SType from, SType to);
 extern void replaceInFunction(FunctionType&, SType from, SType to);
 extern string joinTemplateParams(const vector<SType>& params);
+extern string joinParams(const vector<SType>& params);

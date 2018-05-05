@@ -317,8 +317,8 @@ FunctionId Context::getFunctionId(const FunctionName& name) const {
 }
 
 bool Context::canConstructWith(SType type, vector<SType> argsRef) const {
-  //cout << "Trying to construct " << type->getName() << " with " << combine(transform(argsRef, [](const auto& t) { return t->getName(); }), ", ") << "\n";
-  //print();
+//  cout << "Trying to construct " << type->getName() << " with " << combine(transform(argsRef, [](const auto& t) { return t->getName(); }), ", ") << "\n";
+//  print();
   auto args = transform(argsRef, [](const auto& arg) { return arg->getUnderlying();});
   if (args.size() == 1 && args[0] == type)
     return true;

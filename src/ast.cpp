@@ -299,8 +299,8 @@ SType FunctionCall::getType(const Context& context) {
 static WithErrorLine<FunctionType> getFunction(const Context& idContext, const Context& callContext, CodeLoc codeLoc, IdentifierInfo id,
     const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
   WithErrorLine<FunctionType> ret = codeLoc.getError("Couldn't find function overload matching arguments.");
-  /*cout << "Looking for function " << id.toString() << "(" << combine(transform(argTypes, [](const auto& t) { return t->getName(); }), ", ") << ")" << " in context:\n";
-  idContext.print();*/
+  //cout << "Looking for function " << id.toString() << "(" << combine(transform(argTypes, [](const auto& t) { return t->getName(); }), ", ") << ")" << " in context:\n";
+  //idContext.print();
   if (auto templateType = idContext.getFunctionTemplate(id)) {
     for (auto& overload : *templateType)
       if (auto f = callContext.instantiateFunctionTemplate(codeLoc, overload, id, argTypes, argLoc)) {
@@ -314,34 +314,40 @@ static WithErrorLine<FunctionType> getFunction(const Context& idContext, const C
 }
 
 nullable<SType> FunctionCall::getDotOperatorType(Expression* left, const Context& callContext) {
-  vector<SType> argTypes;
-  vector<CodeLoc> argLocs;
-  for (int i = 0; i < arguments.size(); ++i) {
-    argTypes.push_back(arguments[i]->getType(callContext));
-    argLocs.push_back(arguments[i]->codeLoc);
-    INFO << "Function argument " << argTypes.back()->getName();
-  }
-  nullable<SType> leftType;
-  if (left) {
-    leftType = left->getType(callContext);
-    callType = MethodCallType::METHOD;
-  }
   ErrorLoc error;
-  getFunction(leftType ? leftType->getContext() : callContext, callContext, codeLoc, identifier, argTypes, argLocs)
+  if (!functionType) {
+    vector<SType> argTypes;
+    vector<CodeLoc> argLocs;
+    for (int i = 0; i < arguments.size(); ++i) {
+      argTypes.push_back(arguments[i]->getType(callContext));
+      argLocs.push_back(arguments[i]->codeLoc);
+      INFO << "Function argument " << argTypes.back()->getName();
+    }
+    nullable<SType> leftType;
+    if (left) {
+      leftType = left->getType(callContext);
+      callType = MethodCallType::METHOD;
+    }
+    getFunction(leftType ? leftType->getContext() : callContext, callContext, codeLoc, identifier, argTypes, argLocs)
       .unpack(functionType, error);
-  if (leftType) {
-    auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
-    if (res)
-      callType = MethodCallType::FUNCTION_AS_METHOD;
-    codeLoc.check(!res || !functionType, "Ambigous method call.");
-    res.unpack(functionType, error);
-    if (leftType.get().dynamicCast<ReferenceType>()) {
-        leftType = PointerType::get(leftType->getUnderlying());
+    if (leftType) {
       auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
       if (res)
-        callType = MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
-      codeLoc.check(!res || !functionType, "Ambigous method call.");
+        callType = MethodCallType::FUNCTION_AS_METHOD;
+      if (res && functionType)
+        codeLoc.error("Ambigous method call for arguments: " + joinParams(concat({leftType.get()}, argTypes)) + ":\n" +
+            res->toString() + "\n" + functionType->toString());
       res.unpack(functionType, error);
+      if (leftType.get().dynamicCast<ReferenceType>()) {
+        leftType = PointerType::get(leftType->getUnderlying());
+        auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
+        if (res)
+          callType = MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
+        if (res && functionType)
+          codeLoc.error("Ambigous pointer method call for arguments: " + joinParams(concat({leftType.get()}, argTypes)) + ":\n" +
+              res->toString() + "\n" + functionType->toString());
+        res.unpack(functionType, error);
+      }
     }
   }
   if (functionType)
@@ -580,7 +586,7 @@ static void checkConstructor(const StructType& type, const Context& context, con
     memberIndex.erase(initializer.paramName);
   }
   for (auto& nonInitialized : memberIndex)
-    method.codeLoc.check(type.context.canConstructWith(type.context.getTypeOfVariable(nonInitialized.first)->getUnderlying(), {}),
+    method.codeLoc.check(context.canConstructWith(type.context.getTypeOfVariable(nonInitialized.first)->getUnderlying(), {}),
         "Member " + quote(nonInitialized.first) + " needs to be initialized");
 }
 
