@@ -346,7 +346,7 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, const Context
         codeLoc.error("Ambigous method call:\nCandidate: " + functionType->toString() + "\nCandidate: " + res->toString());
       res.unpack(functionType, error);
       if (leftType.get().dynamicCast<ReferenceType>()) {
-          leftType = PointerType::get(leftType->getUnderlying());
+        leftType = PointerType::get(leftType->getUnderlying());
         auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
         if (res)
           callType = MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
@@ -611,7 +611,7 @@ static void checkConstructor(const StructType& type, const Context& context, con
     memberIndex.erase(initializer.paramName);
   }
   for (auto& nonInitialized : memberIndex)
-    method.codeLoc.check(type.context.canConstructWith(type.context.getTypeOfVariable(nonInitialized.first)->getUnderlying(), {}),
+    method.codeLoc.check(context.canConstructWith(type.context.getTypeOfVariable(nonInitialized.first)->getUnderlying(), {}),
         "Member " + quote(nonInitialized.first) + " needs to be initialized");
 }
 

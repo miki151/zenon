@@ -142,7 +142,8 @@ int main() {
 int get_number() {
     return 5;
 }
-
+```
+``` C++
 // main.znn
 import "library.znn"
 import "print.znn"
@@ -151,3 +152,27 @@ int main() {
     print(get_number());
     return 0;
 }
+```
+
+### Concepts
+``` C++
+template <T>
+concept comparable {
+    bool operator < (T, T);
+};
+
+template <T> requires comparable<T>
+T min(T value1, T value2) {
+    // the only operations allowed on T in this context are those guaranteed by comparable<T>
+    if (value1 < value2)
+        return value1;
+    else
+        return value2;
+}
+
+int main() {
+  auto v = min(3, 5);
+  // calling min with a type that doesn't implement "comparable" results in a compile error one the spot
+  // auto c = min('a', 'b'); // compile error: char doesn't implement operator < required by "comparable"
+}
+```
