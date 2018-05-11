@@ -194,7 +194,8 @@ static vector<SConcept> applyConcept(Context& from, const TemplateInfo& template
       auto translated = concept->translate(translatedParams);
       from.merge(translated->getContext());
       ret.push_back(translated);
-    }
+    } else
+      requirement.codeLoc.error("Uknown concept: " + requirement.parts[0].name);
   }
   return ret;
 }

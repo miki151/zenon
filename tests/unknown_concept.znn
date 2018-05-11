@@ -1,0 +1,9 @@
+// no_compile
+
+template <T> requires unknown<T>
+void f(T t) {
+}
+
+int main() {
+  return 0;
+}
