@@ -1,18 +1,23 @@
 // 5
 
 
-template<T>
+template<T> 
+concept can_copy {
+  T(T*);
+};
+
+template<T> requires can_copy<T>
 void copy(T* out, T in) {
   *out = in;
 }
 
-template<T>
+template<T> requires can_copy<T>
 variant V {
   T elem;
   void null;
 };
 
-template<T>
+template<T> requires can_copy<T>
 T get(V<T> v, T def) {
   switch (v) {
     case (T elem) {

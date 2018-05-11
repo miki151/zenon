@@ -2,6 +2,7 @@
 
 template <T>
 concept CanAdd {
+  T(T*);
   T operator + (T a, T b);
 };
 

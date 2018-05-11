@@ -1,29 +1,33 @@
 // 2
 
+template<T>
+concept can_copy {
+  T(T*);
+};
 
-template <Param>
+template <Param> requires can_copy<Param>
 variant nullable {
   Param p;
   void null;
 };
 
-template <T>
+template <T> requires can_copy<T>
 nullable<T> null() {
   return nullable<T>::null();
 }
 
-template <T>
+template <T> requires can_copy<T>
 nullable<T> value(T t) {
   return nullable<T>::p(t);
 }
 
-template <U, V>
+template <U, V> requires can_copy<U>, can_copy<V>
 variant V2 {
   nullable<U> e1;
   nullable<V> e2;
 };
 
-template <U, V>
+template <U, V> requires can_copy<U>, can_copy<V>
 bool equal(V2<U,V> v, U u) {
   V2<U,V> vTmp = v;
   switch (vTmp) {
@@ -43,7 +47,7 @@ bool equal(V2<U,V> v, U u) {
   }
 }
 
-template<T>
+template<T> requires can_copy<T>
 struct X {
   T elem;
 };

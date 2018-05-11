@@ -1,13 +1,15 @@
 // no_compile
 
 struct X {
-  int operator[](int a) {
-    return 2 * a;
-  }
-  string operator[](int a) {
-    return "a";
-  }
 };
+
+int operator[](X x, int a) {
+  return 2 * a;
+}
+
+string operator[](X x, int a) {
+  return "a";
+}
 
 struct Y {
   X x;

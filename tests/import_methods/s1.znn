@@ -6,10 +6,17 @@ struct X {
     return v;
   }
 
-  void set(T t) {
-    v = t;
-  }
-
   T v;
 };
+
+template <T>
+concept can_copy {
+  T(T*);
+};
+
+template<T> requires can_copy<T>
+void set(X<T>* x, T t) {
+  (*x).v = t;
+}
+
 

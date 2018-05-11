@@ -1,10 +1,11 @@
 // no_compile
 
 struct X {
-  int operator[]() {
-    return 0;
-  }
 };
+
+int operator[](X x) {
+  return 0;
+}
 
 int main() {
   auto x = X();

@@ -7,7 +7,8 @@ enum E1 {
 }
 
 int main() {
-  auto e1 = E1::VALUE1;
+  auto e = E1::VALUE1;
+  auto e1 = e;
   switch (e1) {
     case (VALUE1) {
       return 1;

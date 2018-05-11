@@ -39,6 +39,8 @@ class Context : public owned_object<Context> {
   vector<FunctionType> getOperatorType(Operator) const;
   FunctionId getFunctionId(const FunctionName& name) const;
   bool canConstructWith(SType, vector<SType> args) const;
+  bool canCopyConstruct(SType) const;
+  [[nodiscard]] optional<string> addCopyConstructorFor(SType, const vector<SType>& templateParams = {});
   void pushImport(const string& name);
   void popImport();
   const vector<string>& getImports() const;
@@ -71,4 +73,7 @@ class Context : public owned_object<Context> {
   nullable<SType> getType(const string&) const;
   vector<FunctionType> getFunctions(FunctionId) const;
   nullable<SType> getVariable(const string&) const;
+  bool areParamsEquivalent(const FunctionType&, const FunctionType&) const;
+  bool isGeneralization(const FunctionType& general, const FunctionType& specific) const;
+  vector<FunctionType> getAllFunctions() const;
 };

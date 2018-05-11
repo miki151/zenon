@@ -1,13 +1,15 @@
-// no_compile
+// 7
 
 struct X {
-  template <T>
-  int operator[](T a) {
-    return 0;
-  }
 };
+
+template <T>
+T operator[](X x, T a) {
+  return a;
+}
 
 int main() {
   auto x = X();
-  return 0;
+  int i = 7;
+  return x[i];
 }

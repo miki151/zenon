@@ -4,13 +4,14 @@ struct X {
   int value;
   X(int a) : value(a) {}
   X(X* x) : value(13 + (*x).value) {}
-  X operator - () {
-    return *this;
-  }
-  X operator - () {
-    return *this;
-  }
 };
+
+X operator - (X x) {
+  return x;
+}
+X operator - (X y) {
+  return y;
+}
 
 int main() {
   auto x1 = X(5);

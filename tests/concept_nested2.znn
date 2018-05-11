@@ -2,7 +2,7 @@
 
 template <T>
 concept C1 {
-  void f(T t);
+  void f(T);
 };
 
 template <T> requires C1<T>

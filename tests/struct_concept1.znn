@@ -2,16 +2,19 @@
 
 template <T>
 concept CanAdd {
+  T(T*);
   T operator + (T t1, T t2);
 };
 
-template <A> requires CanAdd<A>
+template <A>
 struct S1 {
   A a;
-  A get() {
-    return a + a;
-  }
 };
+
+template <A> requires CanAdd<A>
+A get(S1<A>* s1) {
+  return (*s1).a + (*s1).a;
+}
 
 int main() {
   auto s = S1(5);

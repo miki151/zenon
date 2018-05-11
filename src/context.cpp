@@ -46,29 +46,51 @@ void Context::deepCopyFrom(const Context& c) {
     state->merge(*s);
 }
 
-static bool areParamsEquivalent(const FunctionType& f1, const FunctionType& f2) {
-  auto checkFun = [](const FunctionType& f1, const FunctionType& f2) {
-    return !!instantiateFunction(f1, CodeLoc(), {}, transform(f2.params, [](const auto& param) { return param.type; }),
+static string getFunctionIdName(const FunctionId& id) {
+  return id.visit(
+      [&](const string& s) { return s; },
+      [&](Operator op) { return "operator "s + getString(op); },
+      [&](SType type) { return type->getName(); }
+  );
+}
+
+static string getFunctionNameForError(const FunctionType& function) {
+  string typePrefix;
+  if (function.parentType)
+    typePrefix = function.parentType->getName() + "::";
+  return function.retVal->getName() + " " + typePrefix + getFunctionIdName(function.name) + "(" +
+      combine(transform(function.params, [](const auto& t) { return t.type->getName(); }), ", ") + ")";
+}
+
+bool Context::areParamsEquivalent(const FunctionType& f1, const FunctionType& f2) const {
+  auto checkFun = [this](const FunctionType& f1, const FunctionType& f2) {
+    return !!instantiateFunction(*this, f1, CodeLoc(), {}, transform(f2.params, [](const auto& param) { return param.type; }),
         vector<CodeLoc>(f2.params.size(), CodeLoc()));
   };
   return checkFun(f1, f2) && checkFun(f2, f1);
 }
 
-static bool isGeneralization(const FunctionType& general, const FunctionType& specific) {
-  if (auto inst = instantiateFunction(general, CodeLoc(), {}, transform(specific.params, [](const auto& param) { return param.type; }),
-      vector<CodeLoc>(specific.params.size(), CodeLoc())))
-    return specific.retVal == inst->retVal;
+bool Context::isGeneralization(const FunctionType& general, const FunctionType& specific) const {
+  if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, transform(specific.params, [](const auto& param) { return param.type; }),
+      vector<CodeLoc>(specific.params.size(), CodeLoc()))) {
+    //cout << "Checking function equality: " << specific.toString() << " and " << inst->toString() << "\n";
+    return specific.name == inst->name && specific.retVal == inst->retVal;
+  }
   else
     return false;
 }
 
 vector<FunctionType> Context::getMissingFunctions(const Context& required) const {
+  //cout << "Looking for missing functions in:\n";
+  //required.print();
   vector<FunctionType> ret;
   for (auto otherState : required.getReversedStates()) {
     for (auto& overloads : otherState->functions)
       for (auto& function : overloads.second) {
+        //cout << "Looking for function: " << getFunctionNameForError(function) << "\n";
+        //print();
         bool found = false;
-        for (auto& myFun : getFunctions(overloads.first))
+        for (auto& myFun : getAllFunctions())
           if (isGeneralization(myFun, function)) {
             found = true;
             break;
@@ -91,23 +113,6 @@ void Context::addVariable(const string& ident, SType t) {
 
 const vector<string>& Context::getBottomLevelVariables() const {
   return state->varsList;
-}
-
-static string getFunctionIdName(const FunctionId& id) {
-  return id.visit(
-      [&](const string& s) { return s; },
-      [&](Operator op) { return "operator "s + getString(op); },
-      [&](SType type) { return type->getName(false); }
-  );
-}
-
-static string getFunctionNameForError(const FunctionType& function) {
-  string typePrefix;
-  if (function.parentType)
-    typePrefix = function.parentType->getName() + "::";
-  return typePrefix + getFunctionIdName(function.name) + "(" +
-      combine(transform(function.params, [](const auto& t) { return t.type->getName(); }), ", ") + ")";
-;
 }
 
 void Context::State::print() const {
@@ -214,6 +219,14 @@ vector<FunctionType> Context::getFunctions(FunctionId name) const {
   return ret;
 }
 
+vector<FunctionType> Context::getAllFunctions() const {
+  vector<FunctionType> ret;
+  for (auto& state : getReversedStates())
+    for (auto& fun : state->functions)
+      append(ret, fun.second);
+  return ret;
+}
+
 nullable<SType> Context::getVariable(const string& name) const {
   for (auto& state : getReversedStates())
     if (state->vars.count(name))
@@ -293,13 +306,14 @@ WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc
     vector<CodeLoc> argLoc) const {
   auto templateArgNames = id.parts.back().templateArguments;
   auto templateArgs = getTypeList(templateArgNames);
-  auto ret = instantiateFunction(templateType, codeLoc, templateArgs, argTypes, argLoc);
+  auto ret = instantiateFunction(*this, templateType, codeLoc, templateArgs, argTypes, argLoc);
   if (ret)
     for (auto& concept : ret->requirements) {
-      auto missing = getMissingFunctions(concept->context);
-      if (!missing.empty())
+      auto missing = getMissingFunctions(concept->getContext());
+      if (!missing.empty()) {
         return codeLoc.getError("Required function not implemented: " +
             missing[0].toString() + ", required by concept: " + quote(concept->getName()));
+      }
     }
   return ret;
 }
@@ -328,7 +342,19 @@ bool Context::canConstructWith(SType type, vector<SType> argsRef) const {
     templateParams = s->templateParams;
   }
   for (auto f : getFunctions(type))
-    if (instantiateFunction(f, CodeLoc(), templateParams, args, vector<CodeLoc>(args.size())))
+    if (instantiateFunction(*this, f, CodeLoc(), templateParams, args, vector<CodeLoc>(args.size())))
       return true;
   return false;
+}
+
+bool Context::canCopyConstruct(SType t) const {
+  if (t.dynamicCast<PointerType>() || t.dynamicCast<EnumType>())
+    return true;
+  return canConstructWith(t, {PointerType::get(t)});
+}
+
+optional<std::string> Context::addCopyConstructorFor(SType type, const vector<SType>& templateParams) {
+  auto constructor = FunctionType(type, FunctionCallType::CONSTRUCTOR, type, {{PointerType::get(type)}}, templateParams);
+  constructor.parentType = type;
+  return addFunction(constructor);
 }

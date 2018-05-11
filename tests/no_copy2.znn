@@ -1,0 +1,21 @@
+// no_compile
+
+template<T>
+concept can_copy {
+  T(T*);
+};
+
+template <T> requires can_copy<T>
+void f(T t) {
+  T t2 = t;
+}
+
+template <T>
+struct X {
+  T t;
+};
+
+int main() {
+  f(X(1));
+  return 0;
+}

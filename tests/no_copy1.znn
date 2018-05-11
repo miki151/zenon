@@ -1,0 +1,10 @@
+// no_compile
+
+template <T>
+void f(T a) {
+  T b = a;
+}
+
+int main() {
+  return 0;
+}

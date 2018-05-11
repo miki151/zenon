@@ -2,11 +2,13 @@
 
 template <T>
 concept CanAdd {
+  T(T*);
   T operator + (T t1, T t2);
 };
 
 template <T>
 concept CanSubtract {
+  T(T*);
   T operator - (T t1, T t2);
 };
 

@@ -17,7 +17,7 @@ struct Type : public owned_object<Type> {
   virtual string getName(bool withTemplateArguments = true) const = 0;
   virtual SType getUnderlying();
   virtual bool canAssign(SType from) const;
-  virtual bool canMap(TypeMapping&, SType argType) const;
+  virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const;
   virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, const Context& callContext) const;
   virtual SType replace(SType from, SType to) const;
   virtual ~Type() {}
@@ -48,7 +48,7 @@ struct ReferenceType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual SType getUnderlying() override;
   virtual bool canAssign(SType from) const override;
-  virtual bool canMap(TypeMapping& mapping, SType from) const override;
+  virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replace(SType from, SType to) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
 
@@ -60,7 +60,7 @@ struct ReferenceType : public Type {
 struct PointerType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual SType replace(SType from, SType to) const override;
-  virtual bool canMap(TypeMapping&, SType argType) const override;
+  virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
 
   static shared_ptr<PointerType> get(SType);
 
@@ -80,7 +80,7 @@ struct StructType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual SType replace(SType from, SType to) const override;
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const override;
-  virtual bool canMap(TypeMapping&, SType argType) const override;
+  virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
   virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, const Context& callContext) const override;
 
@@ -137,13 +137,17 @@ struct FunctionType {
 
 struct Concept : public owned_object<Concept> {
   Concept(const string& name);
-  vector<SType> params;
-  Context context;
   string getName() const;
   SConcept translate(vector<SType> params) const;
   SConcept replace(SType from, SType to) const;
+  const vector<SType>& getParams() const;
+  const Context& getContext() const;
+  vector<SType>& modParams();
+  Context& modContext();
 
   private:
+  vector<SType> params;
+  Context context;
   string name;
 };
 
@@ -151,7 +155,9 @@ struct Expression;
 class Context;
 
 struct IdentifierInfo;
-extern WithErrorLine<FunctionType> instantiateFunction(const FunctionType&, CodeLoc, vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc);
+extern WithErrorLine<FunctionType> instantiateFunction(const Context& context, const FunctionType&, CodeLoc,
+    vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc);
 extern bool canConvert(SType from, SType to);
 extern void replaceInFunction(FunctionType&, SType from, SType to);
 extern string joinTemplateParams(const vector<SType>& params);
+extern string joinTypeList(const vector<SType>&);

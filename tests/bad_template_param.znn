@@ -2,9 +2,6 @@
 
 template <A>
 struct A {
-  A operator + (A a, A b) {
-    return a;
-  }
 };
 
 int main() {

@@ -290,7 +290,7 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
     } else { // member
       memberToken.codeLoc.check(templateParams.params.empty(), "Member variable can't have template parameters");
       memberName.codeLoc.check(memberName.contains<IdentifierToken>(), "Expected identifier");
-      ret->members.push_back({typeIdent, memberName.value, token2.codeLoc});
+      ret->members.push_back({typeIdent, memberName.value, memberToken.codeLoc});
       tokens.eat(Keyword::SEMICOLON);
     }
   }

@@ -8,9 +8,8 @@ variant V {
   A4 a4;
 };
 
-int getValue(V<bool, int, string, char> w) {
-  auto v = w;
-  switch (v) {
+int getValue(V<bool, int, string, char>* w) {
+  switch (*w) {
     case (bool a1) {
       return 1;
     }
@@ -21,7 +20,7 @@ int getValue(V<bool, int, string, char> w) {
       return 0;
     }
   }
-  switch (v) {
+  switch (*w) {
     case (string* a3) {
       if (*a3 == "pok")
         return 5;
@@ -36,5 +35,5 @@ int getValue(V<bool, int, string, char> w) {
 
 int main() {
   auto v = V<bool, int, string, char>::a3("pak");
-  return getValue(v);
+  return getValue(&v);
 }

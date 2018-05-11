@@ -1,0 +1,35 @@
+// 3
+
+template <T>
+concept can_copy {
+  T(T*);
+};
+
+struct S {
+  int a;
+};
+
+template <T> requires can_copy<T>
+int f(T t) {
+  T u = t;
+  return 1;
+}
+
+template <T>
+int f3(T* t) {
+  return 2;
+}
+
+template <T>
+int f2(T t) {
+  auto ptr = &t;
+  return f3(ptr);
+}
+
+
+int main() {
+  S s = S(1);
+  S s2 = s;
+  return f(s) + f2(s);
+}
+

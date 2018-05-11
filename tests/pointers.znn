@@ -1,6 +1,11 @@
 // 15
 
 template<T>
+concept can_copy {
+  T(T*);
+};
+
+template<T> requires can_copy<T>
 void set(T* x, T y) {
   *x = y;
 }

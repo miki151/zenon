@@ -1,0 +1,39 @@
+// 3
+
+template<T>
+concept fun1 {
+  int fun1(T);
+};
+
+template<T>
+concept fun2 {
+  int fun2(T);
+};
+
+template <T> requires fun1<T>
+int f(T t) {
+  t.fun1();
+}
+
+template <T> requires fun2<T>
+int f(T t) {
+  t.fun2();
+}
+
+struct X {
+};
+
+int fun1(X) {
+  return 1;
+}
+
+struct Y {
+};
+
+int fun2(Y) {
+  return 2;
+}
+
+int main() {
+  return f(X()) + f(Y());
+}

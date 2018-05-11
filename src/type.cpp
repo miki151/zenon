@@ -8,15 +8,6 @@ ArithmeticType::DefType ArithmeticType::BOOL = shared<ArithmeticType>("bool");
 ArithmeticType::DefType ArithmeticType::STRING = shared<ArithmeticType>("string");
 ArithmeticType::DefType ArithmeticType::CHAR = shared<ArithmeticType>("char");
 
-string getTemplateParamNames(const vector<SType>& templateParams) {
-  string ret;
-  if (!templateParams.empty()) {
-    auto paramNames = transform(templateParams, [](auto& e) { return e->getName(); });
-    ret += "<" + combine(paramNames, ",") + ">";
-  }
-  return ret;
-}
-
 string ArithmeticType::getName(bool withTemplateArguments) const {
   return name;
 }
@@ -33,7 +24,7 @@ string PointerType::getName(bool withTemplateArguments) const {
 }
 
 string StructType::getName(bool withTemplateArguments) const {
-  return name + (withTemplateArguments ? getTemplateParamNames(templateParams) : "");
+  return name + (withTemplateArguments ? joinTemplateParams(templateParams) : "");
 }
 
 string TemplateParameterType::getName(bool withTemplateArguments) const {
@@ -347,12 +338,12 @@ void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc, bo
 
 WithError<SType> StructType::instantiate(const Context& context, vector<SType> templateArgs) const {
   if (templateArgs.size() != templateParams.size())
-    return "Wrong number of template parameters"s;
+    return "Wrong number of template parameters for type " + getName();
   auto ret = get_this().get();
   for (int i = 0; i < templateParams.size(); ++i)
     ret = ret->replace(templateParams[i], templateArgs[i]);
   for (auto& concept : ret.dynamicCast<StructType>()->requirements) {
-    auto missing = context.getMissingFunctions(concept->context);
+    auto missing = context.getMissingFunctions(concept->getContext());
     if (!missing.empty())
       return "Required function not implemented: " +
           missing[0].toString() + ", required by concept: " + quote(concept->getName());
@@ -363,6 +354,7 @@ WithError<SType> StructType::instantiate(const Context& context, vector<SType> t
 struct TypeMapping {
   vector<SType> templateParams;
   vector<nullable<SType>> templateArgs;
+  vector<CodeLoc> argLocs;
   optional<int> getParamIndex(const SType& t) {
     for (int i = 0; i < templateParams.size(); ++i)
       if (templateParams[i] == t)
@@ -371,49 +363,59 @@ struct TypeMapping {
   }
 };
 
-bool canDeduce(TypeMapping& mapping, SType paramType, SType argType) {
+static string getCantBindError(const SType& from, const SType& to) {
+  return "Can't bind type " + quote(from->getName()) + " to parameter of type " + quote(to->getName());
+}
+
+static optional<string> getDeductionError(const Context& context, TypeMapping& mapping, SType paramType, SType argType) {
   if (auto refType = argType.dynamicCast<ReferenceType>()) {
-    argType = refType->underlying;
-    if (auto refType = paramType.dynamicCast<ReferenceType>())
-      paramType = refType->underlying;
+    if (context.canCopyConstruct(refType->underlying))
+      argType = refType->underlying;
+    else
+      return "Type " + quote(refType->underlying->getName()) + " cannot be copied.";
   }
   if (auto index = mapping.getParamIndex(paramType)) {
     auto& arg = mapping.templateArgs.at(*index);
     if (arg && arg != argType)
-      return false;
+      return getCantBindError(argType, arg.get());
     arg = argType;
-    return true;
+    return none;
   } else
-    return paramType->canMap(mapping, argType);
+    return paramType->getMappingError(context, mapping, argType);
 }
 
-bool StructType::canMap(TypeMapping& mapping, SType argType) const {
+optional<string> StructType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
   auto argStruct = argType.dynamicCast<StructType>();
   if (!argStruct || parent.get() != argStruct->parent.get())
-    return false;
+    return "Can't bind non-struct type " + quote(argType->getName()) + " to struct type " + quote(getName());
   for (int i = 0; i < templateParams.size(); ++i)
-    if (!::canDeduce(mapping, templateParams[i], argStruct->templateParams[i]))
-      return false;
-  return true;
+    if (auto error = ::getDeductionError(context, mapping, templateParams[i], argStruct->templateParams[i]))
+      return error;
+  return none;
 }
 
-bool PointerType::canMap(TypeMapping& mapping, SType argType) const {
+optional<string> PointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
   if (auto argPointer = argType.dynamicCast<PointerType>())
-    return ::canDeduce(mapping, underlying, argPointer->underlying);
-  return false;
+    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+  return "Can't bind non-pointer type " + quote(argType->getName()) + " to type " + quote(getName());
 }
 
-bool ReferenceType::canMap(TypeMapping&, SType from) const {
-  return from == get_this().get() || underlying == from;
+optional<string> ReferenceType::getMappingError(const Context&, TypeMapping&, SType from) const {
+  if (from == get_this().get() || underlying == from)
+    return none;
+  else
+    return getCantBindError(from, get_this().get());
 }
 
-
-bool Type::canMap(TypeMapping&, SType argType) const {
-  return argType == get_this().get();
+optional<string> Type::getMappingError(const Context&, TypeMapping&, SType argType) const {
+  if (argType == get_this().get())
+    return none;
+  else
+    return getCantBindError(argType, get_this().get());
 }
 
-WithErrorLine<FunctionType> instantiateFunction(const FunctionType& input, CodeLoc codeLoc, vector<SType> templateArgs, vector<SType> argTypes,
-    vector<CodeLoc> argLoc) {
+WithErrorLine<FunctionType> instantiateFunction(const Context& context, const FunctionType& input, CodeLoc codeLoc,
+    vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc) {
   FunctionType type = input;
   vector<SType> funParams = transform(type.params, [](const FunctionType::Param& p) { return p.type; });
   if (templateArgs.size() > type.templateParams.size())
@@ -424,13 +426,8 @@ WithErrorLine<FunctionType> instantiateFunction(const FunctionType& input, CodeL
   if (funParams.size() != argTypes.size())
     return codeLoc.getError("Wrong number of function arguments.");
   for (int i = 0; i < argTypes.size(); ++i)
-    if (!canDeduce(mapping, funParams[i], argTypes[i])) {
-      string deducedAsString;
-      if (auto index = mapping.getParamIndex(funParams[i]))
-        if (auto deduced = mapping.templateArgs.at(*index))
-          deducedAsString = ", deduced as " + quote(deduced->getName());
-      return argLoc[i].getError("Can't bind argument of type "
-        + quote(argTypes[i]->getName()) + " to parameter " + quote(funParams[i]->getName()) + deducedAsString);
+    if (auto error = getDeductionError(context, mapping, funParams[i], argTypes[i])) {
+      return argLoc[i].getError(*error);
     }
   for (int i = 0; i < type.templateParams.size(); ++i) {
     if (i >= templateArgs.size()) {
@@ -476,11 +473,31 @@ SConcept Concept::replace(SType from, SType to) const {
   return ret;
 }
 
+const vector<SType>&Concept::getParams() const {
+  return params;
+}
+
+const Context&Concept::getContext() const {
+  return context;
+}
+
+vector<SType>& Concept::modParams() {
+  return params;
+}
+
+Context& Concept::modContext() {
+  return context;
+}
+
+string joinTypeList(const vector<SType>& types) {
+  return combine(transform(types, [](const auto& type) { return type->getName(); }), ", ");
+}
+
 string joinTemplateParams(const vector<SType>& params) {
   if (params.empty())
     return "";
   else
-    return "<" + combine(transform(params, [](const auto& arg) { return arg->getName(); } ), ", ") + ">";
+    return "<" + joinTypeList(params) + ">";
 }
 
 FunctionType::Param::Param(optional<string> name, SType type) : name(name), type(type) {

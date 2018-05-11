@@ -1,12 +1,18 @@
 // 12
 
 template<T>
+concept can_copy {
+  T(T*);
+};
+
+
+template<T> requires can_copy<T>
 variant X {
   T elem;
   void null;
 };
 
-template<T>
+template<T> requires can_copy<T>
 T operator[](X<T> x, T a) {
   switch (x) {
     case (T elem) {
@@ -18,7 +24,7 @@ T operator[](X<T> x, T a) {
   }
 }
 
-template<T>
+template<T> requires can_copy<T>
 struct Y {
   X<T> x;
 };

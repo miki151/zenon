@@ -2,11 +2,13 @@
 
 template <T>
 concept CanAdd {
+  T(T*);
   T operator + (T t1, T t2);
 };
 
 template <T>
 concept CanAdd2 {
+  T(T*);
   T operator + (T t1, T t2);
 };
 
