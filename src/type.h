@@ -25,6 +25,7 @@ struct Type : public owned_object<Type> {
   virtual const Context& getContext() const;
   virtual const Context& getStaticContext() const;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
+  virtual bool isBuiltinCopyable() const;
   Context context;
   Context staticContext;
 };
@@ -61,6 +62,7 @@ struct PointerType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual SType replace(SType from, SType to) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual bool isBuiltinCopyable() const override;
 
   static shared_ptr<PointerType> get(SType);
 
@@ -111,6 +113,7 @@ struct EnumType : public Type {
 
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
+  virtual bool isBuiltinCopyable() const override;
 
   string name;
   vector<string> elements;

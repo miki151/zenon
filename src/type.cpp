@@ -121,6 +121,18 @@ bool Type::canAssign(SType from) const{
   return false;
 }
 
+bool Type::isBuiltinCopyable() const {
+  return false;
+}
+
+bool PointerType::isBuiltinCopyable() const {
+  return true;
+}
+
+bool EnumType::isBuiltinCopyable() const {
+  return true;
+}
+
 unique_ptr<Expression> Type::getConversionFrom(unique_ptr<Expression> expr, const Context& callContext) const{
   return nullptr;
 }

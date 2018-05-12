@@ -80,6 +80,13 @@ bool Context::isGeneralization(const FunctionType& general, const FunctionType& 
     return false;
 }
 
+static bool isBuiltinCopyConstructor(const FunctionType& f) {
+  if (auto type = f.name.getValueMaybe<SType>())
+    return f.retVal == *type && f.params.size() == 1 && f.params[0].type == PointerType::get(*type)
+        && (*type)->isBuiltinCopyable();
+  return false;
+}
+
 vector<FunctionType> Context::getMissingFunctions(const Context& required) const {
   //cout << "Looking for missing functions in:\n";
   //required.print();
@@ -87,6 +94,8 @@ vector<FunctionType> Context::getMissingFunctions(const Context& required) const
   for (auto otherState : required.getReversedStates()) {
     for (auto& overloads : otherState->functions)
       for (auto& function : overloads.second) {
+        if (isBuiltinCopyConstructor(function))
+          continue;
         //cout << "Looking for function: " << getFunctionNameForError(function) << "\n";
         //print();
         bool found = false;
@@ -334,6 +343,8 @@ bool Context::canConstructWith(SType type, vector<SType> argsRef) const {
 //  cout << "Trying to construct " << type->getName() << " with " << combine(transform(argsRef, [](const auto& t) { return t->getName(); }), ", ") << "\n";
 //  print();
   auto args = transform(argsRef, [](const auto& arg) { return arg->getUnderlying();});
+  if (type->isBuiltinCopyable() && argsRef.size() == 1 && argsRef[0] == PointerType::get(type))
+    return true;
   if (args.size() == 1 && args[0] == type)
     return true;
   vector<SType> templateParams;
@@ -348,8 +359,6 @@ bool Context::canConstructWith(SType type, vector<SType> argsRef) const {
 }
 
 bool Context::canCopyConstruct(SType t) const {
-  if (t.dynamicCast<PointerType>() || t.dynamicCast<EnumType>())
-    return true;
   return canConstructWith(t, {PointerType::get(t)});
 }
 
