@@ -18,12 +18,12 @@ struct Type : public owned_object<Type> {
   virtual SType getUnderlying();
   virtual bool canAssign(SType from) const;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const;
-  virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, const Context& callContext) const;
+  virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, Context& callContext) const;
   virtual SType replace(SType from, SType to) const;
   virtual ~Type() {}
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const;
-  virtual const Context& getContext() const;
-  virtual const Context& getStaticContext() const;
+  virtual Context& getContext();
+  virtual Context& getStaticContext();
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
   virtual bool isBuiltinCopyable() const;
   Context context;
@@ -84,7 +84,7 @@ struct StructType : public Type {
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
-  virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, const Context& callContext) const override;
+  virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, Context& callContext) const override;
 
   enum Kind {
     STRUCT,

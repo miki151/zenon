@@ -133,7 +133,7 @@ bool EnumType::isBuiltinCopyable() const {
   return true;
 }
 
-unique_ptr<Expression> Type::getConversionFrom(unique_ptr<Expression> expr, const Context& callContext) const{
+unique_ptr<Expression> Type::getConversionFrom(unique_ptr<Expression> expr, Context& callContext) const{
   return nullptr;
 }
 
@@ -153,7 +153,7 @@ void ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& c
   underlying->handleSwitchStatement(statement, context, codeLoc, true);
 }
 
-unique_ptr<Expression> StructType::getConversionFrom(unique_ptr<Expression> expr, const Context& callContext) const {
+unique_ptr<Expression> StructType::getConversionFrom(unique_ptr<Expression> expr, Context& callContext) const {
   SType from = expr->getType(callContext)->getUnderlying();
   if (from != ArithmeticType::VOID)
     for (auto& alternative : alternatives)
@@ -295,7 +295,7 @@ SType StructType::replace(SType from, SType to) const {
     ret->context.deepCopyFrom(context);
     ret->staticContext.deepCopyFrom(staticContext);
     for (auto& member : ret->context.getBottomLevelVariables()) {
-      auto memberType = ret->context.getTypeOfVariable(member).get();
+      auto memberType = *ret->context.getTypeOfVariable(member);
       checkNonVoidMember(memberType, to);
     }
     ret->alternatives = alternatives;
@@ -336,11 +336,11 @@ WithError<SType> Type::instantiate(const Context& context, vector<SType> templat
     return "Type " + quote(getName()) + " is not a template";
 }
 
-const Context& Type::getContext() const {
+Context& Type::getContext() {
   return context;
 }
 
-const Context& Type::getStaticContext() const {
+Context& Type::getStaticContext() {
   return staticContext;
 }
 

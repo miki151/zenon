@@ -21,14 +21,14 @@ struct Node {
 
 struct Expression : Node {
   using Node::Node;
-  virtual SType getType(const Context&) = 0;
-  virtual nullable<SType> getDotOperatorType(Expression* left, const Context& callContext);
+  virtual SType getType(Context&) = 0;
+  virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext);
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const;
 };
 
 struct Constant : Expression {
   Constant(CodeLoc, SType, string value);
-  virtual SType getType(const Context&) override;
+  virtual SType getType(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   SType type;
   string value;
@@ -36,7 +36,7 @@ struct Constant : Expression {
 
 struct EnumConstant : Expression {
   EnumConstant(CodeLoc, string enumName, string enumElement);
-  virtual SType getType(const Context&) override;
+  virtual SType getType(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   string enumName;
   string enumElement;
@@ -44,15 +44,15 @@ struct EnumConstant : Expression {
 
 struct Variable : Expression {
   Variable(CodeLoc, string);
-  virtual SType getType(const Context&) override;
+  virtual SType getType(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
-  virtual nullable<SType> getDotOperatorType(Expression* left, const Context& callContext) override;
+  virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   string identifier;
 };
 
 struct BinaryExpression : Expression {
   BinaryExpression(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>);
-  virtual SType getType(const Context&) override;
+  virtual SType getType(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   unique_ptr<Expression> e1, e2;
@@ -61,19 +61,27 @@ struct BinaryExpression : Expression {
 
 struct UnaryExpression : Expression {
   UnaryExpression(CodeLoc, Operator, unique_ptr<Expression>);
-  virtual SType getType(const Context&) override;
+  virtual SType getType(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   unique_ptr<Expression> expr;
+};
+
+struct MoveExpression : Expression {
+  MoveExpression(CodeLoc, string);
+  virtual SType getType(Context&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  string identifier;
+  nullable<SType> type;
 };
 
 enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_POINTER };
 
 struct FunctionCall : Expression {
   FunctionCall(CodeLoc, IdentifierInfo);
-  virtual SType getType(const Context&) override;
+  virtual SType getType(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
-  virtual nullable<SType> getDotOperatorType(Expression* left, const Context& callContext) override;
+  virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const override;
   IdentifierInfo identifier;
   optional<FunctionType> functionType;
@@ -83,16 +91,16 @@ struct FunctionCall : Expression {
 
 struct FunctionCallNamedArgs : Expression {
   FunctionCallNamedArgs(CodeLoc, IdentifierInfo);
-  virtual SType getType(const Context&) override;
+  virtual SType getType(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
-  virtual nullable<SType> getDotOperatorType(Expression* left, const Context& callContext) override;
+  virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const override;
   struct ArgMatching {
     vector<SType> args;
     vector<CodeLoc> codeLocs;
     FunctionType function;
   };
-  WithErrorLine<vector<ArgMatching>> matchArgs(const Context& functionContext, const Context& callContext, bool skipFirst);
+  WithErrorLine<vector<ArgMatching>> matchArgs(const Context& functionContext, Context& callContext, bool skipFirst);
   IdentifierInfo identifier;
   struct Argument {
     CodeLoc codeLoc;

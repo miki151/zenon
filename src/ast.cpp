@@ -41,25 +41,22 @@ VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, 
 
 FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionName name) : Statement(l), returnType(r), name(name) {}
 
-SType Constant::getType(const Context&) {
+SType Constant::getType(Context&) {
   return type;
 }
 
-SType Variable::getType(const Context& context) {
-  if (auto ret = context.getTypeOfVariable(identifier))
-    return ret.get();
-  else
-    codeLoc.error("Undefined variable: " + identifier);
+SType Variable::getType(Context& context) {
+  return context.getTypeOfVariable(identifier).get(codeLoc);
 }
 
-nullable<SType> Variable::getDotOperatorType(Expression* left, const Context& callContext) {
+nullable<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
   if (left)
     return getType(left->getType(callContext)->getContext());
   else
     return nullptr;
 }
 
-SType BinaryExpression::getType(const Context& context) {
+SType BinaryExpression::getType(Context& context) {
   auto& leftExpr = *e1;
   auto& rightExpr = *e2;
   auto left = leftExpr.getType(context);
@@ -303,7 +300,7 @@ void ExpressionStatement::check(Context& context) {
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-SType FunctionCall::getType(const Context& context) {
+SType FunctionCall::getType(Context& context) {
   return getDotOperatorType(nullptr, context).get();
 }
 
@@ -324,7 +321,7 @@ static WithErrorLine<FunctionType> getFunction(const Context& idContext, const C
   return ret;
 }
 
-nullable<SType> FunctionCall::getDotOperatorType(Expression* left, const Context& callContext) {
+nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& callContext) {
   optional<ErrorLoc> error;
   if (!functionType) {
     vector<SType> argTypes;
@@ -367,11 +364,11 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, const Context
 
 FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {}
 
-SType FunctionCallNamedArgs::getType(const Context& context) {
+SType FunctionCallNamedArgs::getType(Context& context) {
   return getDotOperatorType(nullptr, context).get();
 }
 
-nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, const Context& callContext) {
+nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, Context& callContext) {
   const auto& leftContext = left ? left->getType(callContext)->getContext() : callContext;
   optional<ErrorLoc> error = ErrorLoc{codeLoc, "Function not found: " + identifier.toString()};
   nullable<SType> leftType;
@@ -415,7 +412,7 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, cons
     error->execute();
 }
 
-WithErrorLine<vector<FunctionCallNamedArgs::ArgMatching>> FunctionCallNamedArgs::matchArgs(const Context& functionContext, const Context& callContext, bool skipFirst) {
+WithErrorLine<vector<FunctionCallNamedArgs::ArgMatching>> FunctionCallNamedArgs::matchArgs(const Context& functionContext, Context& callContext, bool skipFirst) {
   auto functionOverloads = functionContext.getFunctionTemplate(identifier);
   if (!functionOverloads)
     return codeLoc.getError(functionOverloads.get_error());
@@ -598,7 +595,7 @@ static void checkConstructor(const StructType& type, const Context& context, con
     memberIndex[member] = index++;
   index = -1;
   for (auto& initializer : method.initializers) {
-    auto memberType = type.context.getTypeOfVariable(initializer.paramName);
+    auto memberType = type.context.getTypeOfVariable(initializer.paramName).get_value();
     auto initContext = Context::withParent(context);
     for (auto& p : method.functionType->params)
       if (p.name)
@@ -614,7 +611,7 @@ static void checkConstructor(const StructType& type, const Context& context, con
     memberIndex.erase(initializer.paramName);
   }
   for (auto& nonInitialized : memberIndex)
-    method.codeLoc.check(context.canConstructWith(type.context.getTypeOfVariable(nonInitialized.first)->getUnderlying(), {}),
+    method.codeLoc.check(context.canConstructWith(type.context.getTypeOfVariable(nonInitialized.first).get_value()->getUnderlying(), {}),
         "Member " + quote(nonInitialized.first) + " needs to be initialized");
 }
 
@@ -642,7 +639,7 @@ void StructDefinition::check(Context& context) {
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
     : Expression(l), op(o), expr(std::move(e)) {}
 
-SType UnaryExpression::getType(const Context& context) {
+SType UnaryExpression::getType(Context& context) {
   nullable<SType> ret;
   auto right = expr->getType(context);
   ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName())};
@@ -663,6 +660,21 @@ SType UnaryExpression::getType(const Context& context) {
   else
     error.execute();
 }
+
+MoveExpression::MoveExpression(CodeLoc l, string id) : Expression(l), identifier(id) {
+}
+
+SType MoveExpression::getType(Context& context) {
+  if (!type) {
+    if (auto ret = context.getTypeOfVariable(identifier)) {
+      codeLoc.checkNoError(context.setVariableAsMoved(identifier));
+      type = ret.get_value()->getUnderlying();
+    } else
+      codeLoc.error(ret.get_error());
+  }
+  return type.get();
+}
+
 
 EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {
 }
@@ -730,7 +742,7 @@ void ImportStatement::addToContext(Context& s) {
   s.popImport();
 }
 
-nullable<SType> Expression::getDotOperatorType(Expression* left, const Context& callContext) {
+nullable<SType> Expression::getDotOperatorType(Expression* left, Context& callContext) {
   return nullptr;
 }
 
@@ -750,7 +762,7 @@ void EnumDefinition::check(Context& s) {
 EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(l), enumName(name), enumElement(element) {
 }
 
-SType EnumConstant::getType(const Context& context) {
+SType EnumConstant::getType(Context& context) {
   return context.getTypeFromString(IdentifierInfo(enumName)).get(codeLoc);
 }
 

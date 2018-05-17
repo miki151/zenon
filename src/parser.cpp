@@ -51,6 +51,14 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
             tokens.eat(Keyword::CLOSE_BRACKET);
             return ret;
           }
+          case Keyword::MOVE: {
+            tokens.popNext();
+            tokens.eat(Keyword::OPEN_BRACKET);
+            auto var = tokens.popNext();
+            tokens.eat(Keyword::CLOSE_BRACKET);
+            var.codeLoc.check(var.contains<IdentifierToken>(), "Expected variable identifier");
+            return unique<MoveExpression>(token.codeLoc, var.value);
+          } 
           case Keyword::FALSE:
           case Keyword::TRUE:
             tokens.popNext();

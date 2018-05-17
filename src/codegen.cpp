@@ -50,6 +50,10 @@ void Variable::codegen(Accu& accu, CodegenStage) const {
   accu.add(identifier);
 }
 
+void MoveExpression::codegen(Accu& accu, CodegenStage) const {
+  accu.add("std::move(" + identifier + ")");
+}
+
 void Expression::codegenDotOperator(Accu& accu, Node::CodegenStage stage, Expression* leftSide) const {
   accu.add("(");
   leftSide->codegen(accu, stage);
@@ -332,7 +336,7 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
       accu.add(";");
     }
     for (auto& member : type->getContext().getBottomLevelVariables())
-      accu.newLine(type->getContext().getTypeOfVariable(member)->getUnderlying()->getName() + " " + member + ";");
+      accu.newLine(type->getContext().getTypeOfVariable(member).get_value()->getUnderlying()->getName() + " " + member + ";");
     --accu.indent;
     accu.newLine("};");
   }
