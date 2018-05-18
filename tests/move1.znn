@@ -1,0 +1,15 @@
+// 5
+
+struct X {
+  int a;
+};
+
+template <T>
+T get(T a) {
+  T o = move(a);
+  return move(o);
+}
+
+int main() {
+  return get(X(5)).a;
+}

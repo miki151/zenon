@@ -584,7 +584,7 @@ void StructDefinition::addToContext(Context& context) {
           return false;
     return true;
   };
-  if (canCopyConstructAllMembers() && !context.canCopyConstruct(type.get()))
+  if (!external && canCopyConstructAllMembers() && !context.canCopyConstruct(type.get()))
     CHECK(!context.addCopyConstructorFor(type.get(), type->templateParams));
 }
 

@@ -1,0 +1,25 @@
+// 3
+
+embed {
+#include <memory>
+using std::unique_ptr;
+}
+
+
+template <T>
+extern struct unique_ptr {
+  T* get();
+};
+
+template <T>
+unique_ptr<T> unique(T t) {
+  embed {
+    return std::make_unique<T>(std::move(t));
+  }
+}
+
+int main() {
+  auto ptr = unique(3);
+  auto ptr2 = move(ptr);
+  return *ptr2.get();
+}

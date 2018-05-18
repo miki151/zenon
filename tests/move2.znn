@@ -1,0 +1,13 @@
+// no_compile
+
+template <T>
+T get(T a) {
+  if (false) {
+    move(a);
+  }
+  return move(a);
+}
+
+int main() {
+  return 0;
+}

@@ -1,0 +1,26 @@
+// 3
+
+embed {
+#include <memory>
+using std::shared_ptr;
+}
+
+
+template <T>
+extern struct shared_ptr {
+  T* get();
+  shared_ptr(shared_ptr<T>*);
+};
+
+template <T>
+shared_ptr<T> shared(T t) {
+  embed {
+    return std::make_shared<T>(std::move(t));
+  }
+}
+
+int main() {
+  auto ptr = shared(3);
+  auto ptr2 = ptr;
+  return *ptr2.get();
+}
