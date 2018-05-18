@@ -316,6 +316,7 @@ struct EmbedStatement : Statement {
   EmbedStatement(CodeLoc, string value);
   string value;
   bool isPublic = false;
+  bool isTopLevel = false;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override;

@@ -541,7 +541,7 @@ unique_ptr<Statement> parseEnumStatement(Tokens& tokens) {
   return ret;
 }
 
-unique_ptr<Statement> parseStatement(Tokens& tokens) {
+unique_ptr<Statement> parseStatement(Tokens& tokens, bool topLevel) {
   auto parseExpressionAndSemicolon = [&] {
     auto ret = parseExpression(tokens);
     tokens.eat(Keyword::SEMICOLON);
@@ -614,6 +614,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
       [&](EmbedToken) {
         auto text = token.value;
         auto ret = unique<EmbedStatement>(token.codeLoc, text);
+        ret->isTopLevel = topLevel;
         tokens.popNext();
         return ret;
       },
@@ -624,7 +625,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
 }
 
 unique_ptr<Statement> parseNonTopLevelStatement(Tokens& tokens) {
-  auto ret = parseStatement(tokens);
+  auto ret = parseStatement(tokens, false);
   ret->codeLoc.check(ret->allowTopLevel() != Statement::TopLevelAllowance::MUST,
       "Statement only allowed in the top level of the program");
   return ret;
@@ -633,7 +634,7 @@ unique_ptr<Statement> parseNonTopLevelStatement(Tokens& tokens) {
 unique_ptr<Statement> parseTopLevelStatement(Tokens& tokens) {
   if (tokens.empty())
     return nullptr;
-  auto statement = parseStatement(tokens);
+  auto statement = parseStatement(tokens, true);
   statement->codeLoc.check(statement->allowTopLevel() != Statement::TopLevelAllowance::CANT,
       "Statement not allowed in the top level of the program");
   return statement;
