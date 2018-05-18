@@ -26,7 +26,7 @@ class Context : public owned_object<Context> {
   void deepCopyFrom(const Context&);
   vector<FunctionType> getMissingFunctions(const Context&) const;
   WithError<SType> getTypeOfVariable(const string&) const;
-  optional<string> setVariableAsMoved(const string&) const;
+  optional<string> setVariableAsMoved(const string&);
   void addVariable(const string& ident, SType);
   const vector<string>& getBottomLevelVariables() const;
   void replace(SType from, SType to);
@@ -58,7 +58,7 @@ class Context : public owned_object<Context> {
   struct State : public owned_object<State> {
     map<string, SType> vars;
     vector<string> varsList;
-    set<string> movedVars;
+    mutable vector<string> movedVars;
     map<string, SType> types;
     map<FunctionId, vector<FunctionType>> functions;
     nullable<SType> returnType;

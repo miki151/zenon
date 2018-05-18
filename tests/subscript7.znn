@@ -1,9 +1,14 @@
 // 7
 
+template<T>
+concept can_copy {
+    T(T*);
+};
+
 struct X {
 };
 
-template <T>
+template <T> requires can_copy<T>
 T operator[](X x, T a) {
   return a;
 }

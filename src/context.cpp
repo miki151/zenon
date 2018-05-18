@@ -112,20 +112,22 @@ vector<FunctionType> Context::getMissingFunctions(const Context& required) const
 }
 
 WithError<SType> Context::getTypeOfVariable(const string& id) const {
-  auto var = getVariable(id);
-  if (!var)
-    return "Variable not found: " + id;
-  for (auto& state : getReversedStates())
-    if (state->movedVars.count(id))
+  for (auto& state : getReversedStates()) {
+    if (contains(state->movedVars, id))
       return "Variable has been moved: " + id;
-  return var.get();
+    if (state->vars.count(id))
+      return state->vars.at(id);
+  }
+  return "Variable not found: " + id;
 }
 
-optional<string> Context::setVariableAsMoved(const string& id) const {
-  if (!state->vars.count(id))
-    return "Variable is not in top-level context: " + id;
-  state->movedVars.insert(id);
-  return none;
+optional<string> Context::setVariableAsMoved(const string& id) {
+  for (auto& state : getReversedStates())
+    if (state->vars.count(id)) {
+      state->movedVars.push_back(id);
+      return none;
+    }
+  return "Variable not found: " + id;
 }
 
 void Context::addVariable(const string& ident, SType t) {

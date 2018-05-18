@@ -5,6 +5,6 @@ variant V2 {
   U u;
   template <X>
   X get(T t, U u, X x) {
-    return x;
+    return move(x);
   }
 };

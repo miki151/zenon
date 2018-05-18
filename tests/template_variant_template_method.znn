@@ -1,6 +1,11 @@
 // 4
 
-template <T>
+template<T>
+concept can_copy {
+    T(T*);
+};
+
+template <T> requires can_copy<T>
 variant V {
   T value;
   void null;

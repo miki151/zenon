@@ -593,9 +593,10 @@ unique_ptr<Statement> parseStatement(Tokens& tokens) {
             return parseImportStatement(tokens, false);
           case Keyword::OPEN_BRACKET:
             return parseExpressionAndSemicolon();
-          case Keyword::AUTO: {
+          case Keyword::AUTO:
             return parseVariableDeclaration(tokens);
-          }
+          case Keyword::MOVE:
+            return parseExpressionAndSemicolon();
           default:
             token.codeLoc.error("Unexpected keyword: " + quote(token.value));
             return {};

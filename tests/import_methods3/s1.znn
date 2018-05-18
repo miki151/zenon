@@ -1,7 +1,11 @@
 
+template<T>
+concept can_copy {
+  T(T*);
+};
 
 struct X {
-  template<T>
+  template<T> requires can_copy<T>
   int get(T u) {
     return v;
   }
@@ -10,7 +14,7 @@ struct X {
 };
 
 
-template <T>
+template <T> requires can_copy<T>
 struct Y {
   template<U>
   T get(U u) {

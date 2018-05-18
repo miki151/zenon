@@ -1,9 +1,13 @@
 
+template<T>
+concept can_copy {
+  T(T*);
+};
 
 template<T>
 struct X {
-  T get() {
-    return v;
+  T* get() {
+    return &v;
   }
 
   T v;

@@ -7,11 +7,9 @@ concept can_copy {
 
 template <T>
 struct X {
-  T get() {
-    return v;
+  T* get() {
+    return &v;
   }
-
-
   T v;
 };
 
@@ -23,5 +21,5 @@ void set(X<T>* x, T t) {
 int main() {
   auto x = X<int>(10);
   x.set(5);
-  return x.get();
+  return *x.get();
 }
