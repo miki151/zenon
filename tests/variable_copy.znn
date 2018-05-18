@@ -1,0 +1,8 @@
+// 5
+
+int main() {
+  int x = 5;
+  auto y = x;
+  y = 2;
+  return x;
+}

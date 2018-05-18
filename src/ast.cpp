@@ -116,7 +116,7 @@ void VariableDeclaration::check(Context& context) {
     if (type)
       return context.getTypeFromString(*type).get(codeLoc);
     else if (initExpr)
-      return initExpr->getType(context);
+      return initExpr->getType(context)->getUnderlying();
     else
       codeLoc.error("Initializing expression needed to infer variable type");
   };
