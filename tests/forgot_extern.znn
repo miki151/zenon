@@ -1,0 +1,11 @@
+// no_compile
+
+struct X {
+  void f();
+};
+
+int main() {
+  auto x = X();
+  x.f();
+  return 0;
+}

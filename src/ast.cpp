@@ -627,6 +627,8 @@ void StructDefinition::check(Context& context) {
     type->context.addVariable(member.name, ReferenceType::get(methodBodyContext.getTypeFromString(member.type).get(member.codeLoc)));
   }
   for (int i = 0; i < methods.size(); ++i) {
+    if (!external)
+      methods[i]->codeLoc.check(!!methods[i]->body, "Method body expected in non-extern struct");
     if (methods[i]->functionType->name.contains<SType>()) {
       checkConstructor(*type, methodBodyContext, *methods[i]);
       methods[i]->checkFunctionBody(staticFunContext, !templateInfo.params.empty());
