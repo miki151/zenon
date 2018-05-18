@@ -16,11 +16,11 @@ function compile() {
   ./zenon $1 -o $OUTPUT --cpp "clang++ $CLANG_OPT" 2> /dev/null
   RESULT=$?
   if [ "$RESULT" = "2" ]; then
-    echo -e "$RED C++ compilation failed$NC"
+    echo -e "$1: $RED C++ compilation failed$NC"
     return 1
   fi
   if [ "$RESULT" -gt "2" ]; then
-    echo -e "${RED} Compiler crashed$NC"
+    echo -e "$1: ${RED} Compiler crashed$NC"
     return 1
   fi
   if [ "$RESULT" != "$EXPECTED_RET" ]; then
@@ -39,9 +39,9 @@ BINARY_TMP=$(mktemp)
 
 for I in `ls tests/*.znn`; do 
   EXPECTED=`head -n 1 $I | cut -c 4-`
-  echo -n "Running $I Expecting: $EXPECTED"
+#echo -n "Running $I Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then
-    echo -e "$RED No expected value specified$NC"
+    echo -e "$I: $RED No expected value specified$NC"
     continue
   fi
   compile $I $EXPECTED $BINARY_TMP
@@ -49,23 +49,23 @@ for I in `ls tests/*.znn`; do
     continue
   fi
   if [ "$EXPECTED" = "no_compile" ]; then
-    echo -e "$GREEN Success$NC"
+#    echo -e "$GREEN Success$NC"
     continue
   fi
   $BINARY_TMP
   RESULT=$?
   if [ "$RESULT" != "$EXPECTED" ]; then
-    echo -e "$RED Expected $EXPECTED, got $RESULT$NC"
+    echo -e "$I: $RED Expected $EXPECTED, got $RESULT$NC"
     continue
   fi
-  echo -e "$GREEN Success$NC"
+#echo -e "$GREEN Success$NC"
 done
 
 for D in `ls -d tests/*/`; do
   EXPECTED=`head -n 1 $D/main.znn | grep "//"| cut -c 4-`
-  echo -n "Running directory $D Expecting: $EXPECTED"
+#echo -n "Running directory $D Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then
-    echo -e "$RED No expected value specified$NC"
+    echo -e "$D: $RED No expected value specified$NC"
     continue
   fi
    OBJECTS=""
@@ -81,7 +81,7 @@ for D in `ls -d tests/*/`; do
       continue 2
     fi
     if [ "$EXPECTED" = "no_compile" ]; then
-      echo -e "$GREEN Success$NC"
+#echo -e "$GREEN Success$NC"
       continue 2
     fi
     OBJECTS="$OBJECTS $OPATH"
@@ -91,10 +91,10 @@ for D in `ls -d tests/*/`; do
   $BINARY_TMP
   RESULT=$?
   if [ "$RESULT" != "$EXPECTED" ]; then
-    echo -e "$RED Expected $EXPECTED, got $RESULT$NC"
+    echo -e "$D: $RED Expected $EXPECTED, got $RESULT$NC"
     continue
   fi
-  echo -e "$GREEN Success$NC"
+#echo -e "$GREEN Success$NC"
   rm $OPATH
 done
 
