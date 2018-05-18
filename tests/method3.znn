@@ -3,6 +3,7 @@
 struct X {
   int a;
   int a() {
+    return 1;
   }
 };
 

@@ -57,7 +57,7 @@ int main() {
   auto x = value(z);
   auto y = value(X<bool>(true));
   auto v2 = V2<X<int>,X<bool>>::e1(x);
-  int a = 1;
+  mutable a = 1;
   if (equal(v2, z))
     a = a + 1;
   return a;

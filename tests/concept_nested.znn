@@ -13,7 +13,7 @@ concept CanAdd2 {
 };
 
 template <A> requires CanAdd2<A>
-void times2(A* a) {
+void times2(mutable A* a) {
   *a = *a + *a;
 }
 
@@ -23,12 +23,12 @@ struct S {
 };
 
 template <A> requires CanAdd<A>
-void t2(S<A>* s) {
+void t2(mutable S<A>* s) {
   times2(&(*s).a);
 }
 
 int main() {
-  S<int> s = S<int>(1);
+  mutable s = S<int>(1);
   s.t2();
   return s.a;
 }

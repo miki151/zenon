@@ -7,9 +7,9 @@ struct V {
 
 
 int main() {
-  auto a = V<int>(1);
-  auto b = V<int>(2);
-  auto c = V<bool>(3);
+  mutable a = V<int>(1);
+  mutable b = V<int>(2);
+  mutable c = V<bool>(3);
   b = a;
   c = a;
   return 0;

@@ -182,13 +182,14 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
   }
   tokens.eat(Keyword::OPEN_BRACKET);
   while (1) {
-    if (auto keyword = tokens.peek("function parameter").getReferenceMaybe<Keyword>()) {
-      if (*keyword == Keyword::CLOSE_BRACKET) {
-        tokens.popNext("function parameter");
-        break;
-      } else
-        tokens.eat(Keyword::COMMA);
-    }
+    if (auto keyword = tokens.peek("function parameter").getReferenceMaybe<Keyword>())
+      if (keyword != Keyword::MUTABLE) {
+        if (*keyword == Keyword::CLOSE_BRACKET) {
+          tokens.popNext("function parameter");
+          break;
+        } else
+          tokens.eat(Keyword::COMMA);
+      }
     auto typeId = IdentifierInfo::parseFrom(tokens, true);
     optional<string> paramName;
     auto nameToken = tokens.peek("identifier");
@@ -463,23 +464,23 @@ unique_ptr<SwitchStatement> parseSwitchStatement(Tokens& tokens) {
 unique_ptr<Statement> parseVariableDeclaration(Tokens& tokens) {
   auto typeLoc = tokens.peek().codeLoc;
   optional<IdentifierInfo> type;
-  if (!tokens.eatMaybe(Keyword::AUTO))
+  bool isMutable = false;
+  if (tokens.eatMaybe(Keyword::MUTABLE))
+    isMutable = true;
+  else if (!tokens.eatMaybe(Keyword::AUTO))
     type = IdentifierInfo::parseFrom(tokens, true);
   auto token2 = tokens.peek("identifier");
   if (token2.contains<IdentifierToken>() || token2 == Keyword::OPERATOR) {
     tokens.popNext("identifier");
-    if (tokens.peek("variable or function declaration") == Keyword::OPEN_BRACKET || token2 == Keyword::OPERATOR) {
-      tokens.rewind();
-      typeLoc.check(!!type, "Auto return type not supported for functions");
-      return parseFunctionDefinition(*type, tokens);
-    }
     unique_ptr<Expression> initExpression;
     if (tokens.peek("expression or " + quote(";")) != Keyword::SEMICOLON) {
       tokens.eat(Operator::ASSIGNMENT);
       initExpression = parseExpression(tokens);
     }
     tokens.eat(Keyword::SEMICOLON);
-    return unique<VariableDeclaration>(typeLoc, type, token2.value, std::move(initExpression));
+    auto ret = unique<VariableDeclaration>(typeLoc, type, token2.value, std::move(initExpression));
+    ret->isMutable = isMutable;
+    return ret;
   } else
     return {};
 }
@@ -593,6 +594,11 @@ unique_ptr<Statement> parseStatement(Tokens& tokens, bool topLevel) {
             return parseImportStatement(tokens, false);
           case Keyword::OPEN_BRACKET:
             return parseExpressionAndSemicolon();
+          case Keyword::MUTABLE:
+            if (topLevel)
+              return parseFunctionDefinition(IdentifierInfo::parseFrom(tokens, true), tokens);
+            else
+              return parseVariableDeclaration(tokens);
           case Keyword::AUTO:
             return parseVariableDeclaration(tokens);
           case Keyword::MOVE:
@@ -603,12 +609,16 @@ unique_ptr<Statement> parseStatement(Tokens& tokens, bool topLevel) {
         }
       },
       [&](const IdentifierToken&) -> unique_ptr<Statement> {
-        auto bookmark = tokens.getBookmark();
-        if (auto decl = parseVariableDeclaration(tokens))
-          return decl;
+        if (topLevel)
+          return parseFunctionDefinition(IdentifierInfo::parseFrom(tokens, true), tokens);
         else {
-          tokens.rewind(bookmark);
-          return parseExpressionAndSemicolon();
+          auto bookmark = tokens.getBookmark();
+          if (auto decl = parseVariableDeclaration(tokens))
+            return decl;
+          else {
+            tokens.rewind(bookmark);
+            return parseExpressionAndSemicolon();
+          }
         }
       },
       [&](EmbedToken) {

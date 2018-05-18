@@ -9,7 +9,7 @@ struct X {
 
 int main() {
   X x = X(1);
-  auto u = x.a;
+  mutable u = x.a;
   u = x.b;
   return 0;
 }

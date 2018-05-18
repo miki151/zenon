@@ -63,8 +63,10 @@ SType BinaryExpression::getType(Context& context) {
   switch (op) {
     case Operator::MEMBER_ACCESS: {
       if (auto rightType = rightExpr.getDotOperatorType(&leftExpr, context)) {
-        if (!left.dynamicCast<ReferenceType>())
+        if (!left.dynamicCast<ReferenceType>() && !left.dynamicCast<MutableReferenceType>())
           rightType = rightType->getUnderlying();
+        else if (left.dynamicCast<ReferenceType>() && rightType.get().dynamicCast<MutableReferenceType>())
+          rightType = ReferenceType::get(rightType->getUnderlying());
         return rightType.get();
       } else
         codeLoc.error("Bad use of operator " + quote("."));
@@ -124,13 +126,14 @@ void VariableDeclaration::check(Context& context) {
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (initExpr) {
     auto exprType = initExpr->getType(context);
-    initExpr->codeLoc.check(ReferenceType::get(realType.get())->canAssign(exprType), "Can't initialize variable of type "
+    initExpr->codeLoc.check(MutableReferenceType::get(realType.get())->canAssign(exprType), "Can't initialize variable of type "
         + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
     initExpr->codeLoc.check(!exprType.dynamicCast<ReferenceType>() || context.canCopyConstruct(exprType->getUnderlying()),
         "Type " + quote(exprType->getUnderlying()->getName()) + " is not copy-constructible");
   } else
     codeLoc.check(context.canConstructWith(realType.get(), {}), "Type " + quote(realType->getName()) + " requires initialization");
-  context.addVariable(identifier, ReferenceType::get(realType.get()));
+  auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
+  context.addVariable(identifier, std::move(varType));
 }
 
 void ReturnStatement::check(Context& context) {
@@ -141,7 +144,7 @@ void ReturnStatement::check(Context& context) {
     auto returnType = expr->getType(context);
     codeLoc.check(!returnType.dynamicCast<ReferenceType>() || context.canCopyConstruct(returnType->getUnderlying()),
         "Type " + quote(returnType->getUnderlying()->getName()) + " is not copy-constructible");
-    if (!ReferenceType::get(context.getReturnType().get())->canAssign(returnType)) {
+    if (!MutableReferenceType::get(context.getReturnType().get())->canAssign(returnType)) {
       expr = context.getReturnType()->getConversionFrom(std::move(expr), context);
       codeLoc.check(!!expr,
           "Attempting to return value of type "s + quote(returnType->getName()) +
@@ -345,8 +348,8 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
       if (res && functionType)
         codeLoc.error("Ambigous method call:\nCandidate: " + functionType->toString() + "\nCandidate: " + res->toString());
       res.unpack(functionType, error);
-      if (leftType.get().dynamicCast<ReferenceType>()) {
-        leftType = PointerType::get(leftType->getUnderlying());
+      if (leftType.get().dynamicCast<ReferenceType>() || leftType.get().dynamicCast<MutableReferenceType>()) {
+        leftType = leftType.get().dynamicCast<MutableReferenceType>() ? SType(MutablePointerType::get(leftType->getUnderlying())) : SType(PointerType::get(leftType->getUnderlying()));
         auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
         if (res)
           callType = MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
@@ -371,38 +374,44 @@ SType FunctionCallNamedArgs::getType(Context& context) {
 nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, Context& callContext) {
   const auto& leftContext = left ? left->getType(callContext)->getContext() : callContext;
   optional<ErrorLoc> error = ErrorLoc{codeLoc, "Function not found: " + identifier.toString()};
-  nullable<SType> leftType;
-  if (left) {
-    leftType = left->getType(callContext);
-    callType = MethodCallType::METHOD;
-  }
-  optional<vector<ArgMatching>> matchings;
-  matchArgs(leftContext, callContext, false).unpack(matchings, error);
-  if (matchings)
-    for (auto& matching : *matchings) {
-      callContext.instantiateFunctionTemplate(codeLoc, matching.function, identifier, matching.args, matching.codeLocs)
-          .unpack(functionType, error);
-      if (functionType)
-        break;
+  if (!functionType) {
+    nullable<SType> leftType;
+    if (left) {
+      leftType = left->getType(callContext);
+      callType = MethodCallType::METHOD;
     }
-  if (leftType) {
-    matchArgs(callContext, callContext, true).unpack(matchings, error);
-    if (matchings) {
-      auto tryMethodCall = [&] (MethodCallType thisCallType) {
-        for (auto& matching : *matchings) {
-          auto res = callContext.instantiateFunctionTemplate(codeLoc, matching.function, identifier,
-              concat({leftType.get()}, matching.args), concat({left->codeLoc}, matching.codeLocs));
-          if (res)
-            callType = thisCallType;
-          if (res && functionType)
-            codeLoc.error("Ambigous method call:\nCandidate: " + functionType->toString() + "\nCandidate: " + res->toString());
-          res.unpack(functionType, error);
+    optional<vector<ArgMatching>> matchings;
+    matchArgs(leftContext, callContext, false).unpack(matchings, error);
+    if (matchings)
+      for (auto& matching : *matchings) {
+        callContext.instantiateFunctionTemplate(codeLoc, matching.function, identifier, matching.args, matching.codeLocs)
+            .unpack(functionType, error);
+        if (functionType)
+          break;
+      }
+    if (leftType) {
+      matchArgs(callContext, callContext, true).unpack(matchings, error);
+      if (matchings) {
+        auto tryMethodCall = [&] (MethodCallType thisCallType) {
+          for (auto& matching : *matchings) {
+            auto res = callContext.instantiateFunctionTemplate(codeLoc, matching.function, identifier,
+                concat({leftType.get()}, matching.args), concat({left->codeLoc}, matching.codeLocs));
+            if (res)
+              callType = thisCallType;
+            if (res && functionType)
+              codeLoc.error("Ambigous method call:\nCandidate: " + functionType->toString() + "\nCandidate: " + res->toString());
+            res.unpack(functionType, error);
+          }
+        };
+        tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
+        if (leftType.get().dynamicCast<ReferenceType>()) {
+          leftType = PointerType::get(leftType->getUnderlying());
+          tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
         }
-      };
-      tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
-      if (leftType.get().dynamicCast<ReferenceType>()) {
-        leftType = PointerType::get(leftType->getUnderlying());
-        tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
+        if (leftType.get().dynamicCast<MutableReferenceType>()) {
+          leftType = MutablePointerType::get(leftType->getUnderlying());
+          tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
+        }
       }
     }
   }
@@ -624,7 +633,7 @@ void StructDefinition::check(Context& context) {
   applyConcept(methodBodyContext, templateInfo, type->templateParams);
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
-    type->context.addVariable(member.name, ReferenceType::get(methodBodyContext.getTypeFromString(member.type).get(member.codeLoc)));
+    type->context.addVariable(member.name, MutableReferenceType::get(methodBodyContext.getTypeFromString(member.type).get(member.codeLoc)));
   }
   for (int i = 0; i < methods.size(); ++i) {
     if (!external)

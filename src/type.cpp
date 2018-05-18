@@ -16,11 +16,19 @@ ArithmeticType::ArithmeticType(const string& name) : name(name) {
 }
 
 string ReferenceType::getName(bool withTemplateArguments) const {
-  return underlying->getName(withTemplateArguments) + "&";
+  return "const reference(" + underlying->getName(withTemplateArguments) + ")";
+}
+
+string MutableReferenceType::getName(bool withTemplateArguments) const {
+  return "mutable reference(" + underlying->getName(withTemplateArguments) + ")";
 }
 
 string PointerType::getName(bool withTemplateArguments) const {
-  return underlying->getName(withTemplateArguments) + "*";
+  return "const pointer(" + underlying->getName(withTemplateArguments) + ")";
+}
+
+string MutablePointerType::getName(bool withTemplateArguments) const {
+  return "mutable pointer(" + underlying->getName(withTemplateArguments) + ")";
 }
 
 string StructType::getName(bool withTemplateArguments) const {
@@ -80,11 +88,15 @@ string FunctionType::toString() const {
       combine(transform(params, [](const Param& t) { return t.type->getName(); }), ", ") + ")";
 }
 
-SType Type::getUnderlying() {
+SType Type::getUnderlying() const {
   return get_this().get();
 }
 
-SType ReferenceType::getUnderlying() {
+SType ReferenceType::getUnderlying() const {
+  return underlying;
+}
+
+SType MutableReferenceType::getUnderlying() const {
   return underlying;
 }
 
@@ -95,8 +107,6 @@ shared_ptr<ReferenceType> ReferenceType::get(SType type) {
     generated.insert({type, ret});
     CHECK(!ret->context.addFunction(
         FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION, PointerType::get(type), {}, {})));
-    CHECK(!ret->context.addFunction(
-        FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION, ret, {{"right side"s, type}}, {})));
   }
   return generated.at(type);
 }
@@ -105,16 +115,49 @@ ReferenceType::ReferenceType(SType t) : underlying(t->getUnderlying()) {
   context.merge(underlying->getContext());
 }
 
+shared_ptr<MutableReferenceType> MutableReferenceType::get(SType type) {
+  static map<SType, shared_ptr<MutableReferenceType>> generated;
+  if (!generated.count(type)) {
+    auto ret = shared<MutableReferenceType>(type);
+    generated.insert({type, ret});
+    CHECK(!ret->context.addFunction(
+        FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION, MutablePointerType::get(type), {}, {})));
+    CHECK(!ret->context.addFunction(
+        FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION, ret, {{"right side"s, type}}, {})));
+  }
+  return generated.at(type);
+}
+
+MutableReferenceType::MutableReferenceType(SType t) : underlying(t) {
+  context.merge(underlying->getContext());
+}
+
 shared_ptr<PointerType> PointerType::get(SType type) {
   static map<SType, shared_ptr<PointerType>> generated;
-  if (!generated.count(type))
-    generated.insert({type, shared<PointerType>(type)});
+  if (!generated.count(type)) {
+    auto ret = shared<PointerType>(type);
+    generated.insert({type, ret});
+    CHECK(!ret->context.addFunction(
+        FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION, ReferenceType::get(type), {}, {})));
+  }
   return generated.at(type);
 }
 
 PointerType::PointerType(SType t) : underlying(t->getUnderlying()) {
-  CHECK(!context.addFunction(
-      FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION, ReferenceType::get(t), {}, {})));
+}
+
+shared_ptr<MutablePointerType> MutablePointerType::get(SType type) {
+  static map<SType, shared_ptr<MutablePointerType>> generated;
+  if (!generated.count(type)) {
+    auto ret = shared<MutablePointerType>(type);
+    generated.insert({type, ret});
+    CHECK(!ret->context.addFunction(
+        FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION, MutableReferenceType::get(type), {}, {})));
+  }
+  return generated.at(type);
+}
+
+MutablePointerType::MutablePointerType(SType t) : underlying(t->getUnderlying()) {
 }
 
 bool Type::canAssign(SType from) const{
@@ -129,6 +172,14 @@ bool PointerType::isBuiltinCopyable() const {
   return true;
 }
 
+unique_ptr<Expression> PointerType::getConversionFrom(unique_ptr<Expression> expr, Context& callContext) const {
+  SType from = expr->getType(callContext);
+  if (auto t = from.dynamicCast<MutablePointerType>())
+    return expr;
+  else
+    return nullptr;
+}
+
 bool EnumType::isBuiltinCopyable() const {
   return true;
 }
@@ -138,6 +189,10 @@ unique_ptr<Expression> Type::getConversionFrom(unique_ptr<Expression> expr, Cont
 }
 
 bool ReferenceType::canAssign(SType from) const {
+  return false;
+}
+
+bool MutableReferenceType::canAssign(SType from) const {
   return underlying == from->getUnderlying();
 }
 
@@ -150,6 +205,10 @@ shared_ptr<StructType> StructType::get(Kind kind, string name) {
 }
 
 void ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc, bool isReference) const {
+  underlying->handleSwitchStatement(statement, context, codeLoc, false);
+}
+
+void MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc, bool isReference) const {
   underlying->handleSwitchStatement(statement, context, codeLoc, true);
 }
 
@@ -197,9 +256,10 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
       caseElem.varType = caseElem.VALUE;
     if (caseElem.type) {
       auto t = outsideContext.getTypeFromString(*caseElem.type).get(caseElem.type->codeLoc);
-      caseElem.type->codeLoc.check(t == realType || t == PointerType::get(realType), "Can't handle variant element "
+      caseElem.type->codeLoc.check(t == realType || t == MutablePointerType::get(realType),
+          "Can't handle variant element "
           + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(t->getName()));
-      if (t == PointerType::get(realType)) {
+      if (t == MutablePointerType::get(realType)) {
         caseElem.varType = caseElem.POINTER;
         caseElem.type->codeLoc.check(isReference, "Can't bind element to pointer when switching on a non-reference variant");
         caseElem.type->codeLoc.check(realType != ArithmeticType::VOID, "Can't bind void element to pointer");
@@ -208,7 +268,7 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
     if (caseElem.varType == caseElem.VALUE)
       caseBodyContext.addVariable(caseElem.id, ReferenceType::get(realType));
     else if (caseElem.varType == caseElem.POINTER)
-      caseBodyContext.addVariable(caseElem.id, PointerType::get(realType));
+      caseBodyContext.addVariable(caseElem.id, MutablePointerType::get(realType));
     caseElem.block->check(caseBodyContext);
   }
   if (!statement.defaultBlock) {
@@ -273,8 +333,16 @@ SType ReferenceType::replace(SType from, SType to) const {
   return ReferenceType::get(underlying->replace(from, to));
 }
 
+SType MutableReferenceType::replace(SType from, SType to) const {
+  return MutableReferenceType::get(underlying->replace(from, to));
+}
+
 SType PointerType::replace(SType from, SType to) const {
   return PointerType::get(underlying->replace(from, to));
+}
+
+SType MutablePointerType::replace(SType from, SType to) const {
+  return MutablePointerType::get(underlying->replace(from, to));
 }
 
 static void checkNonVoidMember (const SType& type, const SType& to) {
@@ -380,11 +448,11 @@ static string getCantBindError(const SType& from, const SType& to) {
 }
 
 static optional<string> getDeductionError(const Context& context, TypeMapping& mapping, SType paramType, SType argType) {
-  if (auto refType = argType.dynamicCast<ReferenceType>()) {
-    if (context.canCopyConstruct(refType->underlying))
-      argType = refType->underlying;
+  if (argType.dynamicCast<ReferenceType>() || argType.dynamicCast<MutableReferenceType>()) {
+    if (context.canCopyConstruct(argType->getUnderlying()))
+      argType = argType->getUnderlying();
     else
-      return "Type " + quote(refType->underlying->getName()) + " cannot be copied.";
+      return "Type " + quote(argType->getUnderlying()->getName()) + " cannot be copied.";
   }
   if (auto index = mapping.getParamIndex(paramType)) {
     auto& arg = mapping.templateArgs.at(*index);
@@ -409,10 +477,31 @@ optional<string> StructType::getMappingError(const Context& context, TypeMapping
 optional<string> PointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
   if (auto argPointer = argType.dynamicCast<PointerType>())
     return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+  if (auto argPointer = argType.dynamicCast<MutablePointerType>())
+    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
   return "Can't bind non-pointer type " + quote(argType->getName()) + " to type " + quote(getName());
 }
 
+optional<string> MutablePointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+  if (auto argPointer = argType->getUnderlying().dynamicCast<PointerType>())
+    return "Can't bind type " + quote(argType->getName()) + " to mutable pointer type " + getName();
+  if (auto argPointer = argType.dynamicCast<MutablePointerType>())
+    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+  return "Can't bind non-pointer type " + quote(argType->getName()) + " to type " + quote(getName());
+}
+
+bool MutablePointerType::isBuiltinCopyable() const {
+  return true;
+}
+
 optional<string> ReferenceType::getMappingError(const Context&, TypeMapping&, SType from) const {
+  if (from == get_this().get() || underlying == from)
+    return none;
+  else
+    return getCantBindError(from, get_this().get());
+}
+
+optional<string> MutableReferenceType::getMappingError(const Context&, TypeMapping&, SType from) const {
   if (from == get_this().get() || underlying == from)
     return none;
   else

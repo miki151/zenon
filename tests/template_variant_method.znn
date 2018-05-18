@@ -22,7 +22,7 @@ variant V {
 };
 
 int main() {
-  auto v = V<int>::value(5);
+  mutable v = V<int>::value(5);
   v = V<int>::null();
   return v.getValueOr(4);
 }

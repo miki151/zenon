@@ -14,6 +14,9 @@ IdentifierInfo::IdentifierInfo(IdentifierInfo::IdentifierPart part) : parts(1, p
 
 IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
   IdentifierInfo ret;
+  bool isMutable = false;
+  if (tokens.eatMaybe(Keyword::MUTABLE))
+    isMutable = true;
   while (1) {
     ret.parts.emplace_back();
     auto token = tokens.popNext("identifier");
@@ -35,7 +38,7 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
         }
         if (templateParamToken == Operator::MORE_THAN)
           break;
-        if (templateParamToken.contains<IdentifierToken>()) {
+        if (templateParamToken.contains<IdentifierToken>() || templateParamToken == Keyword::MUTABLE) {
           tokens.rewind();
           ret.parts.back().templateArguments.push_back(IdentifierInfo::parseFrom(tokens, true));
           if (tokens.peek("template parameter") != Operator::MORE_THAN)
@@ -51,7 +54,9 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
       break;
   }
   if (allowPointer && tokens.eatMaybe(Operator::MULTIPLY))
-    ret.pointer = true;
+    ret.pointerType = isMutable ? MUTABLE : CONST;
+  else
+    ret.codeLoc.check(!isMutable, "Expected mutable pointer type");
   INFO << "Identifier " << ret.toString();
   return ret;
 }
@@ -71,8 +76,15 @@ string IdentifierInfo::toString() const {
       ret.append("::");
     ret.append(part.toString());
   }
-  if (pointer)
-    ret.append("*");
+  if (pointerType)
+    switch (*pointerType) {
+      case MUTABLE:
+        ret.append("*");
+        break;
+      case CONST:
+        ret = "const " + ret + "*";
+        break;
+    }
   return ret;
 }
 

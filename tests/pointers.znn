@@ -6,7 +6,7 @@ concept can_copy {
 };
 
 template<T> requires can_copy<T>
-void set(T* x, T y) {
+void set(mutable T* x, T y) {
   *x = y;
 }
 
@@ -16,14 +16,14 @@ struct X {
 };
 
 int main() {
-  int x = 0;
-  bool a = true;
-  int* y = &x;
+  mutable x = 0;
+  mutable a = true;
+  auto y = &x;
   (x) = 1;
   set(y, 5);
   set(&a, false);
-  X x1 = X(&x, *y);
-  X* x2 = &x1;
+  mutable x1 = X(&x, *y);
+  auto x2 = &x1;
   (*x2).a = y;
   *y = -(*x2).b + 20;
   return *(*x2).a;

@@ -7,7 +7,7 @@ struct X {
 };
 
 int main() {
-  X x;
+  mutable x = X();
   x = X(6);
   return x.value;
 }

@@ -14,12 +14,12 @@ struct X {
 };
 
 template<T> requires can_copy<T>
-void set(X<T>* x, T t) {
+void set(mutable X<T>* x, T t) {
   (*x).v = t;
 }
 
 int main() {
-  auto x = X<int>(10);
+  mutable x = X<int>(10);
   x.set(5);
   return *x.get();
 }

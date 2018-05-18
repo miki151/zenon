@@ -7,7 +7,7 @@ concept CanAdd {
 };
 
 template <T> requires CanAdd<T>
-void increment(T* a, T b) {
+void increment(mutable T* a, T b) {
   *a = *a + b;
 }
 
@@ -20,9 +20,9 @@ A operator + (A a1, A a2) {
 }
 
 int main() {
-  int x = 2;
+  mutable x = 2;
   x.increment(3);
-  auto a = A(4);
+  mutable a = A(4);
   a.increment({b = A(5)});
   return x + a.v;
 }

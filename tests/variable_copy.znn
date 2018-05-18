@@ -2,7 +2,7 @@
 
 int main() {
   int x = 5;
-  auto y = x;
+  mutable y = x;
   y = 2;
   return x;
 }

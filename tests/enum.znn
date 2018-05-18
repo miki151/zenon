@@ -13,7 +13,7 @@ enum E2 {
 
 int main() {
   auto e1 = E1::VALUE1;
-  int x = 1;
+  mutable x = 1;
   switch (e1) {
     case (VALUE1) {
       return 1;

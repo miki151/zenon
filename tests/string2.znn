@@ -9,7 +9,7 @@ int main() {
   char c1 = getString()[0];
   char c2 = s[1];
   char c3 = "abcdefghijkl"[1 + 2 * 3];
-  auto ret = 0;
+  mutable ret = 0;
   if (c1 == 'w')
     ret = ret + 1;
   if (c2 == 'o')

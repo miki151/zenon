@@ -9,7 +9,7 @@ A f() {
 }
 
 int main() {
-  auto a = A(1);
+  mutable a = A(1);
   a.x = 5;
   return a.x;
 }

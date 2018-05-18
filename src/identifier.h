@@ -19,7 +19,11 @@ struct IdentifierInfo {
   static IdentifierInfo parseFrom(Tokens&, bool allowPointer);
   IdentifierInfo getWithoutFirstPart() const;
   vector<IdentifierPart> parts;
-  bool pointer = false;
+  enum PointerType {
+    MUTABLE,
+    CONST
+  };
+  optional<PointerType> pointerType;
   CodeLoc codeLoc;
   string toString() const;
   bool operator == (const IdentifierInfo&) const;

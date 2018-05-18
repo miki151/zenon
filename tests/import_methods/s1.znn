@@ -19,7 +19,7 @@ concept can_copy {
 };
 
 template<T> requires can_copy<T>
-void set(X<T>* x, T t) {
+void set(mutable X<T>* x, T t) {
   (*x).v = t;
 }
 

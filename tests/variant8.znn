@@ -8,15 +8,15 @@ variant V {
   A4 a4;
 };
 
-int getValue(V<bool, int*, string, char>* w) {
+int getValue(mutable V<bool, mutable int*, string, char>* w) {
   switch (*w) {
     case (bool a1) {
       return 1;
     }
-    case (string* a3) {
+    case (mutable string* a3) {
       *a3 = "pok";
     }
-    case (int* a2) {
+    case (mutable int* a2) {
       *a2 = 4;
     }
     default {
@@ -24,7 +24,7 @@ int getValue(V<bool, int*, string, char>* w) {
     }
   }
   switch (*w) {
-    case (string* a3) {
+    case (mutable string* a3) {
       if (*a3 == "pok")
         return 5;
       else
@@ -37,8 +37,8 @@ int getValue(V<bool, int*, string, char>* w) {
 }
 
 int main() {
-  int a = 5;
-  auto v = V<bool, int*, string, char>::a2(&a);
+  mutable a = 5;
+  mutable v = V<bool, mutable int*, string, char>::a2(&a);
   getValue(&v);
   return a;
 }

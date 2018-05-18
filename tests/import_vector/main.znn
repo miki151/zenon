@@ -3,10 +3,10 @@ import "vector.znn"
 
 int main() {
   auto v = vector<int>();
-  for (int i = 0; i < 6; i = i + 1)
+  for (mutable i = 0; i < 6; i = i + 1)
     v.push_back(i);
-  int sum = 0;
-  for (int i = 0; i < v.size(); i = i + 1)
+  mutable sum = 0;
+  for (mutable i = 0; i < v.size(); i = i + 1)
     sum = sum + i;
   return sum;
 }

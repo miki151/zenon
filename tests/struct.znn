@@ -9,7 +9,7 @@ int main() {
   A a1 = A(1, true);
   A a2 = A(2, false);
   A a3 = A(3, true);
-  int x = 0;
+  mutable x = 0;
   if (a1.b)
     x = x + a1.x;
   if (a2.b)

@@ -15,7 +15,7 @@ struct SwitchStatement;
 
 struct Type : public owned_object<Type> {
   virtual string getName(bool withTemplateArguments = true) const = 0;
-  virtual SType getUnderlying();
+  virtual SType getUnderlying() const;
   virtual bool canAssign(SType from) const;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const;
   virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, Context& callContext) const;
@@ -47,7 +47,7 @@ struct ArithmeticType : public Type {
 
 struct ReferenceType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
-  virtual SType getUnderlying() override;
+  virtual SType getUnderlying() const override;
   virtual bool canAssign(SType from) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replace(SType from, SType to) const override;
@@ -58,16 +58,40 @@ struct ReferenceType : public Type {
   ReferenceType(SType);
 };
 
+struct MutableReferenceType : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual SType getUnderlying() const override;
+  virtual bool canAssign(SType from) const override;
+  virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
+  virtual SType replace(SType from, SType to) const override;
+  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
+
+  static shared_ptr<MutableReferenceType> get(SType);
+  MutableReferenceType(SType);
+  SType underlying;
+};
+
 struct PointerType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual SType replace(SType from, SType to) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyable() const override;
+  virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, Context& callContext) const override;
 
   static shared_ptr<PointerType> get(SType);
 
   SType underlying;
   PointerType(SType);
+};
+
+struct MutablePointerType : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual SType replace(SType from, SType to) const override;
+  virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual bool isBuiltinCopyable() const override;
+  static shared_ptr<MutablePointerType> get(SType);
+  MutablePointerType(SType);
+  SType underlying;
 };
 
 struct TemplateParameterType : public Type {

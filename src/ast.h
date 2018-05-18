@@ -132,6 +132,7 @@ struct VariableDeclaration : Statement {
   nullable<SType> realType;
   string identifier;
   unique_ptr<Expression> initExpr;
+  bool isMutable = false;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };

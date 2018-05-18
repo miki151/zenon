@@ -265,8 +265,15 @@ WithError<SType> Context::getTypeFromString(IdentifierInfo id) const {
   if (!topType)
     return "Type not found: " + quote(name);
   auto ret = topType->instantiate(*this, getTypeList(id.parts.at(0).templateArguments));
-  if (ret && id.pointer)
-    *ret = PointerType::get(*ret);
+  if (ret && id.pointerType)
+    switch (*id.pointerType) {
+      case IdentifierInfo::CONST:
+        *ret = PointerType::get(*ret);
+        break;
+      case IdentifierInfo::MUTABLE:
+        *ret = MutablePointerType::get(*ret);
+        break;
+    }
   return ret;
 }
 

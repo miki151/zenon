@@ -7,7 +7,7 @@ int sum(int a, int b) {
 int main() {
   auto b = true;
   if (b) {
-    int x = sum(3, 4);
+    mutable x = sum(3, 4);
     x = x + sum({a = 32, b = -30});
     return x;
   }

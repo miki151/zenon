@@ -16,7 +16,7 @@ X operator + (X x, X a) {
 
 int main() {
   auto x1 = X(5);
-  auto x2 = X(&x1);
+  mutable x2 = X(&x1);
   x2 = x1 + x2;
   x2 = x2 + 17;
   return x2.value;

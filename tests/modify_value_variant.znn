@@ -10,8 +10,8 @@ V getV() {
 }
 
 int main() {
-  auto v = V::i(5);
-  switch (getV()) {
+  mutable v = V::i(5);
+  switch (v) {
     case (string s) {
       s = "pak";
     }

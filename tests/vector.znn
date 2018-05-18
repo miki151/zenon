@@ -20,10 +20,10 @@ extern struct vector {
 
 int main() {
   vector<int> v;
-  for (int i = 0; i < 6; i = i + 1)
+  for (mutable i = 0; i < 6; i = i + 1)
     v.push_back(i * i);
-  int sum = 0;
-  for (int i = 0; i < v.size(); i = i + 1)
+  mutable sum = 0;
+  for (mutable i = 0; i < v.size(); i = i + 1)
     sum = sum + v[i];
   return sum;
 }
