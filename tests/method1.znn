@@ -1,26 +1,26 @@
 // 11
 
 struct A {
-  int f(bool b) {
-    if (b)
-      return 1 + g(1);
-    else
-      return x;
-  }
-
-  int g(int a) {
-    return f(a == 0);
-  }
-
-  void set(int a) {
-    x = a;
-  }
-
   int x;
 };
 
+int f(A* a, bool b) {
+  if (b)
+    return 1 + g(a, 1);
+  else
+    return (*a).x;
+}
+
+int g(A* self, int a) {
+  return f(self, a == 0);
+}
+
+void set(mutable A* self, int a) {
+  (*self).x = a;
+}
+
 int main() {
-  auto a = A(5);
+  mutable a = A(5);
   a.set(10);
   return a.f(true);
 }

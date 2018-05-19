@@ -105,7 +105,10 @@ void StatementBlock::codegen(Accu& accu, CodegenStage stage) const {
 
 void VariableDeclaration::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage == DEFINE);
-  accu.add(realType.get()->getName() + " " + identifier);
+  accu.add(realType.get()->getName() + " ");
+  if (!isMutable)
+    accu.add("const ");
+  accu.add(identifier);
   if (initExpr) {
     accu.add(" = ");
     initExpr->codegen(accu, stage);

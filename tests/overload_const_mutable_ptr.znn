@@ -1,0 +1,24 @@
+// 41
+
+
+template <T>
+struct X {
+  T t1;
+  T t2;
+};
+
+template <T>
+mutable T* get(mutable X<T>* t) {
+  return &(*t).t1;
+}
+
+template <T>
+T* get(X<T>* t) {
+  return &(*t).t2;
+}
+
+int main() {
+  mutable x = X(1, 2);
+  auto y = X(4, 8);
+  return *x.get() + *y.get() + *X(16, 32).get();
+}

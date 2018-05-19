@@ -307,21 +307,40 @@ SType FunctionCall::getType(Context& context) {
   return getDotOperatorType(nullptr, context).get();
 }
 
+bool exactArgs(const vector<SType>& argTypes, const FunctionType& f) {
+  return argTypes == transform(f.params, [](const auto& p) { return p.type;});
+}
+
+static vector<FunctionType> chooseOverload(const vector<FunctionType>& overloads, const vector<SType>& argTypes) {
+  vector<FunctionType> exact;
+  for (auto& overload : overloads)
+    if (exactArgs(argTypes, overload))
+      exact.push_back(overload);
+  if (!exact.empty())
+    return exact;
+  return overloads;
+}
+
 static WithErrorLine<FunctionType> getFunction(const Context& idContext, const Context& callContext, CodeLoc codeLoc, IdentifierInfo id,
     const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
-  WithErrorLine<FunctionType> ret = codeLoc.getError("Couldn't find function overload matching arguments: (" + joinTypeList(argTypes) + ")");
-  /*cout << "Looking for function " << id.toString() << "(" << combine(transform(argTypes, [](const auto& t) { return t->getName(); }), ", ") << ")" << " in context:\n";
-  idContext.print();*/
+  ErrorLoc errors = codeLoc.getError("Couldn't find function overload matching arguments: (" + joinTypeList(argTypes) + ")");
+  vector<FunctionType> overloads;
   if (auto templateType = idContext.getFunctionTemplate(id)) {
     for (auto& overload : *templateType)
       if (auto f = callContext.instantiateFunctionTemplate(codeLoc, overload, id, argTypes, argLoc)) {
-        if (ret)
-          return codeLoc.getError("Multiple function overloads found:\nCandidate: " + f->toString() + "\nCandidate: " + ret->toString());
-        ret = f;
-      } else if (!ret)
-        ret = codeLoc.getError(ret.get_error().error + "\nCandidate: "s + overload.toString() + ": " + f.get_error().error);
+        overloads.push_back(*f);
+      } else
+        errors = codeLoc.getError(errors.error + "\nCandidate: "s + overload.toString() + ": " + f.get_error().error);
   }
-  return ret;
+  if (overloads.empty())
+    return errors;
+  overloads = chooseOverload(overloads, argTypes);
+  CHECK(!overloads.empty());
+  if (overloads.size() == 1)
+    return overloads[0];
+  else {
+    return codeLoc.getError("Multiple function overloads found:\n" + combine(transform(overloads, [](const auto& o) { return o.toString();}), "\n"));
+  }
 }
 
 nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& callContext) {

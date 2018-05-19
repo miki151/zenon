@@ -19,7 +19,7 @@ unique_ptr<T> unique(T t) {
 }
 
 int main() {
-  auto ptr = unique(3);
+  mutable ptr = unique(3);
   auto ptr2 = move(ptr);
   return *ptr2.get();
 }

@@ -19,7 +19,7 @@ extern struct vector {
 
 
 int main() {
-  vector<int> v;
+  mutable v = vector<int>();
   for (mutable i = 0; i < 6; i = i + 1)
     v.push_back(i * i);
   mutable sum = 0;

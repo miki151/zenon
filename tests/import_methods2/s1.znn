@@ -1,14 +1,13 @@
 import "fun.znn"
 
 struct X {
-  int get() {
-    return fun(v);
-  }
-
-  void set(int t) {
-    v = fun(t);
-  }
-
   int v;
 };
 
+int get(X* x) {
+  return fun((*x).v);
+}
+
+void set(mutable X* x, int t) {
+  (*x).v = fun(t);
+}

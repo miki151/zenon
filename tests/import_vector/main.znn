@@ -2,7 +2,7 @@
 import "vector.znn"
 
 int main() {
-  auto v = vector<int>();
+  mutable v = vector<int>();
   for (mutable i = 0; i < 6; i = i + 1)
     v.push_back(i);
   mutable sum = 0;

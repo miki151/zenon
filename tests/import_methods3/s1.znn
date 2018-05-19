@@ -5,23 +5,22 @@ concept can_copy {
 };
 
 struct X {
-  template<T> requires can_copy<T>
-  int get(T u) {
-    return v;
-  }
-
   int v;
 };
 
+template<T> requires can_copy<T>
+int get(X* x, T u) {
+  return (*x).v;
+}
 
-template <T> requires can_copy<T>
+template <T>
 struct Y {
-  template<U>
-  T get(U u) {
-    return v;
-  }
-
   T v;
 };
+
+template<T, U> requires can_copy<T>
+T get(Y<T>* x, U u) {
+  return (*x).v;
+}
 
 

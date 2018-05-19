@@ -441,7 +441,7 @@ struct TypeMapping {
 
 bool Type::canConvertTo(const Context& context, SType t) const {
   TypeMapping mapping;
-  return !t->getMappingError(context, mapping, std::move(t));
+  return !t->getMappingError(context, mapping, get_this().get()->getUnderlying());
 }
 
 static string getCantBindError(const SType& from, const SType& to) {
