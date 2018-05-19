@@ -315,10 +315,6 @@ void StructType::updateInstantations() {
   }
 }
 
-bool canConvert(SType from, SType to) {
-  return from->getUnderlying() == to;
-}
-
 TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l) {}
 
 SType Type::replace(SType from, SType to) const {
@@ -442,6 +438,11 @@ struct TypeMapping {
     return none;
   }
 };
+
+bool Type::canConvertTo(const Context& context, SType t) const {
+  TypeMapping mapping;
+  return !t->getMappingError(context, mapping, std::move(t));
+}
 
 static string getCantBindError(const SType& from, const SType& to) {
   return "Can't bind type " + quote(from->getName()) + " to parameter of type " + quote(to->getName());

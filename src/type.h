@@ -26,6 +26,7 @@ struct Type : public owned_object<Type> {
   virtual Context& getStaticContext();
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
   virtual bool isBuiltinCopyable() const;
+  bool canConvertTo(const Context&, SType) const;
   Context context;
   Context staticContext;
 };
@@ -184,7 +185,6 @@ class Context;
 struct IdentifierInfo;
 extern WithErrorLine<FunctionType> instantiateFunction(const Context& context, const FunctionType&, CodeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc);
-extern bool canConvert(SType from, SType to);
 extern void replaceInFunction(FunctionType&, SType from, SType to);
 extern string joinTemplateParams(const vector<SType>& params);
 extern string joinTypeList(const vector<SType>&);

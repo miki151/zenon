@@ -1,0 +1,8 @@
+// 5
+
+int main() {
+  mutable v = 5;
+  auto z = &v;
+  int* y = z;
+  return *y;
+}
