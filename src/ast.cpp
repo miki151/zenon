@@ -342,21 +342,19 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
     getFunction(leftType ? leftType->getContext() : callContext, callContext, codeLoc, identifier, argTypes, argLocs)
         .unpack(functionType, error);
     if (leftType) {
-      auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
-      if (res)
-        callType = MethodCallType::FUNCTION_AS_METHOD;
-      if (res && functionType)
-        codeLoc.error("Ambigous method call:\nCandidate: " + functionType->toString() + "\nCandidate: " + res->toString());
-      res.unpack(functionType, error);
-      if (leftType.get().dynamicCast<ReferenceType>() || leftType.get().dynamicCast<MutableReferenceType>()) {
-        leftType = leftType.get().dynamicCast<MutableReferenceType>() ? SType(MutablePointerType::get(leftType->getUnderlying())) : SType(PointerType::get(leftType->getUnderlying()));
+      auto tryMethodCall = [&](MethodCallType thisCallType) {
         auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
         if (res)
-          callType = MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
+          callType = thisCallType;
         if (res && functionType)
           codeLoc.error("Ambigous method call:\nCandidate: " + functionType->toString() + "\nCandidate: " + res->toString());
         res.unpack(functionType, error);
-      }
+      };
+      tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
+      leftType = leftType.get().dynamicCast<MutableReferenceType>()
+          ? SType(MutablePointerType::get(leftType->getUnderlying()))
+          : SType(PointerType::get(leftType->getUnderlying()));
+      tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
     }
   }
   if (functionType)
@@ -404,14 +402,10 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, Cont
           }
         };
         tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
-        if (leftType.get().dynamicCast<ReferenceType>()) {
-          leftType = PointerType::get(leftType->getUnderlying());
-          tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
-        }
-        if (leftType.get().dynamicCast<MutableReferenceType>()) {
-          leftType = MutablePointerType::get(leftType->getUnderlying());
-          tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
-        }
+        leftType = leftType.get().dynamicCast<MutableReferenceType>()
+            ? SType(MutablePointerType::get(leftType->getUnderlying()))
+            : SType(PointerType::get(leftType->getUnderlying()));
+        tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
       }
     }
   }

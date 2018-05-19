@@ -176,7 +176,7 @@ static void genFunctionCall(Accu& accu, const FunctionType& functionType,
   bool extractPointer = callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
   for (auto& arg : arguments) {
     if (extractPointer)
-      accu.add("&(");
+      accu.add("getAddress(");
     arg->codegen(accu, Node::DEFINE);
     if (extractPointer) {
       accu.add(")");
