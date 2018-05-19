@@ -24,11 +24,11 @@ string MutableReferenceType::getName(bool withTemplateArguments) const {
 }
 
 string PointerType::getName(bool withTemplateArguments) const {
-  return "const pointer(" + underlying->getName(withTemplateArguments) + ")";
+  return "const " + underlying->getName(withTemplateArguments) + "*";
 }
 
 string MutablePointerType::getName(bool withTemplateArguments) const {
-  return "mutable pointer(" + underlying->getName(withTemplateArguments) + ")";
+  return underlying->getName(withTemplateArguments) + "*";
 }
 
 string StructType::getName(bool withTemplateArguments) const {

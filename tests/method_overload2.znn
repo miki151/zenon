@@ -1,6 +1,6 @@
 // 1
 
-int f(int* a, int b) {
+int f(mutable int* a, int b) {
   return 1;
 }
 

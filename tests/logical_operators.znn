@@ -1,0 +1,17 @@
+// 6
+
+bool negate(bool in) {
+  return !in;
+}
+
+int main() {
+  mutable res = 0;
+  auto b1 = true && negate(true);
+  if (b1)
+    res = res + 1;
+  if (true || b1 && negate(false))
+    res = res + 2;
+  if (!true || !false && true)
+    res = res + 4;
+  return res;
+}
