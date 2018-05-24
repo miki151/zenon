@@ -2,10 +2,11 @@
 
 struct S {
   int a;
-  void f() {
-    a = 5;
-  }
 };
+
+void f(mutable S* s) {
+  (*s).a = 5;
+}
 
 variant V {
   int i;
@@ -13,7 +14,7 @@ variant V {
 };
 
 int get(mutable V* self, int a) {
-  S s1 = S(1);
+  mutable s1 = S(1);
   s1.f();
   switch (*self) {
     case (mutable int* i) {
