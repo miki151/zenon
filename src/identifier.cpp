@@ -17,6 +17,7 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
   while (1) {
     ret.parts.emplace_back();
     auto token = tokens.popNext("identifier");
+    token.codeLoc.check(token.contains<IdentifierToken>(), "Expected identifier");
     ret.codeLoc = token.codeLoc;
     ret.parts.back().name = token.value;
     if (tokens.peek("identifier") == Operator::LESS_THAN) {

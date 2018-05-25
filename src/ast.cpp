@@ -235,8 +235,12 @@ void FunctionDefinition::checkFunctionBody(Context& context, bool templateStruct
     for (auto& param : functionType->templateParams)
       bodyContext.addType(param->getName(), param);
     for (auto& p : parameters)
-      if (p.name)
-        bodyContext.addVariable(*p.name, ReferenceType::get(bodyContext.getTypeFromString(p.type).get(p.codeLoc)));
+      if (p.name) {
+        auto rawType = bodyContext.getTypeFromString(p.type).get(p.codeLoc);
+        bodyContext.addVariable(*p.name, p.isMutable
+            ? SType(MutableReferenceType::get(std::move(rawType)))
+            : SType(ReferenceType::get(std::move(rawType))));
+      }
     bodyContext.setReturnType(functionType->retVal);
     if (functionType->retVal != ArithmeticType::VOID && body && !body->hasReturnStatement(context) && !name.contains<ConstructorId>())
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");

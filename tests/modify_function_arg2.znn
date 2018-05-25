@@ -1,4 +1,4 @@
-// 4
+// no_compile
 
 void f(mutable int a) {
   a = 5;
