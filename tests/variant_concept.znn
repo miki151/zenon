@@ -23,12 +23,14 @@ C add2(A a, B b) {
   return a.add(b);
 }
 
-template <A, B, C> requires CanAdd<A, B, C>
+template <A, B, C>
 struct S2 {
-  C add3(A a, B b) {
-    return a.add(b);
-  }
 };
+
+template <A, B, C> requires CanAdd<A, B, C>
+C add3(S2<A, B, C>* s2, A a, B b) {
+  return a.add(b);
+}
 
 void fun(S2<S, bool, int>) {
 }

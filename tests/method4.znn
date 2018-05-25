@@ -2,10 +2,11 @@
 
 struct X {
   int a;
-  int b() {
-    return a;
-  }
 };
+
+int b(X* x) {
+  return (*x).a;
+}
 
 int main() {
   X x = X(1);

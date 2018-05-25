@@ -363,8 +363,12 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
     if (leftType) {
       auto tryMethodCall = [&](MethodCallType thisCallType) {
         auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
-        if (res)
-          callType = thisCallType;
+        if (res) {
+          if (res->externalMethod)
+            callType = MethodCallType::METHOD;
+          else
+            callType = thisCallType;
+        }
         if (res && functionType)
           codeLoc.error("Ambigous method call:\nCandidate: " + functionType->toString() + "\nCandidate: " + res->toString());
         res.unpack(functionType, error);
@@ -571,8 +575,6 @@ void StructDefinition::addToContext(Context& context) {
   type->requirements = applyConcept(membersContext, templateInfo, type->templateParams);
   bool hasConstructor = false;
   for (auto& method : methods) {
-    if (!external)
-      method->codeLoc.check(!method->name.contains<Operator>(), "Defining operators inside struct body is not allowed.");
     if (method->name.contains<ConstructorId>()) {
       // We have to fix the return type of the constructor otherwise it can't be looked up in the context
       method->returnType.parts[0].templateArguments =
@@ -585,9 +587,14 @@ void StructDefinition::addToContext(Context& context) {
       method->codeLoc.checkNoError(context.addFunction(*method->functionType));
       hasConstructor = true;
     } else {
+      method->codeLoc.check(external, "Defining methods inside struct body is only allowed for extern structs.");
       method->setFunctionType(membersContext, true);
+      method->functionType->templateParams = concat(type->templateParams, method->functionType->templateParams);
+      auto thisType = method->isMutableMethod ? SType(MutablePointerType::get(type.get())) : SType(PointerType::get(type.get()));
+      method->functionType->params = concat({FunctionType::Param(std::move(thisType))}, method->functionType->params);
       method->functionType->parentType = type.get();
-      method->codeLoc.checkNoError(type->context.addFunction(*method->functionType));
+      method->functionType->externalMethod = true;
+      method->codeLoc.checkNoError(context.addFunction(*method->functionType));
     }
   }
   if (!hasConstructor) {

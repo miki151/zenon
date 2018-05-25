@@ -3,16 +3,17 @@
 struct S1 {
   bool b;
   int i;
-  string value() {
-    return "pak";
-  }
 };
 
-string print(S1 self) {
-  if (self.b)
+string value(S1* self) {
+  return "pak";
+}
+
+string print(S1* self) {
+  if ((*self).b)
     return "pok";
   else
-    return self.value();
+    return (*self).value();
 }
 
 int main() {

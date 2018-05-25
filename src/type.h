@@ -160,6 +160,7 @@ struct FunctionType {
   vector<SType> templateParams;
   vector<SConcept> requirements;
   nullable<SType> parentType;
+  bool externalMethod = false;
   string toString() const;
 };
 

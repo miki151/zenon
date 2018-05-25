@@ -292,6 +292,8 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
       tokens.rewind();
       if (external) {
         ret->methods.push_back(parseFunctionSignature(typeIdent, tokens));
+        if (tokens.eatMaybe(Keyword::MUTABLE))
+          ret->methods.back()->isMutableMethod = true;
         tokens.eat(Keyword::SEMICOLON);
       } else
         ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));

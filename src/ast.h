@@ -298,6 +298,7 @@ struct FunctionDefinition : Statement {
   unique_ptr<Statement> body;
   TemplateInfo templateInfo;
   optional<FunctionType> functionType;
+  bool isMutableMethod = false;
   struct Initializer {
     CodeLoc codeLoc;
     string paramName;

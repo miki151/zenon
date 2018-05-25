@@ -146,12 +146,17 @@ void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
 
 static string getFunctionCallName(const FunctionType& function, bool methodCall) {
   string typePrefix;
-  if (function.parentType)
+  auto functionTemplateParams = function.templateParams;
+  if (function.parentType) {
     typePrefix = function.parentType->getName() + "::";
+    if (function.externalMethod)
+      if (auto structParent = function.parentType.get().dynamicCast<StructType>())
+        functionTemplateParams = getSubsequence(functionTemplateParams, (int) structParent->templateParams.size());
+  }
   else if (!methodCall)
     typePrefix += "::";
   return function.name.visit(
-      [&](const string& s) { return typePrefix + s + joinTemplateParams(function.templateParams); },
+      [&](const string& s) { return typePrefix + s + joinTemplateParams(functionTemplateParams); },
       [&](Operator op) {
         if (op == Operator::SUBSCRIPT)
           return "subscript_op"s;
