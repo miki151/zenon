@@ -1,0 +1,13 @@
+// 5
+
+template <T>
+T get(mutable T a) {
+  if (false) {
+    return move(a);
+  } else
+    return move(a);
+}
+
+int main() {
+  return get(5);
+}

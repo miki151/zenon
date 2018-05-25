@@ -2,7 +2,7 @@
 
 template <T>
 concept CanAdd {
-  T(T*);
+  T(T&);
   T operator + (T t1, T t2);
 };
 
@@ -12,7 +12,7 @@ struct S1 {
 };
 
 template <A> requires CanAdd<A>
-A get(S1<A>* s1) {
+A get(S1<A>& s1) {
   return (*s1).a + (*s1).a;
 }
 

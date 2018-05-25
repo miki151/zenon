@@ -2,8 +2,8 @@
 
 template <T, U, V>
 concept CanAdd {
-  U(U*);
-  V add(T*, U);
+  U(U&);
+  V add(T&, U);
 };
 
 variant S {
@@ -11,7 +11,7 @@ variant S {
   bool b;
 };
 
-int add(S* s, bool a) {
+int add(S& s, bool a) {
   if (a)
     return 1;
   else
@@ -28,7 +28,7 @@ struct S2 {
 };
 
 template <A, B, C> requires CanAdd<A, B, C>
-C add3(S2<A, B, C>* s2, A a, B b) {
+C add3(S2<A, B, C>& s2, A a, B b) {
   return a.add(b);
 }
 

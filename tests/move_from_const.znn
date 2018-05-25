@@ -1,0 +1,8 @@
+// no_compile
+
+int main() {
+  auto x = 1;
+  auto y = move(x);
+  return y;
+}
+

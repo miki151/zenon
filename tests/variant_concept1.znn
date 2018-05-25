@@ -3,7 +3,7 @@
 struct A {
 };
 
-int getValue(A* a) {
+int getValue(A& a) {
   return 2;
 }
 
@@ -11,13 +11,13 @@ struct B {
   int a;
 };
 
-int getValue(B* b) {
+int getValue(B& b) {
   return (*b).a;
 }
 
 template <S>
 concept hasValue {
-  int getValue(S* s);
+  int getValue(S& s);
 };
 
 template <S> requires hasValue<S>
@@ -27,7 +27,7 @@ variant V {
 };
 
 template <S> requires hasValue<S>
-int getValue(V<S>* v) {
+int getValue(V<S>& v) {
   switch (*v) {
     case (S s) {
       return s.getValue();

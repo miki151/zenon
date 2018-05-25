@@ -3,7 +3,7 @@
 struct X {
   int value;
   X(int a) : value(a) {}
-  X(X* x) : value(13 + (*x).value) {}
+  X(X& x) : value(13 + (*x).value) {}
 };
 
 X operator - (X x) {

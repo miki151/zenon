@@ -5,7 +5,7 @@ int getNum() {
 }
 
 template<T>
-T* get(T* t1, T* t2, int a) {
+T& get(T& t1, T& t2, int a) {
   if (a == 0)
     return t1;
   else

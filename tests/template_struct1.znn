@@ -3,7 +3,7 @@
 struct S {
 };
 
-int add(S*, bool a) {
+int add(S&, bool a) {
   return 1;
 }
 
@@ -12,7 +12,7 @@ struct S2 {
 };
 
 template <A, B, C> 
-int add3(S2<A, B, C>*, A a, B b) {
+int add3(S2<A, B, C>&, A a, B b) {
   return 1;
 }
 

@@ -3,11 +3,11 @@
 
 template<T> 
 concept can_copy {
-  T(T*);
+  T(T&);
 };
 
 template<T> requires can_copy<T>
-void copy(mutable T* out, T in) {
+void copy(T* out, T in) {
   *out = in;
 }
 
