@@ -6,7 +6,7 @@ struct X {
 
 template <T>
 T get(T a) {
-  T o = move(a);
+  mutable o = move(a);
   return move(o);
 }
 

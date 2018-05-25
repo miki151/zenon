@@ -128,8 +128,9 @@ void VariableDeclaration::check(Context& context) {
     auto exprType = initExpr->getType(context);
     initExpr->codeLoc.check(exprType->canConvertTo(context, realType.get()), "Can't initialize variable of type "
         + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
-    initExpr->codeLoc.check(!exprType.dynamicCast<ReferenceType>() || context.canCopyConstruct(exprType->getUnderlying()),
-        "Type " + quote(exprType->getUnderlying()->getName()) + " is not copy-constructible");
+    initExpr->codeLoc.check((!exprType.dynamicCast<ReferenceType>() && !exprType.dynamicCast<MutableReferenceType>()) ||
+        context.canCopyConstruct(exprType->getUnderlying()),
+        "Type " + quote(exprType->getUnderlying()->getName()) + " cannot be copied");
   } else
     codeLoc.check(context.canConstructWith(realType.get(), {}), "Type " + quote(realType->getName()) + " requires initialization");
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
@@ -143,7 +144,7 @@ void ReturnStatement::check(Context& context) {
   else {
     auto returnType = expr->getType(context);
     codeLoc.check(!returnType.dynamicCast<ReferenceType>() || context.canCopyConstruct(returnType->getUnderlying()),
-        "Type " + quote(returnType->getUnderlying()->getName()) + " is not copy-constructible");
+        "Type " + quote(returnType->getUnderlying()->getName()) + " cannot be copied");
     if (!MutableReferenceType::get(context.getReturnType().get())->canAssign(returnType)) {
       expr = context.getReturnType()->getConversionFrom(std::move(expr), context);
       codeLoc.check(!!expr,
@@ -698,6 +699,7 @@ MoveExpression::MoveExpression(CodeLoc l, string id) : Expression(l), identifier
 SType MoveExpression::getType(Context& context) {
   if (!type) {
     if (auto ret = context.getTypeOfVariable(identifier)) {
+      codeLoc.check(!!ret.get_value().dynamicCast<MutableReferenceType>(), "Can't move from " + quote(ret.get_value()->getName()));
       codeLoc.checkNoError(context.setVariableAsMoved(identifier));
       type = ret.get_value()->getUnderlying();
     } else
