@@ -18,12 +18,12 @@ struct X {
 int main() {
   mutable x = 0;
   mutable a = true;
-  auto y = &x;
+  const y = &x;
   (x) = 1;
   set(y, 5);
   set(&a, false);
   mutable x1 = X(&x, *y);
-  auto x2 = &x1;
+  const x2 = &x1;
   (*x2).a = y;
   *y = -(*x2).b + 20;
   return *(*x2).a;

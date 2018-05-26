@@ -8,8 +8,8 @@ char operator[](A a, string s) {
 }
 
 int main() {
-  auto a = A();
-  auto b = a["pok"];
+  const a = A();
+  const b = a["pok"];
   if (b == 'p')
     return 1;
   else

@@ -3,9 +3,9 @@ import "s1.znn"
 
 
 int main() {
-  auto x = X(10);
-  auto ret = x.get(true);
-  auto y = Y<bool>(true);
+  const x = X(10);
+  const ret = x.get(true);
+  const y = Y<bool>(true);
   if (y.get(54))
     return x.get(false);
   else

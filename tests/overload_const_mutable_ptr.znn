@@ -19,6 +19,6 @@ T& get(X<T>& t) {
 
 int main() {
   mutable x = X(1, 2);
-  auto y = X(4, 8);
+  const y = X(4, 8);
   return *x.get() + *y.get() + *X(16, 32).get();
 }

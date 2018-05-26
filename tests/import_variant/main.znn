@@ -4,7 +4,7 @@ import "struct2.znn"
 
 int get() {
   V2<int, bool> v2 = V2<int, bool>::t(5);
-  auto x = v2.get<int>(1, true, 2);
+  const x = v2.get<int>(1, true, 2);
   switch (v2) {
     case (int t) {
       return t + x;

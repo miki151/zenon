@@ -468,7 +468,7 @@ unique_ptr<Statement> parseVariableDeclaration(Tokens& tokens) {
   if (tokens.eatMaybe(Keyword::MUTABLE)) {
     isMutable = true;
     isDeclaration = true;
-  } else if (tokens.eatMaybe(Keyword::AUTO))
+  } else if (tokens.eatMaybe(Keyword::CONST))
     isDeclaration = true;
   auto id1 = IdentifierInfo::parseFrom(tokens, true);
   string variableName;
@@ -620,7 +620,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens, bool topLevel) {
               return parseFunctionDefinition(IdentifierInfo::parseFrom(tokens, true), tokens);
             else
               return parseVariableDeclaration(tokens);
-          case Keyword::AUTO:
+          case Keyword::CONST:
             return parseVariableDeclaration(tokens);
           case Keyword::MOVE:
             return parseExpressionAndSemicolon();

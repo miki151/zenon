@@ -4,8 +4,8 @@ void f(int* v) {
 }
 
 int main() {
-  auto v = 5;
-  auto z = &v;
+  const v = 5;
+  const z = &v;
   f(z);
   return 0;
 }

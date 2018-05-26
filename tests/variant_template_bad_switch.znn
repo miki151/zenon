@@ -9,7 +9,7 @@ variant V {
 };
 
 int main() {
-  auto v = V<bool, int, string, char>::a1(true);
+  const v = V<bool, int, string, char>::a1(true);
   switch (v) {
     case (A1 a1) {
       return 1;

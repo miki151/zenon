@@ -6,7 +6,7 @@ variant V {
 };
 
 int main() {
-  auto v = V::null();
+  const v = V::null();
   switch (v) {
     case (int a) {
     }

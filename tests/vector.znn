@@ -18,7 +18,7 @@ extern struct vector {
 };
 
 int f() {
-  auto v = vector<int>();
+  const v = vector<int>();
   return v.size();
 }
 

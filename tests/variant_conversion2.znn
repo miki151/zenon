@@ -6,12 +6,12 @@ variant V {
 };
 
 V getV() {
-  auto x = 5;
+  const x = 5;
   return x;
 }
 
 int main() {
-  auto v = getV();
+  const v = getV();
   switch (v) {
     case (int elem) {
       return elem;

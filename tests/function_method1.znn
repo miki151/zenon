@@ -17,7 +17,7 @@ string print(S1& self) {
 }
 
 int main() {
-  auto s1 = S1(false, 1);
+  const s1 = S1(false, 1);
   if (s1.print() == "pak")
     return 1;
   else

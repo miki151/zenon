@@ -6,7 +6,7 @@ bool negate(bool in) {
 
 int main() {
   mutable res = 0;
-  auto b1 = true && negate(true);
+  const b1 = true && negate(true);
   if (b1)
     res = res + 1;
   if (true || b1 && negate(false))

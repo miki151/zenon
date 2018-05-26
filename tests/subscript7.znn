@@ -14,7 +14,7 @@ T operator[](X x, T a) {
 }
 
 int main() {
-  auto x = X();
+  const x = X();
   int i = 7;
   return x[i];
 }

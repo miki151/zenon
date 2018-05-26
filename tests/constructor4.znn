@@ -13,6 +13,6 @@ struct B {
 };
 
 int main() {
-  auto a = A(2);
+  const a = A(2);
   return a.a + a.b;
 }

@@ -5,7 +5,7 @@ int sum(int a, int b) {
 }
 
 int main() {
-  auto b = true;
+  const b = true;
   if (b) {
     mutable x = sum(3, 4);
     x = x + sum({a = 32, b = -30});

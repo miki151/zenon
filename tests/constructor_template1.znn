@@ -7,7 +7,7 @@ struct A {
 };
 
 int main() {
-  auto a = A(5);
+  const a = A(5);
   return a.a;
 }
 

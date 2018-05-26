@@ -21,7 +21,7 @@ static const unordered_map<string, Keyword> keywords {
   {"while", Keyword::WHILE},
   {"import", Keyword::IMPORT},
   {"public", Keyword::PUBLIC},
-  {"auto", Keyword::AUTO},
+  {"const", Keyword::CONST},
   {"enum", Keyword::ENUM},
   {"operator", Keyword::OPERATOR},
   {"concept", Keyword::CONCEPT},

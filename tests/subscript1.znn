@@ -5,7 +5,7 @@ struct A {
 };
 
 int main() {
-  auto a = A("dupa");
-  auto b = a[0];
+  const a = A("dupa");
+  const b = a[0];
   return 0;
 }

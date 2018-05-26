@@ -6,6 +6,6 @@ variant V {
 };
 
 int main() {
-  auto v = V::a(true);
+  const v = V::a(true);
   return 0;
 }

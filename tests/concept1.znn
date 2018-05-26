@@ -38,7 +38,7 @@ void fun(S2<S, bool, int> s) {
 }
 
 int main() {
-  auto s = S();
+  const s = S();
   S2<S, bool, int> s2 = S2<S, bool, int>();
   return add2<S, bool, int>(s, false) + s2.add3(s, true);
 }

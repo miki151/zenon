@@ -5,6 +5,6 @@ int f() {
 }
 
 int main() {
-  auto x = f<int>();
+  const x = f<int>();
   return x;
 }

@@ -5,7 +5,7 @@ struct X {
 };
 
 int main() {
-  auto x = X();
+  const x = X();
   x.f();
   return 0;
 }

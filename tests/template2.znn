@@ -53,10 +53,10 @@ struct X {
 };
 
 int main() {
-  auto z = X<int>(5);
-  auto x = value(z);
-  auto y = value(X<bool>(true));
-  auto v2 = V2<X<int>,X<bool>>::e1(x);
+  const z = X<int>(5);
+  const x = value(z);
+  const y = value(X<bool>(true));
+  const v2 = V2<X<int>,X<bool>>::e1(x);
   mutable a = 1;
   if (equal(v2, z))
     a = a + 1;

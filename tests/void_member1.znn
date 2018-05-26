@@ -8,7 +8,7 @@ variant V {
 };
 
 int main() {
-  auto v = V<bool, int, void>::a1(true);
+  const v = V<bool, int, void>::a1(true);
   switch (v) {
     case (A1 a1) {
       return 1;

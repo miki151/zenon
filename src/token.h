@@ -43,7 +43,7 @@ enum class Keyword {
   WHILE,
   IMPORT,
   PUBLIC,
-  AUTO,
+  CONST,
   ENUM,
   OPERATOR,
   CONCEPT,

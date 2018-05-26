@@ -26,8 +26,8 @@ string print(A& a) {
 }
 
 int main() {
-  auto a = A1("pok");
-  auto b = B();
+  const a = A1("pok");
+  const b = B();
   if (print(&a) + print(&b) == "A1(pok)B")
     return 1;
   else

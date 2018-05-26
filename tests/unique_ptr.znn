@@ -20,6 +20,6 @@ unique_ptr<T> unique(T t) {
 
 int main() {
   mutable ptr = unique(3);
-  auto ptr2 = move(ptr);
+  const ptr2 = move(ptr);
   return *ptr2.get();
 }

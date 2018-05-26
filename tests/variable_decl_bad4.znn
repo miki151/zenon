@@ -16,7 +16,7 @@ int funPtr(A* a) {
 }
 
 int main() {
-  auto a = A(); // const A
+  const a = A(); // const A
   mutable p;
   return 0;
 }

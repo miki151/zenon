@@ -10,7 +10,7 @@ V getV() {
 }
 
 int main() {
-  auto v = V::i(5);
+  const v = V::i(5);
   switch (getV()) {
     case (string* s) {
       *s = "pak";

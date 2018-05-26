@@ -43,12 +43,12 @@ Vec<T, U> operator - (Vec<T, U> v) {
 
 template <T> requires Arithmetic<T>
 T getResult(T t1, T t2) {
-  auto t3 = t1 + t2;
-  auto t4 = -t3 * -5;
+  const t3 = t1 + t2;
+  const t4 = -t3 * -5;
   return t4;
 }
 
 int main() {
-  auto v = getResult(Vec(1, 2), Vec(3, 4));
+  const v = getResult(Vec(1, 2), Vec(3, 4));
   return v.x + v.y + getResult(5, 6);
 }

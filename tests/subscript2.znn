@@ -9,8 +9,8 @@ char operator[](A a, int x) {
 }
 
 int main() {
-  auto a = A("dupa");
-  auto b = a[0];
+  const a = A("dupa");
+  const b = a[0];
   if (b == a[0])
     return 1;
   else

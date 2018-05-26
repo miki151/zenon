@@ -7,6 +7,6 @@ int operator[](X x) {
 }
 
 int main() {
-  auto x = X();
+  const x = X();
   return x[0];
 }

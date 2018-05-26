@@ -12,6 +12,6 @@ A add(A a, A b) {
 }
 
 int main() {
-  auto c = add('a', 'b');
+  const c = add('a', 'b');
   return 0;
 }

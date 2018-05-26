@@ -7,7 +7,7 @@ enum E1 {
 }
 
 int main() {
-  auto e1 = E1::VALUE1;
+  const e1 = E1::VALUE1;
   switch (e1) {
     case (VALUE1) {
       return 1;

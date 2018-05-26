@@ -9,6 +9,6 @@ T T(int a) {
 }
 
 int main() {
-  auto t = T(1);
+  const t = T(1);
   return 1;
 }

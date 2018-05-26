@@ -20,7 +20,7 @@ struct A {
 };
 
 int main() {
-  auto a = A<int, X>(X());
-  auto b = A<int>(X());
+  const a = A<int, X>(X());
+  const b = A<int>(X());
   return 0;
 }

@@ -20,7 +20,7 @@ shared_ptr<T> shared(T t) {
 }
 
 int main() {
-  auto ptr = shared(3);
-  auto ptr2 = ptr;
+  const ptr = shared(3);
+  const ptr2 = ptr;
   return *ptr2.get();
 }

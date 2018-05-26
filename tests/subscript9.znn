@@ -16,7 +16,7 @@ struct Y {
 };
 
 int main() {
-  auto x = X();
-  auto y = Y(X());
+  const x = X();
+  const y = Y(X());
   return 1 + x[1 + x[1 * 5]] + x[x[1] + 1] + y.x[1 + y.x[1] + 1];
 }

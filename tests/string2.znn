@@ -5,7 +5,7 @@ string getString() {
 }
 
 int main() {
-  auto s = "pok pok";
+  const s = "pok pok";
   char c1 = getString()[0];
   char c2 = s[1];
   char c3 = "abcdefghijkl"[1 + 2 * 3];

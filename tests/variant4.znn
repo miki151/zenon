@@ -17,7 +17,7 @@ void fun(V& v) {
 }
 
 int main() {
-  auto v = V::a(1);
+  const v = V::a(1);
   fun(&v);
   return 0;
 }

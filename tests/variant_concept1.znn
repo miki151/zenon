@@ -40,8 +40,8 @@ int getValue(V<S>& v) {
 
 
 int main() {
-  auto v1 = V<A>::s(A());
-  auto v2 = V<B>::s(B(4));
-  auto v3 = V<A>::null();
+  const v1 = V<A>::s(A());
+  const v2 = V<B>::s(B(4));
+  const v3 = V<A>::null();
   return v1.getValue() + v2.getValue() + v3.getValue();
 }

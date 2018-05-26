@@ -15,7 +15,7 @@ X operator + (X x, X a) {
 }
 
 int main() {
-  auto x1 = X(5);
+  const x1 = X(5);
   mutable x2 = X(&x1);
   x2 = x1 + x2;
   x2 = x2 + 17;

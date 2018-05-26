@@ -22,7 +22,7 @@ int f3(T& t) {
 
 template <T>
 int f2(T t) {
-  auto ptr = &t;
+  const ptr = &t;
   return f3(ptr);
 }
 

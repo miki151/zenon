@@ -1,6 +1,6 @@
 // no_compile
 
-auto sum(int a, int b) {
+const sum(int a, int b) {
   return a + b;
 }
 

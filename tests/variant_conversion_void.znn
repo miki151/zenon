@@ -13,6 +13,6 @@ V getV() {
 }
 
 int main() {
-  auto v = getV();
+  const v = getV();
   return 0;
 }

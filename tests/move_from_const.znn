@@ -1,8 +1,8 @@
 // no_compile
 
 int main() {
-  auto x = 1;
-  auto y = move(x);
+  const x = 1;
+  const y = move(x);
   return y;
 }
 

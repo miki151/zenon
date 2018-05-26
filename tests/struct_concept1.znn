@@ -17,8 +17,8 @@ A get(S1<A>& s1) {
 }
 
 int main() {
-  auto s = S1(5);
-  auto s2 = S1("pok");
+  const s = S1(5);
+  const s2 = S1("pok");
   if (s2.get() == "pokpok")
     return s.get();
   else

@@ -1,9 +1,9 @@
 // 6
 
 int f() {
-  auto a = A(5);
-  auto v = V<int>::null();
-  auto e = E::E1;
+  const a = A(5);
+  const v = V<int>::null();
+  const e = E::E1;
   return g();
 }
 
@@ -22,7 +22,7 @@ template <T>
 struct A {
   T a;
   T m1() {
-    auto c = A(same(a));
+    const c = A(same(a));
     if (1 == 1)
       return c.a;
     else
@@ -61,6 +61,6 @@ enum E {
 }
 
 int main() {
-  auto a = A<int>(5);
+  const a = A<int>(5);
   return f() + a.m1();
 }

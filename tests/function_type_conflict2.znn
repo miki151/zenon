@@ -9,6 +9,6 @@ variant T {
 };
 
 int main() {
-  auto t = T::x(1);
+  const t = T::x(1);
   return 1;
 }

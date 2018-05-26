@@ -2,7 +2,7 @@
 
 int main() {
   mutable v = 5;
-  auto z = &v;
+  const z = &v;
   int* y = z;
   return *y;
 }

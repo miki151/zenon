@@ -2,7 +2,7 @@
 
 int main() {
   char c = 'p';
-  auto s = "pok pok"; auto s2 = "pak";
+  const s = "pok pok"; const s2 = "pak";
   string s3 = s + s2;
   int x = s3.size();
   if (s + s2 == s3)

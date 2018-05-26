@@ -5,6 +5,6 @@ struct X {
 };
 
 int main() {
-  auto x = X<int>(1);
+  const x = X<int>(1);
   return 0;
 }

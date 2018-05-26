@@ -10,7 +10,7 @@ int b(X& x) {
 
 int main() {
   X x = X(1);
-  auto u = x.a;
+  const u = x.a;
   u = x.b(1);
   return 0;
 }

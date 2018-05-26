@@ -9,6 +9,6 @@ struct A {
 };
 
 int main() {
-  auto a = A(0, 0);
+  const a = A(0, 0);
   return a.a + a.b;
 }

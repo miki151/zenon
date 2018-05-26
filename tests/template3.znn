@@ -11,6 +11,6 @@ struct Y {
 };
 
 int main() {
-  auto y = Y(X(1));
+  const y = Y(X(1));
   return y.x.t;
 }
