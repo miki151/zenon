@@ -1,0 +1,22 @@
+// 5
+
+struct A {
+};
+
+int funValue(A a) {
+  return 1;
+}
+
+int funRef(A& a) {
+  return 5;
+}
+
+int funPtr(A* a) {
+  return 25;
+}
+
+int main() {
+  auto a = A(); // const A
+  mutable A& p = &a;
+  return funRef(p);
+}

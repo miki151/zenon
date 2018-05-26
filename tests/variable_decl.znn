@@ -1,0 +1,40 @@
+// 52
+
+struct A {
+};
+
+int funValue(A a) {
+  return 1;
+}
+
+int funRef(A& a) {
+  return 5;
+}
+
+int funPtr(A* a) {
+  return 25;
+}
+
+int main() {
+  mutable res = 0;
+  auto a = A(); // const A
+  res = res + funValue(a);
+  auto b = &a; // const reference to A
+  res = res + funRef(b);
+  mutable A& c1 = b; // mutable reference to A
+  c1 = &a;
+  res = res + funRef(c1);
+  mutable c2 = b; // mutable reference to A
+  c2 = &a;
+  res = res + funRef(c2);
+  auto c3 = b; // const reference to A
+  res = res + funRef(c3);
+  A& c4 = b;
+  A c5;
+  mutable A c6;
+  res = res + funValue(c6);
+  auto c7 = &c6; // const pointer to A
+  res = res + funRef(c7);
+  res = res + funPtr(c7);
+  return res;
+}

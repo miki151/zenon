@@ -464,24 +464,36 @@ unique_ptr<Statement> parseVariableDeclaration(Tokens& tokens) {
   auto typeLoc = tokens.peek().codeLoc;
   optional<IdentifierInfo> type;
   bool isMutable = false;
-  if (tokens.eatMaybe(Keyword::MUTABLE))
+  bool isDeclaration = false;
+  if (tokens.eatMaybe(Keyword::MUTABLE)) {
     isMutable = true;
-  else if (!tokens.eatMaybe(Keyword::AUTO))
-    type = IdentifierInfo::parseFrom(tokens, true);
-  auto token2 = tokens.peek("identifier");
-  if (token2.contains<IdentifierToken>() || token2 == Keyword::OPERATOR) {
-    tokens.popNext("identifier");
-    unique_ptr<Expression> initExpression;
-    if (tokens.peek("expression or " + quote(";")) != Keyword::SEMICOLON) {
-      tokens.eat(Operator::ASSIGNMENT);
-      initExpression = parseExpression(tokens);
-    }
-    tokens.eat(Keyword::SEMICOLON);
-    auto ret = unique<VariableDeclaration>(typeLoc, type, token2.value, std::move(initExpression));
-    ret->isMutable = isMutable;
-    return ret;
-  } else
-    return {};
+    isDeclaration = true;
+  } else if (tokens.eatMaybe(Keyword::AUTO))
+    isDeclaration = true;
+  auto id1 = IdentifierInfo::parseFrom(tokens, true);
+  string variableName;
+  if (tokens.peek("Variable declaraion") == Operator::ASSIGNMENT && isDeclaration) {
+    if (auto name = id1.asBasicIdentifier())
+      variableName = *name;
+    else
+      id1.codeLoc.error("Expected variable name");
+  } else {
+    type = id1;
+    auto id2 = tokens.popNext("Variable name");
+    if (id2.contains<IdentifierToken>())
+      variableName = id2.value;
+    else if (!isDeclaration)
+      return {};
+    else id2.codeLoc.error("Expected variable name, got " + quote(id2.value));
+
+  }
+  unique_ptr<Expression> initExpression;
+  if (tokens.eatMaybe(Operator::ASSIGNMENT))
+    initExpression = parseExpression(tokens);
+  tokens.eat(Keyword::SEMICOLON);
+  auto ret = unique<VariableDeclaration>(typeLoc, type, variableName, std::move(initExpression));
+  ret->isMutable = isMutable;
+  return ret;
 }
 
 unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {

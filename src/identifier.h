@@ -18,6 +18,7 @@ struct IdentifierInfo {
   //IdentifierInfo(vector<string> namespaces, string name, vector<IdentifierInfo> templateParams = {});
   static IdentifierInfo parseFrom(Tokens&, bool allowPointer);
   IdentifierInfo getWithoutFirstPart() const;
+  optional<string> asBasicIdentifier() const;
   vector<IdentifierPart> parts;
   enum PointerType {
     MUTABLE,

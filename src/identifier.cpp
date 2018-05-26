@@ -69,6 +69,13 @@ IdentifierInfo IdentifierInfo::getWithoutFirstPart() const {
   return ret;
 }
 
+optional<string> IdentifierInfo::asBasicIdentifier() const {
+  if (parts.size() > 1 || !parts[0].templateArguments.empty() || pointerType)
+    return none;
+  else
+    return parts[0].name;
+}
+
 string IdentifierInfo::toString() const {
   string ret;
   for (auto& part : parts) {

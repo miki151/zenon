@@ -1,0 +1,22 @@
+// no_compile
+
+struct A {
+};
+
+int funValue(A a) {
+  return 1;
+}
+
+int funRef(A& a) {
+  return 5;
+}
+
+int funPtr(A* a) {
+  return 25;
+}
+
+int main() {
+  auto a = A(); // const A
+  A&;
+  return 0;
+}
