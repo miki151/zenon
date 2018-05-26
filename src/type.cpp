@@ -196,6 +196,26 @@ bool MutableReferenceType::canAssign(SType from) const {
   return underlying == from->getUnderlying();
 }
 
+static bool checkMembers(set<SType> &visited, const SType& t, int maxDepth) {
+  if (auto s = t.dynamicCast<StructType>()) {
+    if (visited.count(t))
+      return true;
+    visited.insert(t);
+    for (auto& member : s->context.getBottomLevelVariables()) {
+      auto type = s->context.getTypeOfVariable(member).get_value()->getUnderlying();
+      if (checkMembers(visited, type, maxDepth - 1))
+        return true;
+    }
+  }
+  return false;
+}
+
+
+bool StructType::hasInfiniteSize() const {
+  set<SType> visited;
+  return checkMembers(visited, get_this().get(), 500);
+}
+
 shared_ptr<StructType> StructType::get(Kind kind, string name) {
   auto ret = shared<StructType>();
   ret->kind = kind;
@@ -301,7 +321,7 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
 }
 
 void StructType::updateInstantations() {
-  for (auto type1 : instantations) {
+  for (auto type1 : copyOf(instantations)) {
     auto type = type1.dynamicCast<StructType>();
     type->context.deepCopyFrom(context);
     type->staticContext.deepCopyFrom(staticContext);

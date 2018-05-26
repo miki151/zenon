@@ -658,6 +658,7 @@ void StructDefinition::check(Context& context) {
       methods[i]->checkFunctionBody(methodBodyContext, !templateInfo.params.empty());
   }
   type->updateInstantations();
+  codeLoc.check(!type->hasInfiniteSize(), quote(type->getName()) + " has infinite size");
 }
 
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
