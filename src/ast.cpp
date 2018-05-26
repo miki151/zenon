@@ -128,8 +128,9 @@ void VariableDeclaration::check(Context& context) {
     auto exprType = initExpr->getType(context);
     initExpr->codeLoc.check(exprType->canConvertTo(context, realType.get()), "Can't initialize variable of type "
         + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
-    initExpr->codeLoc.check(!exprType.dynamicCast<ReferenceType>() || context.canCopyConstruct(exprType->getUnderlying()),
-        "Type " + quote(exprType->getUnderlying()->getName()) + " is not copy-constructible");
+    initExpr->codeLoc.check((!exprType.dynamicCast<ReferenceType>() && !exprType.dynamicCast<MutableReferenceType>()) ||
+        context.canCopyConstruct(exprType->getUnderlying()),
+        "Type " + quote(exprType->getUnderlying()->getName()) + " cannot be copied");
   } else
     codeLoc.check(context.canConstructWith(realType.get(), {}), "Type " + quote(realType->getName()) + " requires initialization");
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
@@ -143,7 +144,7 @@ void ReturnStatement::check(Context& context) {
   else {
     auto returnType = expr->getType(context);
     codeLoc.check(!returnType.dynamicCast<ReferenceType>() || context.canCopyConstruct(returnType->getUnderlying()),
-        "Type " + quote(returnType->getUnderlying()->getName()) + " is not copy-constructible");
+        "Type " + quote(returnType->getUnderlying()->getName()) + " cannot be copied");
     if (!MutableReferenceType::get(context.getReturnType().get())->canAssign(returnType)) {
       expr = context.getReturnType()->getConversionFrom(std::move(expr), context);
       codeLoc.check(!!expr,
@@ -234,8 +235,12 @@ void FunctionDefinition::checkFunctionBody(Context& context, bool templateStruct
     for (auto& param : functionType->templateParams)
       bodyContext.addType(param->getName(), param);
     for (auto& p : parameters)
-      if (p.name)
-        bodyContext.addVariable(*p.name, ReferenceType::get(bodyContext.getTypeFromString(p.type).get(p.codeLoc)));
+      if (p.name) {
+        auto rawType = bodyContext.getTypeFromString(p.type).get(p.codeLoc);
+        bodyContext.addVariable(*p.name, p.isMutable
+            ? SType(MutableReferenceType::get(std::move(rawType)))
+            : SType(ReferenceType::get(std::move(rawType))));
+      }
     bodyContext.setReturnType(functionType->retVal);
     if (functionType->retVal != ArithmeticType::VOID && body && !body->hasReturnStatement(context) && !name.contains<ConstructorId>())
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
@@ -363,8 +368,12 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
     if (leftType) {
       auto tryMethodCall = [&](MethodCallType thisCallType) {
         auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
-        if (res)
-          callType = thisCallType;
+        if (res) {
+          if (res->externalMethod)
+            callType = MethodCallType::METHOD;
+          else
+            callType = thisCallType;
+        }
         if (res && functionType)
           codeLoc.error("Ambigous method call:\nCandidate: " + functionType->toString() + "\nCandidate: " + res->toString());
         res.unpack(functionType, error);
@@ -571,8 +580,6 @@ void StructDefinition::addToContext(Context& context) {
   type->requirements = applyConcept(membersContext, templateInfo, type->templateParams);
   bool hasConstructor = false;
   for (auto& method : methods) {
-    if (!external)
-      method->codeLoc.check(!method->name.contains<Operator>(), "Defining operators inside struct body is not allowed.");
     if (method->name.contains<ConstructorId>()) {
       // We have to fix the return type of the constructor otherwise it can't be looked up in the context
       method->returnType.parts[0].templateArguments =
@@ -585,9 +592,14 @@ void StructDefinition::addToContext(Context& context) {
       method->codeLoc.checkNoError(context.addFunction(*method->functionType));
       hasConstructor = true;
     } else {
+      method->codeLoc.check(external, "Defining methods inside struct body is only allowed for extern structs.");
       method->setFunctionType(membersContext, true);
+      method->functionType->templateParams = concat(type->templateParams, method->functionType->templateParams);
+      auto thisType = method->isMutableMethod ? SType(MutablePointerType::get(type.get())) : SType(PointerType::get(type.get()));
+      method->functionType->params = concat({FunctionType::Param(std::move(thisType))}, method->functionType->params);
       method->functionType->parentType = type.get();
-      method->codeLoc.checkNoError(type->context.addFunction(*method->functionType));
+      method->functionType->externalMethod = true;
+      method->codeLoc.checkNoError(context.addFunction(*method->functionType));
     }
   }
   if (!hasConstructor) {
@@ -692,6 +704,7 @@ MoveExpression::MoveExpression(CodeLoc l, string id) : Expression(l), identifier
 SType MoveExpression::getType(Context& context) {
   if (!type) {
     if (auto ret = context.getTypeOfVariable(identifier)) {
+      codeLoc.check(!!ret.get_value().dynamicCast<MutableReferenceType>(), "Can't move from " + quote(ret.get_value()->getName()));
       codeLoc.checkNoError(context.setVariableAsMoved(identifier));
       type = ret.get_value()->getUnderlying();
     } else

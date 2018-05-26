@@ -2,27 +2,28 @@
 
 template<T, U>
 concept CanConvert {
-  U convert(T* t);
+  U convert(T& t);
 };
 
 struct S1 {
   int t;
-  template <U> requires CanConvert<U, int>
-  void set(U u) {
-    t = u.convert();
-  }
 };
+
+template <U> requires CanConvert<U, int>
+void set(S1* s, U u) {
+  (*s).t = u.convert();
+}
 
 struct X {
   int a;
 };
 
-int convert(X* x) {
+int convert(X& x) {
   return 1 + (*x).a;
 }
 
 int main() {
-  auto s1 = S1(1);
+  mutable s1 = S1(1);
   s1.set(X(5));
   return s1.t;
 }

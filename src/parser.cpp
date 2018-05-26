@@ -182,14 +182,11 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
   }
   tokens.eat(Keyword::OPEN_BRACKET);
   while (1) {
-    if (auto keyword = tokens.peek("function parameter").getReferenceMaybe<Keyword>())
-      if (keyword != Keyword::MUTABLE) {
-        if (*keyword == Keyword::CLOSE_BRACKET) {
-          tokens.popNext("function parameter");
-          break;
-        } else
-          tokens.eat(Keyword::COMMA);
-      }
+    if (tokens.eatMaybe(Keyword::CLOSE_BRACKET))
+      break;
+    if (!ret->parameters.empty())
+      tokens.eat(Keyword::COMMA);
+    bool isParamMutable = !!tokens.eatMaybe(Keyword::MUTABLE);
     auto typeId = IdentifierInfo::parseFrom(tokens, true);
     optional<string> paramName;
     auto nameToken = tokens.peek("identifier");
@@ -197,7 +194,7 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
       paramName = nameToken.value;
       tokens.popNext();
     }
-    ret->parameters.push_back({type.codeLoc, typeId, paramName});
+    ret->parameters.push_back({type.codeLoc, typeId, paramName, isParamMutable});
   }
   if (ret->parameters.size() == 1)
     if (auto op = ret->name.getValueMaybe<Operator>())
@@ -292,6 +289,8 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
       tokens.rewind();
       if (external) {
         ret->methods.push_back(parseFunctionSignature(typeIdent, tokens));
+        if (tokens.eatMaybe(Keyword::MUTABLE))
+          ret->methods.back()->isMutableMethod = true;
         tokens.eat(Keyword::SEMICOLON);
       } else
         ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));

@@ -1,7 +1,7 @@
 
 template<T>
 concept can_copy {
-  T(T*);
+  T(T&);
 };
 
 struct X {
@@ -9,7 +9,7 @@ struct X {
 };
 
 template<T> requires can_copy<T>
-int get(X* x, T u) {
+int get(X& x, T u) {
   return (*x).v;
 }
 
@@ -19,7 +19,7 @@ struct Y {
 };
 
 template<T, U> requires can_copy<T>
-T get(Y<T>* x, U u) {
+T get(Y<T>& x, U u) {
   return (*x).v;
 }
 

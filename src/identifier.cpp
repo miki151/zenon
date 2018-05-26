@@ -14,12 +14,10 @@ IdentifierInfo::IdentifierInfo(IdentifierInfo::IdentifierPart part) : parts(1, p
 
 IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
   IdentifierInfo ret;
-  bool isMutable = false;
-  if (tokens.eatMaybe(Keyword::MUTABLE))
-    isMutable = true;
   while (1) {
     ret.parts.emplace_back();
     auto token = tokens.popNext("identifier");
+    token.codeLoc.check(token.contains<IdentifierToken>(), "Expected identifier");
     ret.codeLoc = token.codeLoc;
     ret.parts.back().name = token.value;
     if (tokens.peek("identifier") == Operator::LESS_THAN) {
@@ -53,10 +51,12 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
     } else
       break;
   }
-  if (allowPointer && tokens.eatMaybe(Operator::MULTIPLY))
-    ret.pointerType = isMutable ? MUTABLE : CONST;
-  else
-    ret.codeLoc.check(!isMutable, "Expected mutable pointer type");
+  if (allowPointer) {
+    if (tokens.eatMaybe(Operator::MULTIPLY))
+      ret.pointerType = MUTABLE;
+    else if (tokens.eatMaybe(Operator::GET_ADDRESS))
+      ret.pointerType = CONST;
+  }
   INFO << "Identifier " << ret.toString();
   return ret;
 }

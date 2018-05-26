@@ -5,9 +5,14 @@ struct X {
 };
 
 template <T>
-T get(T a) {
-  T o = move(a);
+T get(mutable T a) {
+  mutable o = move(a);
   return move(o);
+}
+
+template <T>
+T get2(mutable T a) {
+  return move(a);
 }
 
 int main() {

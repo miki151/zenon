@@ -5,7 +5,7 @@ variant V {
   bool b;
 };
 
-void fun(V* v) {
+void fun(V& v) {
   switch (*v) {
     case (int a) {
     }

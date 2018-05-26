@@ -1,25 +1,21 @@
 
 template<T>
 concept can_copy {
-  T(T*);
+  T(T&);
 };
 
 template<T>
 struct X {
-  T* get() {
-    return &v;
-  }
-
   T v;
 };
 
-template <T>
-concept can_copy {
-  T(T*);
-};
+template<T>
+T& get(X<T>& x) {
+  return &(*x).v;
+}
 
 template<T> requires can_copy<T>
-void set(mutable X<T>* x, T t) {
+void set(X<T>* x, T t) {
   (*x).v = t;
 }
 

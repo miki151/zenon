@@ -4,10 +4,10 @@ struct X {
   int v;
 };
 
-int get(X* x) {
+int get(X& x) {
   return fun((*x).v);
 }
 
-void set(mutable X* x, int t) {
+void set(X* x, int t) {
   (*x).v = fun(t);
 }

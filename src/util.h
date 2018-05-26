@@ -124,6 +124,17 @@ vector<T> concat(vector<T> v, const vector<T>& w) {
   return v;
 }
 
+template <typename T>
+vector<T> getSubsequence(const vector<T>& v, int start, optional<int> lengthOption = none) {
+  auto length = lengthOption.value_or(v.size() - start);
+  CHECK(start >= 0 && length >= 0 && start + length <= v.size());
+  vector<T> ret;
+  ret.reserve(length);
+  for (int i = start; i < start + length; ++i)
+    ret.push_back(v[i]);
+  return ret;
+}
+
 template <typename Key, typename Map>
 optional<const typename Map::mapped_type&> getReferenceMaybe(const Map& m, const Key& key) {
   auto it = m.find(key);

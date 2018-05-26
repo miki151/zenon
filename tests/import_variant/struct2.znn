@@ -6,7 +6,7 @@ variant V2 {
 };
 
 template <T, U, X>
-X get(V2<T, U>* v, T t, U u, X x) {
+X get(V2<T, U>& v, T t, U u, mutable X x) {
   return move(x);
 }
 

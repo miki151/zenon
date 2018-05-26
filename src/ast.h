@@ -293,11 +293,13 @@ struct FunctionDefinition : Statement {
     CodeLoc codeLoc;
     IdentifierInfo type;
     optional<string> name;
+    bool isMutable;
   };
   vector<Parameter> parameters;
   unique_ptr<Statement> body;
   TemplateInfo templateInfo;
   optional<FunctionType> functionType;
+  bool isMutableMethod = false;
   struct Initializer {
     CodeLoc codeLoc;
     string paramName;
