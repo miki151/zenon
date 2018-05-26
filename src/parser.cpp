@@ -487,28 +487,38 @@ unique_ptr<Statement> parseVariableDeclaration(Tokens& tokens) {
 unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
   auto templateInfo = parseTemplateInfo(tokens);
   auto nextToken = tokens.peek("Function or type definition");
+  auto checkNameConflict = [&templateInfo] (const string& name, const string& type) {
+    for (auto& param : templateInfo.params)
+      param.codeLoc.check(param.name != name, "Template parameter conflicts with " + type + " name");
+  };
   if (nextToken == Keyword::EXTERN) {
     tokens.popNext();
     auto ret = parseStructDefinition(tokens, true);
+    checkNameConflict(ret->name, "struct");
     ret->templateInfo = templateInfo;
     return ret;
   } else
   if (nextToken == Keyword::STRUCT) {
     auto ret = parseStructDefinition(tokens, false);
+    checkNameConflict(ret->name, "struct");
     ret->templateInfo = templateInfo;
     return ret;
   } else
   if (nextToken == Keyword::VARIANT) {
     auto ret = parseVariantDefinition(tokens);
+    checkNameConflict(ret->name, "variant");
     ret->templateInfo = templateInfo;
     return ret;
   } else
   if (nextToken == Keyword::CONCEPT) {
     auto ret = parseConceptDefinition(tokens);
+    checkNameConflict(ret->name, "concept");
     ret->templateInfo = templateInfo;
     return ret;
   } else {
     auto ret = parseFunctionDefinition(IdentifierInfo::parseFrom(tokens, true), tokens);
+    if (auto name = ret->name.getReferenceMaybe<string>())
+      checkNameConflict(*name, "function");
     ret->templateInfo = templateInfo;
     return ret;
   }
