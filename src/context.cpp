@@ -65,14 +65,15 @@ static string getFunctionNameForError(const FunctionType& function) {
 bool Context::areParamsEquivalent(const FunctionType& f1, const FunctionType& f2) const {
   auto checkFun = [this](const FunctionType& f1, const FunctionType& f2) {
     return !!instantiateFunction(*this, f1, CodeLoc(), {}, transform(f2.params, [](const auto& param) { return param.type; }),
-        vector<CodeLoc>(f2.params.size(), CodeLoc()));
+        vector<CodeLoc>(f2.params.size(), CodeLoc()), {});
   };
   return checkFun(f1, f2) && checkFun(f2, f1);
 }
 
-bool Context::isGeneralization(const FunctionType& general, const FunctionType& specific) const {
+bool Context::isGeneralization(const FunctionType& general, const FunctionType& specific,
+    vector<FunctionType> existing) const {
   if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, transform(specific.params, [](const auto& param) { return param.type; }),
-      vector<CodeLoc>(specific.params.size(), CodeLoc()))) {
+      vector<CodeLoc>(specific.params.size(), CodeLoc()), existing)) {
     //cout << "Checking function equality: " << specific.toString() << " and " << inst->toString() << "\n";
     return specific.name == inst->name && specific.retVal == inst->retVal;
   }
@@ -87,7 +88,7 @@ static bool isBuiltinCopyConstructor(const FunctionType& f) {
   return false;
 }
 
-vector<FunctionType> Context::getMissingFunctions(const Context& required) const {
+vector<FunctionType> Context::getMissingFunctions(const Context& required, vector<FunctionType> existing) const {
   //cout << "Looking for missing functions in:\n";
   //required.print();
   vector<FunctionType> ret;
@@ -100,7 +101,7 @@ vector<FunctionType> Context::getMissingFunctions(const Context& required) const
         //print();
         bool found = false;
         for (auto& myFun : getAllFunctions())
-          if (isGeneralization(myFun, function)) {
+          if (isGeneralization(myFun, function, existing)) {
             found = true;
             break;
           }
@@ -337,15 +338,7 @@ WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc
     vector<CodeLoc> argLoc) const {
   auto templateArgNames = id.parts.back().templateArguments;
   auto templateArgs = getTypeList(templateArgNames);
-  auto ret = instantiateFunction(*this, templateType, codeLoc, templateArgs, argTypes, argLoc);
-  if (ret)
-    for (auto& concept : ret->requirements) {
-      auto missing = getMissingFunctions(concept->getContext());
-      if (!missing.empty()) {
-        return codeLoc.getError("Required function not implemented: " +
-            missing[0].toString() + ", required by concept: " + quote(concept->getName()));
-      }
-    }
+  auto ret = instantiateFunction(*this, templateType, codeLoc, templateArgs, argTypes, argLoc, {});
   return ret;
 }
 

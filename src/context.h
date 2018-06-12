@@ -24,7 +24,7 @@ class Context : public owned_object<Context> {
   Context(const Context&) = delete;
   Context(Context&&) = default;
   void deepCopyFrom(const Context&);
-  vector<FunctionType> getMissingFunctions(const Context&) const;
+  vector<FunctionType> getMissingFunctions(const Context&, vector<FunctionType> existing) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   optional<string> setVariableAsMoved(const string&);
   void addVariable(const string& ident, SType);
@@ -76,6 +76,6 @@ class Context : public owned_object<Context> {
   vector<FunctionType> getFunctions(FunctionId) const;
   nullable<SType> getVariable(const string&) const;
   bool areParamsEquivalent(const FunctionType&, const FunctionType&) const;
-  bool isGeneralization(const FunctionType& general, const FunctionType& specific) const;
+  bool isGeneralization(const FunctionType& general, const FunctionType& specific, vector<FunctionType> existing) const;
   vector<FunctionType> getAllFunctions() const;
 };

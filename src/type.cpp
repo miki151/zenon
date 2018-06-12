@@ -419,7 +419,7 @@ WithError<SType> StructType::instantiate(const Context& context, vector<SType> t
   for (int i = 0; i < templateParams.size(); ++i)
     ret = ret->replace(templateParams[i], templateArgs[i]);
   for (auto& concept : ret.dynamicCast<StructType>()->requirements) {
-    auto missing = context.getMissingFunctions(concept->getContext());
+    auto missing = context.getMissingFunctions(concept->getContext(), {});
     if (!missing.empty())
       return "Required function not implemented: " +
           missing[0].toString() + ", required by concept: " + quote(concept->getName());
@@ -516,8 +516,17 @@ optional<string> Type::getMappingError(const Context&, TypeMapping&, SType argTy
     return getCantBindError(argType, get_this().get());
 }
 
+bool isInstantationEqual(const FunctionType& f1, const FunctionType& f2) {
+  if (f1.name != f2.name || f1.params.size() != f2.params.size())
+    return false;
+  for (int i = 0; i < f1.params.size(); ++i)
+    if (f1.params[i].type != f2.params[i].type)
+      return false;
+  return true;
+}
+
 WithErrorLine<FunctionType> instantiateFunction(const Context& context, const FunctionType& input, CodeLoc codeLoc,
-    vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc) {
+    vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing) {
   FunctionType type = input;
   vector<SType> funParams = transform(type.params, [](const FunctionType::Param& p) { return p.type; });
   if (templateArgs.size() > type.templateParams.size())
@@ -542,6 +551,18 @@ WithErrorLine<FunctionType> instantiateFunction(const Context& context, const Fu
   for (int i = 0; i < type.templateParams.size(); ++i) {
     replaceInFunction(type, type.templateParams[i], templateArgs[i]);
     type.templateParams[i] = templateArgs[i];
+  }
+  for (auto& f : existing)
+    if (isInstantationEqual(f, type))
+      return codeLoc.getError("Recursive template function instantation");
+  existing.push_back(type);
+  //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
+  for (auto& concept : type.requirements) {
+    auto missing = context.getMissingFunctions(concept->getContext(), existing);
+    if (!missing.empty()) {
+      return codeLoc.getError("Required function not implemented: " +
+          missing[0].toString() + ", required by concept: " + quote(concept->getName()));
+    }
   }
   return type;
 }

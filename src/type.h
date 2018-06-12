@@ -185,7 +185,7 @@ class Context;
 
 struct IdentifierInfo;
 extern WithErrorLine<FunctionType> instantiateFunction(const Context& context, const FunctionType&, CodeLoc,
-    vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc);
+    vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing = {});
 extern void replaceInFunction(FunctionType&, SType from, SType to);
 extern string joinTemplateParams(const vector<SType>& params);
 extern string joinTypeList(const vector<SType>&);

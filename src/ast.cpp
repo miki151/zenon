@@ -77,14 +77,14 @@ SType BinaryExpression::getType(Context& context) {
       ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to types: " +
           quote(left->getName()) + " and " + quote(right->getName())};
       for (auto fun : left->getContext().getOperatorType(op)) {
-        if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {right}, {codeLoc})) {
+        if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {right}, {codeLoc}, {})) {
           subscriptOpWorkaround = false;
           ret = inst->retVal;
         } else
           error = codeLoc.getError(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);
       }
       for (auto fun : context.getOperatorType(op))
-        if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {left, right}, {leftExpr.codeLoc, rightExpr.codeLoc})) {
+        if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {left, right}, {leftExpr.codeLoc, rightExpr.codeLoc}, {})) {
           ret = inst->retVal;
         } else
           error = codeLoc.getError(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);

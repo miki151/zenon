@@ -1,0 +1,32 @@
+// no_compile
+
+int add(int a, int b) {
+  return a + b;
+}
+
+template <T>
+concept CanAdd {
+  T add(T, T);
+};
+
+template <A> requires CanAdd<A>
+A add2(mutable A a, mutable A b) {
+  return add(move(a), move(b));
+}
+
+template <T>
+concept CanAdd2 {
+  T(T&);
+  T add2(T t1, T t2);
+};
+
+template <A> requires CanAdd2<A>
+A add3(mutable A a, mutable A b) {
+  return add2(move(a), move(b));
+}
+
+
+int main() {
+  add3('a', 'b');
+  return 0;
+}
