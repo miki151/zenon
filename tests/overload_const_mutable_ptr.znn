@@ -8,12 +8,12 @@ struct X {
 };
 
 template <T>
-T* get(X<T>* t) {
+T mutable* get(X<T> mutable * t) {
   return &(*t).t1;
 }
 
 template <T>
-T& get(X<T>& t) {
+T* get(X<T>* t) {
   return &(*t).t2;
 }
 

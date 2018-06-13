@@ -8,8 +8,8 @@ using std::shared_ptr;
 
 template <T>
 extern struct shared_ptr {
-  T* get();
-  shared_ptr(shared_ptr<T>&);
+  T mutable* get();
+  shared_ptr(shared_ptr<T>*);
 };
 
 template <T>

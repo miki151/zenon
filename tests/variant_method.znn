@@ -5,7 +5,7 @@ variant V {
   void null;
 };
 
-int getValueOr(V* v, int a) {
+int getValueOr(V mutable* v, int a) {
   switch (*v) {
     case (int value) {
       return value;

@@ -3,12 +3,12 @@
 
 template <T>
 concept F1 {
-  int f1(T*);
+  int f1(T mutable*);
 };
 
 template <T>
 concept F2 {
-  int f2(T*);
+  int f2(T mutable*);
 };
 
 template <A> requires F1<A>

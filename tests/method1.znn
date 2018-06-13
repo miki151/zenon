@@ -4,18 +4,18 @@ struct A {
   int x;
 };
 
-int f(A& a, bool b) {
+int f(A* a, bool b) {
   if (b)
     return 1 + g(a, 1);
   else
     return (*a).x;
 }
 
-int g(A& self, int a) {
+int g(A* self, int a) {
   return f(self, a == 0);
 }
 
-void set(A* self, int a) {
+void set(A mutable* self, int a) {
   (*self).x = a;
 }
 

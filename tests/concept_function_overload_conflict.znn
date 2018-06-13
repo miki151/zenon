@@ -11,7 +11,7 @@ int f1(int) {
 }
 
 template <A> requires F1<int>
-int f2(mutable A* a) {
+int f2(mutable A mutable* a) {
   return 2 + f1(1);
 }
 

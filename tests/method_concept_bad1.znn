@@ -2,7 +2,7 @@
 
 template<T, U>
 concept CanConvert {
-  U convert(T& t);
+  U convert(T* t);
 };
 
 template <T>
@@ -11,7 +11,7 @@ struct S1 {
 };
 
 template <T, U> requires CanConvert<U, T>
-void set(S1<T>* s, U u) {
+void set(S1<T> mutable* s, U u) {
   (*s).t = u.convert();
 }
 
@@ -19,7 +19,7 @@ struct X {
   int a;
 };
 
-int convert(X& x) {
+int convert(X* x) {
   return 1 + (*x).a;
 }
 

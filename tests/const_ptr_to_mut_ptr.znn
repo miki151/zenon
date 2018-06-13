@@ -3,6 +3,6 @@
 int main() {
   mutable v = 5;
   const z = &v;
-  int* y = z;
+  int mutable* y = z;
   return *y;
 }

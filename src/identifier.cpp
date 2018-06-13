@@ -52,10 +52,13 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
       break;
   }
   if (allowPointer) {
-    if (tokens.eatMaybe(Operator::MULTIPLY))
+    if (auto t = tokens.eatMaybe(Keyword::MUTABLE)) {
+      tokens.eat(Operator::MULTIPLY);
       ret.pointerType = MUTABLE;
-    else if (tokens.eatMaybe(Operator::GET_ADDRESS))
+    }
+    else if (auto t = tokens.eatMaybe(Operator::MULTIPLY)) {
       ret.pointerType = CONST;
+    }
   }
   INFO << "Identifier " << ret.toString();
   return ret;

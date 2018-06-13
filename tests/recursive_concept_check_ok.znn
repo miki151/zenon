@@ -16,7 +16,7 @@ A add2(mutable A a, mutable A b) {
 
 template <T>
 concept CanAdd2 {
-  T(T&);
+  T(T*);
   T add2(T t1, T t2);
 };
 

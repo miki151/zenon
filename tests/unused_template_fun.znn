@@ -3,8 +3,8 @@
 
 template <T>
 concept CanAdd {
-  void decrease(T*);
-  bool is_zero(T&);
+  void decrease(T mutable*);
+  bool is_zero(T*);
 };
 
 

@@ -2,16 +2,16 @@
 
 template<T>
 concept can_copy {
-  T(T&);
+  T(T*);
 };
 
 template<T> requires can_copy<T>
-void set(T* x, T y) {
+void set(T mutable* x, T y) {
   *x = y;
 }
 
 struct X {
-  int& a;
+  int* a;
   int b;
 };
 

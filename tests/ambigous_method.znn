@@ -3,7 +3,7 @@
 struct X {
 };
 
-int f(X&, int a) {
+int f(X*, int a) {
   return 1;
 }
 

@@ -8,12 +8,12 @@ variant V {
   A4 a4;
 };
 
-int getValue(V<bool, int, string, char>* w) {
+int getValue(V<bool, int, string, char> mutable* w) {
   switch (*w) {
     case (bool a1) {
       return 1;
     }
-    case (string* a3) {
+    case (string mutable* a3) {
       *a3 = "pok";
     }
     default {

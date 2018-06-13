@@ -8,16 +8,16 @@ concept F1 {
 
 template <T>
 concept F2 {
-  int f2(T*);
+  int f2(T mutable*);
 };
 
 template <T>
 concept can_copy {
-  T(T&);
+  T(T*);
 };
 
 template <A> requires F1<A>, can_copy<A>
-int f2(mutable A* a) {
+int f2(mutable A mutable* a) {
   return 1 + f1(*a);
 }
 

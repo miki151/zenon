@@ -7,11 +7,11 @@ int funValue(A a) {
   return 1;
 }
 
-int funRef(A& a) {
+int funRef(A* a) {
   return 5;
 }
 
-int funPtr(A* a) {
+int funPtr(A mutable* a) {
   return 25;
 }
 
@@ -21,7 +21,7 @@ int main() {
   res = res + funValue(a);
   const b = &a; // const reference to A
   res = res + funRef(b);
-  mutable A& c1 = b; // mutable reference to A
+  mutable A* c1 = b; // mutable reference to A
   c1 = &a;
   res = res + funRef(c1);
   mutable c2 = b; // mutable reference to A
@@ -29,7 +29,7 @@ int main() {
   res = res + funRef(c2);
   const c3 = b; // const reference to A
   res = res + funRef(c3);
-  A& c4 = b;
+  A* c4 = b;
   A c5;
   mutable A c6;
   res = res + funValue(c6);

@@ -2,18 +2,18 @@
 
 template <T, U, V>
 concept CanAdd {
-  V add(T& t, U u);
+  V add(T* t, U u);
 };
 
 template <T>
 concept CanCopy {
-  T(T&);
+  T(T*);
 };
 
 struct S {
 };
 
-int add(S& s, bool a) {
+int add(S* s, bool a) {
   if (a)
     return 1;
   else

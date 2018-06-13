@@ -2,7 +2,7 @@
 
 template <T>
 concept can_copy {
-  T(T&);
+  T(T*);
 };
 
 struct S {
@@ -16,7 +16,7 @@ int f(T t) {
 }
 
 template <T>
-int f3(T& t) {
+int f3(T* t) {
   return 2;
 }
 

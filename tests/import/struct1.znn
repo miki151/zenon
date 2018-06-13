@@ -6,6 +6,6 @@ struct Struct1 {
   bool b;
 };
 
-int get(Struct1& s) {
+int get(Struct1* s) {
   return getInt((*s).x);
 }

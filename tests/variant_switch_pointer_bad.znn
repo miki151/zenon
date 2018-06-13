@@ -10,7 +10,7 @@ int main() {
   switch (v) {
     case (int a) {
     }
-    case (void* null) {
+    case (void mutable* null) {
     }
   }
   return 0;

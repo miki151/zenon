@@ -4,24 +4,24 @@ struct A1 {
   string s;
 };
 
-string toString(A1& a) {
+string toString(A1* a) {
   return "A1(" + (*a).s + ")";
 }
 
 struct B {
 };
 
-string toString(B& b) {
+string toString(B* b) {
   return "B";
 }
 
 template <T>
 concept Printable {
-  string toString(T& t);
+  string toString(T* t);
 };
 
 template <A> requires Printable<A>
-string print(A& a) {
+string print(A* a) {
   return (*a).toString();
 }
 

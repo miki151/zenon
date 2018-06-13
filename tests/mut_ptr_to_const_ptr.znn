@@ -1,6 +1,6 @@
 // no_compile
 
-void f(int* v) {
+void f(int mutable* v) {
 }
 
 int main() {

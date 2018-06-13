@@ -4,7 +4,7 @@ struct A {
   int x;
 };
 
-int* get(A* a) {
+int mutable* get(A mutable* a) {
   return &((*a).x);
 }
 

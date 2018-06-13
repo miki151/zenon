@@ -7,11 +7,11 @@ int funValue(A a) {
   return 1;
 }
 
-int funRef(A& a) {
+int funRef(A* a) {
   return 5;
 }
 
-int funPtr(A* a) {
+int funPtr(A mutable* a) {
   return 25;
 }
 

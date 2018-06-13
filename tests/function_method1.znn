@@ -5,11 +5,11 @@ struct S1 {
   int i;
 };
 
-string value(S1& self) {
+string value(S1* self) {
   return "pak";
 }
 
-string print(S1& self) {
+string print(S1* self) {
   if ((*self).b)
     return "pok";
   else

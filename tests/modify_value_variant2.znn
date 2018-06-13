@@ -12,7 +12,7 @@ V getV() {
 int main() {
   const v = V::i(5);
   switch (getV()) {
-    case (string* s) {
+    case (string mutable* s) {
       *s = "pak";
     }
     default {

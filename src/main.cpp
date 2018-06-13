@@ -60,7 +60,8 @@ int main(int argc, char* argv[]) {
         cerr << cppCode << endl;
         return 2;
       }
-    } else
+    } else {
       cout << cppCode << endl;
+    }
   }
 }

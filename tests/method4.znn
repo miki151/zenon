@@ -4,7 +4,7 @@ struct X {
   int a;
 };
 
-int b(X& x) {
+int b(X* x) {
   return (*x).a;
 }
 

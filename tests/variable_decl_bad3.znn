@@ -7,16 +7,16 @@ int funValue(A a) {
   return 1;
 }
 
-int funRef(A& a) {
+int funRef(A* a) {
   return 5;
 }
 
-int funPtr(A* a) {
+int funPtr(A mutable* a) {
   return 25;
 }
 
 int main() {
   const a = A(); // const A
-  mutable A& p
+  mutable A* p
   return 0;
 }

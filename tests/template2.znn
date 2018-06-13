@@ -2,7 +2,7 @@
 
 template<T>
 concept can_copy {
-  T(T&);
+  T(T*);
 };
 
 template <Param> requires can_copy<Param>

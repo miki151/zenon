@@ -1,6 +1,6 @@
 // no_compile
 
-void increment(int* a) {
+void increment(int mutable* a) {
   *a = *a + 1;
 }
 

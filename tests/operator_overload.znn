@@ -2,7 +2,7 @@
 
 template <A>
 concept Arithmetic {
-  A(A&);
+  A(A*);
   A operator + (A a1, A a2);
   A operator - (A a1, A a2);
   A operator - (A a);

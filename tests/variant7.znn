@@ -4,7 +4,7 @@ struct S {
   int a;
 };
 
-void f(S* s) {
+void f(S mutable* s) {
   (*s).a = 5;
 }
 
@@ -13,11 +13,11 @@ variant V {
   string s;
 };
 
-int get(V* self, int a) {
+int get(V mutable* self, int a) {
   mutable s1 = S(1);
   s1.f();
   switch (*self) {
-    case (int* i) {
+    case (int mutable* i) {
       *i = 4;
       return *i + a;
     }
