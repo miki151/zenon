@@ -1,0 +1,21 @@
+// 3
+
+
+template <T>
+concept F1 {
+  int f1(T);
+};
+
+int f1(int) {
+  return 1;
+}
+
+template <A> requires F1<int>
+int f2(mutable A* a) {
+  return 2 + f1(1);
+}
+
+int main() {
+  mutable a = 5;
+  return f2(&a);
+}

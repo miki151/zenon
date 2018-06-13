@@ -72,9 +72,11 @@ bool Context::areParamsEquivalent(const FunctionType& f1, const FunctionType& f2
 
 bool Context::isGeneralization(const FunctionType& general, const FunctionType& specific,
     vector<FunctionType> existing) const {
+  // the name can change during instantation if name is a type (if it's a constructor)
+  if (!specific.name.contains<SType>() && general.name != specific.name)
+    return false;
   if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, transform(specific.params, [](const auto& param) { return param.type; }),
       vector<CodeLoc>(specific.params.size(), CodeLoc()), existing)) {
-    //cout << "Checking function equality: " << specific.toString() << " and " << inst->toString() << "\n";
     return specific.name == inst->name && specific.retVal == inst->retVal;
   }
   else

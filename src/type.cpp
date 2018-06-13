@@ -85,7 +85,8 @@ string FunctionType::toString() const {
       [&](Operator op) { return "operator "s + getString(op); },
       [&](SType type) { return type->getName(false); });
   return retVal->getName() + " " + myName + joinTemplateParams(templateParams) + "(" +
-      combine(transform(params, [](const Param& t) { return t.type->getName(); }), ", ") + ")";
+      combine(transform(params, [](const Param& t) { return t.type->getName(); }), ", ") + ")" +
+      (fromConcept ? " [from concept]" : "");
 }
 
 SType Type::getUnderlying() const {
@@ -516,7 +517,7 @@ optional<string> Type::getMappingError(const Context&, TypeMapping&, SType argTy
     return getCantBindError(argType, get_this().get());
 }
 
-bool isInstantationEqual(const FunctionType& f1, const FunctionType& f2) {
+bool isNameAndArgsEqual(const FunctionType& f1, const FunctionType& f2) {
   if (f1.name != f2.name || f1.params.size() != f2.params.size())
     return false;
   for (int i = 0; i < f1.params.size(); ++i)
@@ -552,10 +553,12 @@ WithErrorLine<FunctionType> instantiateFunction(const Context& context, const Fu
     replaceInFunction(type, type.templateParams[i], templateArgs[i]);
     type.templateParams[i] = templateArgs[i];
   }
-  for (auto& f : existing)
-    if (isInstantationEqual(f, type))
-      return codeLoc.getError("Recursive template function instantation");
-  existing.push_back(type);
+  for (auto& fun : existing)
+    if (isNameAndArgsEqual(input, fun))
+      // To avoid infinite recursion we don't check concept requirements twice for the same >>original<< function
+      // (not instantation). If this causes issues then it needs to be revised.
+      return type;
+  existing.push_back(input);
   //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
   for (auto& concept : type.requirements) {
     auto missing = context.getMissingFunctions(concept->getContext(), existing);

@@ -316,18 +316,28 @@ bool exactArgs(const vector<SType>& argTypes, const FunctionType& f) {
   return argTypes == transform(f.params, [](const auto& p) { return p.type;});
 }
 
-static vector<FunctionType> chooseOverload(const vector<FunctionType>& overloads, const vector<SType>& argTypes) {
-  vector<FunctionType> exact;
-  for (auto& overload : overloads)
-    if (exactArgs(argTypes, overload))
-      exact.push_back(overload);
-  if (!exact.empty())
-    return exact;
+bool nonConcept(const vector<SType>&, const FunctionType& f) {
+  return !f.fromConcept;
+}
+
+static vector<FunctionType> filterOverloads(vector<FunctionType> overloads, const vector<SType>& argTypes) {
+  auto filter = [&] (auto fun) {
+    auto worse = overloads;
+    overloads.clear();
+    for (auto& overload : worse)
+      if (fun(argTypes, overload))
+        overloads.push_back(overload);
+    if (overloads.empty())
+      overloads = worse;
+  };
+  filter(&exactArgs);
+  // sometimes a function is both in the global context and in the concept, so filter those in concepts
+  filter(&nonConcept);
   return overloads;
 }
 
-static WithErrorLine<FunctionType> getFunction(const Context& idContext, const Context& callContext, CodeLoc codeLoc, IdentifierInfo id,
-    const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
+static WithErrorLine<FunctionType> getFunction(const Context& idContext, const Context& callContext, CodeLoc codeLoc,
+    IdentifierInfo id, const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
   ErrorLoc errors = codeLoc.getError("Couldn't find function overload matching arguments: (" + joinTypeList(argTypes) + ")");
   vector<FunctionType> overloads;
   if (auto templateType = idContext.getFunctionTemplate(id)) {
@@ -339,13 +349,13 @@ static WithErrorLine<FunctionType> getFunction(const Context& idContext, const C
   }
   if (overloads.empty())
     return errors;
-  overloads = chooseOverload(overloads, argTypes);
+  overloads = filterOverloads(overloads, argTypes);
   CHECK(!overloads.empty());
   if (overloads.size() == 1)
     return overloads[0];
-  else {
-    return codeLoc.getError("Multiple function overloads found:\n" + combine(transform(overloads, [](const auto& o) { return o.toString();}), "\n"));
-  }
+  else
+    return codeLoc.getError("Multiple function overloads found:\n" +
+        combine(transform(overloads, [](const auto& o) { return o.toString();}), "\n"));
 }
 
 nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& callContext) {
@@ -816,6 +826,7 @@ void ConceptDefinition::addToContext(Context& context) {
   }
   for (auto& function : functions) {
     function->setFunctionType(declarationsContext, false);
+    function->functionType->fromConcept = true;
     function->check(declarationsContext);
     function->codeLoc.checkNoError(concept->modContext().addFunction(*function->functionType));
   }

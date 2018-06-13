@@ -1,0 +1,32 @@
+// 3
+
+
+template <T>
+concept F1 {
+  int f1(T);
+};
+
+template <T>
+concept F2 {
+  int f2(T*);
+};
+
+template <T>
+concept can_copy {
+  T(T&);
+};
+
+template <A> requires F1<A>, can_copy<A>
+int f2(mutable A* a) {
+  return 1 + f1(*a);
+}
+
+template <A> requires F2<A>
+int f1(mutable A a) {
+  return 2;
+}
+
+int main() {
+  mutable a = 5;
+  return f2(&a);
+}

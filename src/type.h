@@ -161,6 +161,7 @@ struct FunctionType {
   vector<SConcept> requirements;
   nullable<SType> parentType;
   bool externalMethod = false;
+  bool fromConcept = false;
   string toString() const;
 };
 
