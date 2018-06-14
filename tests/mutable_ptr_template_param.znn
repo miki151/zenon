@@ -1,0 +1,15 @@
+// 0
+
+template <T>
+struct A {
+};
+
+A<int mutable*> f() {
+  mutable int a = 5;
+  return A<int mutable*>();
+}
+
+int main() {
+  return 0;
+}
+
