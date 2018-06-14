@@ -115,6 +115,7 @@ struct StructType : public Type {
     STRUCT,
     VARIANT
   };
+  bool hasInfiniteSize() const;
   static shared_ptr<StructType> get(Kind, string name);
   Kind kind;
   string name;

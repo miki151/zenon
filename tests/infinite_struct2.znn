@@ -1,0 +1,10 @@
+// no_compile
+
+template <T>
+struct X {
+  X<T> x;
+};
+
+int main() {
+  return 0;
+}
