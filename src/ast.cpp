@@ -316,7 +316,8 @@ SType FunctionCall::getType(Context& context) {
 }
 
 bool exactArgs(const vector<SType>& argTypes, const FunctionType& f) {
-  return argTypes == transform(f.params, [](const auto& p) { return p.type;});
+  return transform(argTypes, [](const auto& p) { return p->getUnderlying();})
+      == transform(f.params, [](const auto& p) { return p.type;});
 }
 
 bool nonConcept(const vector<SType>&, const FunctionType& f) {
