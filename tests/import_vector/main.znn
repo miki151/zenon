@@ -1,13 +1,13 @@
-// 15
+// 45
 import "vector.znn"
 
 int main() {
   mutable v = vector<int>();
   for (mutable i = 0; i < 6; i = i + 1)
-    v.push_back(i);
+    v.push_back(i + 5);
   mutable sum = 0;
   for (mutable i = 0; i < v.size(); i = i + 1)
-    sum = sum + i;
+    sum = sum + *v.at(i);
   return sum;
 }
 

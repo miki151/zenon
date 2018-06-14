@@ -8,8 +8,22 @@ using std::unique_ptr;
 
 template <T>
 extern struct unique_ptr {
-  T mutable* get();
 };
+
+template <T>
+T mutable* get(unique_ptr<T> mutable* ptr) {
+  embed {
+    return ptr->get();
+  }
+}
+
+template <T>
+T* get(unique_ptr<T>* ptr) {
+  embed {
+    return ptr->get();
+  }
+}
+
 
 template <T>
 unique_ptr<T> unique(T t) {

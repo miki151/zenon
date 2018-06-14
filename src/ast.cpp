@@ -551,26 +551,18 @@ void VariantDefinition::addToContext(Context& context) {
     constructor.parentType = type.get();
     CHECK(!type->staticContext.addFunction(constructor));
   }
-  for (auto& method : methods) {
-    method->codeLoc.check(!method->name.contains<Operator>(), "Defining operators inside variant body is not allowed.");
-    method->setFunctionType(membersContext, true);
-    method->functionType->parentType = type.get();
-    method->codeLoc.checkNoError(type->context.addFunction(*method->functionType));
-  }
 }
 
 void VariantDefinition::check(Context& context) {
-  auto methodBodyContext = Context::withParent({&context, &type->context});
-  applyConcept(methodBodyContext, templateInfo, type->templateParams);
+  auto bodyContext = Context::withParent({&context, &type->context});
+  applyConcept(bodyContext, templateInfo, type->templateParams);
   for (auto& subtype : elements)
-    type->alternatives.push_back({subtype.name, methodBodyContext.getTypeFromString(subtype.type).get(subtype.codeLoc)});
-  methodBodyContext.addVariable("this", PointerType::get(type.get()));
-  for (int i = 0; i < methods.size(); ++i)
-    methods[i]->checkFunctionBody(methodBodyContext, !templateInfo.params.empty());
+    type->alternatives.push_back({subtype.name, bodyContext.getTypeFromString(subtype.type).get(subtype.codeLoc)});
+  bodyContext.addVariable("this", PointerType::get(type.get()));
   type->updateInstantations();
   auto canCopyConstructAllAlternatives = [&] {
     for (auto& alternative : type->alternatives)
-      if (alternative.type != ArithmeticType::VOID && !methodBodyContext.canCopyConstruct(alternative.type))
+      if (alternative.type != ArithmeticType::VOID && !bodyContext.canCopyConstruct(alternative.type))
         return false;
     return true;
   };
@@ -601,16 +593,8 @@ void StructDefinition::addToContext(Context& context) {
       method->functionType->parentType = type.get();
       method->codeLoc.checkNoError(context.addFunction(*method->functionType));
       hasConstructor = true;
-    } else {
-      method->codeLoc.check(external, "Defining methods inside struct body is only allowed for extern structs.");
-      method->setFunctionType(membersContext, true);
-      method->functionType->templateParams = concat(type->templateParams, method->functionType->templateParams);
-      auto thisType = method->isMutableMethod ? SType(MutablePointerType::get(type.get())) : SType(PointerType::get(type.get()));
-      method->functionType->params = concat({FunctionType::Param(std::move(thisType))}, method->functionType->params);
-      method->functionType->parentType = type.get();
-      method->functionType->externalMethod = true;
-      method->codeLoc.checkNoError(context.addFunction(*method->functionType));
-    }
+    } else
+      method->codeLoc.error("Only constructors and members can be defined inside struct body.");
   }
   if (!hasConstructor) {
     vector<FunctionType::Param> constructorParams;
@@ -834,4 +818,23 @@ void ConceptDefinition::addToContext(Context& context) {
 }
 
 void ConceptDefinition::check(Context& context) {
+}
+
+CodegenStage CodegenStage::define() {
+  CodegenStage ret;
+  ret.isDefine = true;
+  ret.isImport = false;
+  return ret;
+}
+
+CodegenStage CodegenStage::declare() {
+  CodegenStage ret;
+  ret.isDefine = false;
+  ret.isImport = false;
+  return ret;
+}
+
+CodegenStage CodegenStage::setImport() {
+  isImport = true;
+  return *this;
 }

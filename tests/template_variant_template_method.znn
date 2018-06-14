@@ -9,18 +9,19 @@ template <T> requires can_copy<T>
 variant V {
   T value;
   void null;
-  template<U>
-  T getValueOr(U u, T a) {
-    switch (*this) {
-      case (T value) {
-        return value;
-      }
-      case (null) {
-        return a;
-      }
+};
+
+template<U, T> requires can_copy<T>
+T getValueOr(V<T>* v, U u, mutable T a) {
+  switch (*v) {
+    case (T value) {
+      return value;
+    }
+    case (null) {
+      return move(a);
     }
   }
-};
+}
 
 int main() {
   mutable v = V<int>::value(5);

@@ -11,10 +11,20 @@
 
 struct Accu;
 
+struct CodegenStage {
+  static CodegenStage define();
+  static CodegenStage declare();
+  CodegenStage setImport();
+  bool isDefine;
+  bool isImport;
+
+  private:
+  CodegenStage() {}
+};
+
 struct Node {
   Node(CodeLoc);
   CodeLoc codeLoc;
-  enum CodegenStage { IMPORT, DECLARE, DEFINE };
   virtual void codegen(Accu&, CodegenStage) const {}
   virtual ~Node() {}
 };
@@ -231,7 +241,6 @@ struct VariantDefinition : Statement {
     CodeLoc codeLoc;
   };
   vector<Element> elements;
-  vector<unique_ptr<FunctionDefinition>> methods;
   TemplateInfo templateInfo;
   nullable<shared_ptr<StructType>> type;
   virtual void addToContext(Context&) override;

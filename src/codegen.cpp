@@ -54,7 +54,7 @@ void MoveExpression::codegen(Accu& accu, CodegenStage) const {
   accu.add("std::move(" + identifier + ")");
 }
 
-void Expression::codegenDotOperator(Accu& accu, Node::CodegenStage stage, Expression* leftSide) const {
+void Expression::codegenDotOperator(Accu& accu, CodegenStage stage, Expression* leftSide) const {
   accu.add("(");
   leftSide->codegen(accu, stage);
   accu.add(").");
@@ -62,7 +62,7 @@ void Expression::codegenDotOperator(Accu& accu, Node::CodegenStage stage, Expres
 }
 
 void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage == DEFINE);
+  CHECK(stage.isDefine);
   if (op == Operator::MEMBER_ACCESS) {
     e2->codegenDotOperator(accu, stage, e1.get());
     return;
@@ -92,7 +92,7 @@ void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void StatementBlock::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage == DEFINE);
+  CHECK(stage.isDefine);
   accu.add("{");
   ++accu.indent;
   for (auto& s : elems) {
@@ -104,7 +104,7 @@ void StatementBlock::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void VariableDeclaration::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage == DEFINE);
+  CHECK(stage.isDefine);
   accu.add(realType.get()->getName() + " ");
   if (!isMutable)
     accu.add("const ");
@@ -117,7 +117,7 @@ void VariableDeclaration::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void IfStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage == DEFINE);
+  CHECK(stage.isDefine);
   accu.newLine("if (");
   cond->codegen(accu, stage);
   accu.add(")");
@@ -135,7 +135,7 @@ void IfStatement::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage == DEFINE);
+  CHECK(stage.isDefine);
   accu.add("return");
   if (expr) {
     accu.add(" ");
@@ -185,7 +185,7 @@ static void genFunctionCall(Accu& accu, const FunctionType& functionType,
   for (auto& arg : arguments) {
     if (extractPointer)
       accu.add("getAddress(");
-    arg->codegen(accu, Node::DEFINE);
+    arg->codegen(accu, CodegenStage::define());
     if (extractPointer) {
       accu.add(")");
       extractPointer = false;
@@ -199,7 +199,7 @@ static void genFunctionCall(Accu& accu, const FunctionType& functionType,
   accu.add(suffix);
 }
 
-void FunctionCall::codegenDotOperator(Accu& accu, Node::CodegenStage stage, Expression* leftSide) const {
+void FunctionCall::codegenDotOperator(Accu& accu, CodegenStage stage, Expression* leftSide) const {
   if (callType == MethodCallType::FUNCTION_AS_METHOD || callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
     vector<Expression*> args {leftSide};
     append(args, extractRefs(arguments));
@@ -216,7 +216,7 @@ void FunctionCall::codegen(Accu& accu, CodegenStage) const {
   genFunctionCall(accu, *functionType, extractRefs(arguments), callType);
 }
 
-void FunctionCallNamedArgs::codegenDotOperator(Accu& accu, Node::CodegenStage stage, Expression* leftSide) const {
+void FunctionCallNamedArgs::codegenDotOperator(Accu& accu, CodegenStage stage, Expression* leftSide) const {
   if (callType == MethodCallType::FUNCTION_AS_METHOD || callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
     vector<Expression*> args {leftSide};
     append(args, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
@@ -288,7 +288,7 @@ static void addInitializers(Accu& accu, const vector<FunctionDefinition::Initial
       accu.add(", ");
     addComma = true;
     accu.add(elem.paramName + "(");
-    elem.expr->codegen(accu, Node::CodegenStage::DEFINE);
+    elem.expr->codegen(accu, CodegenStage::define());
     accu.add(")");
   }
   accu.add(" ");
@@ -298,12 +298,12 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (!body)
     return;
   addSignature(accu, "");
-  if (stage == DECLARE || (stage == IMPORT && templateInfo.params.empty())) {
+  if (stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
+    accu.newLine("");
+    body->codegen(accu, CodegenStage::define());
+  } else {
     accu.add(";");
     accu.newLine("");
-  } else {
-    accu.newLine("");
-    body->codegen(accu, DEFINE);
   }
 }
 
@@ -315,18 +315,18 @@ string codegen(const AST& ast) {
         "using string = lite_str<>;");
   accu.newLine();
   for (auto& elem : ast.elems) {
-    elem->codegen(accu, Node::DECLARE);
+    elem->codegen(accu, CodegenStage::declare());
     accu.newLine();
   }
   for (auto& elem : ast.elems) {
-    elem->codegen(accu, Node::DEFINE);
+    elem->codegen(accu, CodegenStage::define());
     accu.newLine();
   }
   return accu.generate();
 }
 
 void ExpressionStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage == DEFINE);
+  CHECK(stage.isDefine);
   expr->codegen(accu, stage);
   accu.add(";");
 }
@@ -334,7 +334,7 @@ void ExpressionStatement::codegen(Accu& accu, CodegenStage stage) const {
 void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (external)
     return;
-  if (stage != DEFINE) {
+  if (!stage.isDefine) {
     considerTemplateParams(accu, templateInfo.params);
     accu.add("struct " + name + " {");
     ++accu.indent;
@@ -350,13 +350,13 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
   }
   accu.newLine();
   for (auto& method : methods)
-    if (stage == DEFINE || ((!templateInfo.params.empty() || !method->templateInfo.params.empty()) && stage == IMPORT)) {
+    if (stage.isDefine && (!stage.isImport  || !templateInfo.params.empty())) {
       considerTemplateParams(accu, templateInfo.params);
       method->addSignature(accu, name + joinTemplateParams(type->templateParams));
       if (method->functionType->name.contains<SType>())
         addInitializers(accu, method->initializers);
       accu.newLine();
-      method->body->codegen(accu, DEFINE);
+      method->body->codegen(accu, CodegenStage::define());
       accu.newLine();
     }
 }
@@ -366,15 +366,10 @@ constexpr const char* variantUnionEntryPrefix = "Union_";
 constexpr const char* variantUnionElem = "unionElem";
 
 void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (stage != DEFINE) {
+  if (!stage.isDefine) {
     considerTemplateParams(accu, templateInfo.params);
     accu.add("struct " + name + " {");
     ++accu.indent;
-    for (auto& method : methods) {
-      accu.newLine();
-      method->addSignature(accu, "");
-      accu.add(";");
-    }
     accu.newLine();
     accu.add("enum {");
     vector<string> typeNames;
@@ -432,15 +427,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
     accu.newLine("};");
     accu.newLine();
   }
-  for (auto& method : methods)
-    if (stage == DEFINE || ((!templateInfo.params.empty() || !method->templateInfo.params.empty()) && stage == IMPORT)) {
-      considerTemplateParams(accu, templateInfo.params);
-      method->addSignature(accu, name + joinTemplateParams(type->templateParams));
-      accu.newLine();
-      method->body->codegen(accu, DEFINE);
-      accu.newLine();
-    }
-  if (stage == DEFINE || (!templateInfo.params.empty() && stage == IMPORT))
+  if (stage.isDefine && (!stage.isImport || !templateInfo.params.empty()))
     for (auto& alternative : type->alternatives) {
       string signature = alternative.name + "(";
       if (alternative.type != ArithmeticType::VOID)
@@ -464,7 +451,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
 constexpr const char* variantTmpRef = "variantTmpRef";
 
 void SwitchStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage == DEFINE);
+  CHECK(stage.isDefine);
   switch (type) {
     case VARIANT:
       codegenVariant(accu);
@@ -477,14 +464,14 @@ void SwitchStatement::codegen(Accu& accu, CodegenStage stage) const {
 
 void SwitchStatement::codegenEnum(Accu& accu) const {
   accu.add("switch (");
-  expr->codegen(accu, DEFINE);
+  expr->codegen(accu, CodegenStage::define());
   accu.add(") {");
   ++accu.indent;
   for (auto& caseElem : caseElems) {
     accu.newLine("case " + subtypesPrefix + caseElem.id + ": {");
     ++accu.indent;
     accu.newLine();
-    caseElem.block->codegen(accu, DEFINE);
+    caseElem.block->codegen(accu, CodegenStage::define());
     accu.newLine("break;");
     --accu.indent;
     accu.newLine("}");
@@ -493,7 +480,7 @@ void SwitchStatement::codegenEnum(Accu& accu) const {
     accu.newLine("default: {");
     ++accu.indent;
     accu.newLine();
-    defaultBlock->codegen(accu, DEFINE);
+    defaultBlock->codegen(accu, CodegenStage::define());
     accu.newLine("break;");
     --accu.indent;
     accu.newLine("}");
@@ -504,7 +491,7 @@ void SwitchStatement::codegenEnum(Accu& accu) const {
 
 void SwitchStatement::codegenVariant(Accu& accu) const {
   accu.add("{ auto&& "s + variantTmpRef + " = ");
-  expr->codegen(accu, DEFINE);
+  expr->codegen(accu, CodegenStage::define());
   accu.add(";");
   accu.newLine("switch ("s + variantTmpRef + "."s + variantUnionElem + ") {");
   ++accu.indent;
@@ -516,7 +503,7 @@ void SwitchStatement::codegenVariant(Accu& accu) const {
     else if (caseElem.varType == caseElem.POINTER)
       accu.newLine("auto "s + caseElem.id + " = &" + variantTmpRef + "." + variantUnionEntryPrefix + caseElem.id + ";");
     accu.newLine();
-    caseElem.block->codegen(accu, DEFINE);
+    caseElem.block->codegen(accu, CodegenStage::define());
     accu.newLine("break;");
     --accu.indent;
     accu.newLine("}");
@@ -525,7 +512,7 @@ void SwitchStatement::codegenVariant(Accu& accu) const {
     accu.newLine("default: {");
     ++accu.indent;
     accu.newLine();
-    defaultBlock->codegen(accu, DEFINE);
+    defaultBlock->codegen(accu, CodegenStage::define());
     accu.newLine("break;");
     --accu.indent;
     accu.newLine("}");
@@ -535,15 +522,15 @@ void SwitchStatement::codegenVariant(Accu& accu) const {
 }
 
 void UnaryExpression::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage == DEFINE);
+  CHECK(stage.isDefine);
   accu.add(getString(op));
   accu.add("(");
-  expr->codegen(accu, DEFINE);
+  expr->codegen(accu, CodegenStage::define());
   accu.add(") ");
 }
 
 void EmbedStatement::codegen(Accu& accu, CodegenStage stage) const {
-  if ((stage == DEFINE && !isTopLevel) || (stage == DECLARE && isTopLevel) || (stage == IMPORT && isPublic))
+  if ((stage.isDefine && !isTopLevel) || (!stage.isDefine && isTopLevel) || (stage.isImport && isPublic))
     accu.newLine(value);
 }
 
@@ -552,43 +539,43 @@ bool EmbedStatement::hasReturnStatement(const Context&) const {
 }
 
 void ForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage == DEFINE);
+  CHECK(stage.isDefine);
   accu.add("for (");
-  init->codegen(accu, DEFINE);
-  cond->codegen(accu, DEFINE);
+  init->codegen(accu, CodegenStage::define());
+  cond->codegen(accu, CodegenStage::define());
   accu.add(";");
-  iter->codegen(accu, DEFINE);
+  iter->codegen(accu, CodegenStage::define());
   accu.add(")");
   ++accu.indent;
   accu.newLine();
-  body->codegen(accu, DEFINE);
+  body->codegen(accu, CodegenStage::define());
   --accu.indent;
   accu.newLine();
 }
 
 void WhileLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage == DEFINE);
+  CHECK(stage.isDefine);
   accu.add("while (");
-  cond->codegen(accu, DEFINE);
+  cond->codegen(accu, CodegenStage::define());
   accu.add(")");
   ++accu.indent;
   accu.newLine();
-  body->codegen(accu, DEFINE);
+  body->codegen(accu, CodegenStage::define());
   --accu.indent;
   accu.newLine();
 }
 
 void ImportStatement::codegen(Accu& accu, CodegenStage stage) const {
   // ast can be null if import was already generated or is secondary and not public
-  if (ast && stage != DEFINE)
+  if (ast)
     for (auto& elem : ast->elems) {
-      elem->codegen(accu, IMPORT);
+      elem->codegen(accu, stage.setImport());
       accu.newLine("");
     }
 }
 
 void EnumDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (stage != DEFINE) {
+  if (!stage.isDefine) {
     accu.add("enum class " + name + " {");
     ++accu.indent;
     for (auto& elem : elements)
@@ -602,5 +589,5 @@ void EnumConstant::codegen(Accu& accu, CodegenStage) const {
   accu.add(enumName + "::" + enumElement);
 }
 
-void ConceptDefinition::codegen(Accu&, Node::CodegenStage) const {
+void ConceptDefinition::codegen(Accu&, CodegenStage) const {
 }

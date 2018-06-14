@@ -284,17 +284,6 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
       } else
         ret->methods.push_back(parseConstructorDefinition(typeIdent, tokens));
       ret->methods.back()->templateInfo = templateParams;
-    } else
-    if (memberName == Keyword::OPERATOR || tokens.peek("struct definition") == Keyword::OPEN_BRACKET) { // method
-      tokens.rewind();
-      if (external) {
-        ret->methods.push_back(parseFunctionSignature(typeIdent, tokens));
-        if (tokens.eatMaybe(Keyword::MUTABLE))
-          ret->methods.back()->isMutableMethod = true;
-        tokens.eat(Keyword::SEMICOLON);
-      } else
-        ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));
-      ret->methods.back()->templateInfo = templateParams;
     } else { // member
       memberToken.codeLoc.check(templateParams.params.empty(), "Member variable can't have template parameters");
       memberName.codeLoc.check(memberName.contains<IdentifierToken>(), "Expected identifier");
@@ -381,15 +370,9 @@ unique_ptr<VariantDefinition> parseVariantDefinition(Tokens& tokens) {
       templateParams = parseTemplateInfo(tokens);
     auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
     auto token2 = tokens.popNext("name of a variant alternative");
-    if (token2 == Keyword::OPERATOR || tokens.peek("variant definition") == Keyword::OPEN_BRACKET) {
-      tokens.rewind();
-      ret->methods.push_back(parseFunctionDefinition(typeIdent, tokens));
-      ret->methods.back()->templateInfo = templateParams;
-    } else {
-      token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected name of a variant alternative");
-      ret->elements.push_back(VariantDefinition::Element{typeIdent, token2.value, token2.codeLoc});
-      tokens.eat(Keyword::SEMICOLON);
-    }
+    token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected name of a variant alternative");
+    ret->elements.push_back(VariantDefinition::Element{typeIdent, token2.value, token2.codeLoc});
+    tokens.eat(Keyword::SEMICOLON);
   }
   tokens.eat(Keyword::SEMICOLON);
   return ret;
@@ -604,6 +587,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens, bool topLevel) {
             if (next.contains<EmbedToken>()) {
               auto ret = unique<EmbedStatement>(next.codeLoc, next.value);
               ret->isPublic = true;
+              ret->isTopLevel = true;
               tokens.popNext();
               return ret;
             } else {

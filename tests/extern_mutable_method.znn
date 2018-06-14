@@ -11,11 +11,35 @@ template <T>
 extern struct vector {
   vector();
   vector(int cnt, T);
-  void push_back(T) mutable;
-  T at(int index);
-  int size();
-//  T operator [](int);
 };
+
+template <T>
+void push_back(vector<T> mutable* v, T elem) {
+  embed {
+    v->push_back(std::move(elem));
+  }
+}
+
+template <T>
+T* at(vector<T>* v, int index) {
+  embed {
+    return &v->at(index);
+  }
+}
+
+template <T>
+T mutable* at(vector<T> mutable* v, int index) {
+  embed {
+    return v->at(index);
+  }
+}
+
+template <T>
+int size(vector<T>* v) {
+  embed {
+    return v->size();
+  }
+}
 
 int main() {
   const v = vector<int>();
