@@ -1,14 +1,11 @@
 #include "reader.h"
 
-std::string readFromFile(const char* path, optional<CodeLoc> codeLoc){
+WithError<FileContents> readFromFile(const char* path){
   ifstream in;
   in.open(path);
-  string error = "Failed to open file " + quote(path);
-  if (codeLoc)
-    codeLoc->check(in.good(), error);
-  else
-    CHECK_SYNTAX(in.good()) << error;
+  if (!in.good())
+    return "Failed to open file " + quote(path);
   stringstream ss;
   ss << in.rdbuf();
-  return ss.str();
+  return FileContents{ss.str()};
 }

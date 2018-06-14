@@ -21,6 +21,9 @@ LDFLAGS += -L/usr/local/lib
 
 SRCS = $(shell ls -t src/*.cpp)
 
+INSTALL_DIR = $(shell pwd)
+CFLAGS += "-DINSTALL_DIR=\"$(INSTALL_DIR)\""
+
 LIBS = -L/usr/lib/x86_64-linux-gnu  ${LDFLAGS}
 
 

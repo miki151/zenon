@@ -523,7 +523,6 @@ unique_ptr<Statement> parseImportStatement(Tokens& tokens, bool isPublic) {
   auto codeLoc = tokens.peek().codeLoc;
   tokens.eat(Keyword::IMPORT);
   auto path = tokens.eat(StringToken{}).value;
-  path = getParentPath(codeLoc.file) + "/" + path;
   return unique<ImportStatement>(codeLoc, path, isPublic);
 }
 

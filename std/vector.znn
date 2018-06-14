@@ -1,0 +1,34 @@
+
+embed {
+
+#include <vector>
+using namespace std;
+
+}
+
+template <T>
+extern struct vector {
+  vector();
+};
+
+template <T>
+void push_back(vector<T> mutable* v, T elem) {
+  embed {
+    v->push_back(std::move(elem));
+  }
+}
+
+template <T>
+T* at(vector<T>* v, int index) {
+  embed {
+    return &v->at(index);
+  }
+}
+
+template <T>
+int size(vector<T>* v) {
+  embed {
+    return v->size();
+  }
+}
+

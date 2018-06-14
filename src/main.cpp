@@ -6,9 +6,10 @@
 #include "parser.h"
 #include "ast.h"
 #include "codegen.h"
-#include "correctness.h"
 #include "reader.h"
 #include "ProgramOptions.h"
+
+auto installDir = INSTALL_DIR;
 
 static po::parser getCommandLineFlags() {
   po::parser flags;
@@ -47,12 +48,14 @@ int main(int argc, char* argv[]) {
   ErrorLog.addOutput(DebugOutput::toStream(std::cerr));
   for (auto pathElem : flags[""]) {
     auto path = pathElem.string;
-    string program = readFromFile(path.c_str(), none);
-    INFO << "Parsing:\n\n" << program;
-    auto tokens = lex(program, path);
+    auto program = readFromFile(path.c_str());
+    if (!program)
+      FATAL << program.get_error();
+    INFO << "Parsing:\n\n" << program->value;
+    auto tokens = lex(program->value, path);
     auto ast = parse(tokens);
-    correctness(ast);
-    auto cppCode = codegen(ast);
+    correctness(ast, {installDir});
+    auto cppCode = codegen(ast, installDir + "/codegen_includes/all.h"s);
     log << cppCode;
     if (flags["o"].was_set()) {
       if (compileCpp(flags["cpp"].get().string, cppCode, flags["o"].get().string, !flags["c"].was_set())) {

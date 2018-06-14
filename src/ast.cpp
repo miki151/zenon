@@ -286,14 +286,17 @@ static void initializeArithmeticTypes(Context& context) {
     context.addCopyConstructorFor(type);
 }
 
-void correctness(const AST& ast) {
+void correctness(const AST& ast, const vector<string>& importPaths) {
   Context context;
   initializeArithmeticTypes(context);
   for (auto type : {ArithmeticType::INT, ArithmeticType::BOOL,
        ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
     context.addType(type->getName(), type);
-  for (auto& elem : ast.elems)
+  for (auto& elem : ast.elems) {
+    if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
+      import->setImportDirs(importPaths);
     elem->addToContext(context);
+  }
   for (auto& elem : ast.elems) {
     elem->check(context);
   }
@@ -754,7 +757,24 @@ void WhileLoopStatement::check(Context& context) {
 ImportStatement::ImportStatement(CodeLoc l, string p, bool pub) : Statement(l), path(p), isPublic(pub) {
 }
 
-void ImportStatement::check(Context& s) {
+void ImportStatement::setImportDirs(const vector<string>& p) {
+  importDirs = p;
+}
+
+void ImportStatement::check(Context&) {
+}
+
+void ImportStatement::processImport(Context& context, const string& content, const string& path) {
+  auto tokens = lex(content, path);
+  ast = unique<AST>(parse(tokens));
+  for (auto& elem : ast->elems) {
+    if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
+      import->setImportDirs(importDirs);
+    elem->addToContext(context);
+  }
+  for (auto& elem : ast->elems)
+    elem->check(context);
+  context.popImport();
 }
 
 void ImportStatement::addToContext(Context& s) {
@@ -762,15 +782,17 @@ void ImportStatement::addToContext(Context& s) {
     return;
   codeLoc.check(!contains(s.getImports(), path), "Public import cycle: " + combine(s.getImports(), ", "));
   s.pushImport(path);
-  string content = readFromFile(path.c_str(), codeLoc);
-  INFO << "Imported file " << path;
-  auto tokens = lex(content, path);
-  ast = unique<AST>(parse(tokens));
-  for (auto& elem : ast->elems)
-    elem->addToContext(s);
-  for (auto& elem : ast->elems)
-    elem->check(s);
-  s.popImport();
+  INFO << "Resolving import " << path;
+  for (auto importDir : concat({getParentPath(codeLoc.file)}, importDirs)) {
+    auto importPath = importDir + "/" + path;
+    INFO << "Trying directory " << importPath;
+    if (auto content = readFromFile(importPath.c_str())) {
+      INFO << "Imported file " << importPath;
+      processImport(s, content->value, importPath);
+      return;
+    }
+  }
+  codeLoc.error("Couldn't resolve import path: " + path);
 }
 
 nullable<SType> Expression::getDotOperatorType(Expression* left, Context& callContext) {

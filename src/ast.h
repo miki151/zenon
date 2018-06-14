@@ -340,14 +340,21 @@ struct AST;
 struct ImportStatement : Statement {
   ImportStatement(CodeLoc, string path, bool isPublic);
   string path;
+  vector<string> importDirs;
   unique_ptr<AST> ast;
   bool isPublic;
+  void setImportDirs(const vector<string>& importDirs);
   virtual void addToContext(Context&) override;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+
+  private:
+  void processImport(Context&, const string& content, const string& path);
 };
 
 struct AST {
   vector<unique_ptr<Statement>> elems;
 };
+
+extern void correctness(const AST&, const vector<string>& importPaths);

@@ -307,12 +307,9 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   }
 }
 
-string codegen(const AST& ast) {
+string codegen(const AST& ast, const string& codegenInclude) {
   Accu accu;
-  accu.add(
-        "#include \"codegen_includes/variant_helpers.h\"\n"
-        "#include \"codegen_includes/lite_str.h\"\n"
-        "using string = lite_str<>;");
+  accu.add("#include \"" + codegenInclude + "\"");
   accu.newLine();
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::declare());
