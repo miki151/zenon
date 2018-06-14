@@ -1,4 +1,4 @@
-import "fun2.znn"
+import "fun2.znn";
 
 int getNum() {
   return getNum2() - 1;

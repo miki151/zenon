@@ -1,5 +1,5 @@
 // 45
-import "vector.znn"
+import "vector.znn";
 
 int main() {
   mutable v = vector<int>();

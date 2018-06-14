@@ -1,5 +1,5 @@
 // 10
-import "fun.znn"
+import "fun.znn";
 
 template<T>
 int getT(T a) {

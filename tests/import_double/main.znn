@@ -1,6 +1,6 @@
 // 10
-import "struct1.znn"
-import "struct2.znn"
+import "struct1.znn";
+import "struct2.znn";
 
 
 

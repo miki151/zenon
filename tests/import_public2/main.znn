@@ -1,5 +1,5 @@
 // 1
-import "fun.znn"
+import "fun.znn";
 
 int main() {
   int a = getNum();

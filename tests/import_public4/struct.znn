@@ -1,4 +1,4 @@
-public import "fun2.znn"
+public import "fun2.znn";
 
 struct S {
 };

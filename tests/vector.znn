@@ -1,6 +1,6 @@
 // 55
 
-import "std/vector.znn"
+import "std/vector.znn";
 
 int f() {
   const v = vector<int>();

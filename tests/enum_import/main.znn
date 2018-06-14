@@ -1,5 +1,5 @@
 // 1
-import "enum1.znn"
+import "enum1.znn";
 
 int main() {
   const e = E1::V1;

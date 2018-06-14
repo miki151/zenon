@@ -1,5 +1,5 @@
 // 7
-import "s1.znn"
+import "s1.znn";
 
 
 int main() {

@@ -1,5 +1,5 @@
 // no_compile
-import "fun.znn"
+import "fun.znn";
 
 int main() {
   const s = S1(S2(true), 5);

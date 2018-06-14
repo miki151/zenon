@@ -1,4 +1,4 @@
-public import "struct2.znn"
+public import "struct2.znn";
 
 variant V1 {
   int x;

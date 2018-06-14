@@ -1,6 +1,6 @@
 // 1
-import "fun.znn"
-import "struct.znn"
+import "fun.znn";
+import "struct.znn";
 
 int main() {
   int a = getNum();

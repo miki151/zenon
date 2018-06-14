@@ -1,4 +1,4 @@
-import "fun.znn"
+import "fun.znn";
 
 struct X {
   int v;
