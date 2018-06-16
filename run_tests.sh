@@ -6,6 +6,8 @@ NC='\033[0m'
 
 #CLANG_OPT="-fsanitize=address"
 
+cd tests/
+
 function compile() {
   OUTPUT=$3
   if [ "$2" = "no_compile" ]; then
@@ -13,7 +15,7 @@ function compile() {
   else
     EXPECTED_RET="0"
   fi
-  ./zenon $1 -o $OUTPUT --cpp "clang++ $CLANG_OPT" 2> /dev/null
+  ../zenon $1 -o $OUTPUT --cpp "clang++ $CLANG_OPT" 2> /dev/null
   RESULT=$?
   if [ "$RESULT" = "2" ]; then
     echo -e "$1: $RED C++ compilation failed$NC"
@@ -37,7 +39,7 @@ function compile() {
 
 BINARY_TMP=$(mktemp)
 
-for I in `ls tests/*.znn`; do 
+for I in `ls *.znn`; do 
   EXPECTED=`head -n 1 $I | cut -c 4-`
 #echo -n "Running $I Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then
@@ -61,7 +63,7 @@ for I in `ls tests/*.znn`; do
 #echo -e "$GREEN Success$NC"
 done
 
-for D in `ls -d tests/*/`; do
+for D in `ls -d */`; do
   EXPECTED=`head -n 1 $D/main.znn | grep "//"| cut -c 4-`
 #echo -n "Running directory $D Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then

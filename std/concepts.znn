@@ -1,0 +1,12 @@
+
+template <T>
+concept can_copy {
+  T(T*);
+};
+
+template <T>
+concept comparable {
+  bool operator < (T, T);
+};
+
+

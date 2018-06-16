@@ -1,0 +1,39 @@
+public embed{
+#include <cstdio>
+}
+
+template <T>
+concept can_print {
+  void print(T*);
+};
+
+void print(int i) {
+  embed {
+    printf("%d\n", i);
+  }
+}
+
+void print(string s) {
+  embed {
+    printf("%d\n", s.data());
+  }
+}
+
+void print(bool b) {
+  if (b)
+    print("true");
+  else
+    print("false");
+}
+
+void print(int* i) {
+  print(*i);
+}
+
+void print(string* s) {
+  print(*s);
+}
+
+void print(bool* b) {
+  print(*b);
+}

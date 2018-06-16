@@ -1,0 +1,56 @@
+
+public import "std/concepts.znn";
+
+template <T>
+variant nullable {
+  T value;
+  void null;
+};
+
+template <T>
+bool ok(nullable<T>* v) {
+  switch (*v) {
+    case (value) {
+      return true;
+    }
+    case (null) {
+      return false;
+    }
+  }
+}
+
+template <T>
+bool operator !(nullable<T>* v) {
+  switch (*v) {
+    case (T* value) {
+      return false;
+    }
+    case (null) {
+      return true;
+    }
+  }
+}
+
+template <T>
+T* get(nullable<T>* v) {
+  switch (*v) {
+    case (T* value) {
+      return value;
+    }
+    case (null) {
+      embed {
+        throw "dupa";
+      }
+    }
+  }
+}
+
+template <T>
+nullable<T> value(mutable T v) {
+  return nullable<T>::value(move(v));
+}
+
+template <T>
+nullable<T> null() {
+  return nullable<T>::null();
+}

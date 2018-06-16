@@ -1,0 +1,56 @@
+
+template <T> requires can_copy<T>
+variant expected {
+  T value;
+  string error;
+};
+
+template <T> requires can_copy<T>
+bool operator !(expected<T> v) {
+  switch (v) {
+    case (value) {
+      return false;
+    }
+    case (error) {
+      return true;
+    }
+  }
+}
+
+template <T> requires can_copy<T>
+T operator *(expected<T> v) {
+  switch (v) {
+    case (value) {
+      return value;
+    }
+    case (error) {
+      embed {
+        throw "dupa";
+      }
+    }
+  }
+}
+
+template <T> requires can_copy<T>
+string get_error(expected<T> v) {
+  switch (v) {
+    case (value) {
+      embed {
+        throw "dupa";
+      }
+    }
+    case (error) {
+      return error;
+    }
+  }
+}
+
+template <T> requires can_copy<T>
+expected<T> result(T v) {
+  return expected<T>::value(v);
+}
+
+template <T> requires can_copy<T>
+expected<T> error(string e) {
+  return expected<T>::error(e);
+}
