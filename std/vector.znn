@@ -1,5 +1,5 @@
 
-embed {
+public embed {
 
 #include <vector>
 using std::vector;

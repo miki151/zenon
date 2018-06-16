@@ -527,7 +527,9 @@ void UnaryExpression::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void EmbedStatement::codegen(Accu& accu, CodegenStage stage) const {
-  if ((stage.isDefine && !isTopLevel) || (!stage.isDefine && isTopLevel) || (stage.isImport && isPublic))
+  if ((stage.isDefine && !isTopLevel) ||
+      (!stage.isImport && !stage.isDefine && isTopLevel) ||
+      (stage.isImport&& !stage.isDefine && isPublic))
     accu.newLine(value);
 }
 
