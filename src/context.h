@@ -52,6 +52,8 @@ class Context : public owned_object<Context> {
   void addConcept(const string& name, SConcept);
   nullable<SConcept> getConcept(const string& name) const;
   void print() const;
+  vector<SType> getConversions(SType) const;
+  bool canConvert(SType from, SType to) const;
 
   private:
 

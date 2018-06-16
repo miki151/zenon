@@ -26,7 +26,6 @@ struct Type : public owned_object<Type> {
   virtual Context& getStaticContext();
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
   virtual bool isBuiltinCopyable() const;
-  bool canConvertTo(const Context&, SType) const;
   Context context;
   Context staticContext;
 };

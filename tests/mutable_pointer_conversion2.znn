@@ -1,0 +1,9 @@
+// 5
+
+int main() {
+  mutable int x = 5;
+  int mutable* p = &x;
+  int* r = p;
+  return *r;
+}
+

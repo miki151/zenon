@@ -1,0 +1,14 @@
+// 1
+
+template <T>
+struct A {
+  T t;
+};
+
+int main() {
+  mutable i = 1;
+  const a = A<int*>(&i);
+  return *a.t;
+}
+
+

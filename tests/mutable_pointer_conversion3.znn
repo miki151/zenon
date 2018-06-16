@@ -1,0 +1,11 @@
+// 72
+
+int* fun(int mutable* p) {
+  return p;
+}
+
+int main() {
+  mutable a = 72;
+  return *fun(&a);
+}
+

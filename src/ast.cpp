@@ -105,7 +105,7 @@ void StatementBlock::check(Context& context) {
 
 void IfStatement::check(Context& context) {
   auto condType = cond->getType(context);
-  codeLoc.check(condType->canConvertTo(context, ArithmeticType::BOOL),
+  codeLoc.check(context.canConvert(condType, ArithmeticType::BOOL),
       "Expected a type convertible to bool inside if statement, got " + quote(condType->getName()));
   ifTrue->check(context);
   if (ifFalse)
@@ -126,7 +126,7 @@ void VariableDeclaration::check(Context& context) {
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (initExpr) {
     auto exprType = initExpr->getType(context);
-    initExpr->codeLoc.check(exprType->canConvertTo(context, realType.get()), "Can't initialize variable of type "
+    initExpr->codeLoc.check(context.canConvert(exprType, realType.get()), "Can't initialize variable of type "
         + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
     initExpr->codeLoc.check((!exprType.dynamicCast<ReferenceType>() && !exprType.dynamicCast<MutableReferenceType>()) ||
         context.canCopyConstruct(exprType->getUnderlying()),

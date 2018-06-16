@@ -161,6 +161,17 @@ void Context::print() const {
     state->print();
 }
 
+vector<SType> Context::getConversions(SType type) const {
+  vector<SType> ret = {type, type->getUnderlying()};
+  if (auto ptr = type->getUnderlying().dynamicCast<MutablePointerType>())
+    ret.push_back(PointerType::get(ptr->underlying));
+  return ret;
+}
+
+bool Context::canConvert(SType from, SType to) const {
+  return contains(getConversions(from), to);
+}
+
 void Context::replace(SType from, SType to) {
   for (auto& varName : state->varsList) {
     auto& var = state->vars.at(varName);

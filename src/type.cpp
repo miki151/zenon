@@ -175,7 +175,7 @@ bool PointerType::isBuiltinCopyable() const {
 
 unique_ptr<Expression> PointerType::getConversionFrom(unique_ptr<Expression> expr, Context& callContext) const {
   SType from = expr->getType(callContext);
-  if (auto t = from.dynamicCast<MutablePointerType>())
+  if (auto t = from->getUnderlying().dynamicCast<MutablePointerType>())
     return expr;
   else
     return nullptr;
@@ -451,7 +451,6 @@ WithError<SType> StructType::instantiate(const Context& context, vector<SType> t
 struct TypeMapping {
   vector<SType> templateParams;
   vector<nullable<SType>> templateArgs;
-  vector<CodeLoc> argLocs;
   optional<int> getParamIndex(const SType& t) {
     for (int i = 0; i < templateParams.size(); ++i)
       if (templateParams[i] == t)
@@ -459,11 +458,6 @@ struct TypeMapping {
     return none;
   }
 };
-
-bool Type::canConvertTo(const Context& context, SType t) const {
-  TypeMapping mapping;
-  return !t->getMappingError(context, mapping, get_this().get()->getUnderlying());
-}
 
 static string getCantBindError(const SType& from, const SType& to) {
   return "Can't bind type " + quote(from->getName()) + " to parameter of type " + quote(to->getName());
@@ -499,17 +493,13 @@ optional<string> StructType::getMappingError(const Context& context, TypeMapping
 optional<string> PointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
   if (auto argPointer = argType.dynamicCast<PointerType>())
     return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
-  if (auto argPointer = argType.dynamicCast<MutablePointerType>())
-    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
-  return "Can't bind non-pointer type " + quote(argType->getName()) + " to type " + quote(getName());
+  return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
 }
 
 optional<string> MutablePointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
-  if (auto argPointer = argType->getUnderlying().dynamicCast<PointerType>())
-    return "Can't bind type " + quote(argType->getName()) + " to mutable pointer type " + getName();
   if (auto argPointer = argType.dynamicCast<MutablePointerType>())
     return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
-  return "Can't bind non-pointer type " + quote(argType->getName()) + " to type " + quote(getName());
+  return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
 }
 
 bool MutablePointerType::isBuiltinCopyable() const {
@@ -557,10 +547,20 @@ WithErrorLine<FunctionType> instantiateFunction(const Context& context, const Fu
     mapping.templateArgs[i] = templateArgs[i];
   if (funParams.size() != argTypes.size())
     return codeLoc.getError("Wrong number of function arguments.");
-  for (int i = 0; i < argTypes.size(); ++i)
-    if (auto error = getDeductionError(context, mapping, funParams[i], argTypes[i])) {
-      return argLoc[i].getError(*error);
+  for (int i = 0; i < argTypes.size(); ++i) {
+    optional<ErrorLoc> firstError;
+    for (auto tArg : context.getConversions(argTypes[i])) {
+      if (auto error = getDeductionError(context, mapping, funParams[i], tArg)) {
+        if (!firstError)
+          firstError = argLoc[i].getError(*error);
+      } else {
+        firstError = none;
+        break;
+      }
     }
+    if (firstError)
+      return *firstError;
+  }
   for (int i = 0; i < type.templateParams.size(); ++i) {
     if (i >= templateArgs.size()) {
       if (auto deduced = mapping.templateArgs[i])
