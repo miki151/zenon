@@ -98,12 +98,16 @@ Tokens lex(const string& input, const string& path) {
           if (embedBlock->numBrackets == 0) {
             codeLoc.check(token == Token(Keyword::OPEN_BLOCK), "Expected " + quote("{") + " after " + quote("embed"));
           }
-          if (token == Token(Keyword::OPEN_BLOCK))
+          if (token == Token(Keyword::OPEN_BLOCK)) {
+            if (embedBlock->numBrackets > 0)
+              embedBlock->value.append(skipped + matched);
             ++embedBlock->numBrackets;
-          else
-          if (token == Token(Keyword::CLOSE_BLOCK))
+          } else
+          if (token == Token(Keyword::CLOSE_BLOCK)) {
             --embedBlock->numBrackets;
-          else
+            if (embedBlock->numBrackets > 0)
+              embedBlock->value.append(skipped + matched);
+          } else
             embedBlock->value.append(skipped + matched);
           if (embedBlock->numBrackets == 0) {
             ret.push_back(EmbedToken{});
