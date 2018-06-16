@@ -277,19 +277,25 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
       caseElem.varType = caseElem.VALUE;
     if (caseElem.type) {
       auto t = outsideContext.getTypeFromString(*caseElem.type).get(caseElem.type->codeLoc);
-      caseElem.type->codeLoc.check(t == realType || t == MutablePointerType::get(realType),
+      caseElem.type->codeLoc.check(t == realType || t == MutablePointerType::get(realType)
+           || t == PointerType::get(realType),
           "Can't handle variant element "
           + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(t->getName()));
       if (t == MutablePointerType::get(realType)) {
         caseElem.varType = caseElem.POINTER;
-        caseElem.type->codeLoc.check(isReference, "Can't bind element to pointer when switching on a non-reference variant");
+        caseElem.type->codeLoc.check(isReference,
+            "Can't bind element to mutable pointer when switching on a non-reference variant");
         caseElem.type->codeLoc.check(realType != ArithmeticType::VOID, "Can't bind void element to pointer");
+        caseBodyContext.addVariable(caseElem.id, MutablePointerType::get(realType));
+      } else
+      if (t == PointerType::get(realType)) {
+        caseElem.varType = caseElem.POINTER;
+        caseElem.type->codeLoc.check(realType != ArithmeticType::VOID, "Can't bind void element to pointer");
+        caseBodyContext.addVariable(caseElem.id, PointerType::get(realType));
       }
     }
     if (caseElem.varType == caseElem.VALUE)
-      caseBodyContext.addVariable(caseElem.id, ReferenceType::get(realType));
-    else if (caseElem.varType == caseElem.POINTER)
-      caseBodyContext.addVariable(caseElem.id, MutablePointerType::get(realType));
+      caseBodyContext.addVariable(caseElem.id, realType);
     caseElem.block->check(caseBodyContext);
   }
   if (!statement.defaultBlock) {
