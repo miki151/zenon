@@ -1,0 +1,11 @@
+// no_compile
+
+int plus5(int* i) {
+  return *i + 5;
+}
+
+int main() {
+  int n = 5;
+  const m = &n;
+  return m.plus5();
+}

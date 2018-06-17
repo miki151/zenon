@@ -84,7 +84,8 @@ SType BinaryExpression::getType(Context& context) {
           error = codeLoc.getError(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);
       }
       for (auto fun : context.getOperatorType(op))
-        if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {left, right}, {leftExpr.codeLoc, rightExpr.codeLoc}, {})) {
+        if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {left, right},
+            {leftExpr.codeLoc, rightExpr.codeLoc}, {})) {
           ret = inst->retVal;
         } else
           error = codeLoc.getError(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);
@@ -374,16 +375,14 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
       argLocs.push_back(arguments[i]->codeLoc);
       INFO << "Function argument " << argTypes.back()->getName();
     }
-    nullable<SType> leftType;
-    if (left) {
-      leftType = left->getType(callContext);
+    if (!left)
+      getFunction(callContext, callContext, codeLoc, identifier, argTypes, argLocs)
+          .unpack(functionType, error);
+    else {
+      auto leftType = left->getType(callContext);
       callType = MethodCallType::METHOD;
-    }
-    getFunction(leftType ? leftType->getContext() : callContext, callContext, codeLoc, identifier, argTypes, argLocs)
-        .unpack(functionType, error);
-    if (leftType) {
       auto tryMethodCall = [&](MethodCallType thisCallType) {
-        auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType.get()}, argTypes), concat({left->codeLoc}, argLocs));
+        auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType}, argTypes), concat({left->codeLoc}, argLocs));
         if (res) {
           if (res->externalMethod)
             callType = MethodCallType::METHOD;
@@ -394,8 +393,10 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
           codeLoc.error("Ambigous method call:\nCandidate: " + functionType->toString() + "\nCandidate: " + res->toString());
         res.unpack(functionType, error);
       };
-      tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
-      leftType = leftType.get().dynamicCast<MutableReferenceType>()
+      if (!leftType->getUnderlying().dynamicCast<PointerType>() &&
+          !leftType->getUnderlying().dynamicCast<MutablePointerType>())
+        tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
+      leftType = leftType.dynamicCast<MutableReferenceType>()
           ? SType(MutablePointerType::get(leftType->getUnderlying()))
           : SType(PointerType::get(leftType->getUnderlying()));
       tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
@@ -417,27 +418,25 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, Cont
   const auto& leftContext = left ? left->getType(callContext)->getContext() : callContext;
   optional<ErrorLoc> error = ErrorLoc{codeLoc, "Function not found: " + identifier.toString()};
   if (!functionType) {
-    nullable<SType> leftType;
-    if (left) {
-      leftType = left->getType(callContext);
-      callType = MethodCallType::METHOD;
-    }
     optional<vector<ArgMatching>> matchings;
-    matchArgs(leftContext, callContext, false).unpack(matchings, error);
-    if (matchings)
-      for (auto& matching : *matchings) {
-        callContext.instantiateFunctionTemplate(codeLoc, matching.function, identifier, matching.args, matching.codeLocs)
-            .unpack(functionType, error);
-        if (functionType)
-          break;
-      }
-    if (leftType) {
+    if (!left) {
+      matchArgs(leftContext, callContext, false).unpack(matchings, error);
+      if (matchings)
+        for (auto& matching : *matchings) {
+          callContext.instantiateFunctionTemplate(codeLoc, matching.function, identifier, matching.args, matching.codeLocs)
+              .unpack(functionType, error);
+          if (functionType)
+            break;
+        }
+    } else {
+      auto leftType = left->getType(callContext);
+      callType = MethodCallType::METHOD;
       matchArgs(callContext, callContext, true).unpack(matchings, error);
       if (matchings) {
         auto tryMethodCall = [&] (MethodCallType thisCallType) {
           for (auto& matching : *matchings) {
             auto res = callContext.instantiateFunctionTemplate(codeLoc, matching.function, identifier,
-                concat({leftType.get()}, matching.args), concat({left->codeLoc}, matching.codeLocs));
+                concat({leftType}, matching.args), concat({left->codeLoc}, matching.codeLocs));
             if (res)
               callType = thisCallType;
             if (res && functionType)
@@ -445,8 +444,10 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, Cont
             res.unpack(functionType, error);
           }
         };
+        if (!leftType->getUnderlying().dynamicCast<PointerType>() &&
+            !leftType->getUnderlying().dynamicCast<MutablePointerType>())
         tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
-        leftType = leftType.get().dynamicCast<MutableReferenceType>()
+        leftType = leftType.dynamicCast<MutableReferenceType>()
             ? SType(MutablePointerType::get(leftType->getUnderlying()))
             : SType(PointerType::get(leftType->getUnderlying()));
         tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
