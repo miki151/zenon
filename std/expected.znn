@@ -1,11 +1,11 @@
 
-template <T> requires can_copy<T>
+template <T>
 variant expected {
   T value;
   string error;
 };
 
-template <T> requires can_copy<T>
+template <T>
 bool operator !(expected<T> v) {
   switch (v) {
     case (value) {
@@ -17,7 +17,7 @@ bool operator !(expected<T> v) {
   }
 }
 
-template <T> requires can_copy<T>
+template <T>
 T operator *(expected<T> v) {
   switch (v) {
     case (value) {
@@ -31,7 +31,7 @@ T operator *(expected<T> v) {
   }
 }
 
-template <T> requires can_copy<T>
+template <T>
 string get_error(expected<T> v) {
   switch (v) {
     case (value) {
@@ -45,12 +45,12 @@ string get_error(expected<T> v) {
   }
 }
 
-template <T> requires can_copy<T>
+template <T>
 expected<T> result(T v) {
   return expected<T>::value(v);
 }
 
-template <T> requires can_copy<T>
+template <T>
 expected<T> error(string e) {
   return expected<T>::error(e);
 }

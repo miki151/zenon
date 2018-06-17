@@ -8,6 +8,8 @@ using std::vector;
 
 template <T>
 extern struct vector {
+  vector(vector<T>*);
+  vector();
 };
 
 template <T>

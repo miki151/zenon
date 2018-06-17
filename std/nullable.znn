@@ -1,6 +1,4 @@
 
-public import "std/concepts.znn";
-
 template <T>
 variant nullable {
   T value;
