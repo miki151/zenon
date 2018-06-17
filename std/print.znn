@@ -15,7 +15,7 @@ void print(int i) {
 
 void print(string s) {
   embed {
-    printf("%d\n", s.data());
+    printf("%s\n", s.data());
   }
 }
 
