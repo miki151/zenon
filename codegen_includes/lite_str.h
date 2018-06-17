@@ -145,13 +145,28 @@ class basic_lite_str {
     return ptr;
   }
 
-  basic_lite_str substring(int index, int length) {
+  basic_lite_str substring(int index, int length) const {
     basic_lite_str<char_type, char_traits, allocator_t> ret;
     auto buf = ret.create_buffer(length);
     memcpy(buf, ptr + index, length * sizeof(char_type));
     return ret;
   }
 };
+
+template <typename char_type, typename char_traits, typename alloc>
+auto size(const basic_lite_str<char_type, char_traits, alloc>* s) {
+  return s->size();
+}
+
+template <typename char_type, typename char_traits, typename alloc>
+auto substring(const basic_lite_str<char_type, char_traits, alloc>* s, int index, int length) {
+  return s->substring(index, length);
+}
+
+template <typename char_type, typename char_traits, typename alloc>
+char_type subscript_op(basic_lite_str<char_type, char_traits, alloc> s, int index) {
+  return s[index];
+}
 
 template <typename allocator = detail::lite_str_allocator<char>>
 using lite_str = basic_lite_str<char, detail::char_char_traits, allocator>;
@@ -249,3 +264,6 @@ bool operator < (const basic_lite_str<char_type, char_traits, alloc>& s1, const 
   return s1.data() != s2.data() && (strcmp(s1.data(), s2.data()) < 0);
 }
 
+inline lite_str<> operator "" _lstr(const char* str, size_t) {
+  return lite_str<>(str);
+}

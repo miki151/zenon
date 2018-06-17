@@ -1,4 +1,6 @@
 #include <fstream>
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 #include "debug.h"
 
 #include "token.h"
@@ -21,15 +23,25 @@ static po::parser getCommandLineFlags() {
   return flags;
 }
 
-static int compileCpp(string command, const string& program, const string& output, bool link) {
-  command += " -xc++ - -std=c++14 ";
-  if (!link)
-    command += "-c ";
-  command += "-o " + output;
+static int compileCpp(string command, const string& program, const string& output) {
+  command += " -xc++ - -std=c++14 -c -o " + output;
   FILE* p = popen(command.c_str(), "w");
   fwrite(program.c_str(), 1, program.size(), p);
   string out;
   return pclose(p) / 256;
+}
+
+static int linkObjs(const string& cmd, const vector<string>& objs, const string& output) {
+  auto command = cmd + " " + combine(objs, " ") + " -o " + output;
+  return system(command.data());
+}
+
+void initLogging(ofstream& logFile) {
+  FatalLog.addOutput(DebugOutput::crash());
+  FatalLog.addOutput(DebugOutput::toStream(std::cerr));
+  InfoLog.addOutput(DebugOutput::toStream(logFile));
+  ErrorLog.addOutput(DebugOutput::exitProgram(1));
+  ErrorLog.addOutput(DebugOutput::toStream(std::cerr));
 }
 
 int main(int argc, char* argv[]) {
@@ -40,31 +52,49 @@ int main(int argc, char* argv[]) {
     std::cout << flags << endl;
     return 0;
   }
-  FatalLog.addOutput(DebugOutput::crash());
-  FatalLog.addOutput(DebugOutput::toStream(std::cerr));
-  ofstream log("log.out");
-  InfoLog.addOutput(DebugOutput::toStream(log));
-  ErrorLog.addOutput(DebugOutput::exitProgram(1));
-  ErrorLog.addOutput(DebugOutput::toStream(std::cerr));
-  for (auto pathElem : flags[""]) {
-    auto path = pathElem.string;
+  auto gccCmd = flags["cpp"].get().string;
+  bool fullCompile = !flags["c"].was_set();
+  ofstream logFile("log.out");
+  initLogging(logFile);
+  set<string> toCompile;
+  set<string> finished;
+  for (auto pathElem : flags[""])
+    toCompile.insert(pathElem.string);
+  vector<string> objFiles;
+  auto buildDir = ".build_cache";
+  if (!fs::is_directory(buildDir))
+    fs::create_directory(buildDir);
+  while (!toCompile.empty()) {
+    auto path = *toCompile.begin();
+    cerr << "Compiling " << path << endl;
+    toCompile.erase(toCompile.begin());
+    finished.insert(path);
     auto program = readFromFile(path.c_str());
     if (!program)
-      FATAL << program.get_error();
+      ERROR << program.get_error();
     INFO << "Parsing:\n\n" << program->value;
     auto tokens = lex(program->value, path);
     auto ast = parse(tokens);
-    correctness(ast, {installDir});
+    auto imported = correctness(ast, {installDir});
+    if (fullCompile)
+      for (auto& import : imported)
+        if (!finished.count(import))
+          toCompile.insert(import);
     auto cppCode = codegen(ast, installDir + "/codegen_includes/all.h"s);
-    log << cppCode;
-    if (flags["o"].was_set()) {
-      if (compileCpp(flags["cpp"].get().string, cppCode, flags["o"].get().string, !flags["c"].was_set())) {
-        cerr << "C++ compilation failed, which is a Zenon bug :(\n\n";
-        cerr << cppCode << endl;
-        return 2;
-      }
-    } else {
-      cout << cppCode << endl;
-    }
+    logFile << cppCode;
+    auto objFile = fullCompile
+        ? buildDir + "/"s + to_string(std::hash<string>()(program->value)) + ".znn.o"
+        : flags["o"].get().string;
+    if (compileCpp(gccCmd, cppCode, objFile)) {
+      cerr << "C++ compilation failed, which is a Zenon bug :(\n\n" << endl;
+      cerr << cppCode << endl;
+      return 2;
+    } else if (fullCompile)
+      objFiles.push_back(objFile);
   }
+  if (!objFiles.empty())
+    if (linkObjs(gccCmd, objFiles, flags["o"].get().string) != 0) {
+      cerr << "Linking failed" << endl;
+      return 2;
+    }
 }

@@ -357,4 +357,4 @@ struct AST {
   vector<unique_ptr<Statement>> elems;
 };
 
-extern void correctness(const AST&, const vector<string>& importPaths);
+extern vector<std::string> correctness(const AST&, const vector<string>& importPaths);

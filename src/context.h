@@ -42,9 +42,11 @@ class Context : public owned_object<Context> {
   bool canConstructWith(SType, vector<SType> args) const;
   bool canCopyConstruct(SType) const;
   [[nodiscard]] optional<string> addCopyConstructorFor(SType, const vector<SType>& templateParams = {});
-  void pushImport(const string& name);
+  void pushImport(const string& name, size_t contentHash);
   void popImport();
-  const vector<string>& getImports() const;
+  bool isCurrentlyImported(size_t contentHash);
+  const vector<string>& getCurrentImports() const;
+  bool wasEverImported(size_t contentHash);
   const vector<string>& getAllImports() const;
   void checkNameConflict(CodeLoc loc, const string& name, const string& type) const;
   void checkNameConflictExcludingFunctions(CodeLoc loc, const string& name, const string& type) const;
@@ -65,7 +67,9 @@ class Context : public owned_object<Context> {
     map<FunctionId, vector<FunctionType>> functions;
     nullable<SType> returnType;
     vector<string> imports;
+    vector<size_t> importHashes;
     vector<string> allImports;
+    unordered_set<size_t> allImportHashes;
     map<string, shared_ptr<Concept>> concepts;
     void merge(const State&);
     void print() const;

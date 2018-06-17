@@ -229,7 +229,7 @@ void FunctionDefinition::setFunctionType(const Context& context, bool method) {
 }
 
 void FunctionDefinition::checkFunctionBody(Context& context, bool templateStruct) const {
-  if (body && (!templateInfo.params.empty() || templateStruct || context.getImports().empty())) {
+  if (body && (!templateInfo.params.empty() || templateStruct || context.getCurrentImports().empty())) {
     Context bodyContext = Context::withParent(context);
     applyConcept(bodyContext, templateInfo, functionType->templateParams);
     for (auto& param : functionType->templateParams)
@@ -258,11 +258,12 @@ void FunctionDefinition::addToContext(Context& context) {
 }
 
 static void initializeArithmeticTypes(Context& context) {
-  CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType("size"s, FunctionCallType::FUNCTION, ArithmeticType::INT, {}, {})));
-  CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType("substring"s, FunctionCallType::FUNCTION, ArithmeticType::STRING,
-      {{ArithmeticType::INT}, {ArithmeticType::INT}}, {})));
-  CHECK(!ArithmeticType::STRING->context.addFunction(FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION, ArithmeticType::CHAR,
-      {{ArithmeticType::INT}}, {})));
+  CHECK(!context.addFunction(FunctionType("size"s, FunctionCallType::FUNCTION, ArithmeticType::INT,
+      {{PointerType::get(ArithmeticType::STRING)}}, {})));
+  CHECK(!context.addFunction(FunctionType("substring"s, FunctionCallType::FUNCTION, ArithmeticType::STRING,
+      {{PointerType::get(ArithmeticType::STRING)}, {ArithmeticType::INT}, {ArithmeticType::INT}}, {})));
+  CHECK(!context.addFunction(FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION, ArithmeticType::CHAR,
+      {{ArithmeticType::STRING}, {ArithmeticType::INT}}, {})));
   CHECK(!context.addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
       {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {})));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
@@ -286,7 +287,7 @@ static void initializeArithmeticTypes(Context& context) {
     context.addCopyConstructorFor(type);
 }
 
-void correctness(const AST& ast, const vector<string>& importPaths) {
+vector<string> correctness(const AST& ast, const vector<string>& importPaths) {
   Context context;
   initializeArithmeticTypes(context);
   for (auto type : {ArithmeticType::INT, ArithmeticType::BOOL,
@@ -300,6 +301,7 @@ void correctness(const AST& ast, const vector<string>& importPaths) {
   for (auto& elem : ast.elems) {
     elem->check(context);
   }
+  return context.getAllImports();
 }
 
 ExpressionStatement::ExpressionStatement(unique_ptr<Expression> e) : Statement(e->codeLoc), expr(std::move(e)) {}
@@ -767,6 +769,12 @@ void ImportStatement::check(Context&) {
 }
 
 void ImportStatement::processImport(Context& context, const string& content, const string& path) {
+  auto contentHash = std::hash<string>()(content);
+  codeLoc.check(!context.isCurrentlyImported(contentHash),
+      "Public import cycle: " + combine(context.getCurrentImports(), ", "));
+  if ((!isPublic && !context.getCurrentImports().empty()) || context.wasEverImported(contentHash))
+    return;
+  context.pushImport(path, contentHash);
   auto tokens = lex(content, path);
   ast = unique<AST>(parse(tokens));
   for (auto& elem : ast->elems) {
@@ -780,10 +788,6 @@ void ImportStatement::processImport(Context& context, const string& content, con
 }
 
 void ImportStatement::addToContext(Context& s) {
-  if ((!isPublic && !s.getImports().empty()) || contains(s.getAllImports(), path))
-    return;
-  codeLoc.check(!contains(s.getImports(), path), "Public import cycle: " + combine(s.getImports(), ", "));
-  s.pushImport(path);
   INFO << "Resolving import " << path;
   for (auto importDir : concat({getParentPath(codeLoc.file)}, importDirs)) {
     auto importPath = importDir + "/" + path;

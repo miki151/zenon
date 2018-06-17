@@ -39,7 +39,7 @@ struct Accu {
 
 void Constant::codegen(Accu& accu, CodegenStage) const {
   if (type == ArithmeticType::STRING)
-    accu.add("\"" + value + "\"");
+    accu.add("\"" + value + "\"_lstr");
   else if (type == ArithmeticType::CHAR)
     accu.add("'" + value + "'");
   else
