@@ -54,6 +54,7 @@ int main(int argc, char* argv[]) {
   }
   auto gccCmd = flags["cpp"].get().string;
   bool fullCompile = !flags["c"].was_set();
+  bool printCpp = !flags["o"].was_set();
   ofstream logFile("log.out");
   initLogging(logFile);
   set<string> toCompile;
@@ -76,12 +77,16 @@ int main(int argc, char* argv[]) {
     auto tokens = lex(program->value, path);
     auto ast = parse(tokens);
     auto imported = correctness(ast, {installDir});
+    auto cppCode = codegen(ast, installDir + "/codegen_includes/all.h"s);
+    if (printCpp) {
+      cout << cppCode << endl;
+      return 0;
+    } else
+      logFile << cppCode;
     if (fullCompile)
       for (auto& import : imported)
         if (!finished.count(import))
           toCompile.insert(import);
-    auto cppCode = codegen(ast, installDir + "/codegen_includes/all.h"s);
-    logFile << cppCode;
     auto objFile = fullCompile
         ? buildDir + "/"s + to_string(std::hash<string>()(program->value)) + ".znn.o"
         : flags["o"].get().string;
