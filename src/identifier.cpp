@@ -27,8 +27,9 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
         auto templateParamToken = tokens.popNext("template parameter");
         if (firstParam) {
           auto nextToken = tokens.peek("Expression or template parameter");
-          if (nextToken != Keyword::COMMA && nextToken != Operator::LESS_THAN && nextToken != Operator::MORE_THAN &&
-              nextToken != Operator::MULTIPLY && nextToken != Keyword::MUTABLE) {
+          if (!templateParamToken.contains<IdentifierToken>() ||
+              (nextToken != Keyword::COMMA && nextToken != Operator::LESS_THAN && nextToken != Operator::MORE_THAN &&
+                  nextToken != Operator::MULTIPLY && nextToken != Keyword::MUTABLE)) {
             tokens.rewind();
             tokens.rewind();
             break;
