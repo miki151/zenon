@@ -24,7 +24,7 @@ string MutableReferenceType::getName(bool withTemplateArguments) const {
 }
 
 string PointerType::getName(bool withTemplateArguments) const {
-  return "const " + underlying->getName(withTemplateArguments) + "*";
+  return underlying->getName(withTemplateArguments) + " const*";
 }
 
 string MutablePointerType::getName(bool withTemplateArguments) const {
