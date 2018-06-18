@@ -295,7 +295,7 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
       }
     }
     if (caseElem.varType == caseElem.VALUE)
-      caseBodyContext.addVariable(caseElem.id, realType);
+      caseBodyContext.addVariable(caseElem.id, ReferenceType::get(realType));
     caseElem.block->check(caseBodyContext);
   }
   if (!statement.defaultBlock) {
