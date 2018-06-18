@@ -85,9 +85,9 @@ SType BinaryExpression::getType(Context& context) {
       }
       for (auto fun : context.getOperatorType(op))
         if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {left, right},
-            {leftExpr.codeLoc, rightExpr.codeLoc}, {})) {
+            {leftExpr.codeLoc, rightExpr.codeLoc}, {}))
           ret = inst->retVal;
-        } else
+        else
           error = codeLoc.getError(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);
       if (ret)
         return ret.get();
@@ -221,8 +221,16 @@ void FunctionDefinition::setFunctionType(const Context& context, bool method) {
   auto requirements = applyConcept(contextWithTemplateParams, templateInfo, templateTypes);
   if (auto returnType = contextWithTemplateParams.getTypeFromString(this->returnType)) {
     vector<FunctionType::Param> params;
-    for (auto& p : parameters)
-      params.push_back({p.name, contextWithTemplateParams.getTypeFromString(p.type).get(p.codeLoc)});
+    for (auto& p : parameters) {
+      auto type = contextWithTemplateParams.getTypeFromString(p.type).get(p.codeLoc);
+      if (name.contains<Operator>()) {
+        if (auto p = type.dynamicCast<PointerType>())
+          type = ReferenceType::get(p->underlying);
+        else if (auto p = type.dynamicCast<MutablePointerType>())
+          type = MutableReferenceType::get(p->underlying);
+      }
+      params.push_back({p.name, std::move(type)});
+    }
     functionType = FunctionType(context.getFunctionId(name), FunctionCallType::FUNCTION, returnType.get(codeLoc), params, templateTypes );
     functionType->requirements = requirements;
   } else

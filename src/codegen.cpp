@@ -269,8 +269,20 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
   if (!name.contains<ConstructorId>())
     retVal = functionType->retVal->getName() + " ";
   string ret = retVal + structName + getFunctionSignatureName(*functionType) + "(";
-  for (auto& param : functionType->params)
-    ret.append(param.type->getName() + " " + param.name.value_or("") + ", ");
+  for (auto& param : functionType->params) {
+    string argText = param.type->getName() + " " + param.name.value_or("") + ", ";
+    if (functionType->name.contains<Operator>()) {
+      if (auto p = param.type.dynamicCast<ReferenceType>()) {
+        auto name = param.name ? *param.name + "_ptr" : "";
+        argText = "const " + p->underlying->getName() + "& " + name + ", ";
+      }
+      if (auto p = param.type.dynamicCast<MutableReferenceType>()) {
+        auto name = param.name ? *param.name + "_ptr" : "";
+        argText = p->underlying->getName() + "& " + name + ", ";
+      }
+    }
+    ret.append(argText);
+  }
   if (!functionType->params.empty()) {
     ret.pop_back();
     ret.pop_back();
@@ -294,13 +306,34 @@ static void addInitializers(Accu& accu, const vector<FunctionDefinition::Initial
   accu.add(" ");
 }
 
+bool FunctionDefinition::handlePointerParamsInOperator(Accu& accu) const {
+  vector<string> ptrInits;
+  for (auto& param : functionType->params)
+    if (param.name && functionType->name.contains<Operator>())
+      if (param.type.dynamicCast<ReferenceType>() || param.type.dynamicCast<MutableReferenceType>())
+        ptrInits.push_back("auto " + *param.name + " = &" + *param.name + "_ptr;");
+  if (!ptrInits.empty()) {
+    accu.newLine("{");
+    ++accu.indent;
+    for (auto& elem : ptrInits)
+      accu.newLine(elem);
+    accu.newLine();
+    body->codegen(accu, CodegenStage::define());
+    --accu.indent;
+    accu.newLine("}");
+    return true;
+  } else
+    return false;
+}
+
 void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (!body)
     return;
   addSignature(accu, "");
   if (stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
     accu.newLine("");
-    body->codegen(accu, CodegenStage::define());
+    if (!handlePointerParamsInOperator(accu))
+      body->codegen(accu, CodegenStage::define());
   } else {
     accu.add(";");
     accu.newLine("");

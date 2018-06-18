@@ -22,9 +22,16 @@ void insert(map<Key, Value> mutable* m, Key key, Value value) {
 }
 
 template <Key, Value> requires comparable<Key>
-Value operator [] (map<Key, Value>* m, Key key) {
+Value* operator [] (map<Key, Value>* m, Key* key) {
   embed {
-    return m->at(key);
+    return &m->at(*key);
+  }
+}
+
+template <Key, Value> requires comparable<Key>
+Value mutable* operator [] (map<Key, Value> mutable* m, Key* key) {
+  embed {
+    return &m->at(*key);
   }
 }
 

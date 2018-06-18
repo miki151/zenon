@@ -1,0 +1,16 @@
+// 5
+
+struct A {
+};
+
+template <T>
+T operator [] (A a, mutable T b) {
+  return move(b);
+}
+
+int main() {
+  const x = 5;
+  const a = A();
+  mutable y = a[&x];
+  return *y;
+}

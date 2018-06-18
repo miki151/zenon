@@ -13,7 +13,7 @@ int main() {
     v.push_back(i * i);
   mutable sum = 0;
   for (mutable i = 0; i < v.size(); i = i + 1)
-    sum = sum + *v.at(i);
+    sum = sum + *v[i];
   return sum + f();
 }
 

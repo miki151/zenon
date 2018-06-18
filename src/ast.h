@@ -305,7 +305,7 @@ struct FunctionDefinition : Statement {
     bool isMutable;
   };
   vector<Parameter> parameters;
-  unique_ptr<Statement> body;
+  unique_ptr<StatementBlock> body;
   TemplateInfo templateInfo;
   optional<FunctionType> functionType;
   bool isMutableMethod = false;
@@ -321,7 +321,8 @@ struct FunctionDefinition : Statement {
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   void setFunctionType(const Context&, bool method);
   void checkFunctionBody(Context&, bool templateStruct) const;
-  void addSignature(Accu& accu, string structName) const;
+  void addSignature(Accu&, string structName) const;
+  bool handlePointerParamsInOperator(Accu&) const;
 };
 
 struct EmbedStatement : Statement {

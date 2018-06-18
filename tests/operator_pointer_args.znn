@@ -1,0 +1,17 @@
+// 7
+
+
+struct X {
+  int x;
+};
+
+X operator + (X* x1, X* x2) {
+  return X((*x1).x + (*x2).x);
+}
+
+int main() {
+  const a = X(3);
+  const b = X(4);
+  return (a + b).x;
+}
+

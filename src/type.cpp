@@ -16,11 +16,11 @@ ArithmeticType::ArithmeticType(const string& name) : name(name) {
 }
 
 string ReferenceType::getName(bool withTemplateArguments) const {
-  return "const reference(" + underlying->getName(withTemplateArguments) + ")";
+  return underlying->getName(withTemplateArguments) + " const &";
 }
 
 string MutableReferenceType::getName(bool withTemplateArguments) const {
-  return "mutable reference(" + underlying->getName(withTemplateArguments) + ")";
+  return underlying->getName(withTemplateArguments) + "&";
 }
 
 string PointerType::getName(bool withTemplateArguments) const {
@@ -512,16 +512,13 @@ bool MutablePointerType::isBuiltinCopyable() const {
   return true;
 }
 
-optional<string> ReferenceType::getMappingError(const Context&, TypeMapping&, SType from) const {
-  if (from == get_this().get() || underlying == from)
-    return none;
-  else
-    return getCantBindError(from, get_this().get());
+optional<string> ReferenceType::getMappingError(const Context&, TypeMapping& mapping, SType from) const {
+  return ::getDeductionError(context, mapping, underlying, from->getUnderlying());
 }
 
-optional<string> MutableReferenceType::getMappingError(const Context&, TypeMapping&, SType from) const {
-  if (from == get_this().get() || underlying == from)
-    return none;
+optional<string> MutableReferenceType::getMappingError(const Context&, TypeMapping& mapping, SType from) const {
+  if (auto argRef = from.dynamicCast<MutableReferenceType>())
+    return ::getDeductionError(context, mapping, underlying, argRef->underlying);
   else
     return getCantBindError(from, get_this().get());
 }

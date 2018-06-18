@@ -6,41 +6,41 @@ variant expected {
 };
 
 template <T>
-bool operator !(expected<T> v) {
-  switch (v) {
-    case (value) {
+bool operator !(expected<T>* v) {
+  switch (*v) {
+    case (T* value) {
       return false;
     }
-    case (error) {
+    case (string* error) {
       return true;
     }
   }
 }
 
 template <T>
-T operator *(expected<T> v) {
-  switch (v) {
-    case (value) {
+T* operator *(expected<T>* v) {
+  switch (*v) {
+    case (T* value) {
       return value;
     }
-    case (error) {
+    case (string* error) {
       embed {
-        throw "dupa";
+        throw error->data();
       }
     }
   }
 }
 
 template <T>
-string get_error(expected<T> v) {
-  switch (v) {
-    case (value) {
+string get_error(expected<T>* v) {
+  switch (*v) {
+    case (T* value) {
       embed {
         throw "dupa";
       }
     }
-    case (error) {
-      return error;
+    case (string* error) {
+      return *error;
     }
   }
 }

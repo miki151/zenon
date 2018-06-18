@@ -1,0 +1,15 @@
+// no_compile
+
+struct A {
+};
+
+int operator + (A* a, A *b) {
+  return 0;
+}
+
+int main() {
+  const a = A();
+  const b = A();
+  const c = (&a) + (&b);
+  return 0;
+}
