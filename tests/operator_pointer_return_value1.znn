@@ -5,11 +5,11 @@ struct S {
 };
 
 int mutable* operator [](S mutable* s, int x) {
-  return &(*s).a;
+  return &s->a;
 }
 
 int* operator [](S* s, int x) {
-  return &(*s).a;
+  return &s->a;
 }
 
 int main() {

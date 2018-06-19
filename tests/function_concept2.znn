@@ -5,7 +5,7 @@ struct A1 {
 };
 
 string toString(A1* a) {
-  return "A1(" + (*a).s + ")";
+  return "A1(" + a->s + ")";
 }
 
 struct B {
@@ -22,7 +22,7 @@ concept Printable {
 
 template <A> requires Printable<A>
 string print(A* a) {
-  return (*a).toString();
+  return a->toString();
 }
 
 int main() {

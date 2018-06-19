@@ -5,7 +5,7 @@ struct S {
 };
 
 void f(S mutable* s) {
-  (*s).a = 5;
+  s->a = 5;
 }
 
 variant V {

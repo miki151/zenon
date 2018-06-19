@@ -12,7 +12,7 @@ struct S1 {
 
 template <T, U> requires CanConvert<U, T>
 void set(S1<T> mutable* s, U u) {
-  (*s).t = u.convert();
+  s->t = u.convert();
 }
 
 struct X {
@@ -20,7 +20,7 @@ struct X {
 };
 
 int convert(X* x) {
-  return 1 + (*x).a;
+  return 1 + x->a;
 }
 
 int main() {

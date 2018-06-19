@@ -105,10 +105,17 @@ static vector<FunctionType> filterOverloads(vector<FunctionType> overloads, cons
 }
 
 SType BinaryExpression::getType(Context& context) {
+  if (op == Operator::POINTER_MEMBER_ACCESS) {
+    e1 = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(e1));
+    op = Operator::MEMBER_ACCESS;
+  }
   auto& leftExpr = *e1;
   auto& rightExpr = *e2;
   auto left = leftExpr.getType(context);
   switch (op) {
+    case Operator::POINTER_MEMBER_ACCESS:
+      FATAL << "This was handled above";
+      return left;
     case Operator::MEMBER_ACCESS: {
       if (auto rightType = rightExpr.getDotOperatorType(&leftExpr, context)) {
         if (!left.dynamicCast<ReferenceType>() && !left.dynamicCast<MutableReferenceType>())

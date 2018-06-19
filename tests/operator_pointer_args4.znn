@@ -10,7 +10,7 @@ struct Vector {
 };
 
 Vector operator + (Vector* a, Vector* b) {
-  return Vector((*a).v + (*b).v);
+  return Vector(a->v + b->v);
 }
 
 template <T> requires can_add<T>

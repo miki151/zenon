@@ -8,7 +8,7 @@ int f(A* a, bool b) {
   if (b)
     return 1 + g(a, 1);
   else
-    return (*a).x;
+    return a->x;
 }
 
 int g(A* self, int a) {
@@ -16,7 +16,7 @@ int g(A* self, int a) {
 }
 
 void set(A mutable* self, int a) {
-  (*self).x = a;
+  self->x = a;
 }
 
 int main() {

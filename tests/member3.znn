@@ -5,7 +5,7 @@ struct A {
 };
 
 int mutable* get(A mutable* a) {
-  return &((*a).x);
+  return &a->x;
 }
 
 int main() {

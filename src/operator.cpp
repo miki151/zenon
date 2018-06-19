@@ -16,6 +16,7 @@ const static vector<pair<string, Operator>> operators {
   {"-", Operator::MINUS_UNARY},
   {"=", Operator::ASSIGNMENT},
   {".", Operator::MEMBER_ACCESS},
+  {"->", Operator::POINTER_MEMBER_ACCESS},
   {"&", Operator::GET_ADDRESS},
   {"[]", Operator::SUBSCRIPT},
   {"!", Operator::LOGICAL_NOT},
@@ -70,6 +71,7 @@ int getPrecedence(Operator op) {
     case Operator::SUBSCRIPT:
       return 7;
     case Operator::MEMBER_ACCESS:
+    case Operator::POINTER_MEMBER_ACCESS:
       return 8;
   }
 }

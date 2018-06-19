@@ -5,7 +5,7 @@ struct X {
 };
 
 int b(X* x) {
-  return (*x).a;
+  return x->a;
 }
 
 int main() {

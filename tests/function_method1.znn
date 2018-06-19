@@ -10,10 +10,10 @@ string value(S1* self) {
 }
 
 string print(S1* self) {
-  if ((*self).b)
+  if (self->b)
     return "pok";
   else
-    return (*self).value();
+    return self->value();
 }
 
 int main() {
