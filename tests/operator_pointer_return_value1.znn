@@ -1,0 +1,25 @@
+// 14
+
+struct S {
+  int a;
+};
+
+int mutable* operator [](S mutable* s, int x) {
+  return &(*s).a;
+}
+
+int* operator [](S* s, int x) {
+  return &(*s).a;
+}
+
+int main() {
+  const s1 = S(5);
+  mutable s2 = S(6);
+  s2[0] = 7;
+  const i = 0;
+  s2[i] = 8;
+  mutable j = 0;
+  s2[j] = 9;
+  return s1[0] + s2[0];
+}
+

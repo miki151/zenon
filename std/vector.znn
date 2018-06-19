@@ -20,16 +20,16 @@ void push_back(vector<T> mutable* v, T elem) {
 }
 
 template <T>
-T* operator [](vector<T>* v, int* index) {
+T* operator [](vector<T>* v, int index) {
   embed {
-    return &v->at(*index);
+    return &v->at(index);
   }
 }
 
 template <T>
-T mutable* operator [](vector<T> mutable* v, int* index) {
+T mutable* operator [](vector<T> mutable* v, int index) {
   embed {
-    return &v->at(*index);
+    return &v->at(index);
   }
 }
 

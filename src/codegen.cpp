@@ -306,7 +306,7 @@ static void addInitializers(Accu& accu, const vector<FunctionDefinition::Initial
   accu.add(" ");
 }
 
-bool FunctionDefinition::handlePointerParamsInOperator(Accu& accu) const {
+void FunctionDefinition::handlePointerParamsInOperator(Accu& accu) const {
   vector<string> ptrInits;
   for (auto& param : functionType->params)
     if (param.name && functionType->name.contains<Operator>())
@@ -321,9 +321,22 @@ bool FunctionDefinition::handlePointerParamsInOperator(Accu& accu) const {
     body->codegen(accu, CodegenStage::define());
     --accu.indent;
     accu.newLine("}");
-    return true;
   } else
-    return false;
+    body->codegen(accu, CodegenStage::define());
+}
+
+void FunctionDefinition::handlePointerReturnInOperator(Accu& accu) const {
+  if (functionType->retVal.dynamicCast<ReferenceType>() || functionType->retVal.dynamicCast<MutableReferenceType>()) {
+    accu.newLine("{");
+    ++accu.indent;
+    accu.newLine("auto getRef = [&]");
+    handlePointerParamsInOperator(accu);
+    accu.add(";");
+    accu.newLine("return *getRef();");
+    --accu.indent;
+    accu.newLine("}");
+  } else
+    handlePointerParamsInOperator(accu);
 }
 
 void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
@@ -332,8 +345,7 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   addSignature(accu, "");
   if (stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
     accu.newLine("");
-    if (!handlePointerParamsInOperator(accu))
-      body->codegen(accu, CodegenStage::define());
+    handlePointerReturnInOperator(accu);
   } else {
     accu.add(";");
     accu.newLine("");

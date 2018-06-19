@@ -358,8 +358,8 @@ const vector<string>& Context::getAllImports() const {
   return getTopState().allImports;
 }
 
-WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType templateType, IdentifierInfo id, vector<SType> argTypes,
-    vector<CodeLoc> argLoc) const {
+WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType templateType,
+    IdentifierInfo id, vector<SType> argTypes, vector<CodeLoc> argLoc) const {
   auto templateArgNames = id.parts.back().templateArguments;
   auto templateArgs = getTypeList(templateArgNames);
   auto ret = instantiateFunction(*this, templateType, codeLoc, templateArgs, argTypes, argLoc, {});

@@ -322,7 +322,8 @@ struct FunctionDefinition : Statement {
   void setFunctionType(const Context&, bool method);
   void checkFunctionBody(Context&, bool templateStruct) const;
   void addSignature(Accu&, string structName) const;
-  bool handlePointerParamsInOperator(Accu&) const;
+  void handlePointerParamsInOperator(Accu&) const;
+  void handlePointerReturnInOperator(Accu&) const;
 };
 
 struct EmbedStatement : Statement {

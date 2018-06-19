@@ -1,0 +1,11 @@
+// no_compile
+
+int operator + (int a, bool b) {
+  return a;
+}
+
+int main() {
+  const x = 5 + false;
+  return 0;
+}
+

@@ -16,7 +16,7 @@ ArithmeticType::ArithmeticType(const string& name) : name(name) {
 }
 
 string ReferenceType::getName(bool withTemplateArguments) const {
-  return underlying->getName(withTemplateArguments) + " const &";
+  return underlying->getName(withTemplateArguments) + " const&";
 }
 
 string MutableReferenceType::getName(bool withTemplateArguments) const {
@@ -470,7 +470,8 @@ static string getCantBindError(const SType& from, const SType& to) {
 }
 
 static optional<string> getDeductionError(const Context& context, TypeMapping& mapping, SType paramType, SType argType) {
-  if (argType.dynamicCast<ReferenceType>() || argType.dynamicCast<MutableReferenceType>()) {
+  if ((!paramType.dynamicCast<ReferenceType>() && !paramType.dynamicCast<MutableReferenceType>()) &&
+      (argType.dynamicCast<ReferenceType>() || argType.dynamicCast<MutableReferenceType>())) {
     if (context.canCopyConstruct(argType->getUnderlying()))
       argType = argType->getUnderlying();
     else

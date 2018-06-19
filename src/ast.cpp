@@ -56,6 +56,54 @@ nullable<SType> Variable::getDotOperatorType(Expression* left, Context& callCont
     return nullptr;
 }
 
+static bool isExactArg(SType arg, SType param) {
+  bool byValue = param == arg->getUnderlying();
+  bool byConstRef = param.dynamicCast<ReferenceType>() &&
+      !arg.dynamicCast<MutableReferenceType>() &&
+      param->getUnderlying() == arg->getUnderlying();
+  bool byRef = param == arg;
+  /*cout << "Passing " << arg->getName() << " to " << param->getName() << endl;
+  if (byValue) cout << "By value "; if (byConstRef) cout << "By const ref "; if (byRef) cout << "By ref ";
+  cout << endl;*/
+  return byValue || byConstRef || byRef;
+}
+
+static bool exactArgs(const vector<SType>& argTypes, const FunctionType& f) {
+  if (f.params.size() != argTypes.size())
+    return false;
+  for (int i = 0; i < f.params.size(); ++i)
+    if (!isExactArg(argTypes[i], f.params[i].type))
+      return false;
+  return true;
+}
+
+static bool exactFirstArg(const vector<SType>& argTypes, const FunctionType& overload) {
+  return !argTypes.empty() && !overload.params.empty() && isExactArg(argTypes[0], overload.params[0].type);
+}
+
+static bool nonConcept(const vector<SType>&, const FunctionType& f) {
+  return !f.fromConcept;
+}
+
+static vector<FunctionType> filterOverloads(vector<FunctionType> overloads, const vector<SType>& argTypes) {
+  auto filter = [&] (auto fun, const char* method) {
+    auto worse = overloads;
+    overloads.clear();
+    for (auto& overload : worse)
+      if (fun(argTypes, overload)) {
+        overloads.push_back(overload);
+        //cout << overload.toString() << " chosen by " << method << endl;
+      }
+    if (overloads.empty())
+      overloads = worse;
+  };
+  filter(&exactArgs, "all args exact");
+  filter(&exactFirstArg, "first arg exact");
+  // sometimes a function is both in the global context and in the concept, so filter those in concepts
+  filter(&nonConcept, "non concept");
+  return overloads;
+}
+
 SType BinaryExpression::getType(Context& context) {
   auto& leftExpr = *e1;
   auto& rightExpr = *e2;
@@ -74,25 +122,31 @@ SType BinaryExpression::getType(Context& context) {
     default: {
       nullable<SType> ret;
       auto right = rightExpr.getType(context);
-      ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to types: " +
-          quote(left->getName()) + " and " + quote(right->getName())};
       for (auto fun : left->getContext().getOperatorType(op)) {
         if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {right}, {codeLoc}, {})) {
           subscriptOpWorkaround = false;
-          ret = inst->retVal;
+          return inst->retVal;
         } else
-          error = codeLoc.getError(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);
+          codeLoc.error("Can't apply operator: " + quote(getString(op)) + " to types: " +
+              quote(left->getName()) + " and " + quote(right->getName()) + "\n"
+              "Candidate: "s + fun.toString() + ": " + inst.get_error().error);
       }
+      vector<FunctionType> overloads;
       for (auto fun : context.getOperatorType(op))
         if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {left, right},
             {leftExpr.codeLoc, rightExpr.codeLoc}, {}))
-          ret = inst->retVal;
-        else
-          error = codeLoc.getError(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);
-      if (ret)
-        return ret.get();
-      else
-        error.execute();
+          overloads.push_back(*inst);
+      overloads = filterOverloads(overloads, {left, right});
+      if (overloads.size() == 1) {
+        //cout << "Chosen overload " << overloads[0].toString() << endl;
+        return overloads[0].retVal;
+      } else {
+          string error = "No overload found for operator: " + quote(getString(op)) + " with argument types: " +
+              quote(left->getName()) + " and " + quote(right->getName());
+          for (auto& f : overloads)
+            error += "\nCandidate: " + f.toString();
+          codeLoc.error(error);
+      }
     }
   }
 }
@@ -204,6 +258,15 @@ static vector<SConcept> applyConcept(Context& from, const TemplateInfo& template
   return ret;
 }
 
+static SType convertPointerToReference(SType type) {
+  if (auto p = type.dynamicCast<PointerType>())
+    return ReferenceType::get(p->underlying);
+  else if (auto p = type.dynamicCast<MutablePointerType>())
+    return MutableReferenceType::get(p->underlying);
+  else
+    return type;
+}
+
 void FunctionDefinition::setFunctionType(const Context& context, bool method) {
   if (auto s = name.getReferenceMaybe<string>())
     context.checkNameConflictExcludingFunctions(codeLoc, *s, "Function");
@@ -219,22 +282,21 @@ void FunctionDefinition::setFunctionType(const Context& context, bool method) {
     contextWithTemplateParams.addType(param.name, templateTypes.back());
   }
   auto requirements = applyConcept(contextWithTemplateParams, templateInfo, templateTypes);
-  if (auto returnType = contextWithTemplateParams.getTypeFromString(this->returnType)) {
+  if (auto returnType1 = contextWithTemplateParams.getTypeFromString(this->returnType)) {
+    auto returnType = *returnType1;
+    if (name.contains<Operator>())
+      returnType = convertPointerToReference(returnType);
     vector<FunctionType::Param> params;
     for (auto& p : parameters) {
       auto type = contextWithTemplateParams.getTypeFromString(p.type).get(p.codeLoc);
-      if (name.contains<Operator>()) {
-        if (auto p = type.dynamicCast<PointerType>())
-          type = ReferenceType::get(p->underlying);
-        else if (auto p = type.dynamicCast<MutablePointerType>())
-          type = MutableReferenceType::get(p->underlying);
-      }
+      if (name.contains<Operator>())
+        type = convertPointerToReference(type);
       params.push_back({p.name, std::move(type)});
     }
-    functionType = FunctionType(context.getFunctionId(name), FunctionCallType::FUNCTION, returnType.get(codeLoc), params, templateTypes );
+    functionType = FunctionType(context.getFunctionId(name), FunctionCallType::FUNCTION, returnType, params, templateTypes);
     functionType->requirements = requirements;
   } else
-    codeLoc.error(returnType.get_error());
+    codeLoc.error(returnType1.get_error());
 }
 
 void FunctionDefinition::checkFunctionBody(Context& context, bool templateStruct) const {
@@ -250,8 +312,9 @@ void FunctionDefinition::checkFunctionBody(Context& context, bool templateStruct
             ? SType(MutableReferenceType::get(std::move(rawType)))
             : SType(ReferenceType::get(std::move(rawType))));
       }
-    bodyContext.setReturnType(functionType->retVal);
-    if (functionType->retVal != ArithmeticType::VOID && body && !body->hasReturnStatement(context) && !name.contains<ConstructorId>())
+    auto retVal = bodyContext.getTypeFromString(returnType).get(codeLoc);
+    bodyContext.setReturnType(retVal);
+    if (retVal != ArithmeticType::VOID && body && !body->hasReturnStatement(context) && !name.contains<ConstructorId>())
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
     body->check(bodyContext);
   }
@@ -326,34 +389,10 @@ SType FunctionCall::getType(Context& context) {
   return getDotOperatorType(nullptr, context).get();
 }
 
-bool exactArgs(const vector<SType>& argTypes, const FunctionType& f) {
-  return transform(argTypes, [](const auto& p) { return p->getUnderlying();})
-      == transform(f.params, [](const auto& p) { return p.type;});
-}
-
-bool nonConcept(const vector<SType>&, const FunctionType& f) {
-  return !f.fromConcept;
-}
-
-static vector<FunctionType> filterOverloads(vector<FunctionType> overloads, const vector<SType>& argTypes) {
-  auto filter = [&] (auto fun) {
-    auto worse = overloads;
-    overloads.clear();
-    for (auto& overload : worse)
-      if (fun(argTypes, overload))
-        overloads.push_back(overload);
-    if (overloads.empty())
-      overloads = worse;
-  };
-  filter(&exactArgs);
-  // sometimes a function is both in the global context and in the concept, so filter those in concepts
-  filter(&nonConcept);
-  return overloads;
-}
-
 static WithErrorLine<FunctionType> getFunction(const Context& idContext, const Context& callContext, CodeLoc codeLoc,
     IdentifierInfo id, const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
-  ErrorLoc errors = codeLoc.getError("Couldn't find function overload matching arguments: (" + joinTypeList(argTypes) + ")");
+  ErrorLoc errors = codeLoc.getError("Couldn't find function " + id.toString() +
+      " matching arguments: (" + joinTypeList(argTypes) + ")");
   vector<FunctionType> overloads;
   if (auto templateType = idContext.getFunctionTemplate(id)) {
     for (auto& overload : *templateType)

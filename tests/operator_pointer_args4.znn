@@ -1,0 +1,43 @@
+// 14
+
+template <T>
+concept can_add {
+  T operator + (T, T);
+};
+
+struct Vector {
+  int v;
+};
+
+Vector operator + (Vector* a, Vector* b) {
+  return Vector((*a).v + (*b).v);
+}
+
+template <T> requires can_add<T>
+T add(mutable T t1, mutable T t2) {
+  return move(t1) + move(t2);
+}
+
+template <Elem, Container, Key>
+concept can_index {
+  Elem* operator [](Container*, Key*);
+};
+
+template <K, T, U> requires can_index<K, T, U>
+K* get_elem(T* t1, U* index) {
+  return &(*t1)[*index];
+}
+
+int* operator [](Vector* v, int *a) {
+  return a;
+}
+
+int main() {
+  const v1 = Vector(1);
+  const v2 = Vector(2);
+  const v3 = add(v1, v2);
+  const i = 5;
+  const v4 = get_elem<int>(&v1, &i);
+  return add(1, 5) + v3.v + *v4;
+}
+
