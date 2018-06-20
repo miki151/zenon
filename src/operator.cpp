@@ -50,29 +50,33 @@ int getPrecedence(Operator op) {
   switch (op) {
     case Operator::ASSIGNMENT:
       return 1;
-    case Operator::EQUALS:
-    case Operator::LESS_THAN:
-    case Operator::MORE_THAN:
-      return 2;
-    case Operator::PLUS:
-    case Operator::PLUS_UNARY:
     case Operator::LOGICAL_OR:
-    case Operator::MINUS:
-    case Operator::MINUS_UNARY:
-      return 3;
+      return 2;
     case Operator::LOGICAL_AND:
-    case Operator::MULTIPLY:
+      return 3;
+    case Operator::EQUALS:
       return 4;
     case Operator::LOGICAL_NOT:
-    case Operator::POINTER_DEREFERENCE:
       return 5;
-    case Operator::GET_ADDRESS:
+    case Operator::LESS_THAN:
+    case Operator::MORE_THAN:
       return 6;
-    case Operator::SUBSCRIPT:
+    case Operator::PLUS:
+    case Operator::PLUS_UNARY:
+    case Operator::MINUS:
+    case Operator::MINUS_UNARY:
       return 7;
+    case Operator::MULTIPLY:
+      return 8;
+    case Operator::POINTER_DEREFERENCE:
+      return 9;
+    case Operator::GET_ADDRESS:
+      return 10;
+    case Operator::SUBSCRIPT:
+      return 11;
     case Operator::MEMBER_ACCESS:
     case Operator::POINTER_MEMBER_ACCESS:
-      return 8;
+      return 12;
   }
 }
 
