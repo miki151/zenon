@@ -47,8 +47,8 @@ string get_error(expected<T>* v) {
 }
 
 template <T>
-expected<T> result(T v) {
-  return expected<T>::value(v);
+expected<T> result(mutable T v) {
+  return expected<T>::value(move(v));
 }
 
 template <T>

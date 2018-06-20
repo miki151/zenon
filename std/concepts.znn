@@ -6,7 +6,7 @@ concept can_copy {
 
 template <T>
 concept comparable {
-  bool operator < (T, T);
+  bool operator < (T*, T*);
 };
 
 

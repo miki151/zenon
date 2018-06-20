@@ -8,10 +8,12 @@ const static vector<pair<string, Operator>> operators {
   {">", Operator::MORE_THAN},
   {"==", Operator::EQUALS},
   // if a binary op has the same symbol as unary it needs to come before it.
+  {"++", Operator::INCREMENT},
   {"+", Operator::PLUS},
   {"+", Operator::PLUS_UNARY},
   {"*", Operator::MULTIPLY},
   {"*", Operator::POINTER_DEREFERENCE},
+  {"--", Operator::DECREMENT},
   {"-", Operator::MINUS},
   {"-", Operator::MINUS_UNARY},
   {"=", Operator::ASSIGNMENT},
@@ -68,15 +70,19 @@ int getPrecedence(Operator op) {
       return 7;
     case Operator::MULTIPLY:
       return 8;
-    case Operator::POINTER_DEREFERENCE:
+    case Operator::DECREMENT:
       return 9;
-    case Operator::GET_ADDRESS:
+    case Operator::INCREMENT:
       return 10;
-    case Operator::SUBSCRIPT:
+    case Operator::POINTER_DEREFERENCE:
       return 11;
+    case Operator::GET_ADDRESS:
+      return 12;
+    case Operator::SUBSCRIPT:
+      return 13;
     case Operator::MEMBER_ACCESS:
     case Operator::POINTER_MEMBER_ACCESS:
-      return 12;
+      return 14;
   }
 }
 
@@ -101,6 +107,8 @@ bool canOverload(Operator op, int numArguments) {
       return numArguments == 2;
     case Operator::POINTER_DEREFERENCE:
     case Operator::PLUS_UNARY:
+    case Operator::INCREMENT:
+    case Operator::DECREMENT:
     case Operator::LOGICAL_NOT:
     case Operator::MINUS_UNARY:
       return numArguments == 1;
@@ -119,6 +127,8 @@ optional<Operator> getUnary(Operator op) {
       return Operator::POINTER_DEREFERENCE;
     case Operator::LOGICAL_NOT:
     case Operator::GET_ADDRESS:
+    case Operator::INCREMENT:
+    case Operator::DECREMENT:
       return op;
     default:
       return none;

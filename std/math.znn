@@ -1,0 +1,19 @@
+
+import "std/concepts.znn";
+
+template <T> requires comparable<T>
+T min(mutable T a, mutable T b) {
+  if (a < b)
+    return move(a);
+  else
+    return move(b);
+}
+
+template <T> requires comparable<T>
+T max(mutable T a, mutable T b) {
+  if (a < b)
+    return move(b);
+  else
+    return move(a);
+}
+

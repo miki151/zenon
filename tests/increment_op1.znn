@@ -1,0 +1,9 @@
+// 1
+
+int main() {
+  mutable i = 0;
+  ++++i;
+  --i;
+  return i;
+}
+

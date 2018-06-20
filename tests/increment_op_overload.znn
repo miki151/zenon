@@ -1,0 +1,17 @@
+// 2
+
+struct A {
+  int x;
+};
+
+A mutable* operator ++ (A mutable* a) {
+  ++a->x;
+  return a;
+}
+
+int main() {
+  mutable a = A(1);
+  const b = ++a;
+  return b.x;
+}
+

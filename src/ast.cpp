@@ -353,6 +353,9 @@ static void initializeArithmeticTypes(Context& context) {
       {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {})));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
     CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT, {{ArithmeticType::INT}}, {})));
+  for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
+    CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, MutableReferenceType::get(ArithmeticType::INT),
+        {{MutableReferenceType::get(ArithmeticType::INT)}}, {})));
   for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY})
     CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT,
         {{ArithmeticType::INT}, {ArithmeticType::INT}}, {})));

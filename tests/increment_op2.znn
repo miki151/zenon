@@ -1,0 +1,9 @@
+// no_compile
+
+int main() {
+  const i = 0;
+  ++++i;
+  --i;
+  return i;
+}
+

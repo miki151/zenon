@@ -1,0 +1,17 @@
+
+embed {
+  #include <cstdlib>
+  #include <ctime>
+}
+
+void init_random() {
+  embed {
+    srand(time(0));
+  }
+}
+
+int get_random(int max) {
+  embed {
+    return rand() % max;
+  }
+}
