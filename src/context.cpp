@@ -162,7 +162,9 @@ void Context::print() const {
 }
 
 vector<SType> Context::getConversions(SType type) const {
-  vector<SType> ret = {type, type->getUnderlying()};
+  vector<SType> ret = {type};
+  if (canCopyConstruct(type->getUnderlying()) && type != type->getUnderlying())
+    ret.push_back(type->getUnderlying());
   if (auto ptr = type->getUnderlying().dynamicCast<MutablePointerType>())
     ret.push_back(PointerType::get(ptr->underlying));
   return ret;

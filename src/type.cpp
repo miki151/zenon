@@ -173,20 +173,8 @@ bool PointerType::isBuiltinCopyable() const {
   return true;
 }
 
-unique_ptr<Expression> PointerType::getConversionFrom(unique_ptr<Expression> expr, Context& callContext) const {
-  SType from = expr->getType(callContext);
-  if (auto t = from->getUnderlying().dynamicCast<MutablePointerType>())
-    return expr;
-  else
-    return nullptr;
-}
-
 bool EnumType::isBuiltinCopyable() const {
   return true;
-}
-
-unique_ptr<Expression> Type::getConversionFrom(unique_ptr<Expression> expr, Context& callContext) const{
-  return nullptr;
 }
 
 bool ReferenceType::canAssign(SType from) const {
@@ -231,19 +219,6 @@ void ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& c
 
 void MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc, bool isReference) const {
   underlying->handleSwitchStatement(statement, context, codeLoc, true);
-}
-
-unique_ptr<Expression> StructType::getConversionFrom(unique_ptr<Expression> expr, Context& callContext) const {
-  SType from = expr->getType(callContext)->getUnderlying();
-  if (from != ArithmeticType::VOID)
-    for (auto& alternative : alternatives)
-      if (alternative.type == from) {
-        auto ret = unique<FunctionCall>(CodeLoc(), IdentifierInfo("pok"));
-        ret->functionType = *getOnlyElement(*staticContext.getFunctionTemplate(IdentifierInfo(alternative.name)));
-        ret->arguments.push_back(std::move(expr));
-        return ret;
-      }
-  return nullptr;
 }
 
 void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext, CodeLoc codeLoc, bool isReference) const {

@@ -1,0 +1,16 @@
+// no_compile
+
+template <T>
+T f(mutable T a) {
+  return g(move(a));
+}
+
+template <T>
+T g(mutable T a) {
+  return a;
+}
+
+int main() {
+  return f(5);
+}
+

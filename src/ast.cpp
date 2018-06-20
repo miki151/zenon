@@ -216,14 +216,9 @@ void ReturnStatement::check(Context& context) {
         "Expected an expression in return statement in a function returning non-void");
   else {
     auto returnType = expr->getType(context);
-    codeLoc.check(!returnType.dynamicCast<ReferenceType>() || context.canCopyConstruct(returnType->getUnderlying()),
-        "Type " + quote(returnType->getUnderlying()->getName()) + " cannot be copied");
-    if (!MutableReferenceType::get(context.getReturnType().get())->canAssign(returnType)) {
-      expr = context.getReturnType()->getConversionFrom(std::move(expr), context);
-      codeLoc.check(!!expr,
-          "Attempting to return value of type "s + quote(returnType->getName()) +
-          " in a function returning "s + quote(context.getReturnType()->getName()));
-    }
+    codeLoc.check(context.canConvert(returnType, context.getReturnType().get()),
+        "Can't return value of type " + quote(returnType->getName()) +
+        " from a function returning " + context.getReturnType()->getName());
   }
 }
 

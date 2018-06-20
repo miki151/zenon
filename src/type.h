@@ -18,7 +18,6 @@ struct Type : public owned_object<Type> {
   virtual SType getUnderlying() const;
   virtual bool canAssign(SType from) const;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const;
-  virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, Context& callContext) const;
   virtual SType replace(SType from, SType to) const;
   virtual ~Type() {}
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const;
@@ -76,7 +75,6 @@ struct PointerType : public Type {
   virtual SType replace(SType from, SType to) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyable() const override;
-  virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, Context& callContext) const override;
 
   static shared_ptr<PointerType> get(SType);
 
@@ -108,7 +106,6 @@ struct StructType : public Type {
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
-  virtual unique_ptr<Expression> getConversionFrom(unique_ptr<Expression>, Context& callContext) const override;
 
   enum Kind {
     STRUCT,
