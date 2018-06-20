@@ -30,14 +30,15 @@ bool operator !(nullable<T>* v) {
 }
 
 template <T>
-T* get(nullable<T>* v) {
+T* operator *(nullable<T>* v) {
   switch (*v) {
     case (T* value) {
       return value;
     }
     case (null) {
       embed {
-        throw "dupa";
+        struct NullAccessException {};
+        throw NullAccessException{};
       }
     }
   }

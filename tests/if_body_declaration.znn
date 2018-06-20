@@ -1,0 +1,8 @@
+// no_compile
+
+int main() {
+  if (false)
+    int y = 5;
+  return y;
+}
+

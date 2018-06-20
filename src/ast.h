@@ -148,9 +148,13 @@ struct VariableDeclaration : Statement {
 };
 
 struct IfStatement : Statement {
-  IfStatement(CodeLoc, unique_ptr<Expression> cond, unique_ptr<Statement> ifTrue,
+  IfStatement(CodeLoc,
+      unique_ptr<VariableDeclaration> decl /*can be null*/,
+      unique_ptr<Expression> cond /*can be null if decl is non-null*/,
+      unique_ptr<Statement> ifTrue,
       unique_ptr<Statement> ifFalse /* can be null*/);
-  unique_ptr<Expression> cond;
+  unique_ptr<VariableDeclaration> declaration;
+  unique_ptr<Expression> condition;
   unique_ptr<Statement> ifTrue, ifFalse;
   virtual bool hasReturnStatement(const Context&) const override;
   virtual void check(Context&) override;

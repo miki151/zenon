@@ -36,8 +36,9 @@ string get_error(expected<T>* v) {
   switch (*v) {
     case (T* value) {
       embed {
-        throw "dupa";
-      }
+        struct NullAccessException {};
+        throw NullAccessException{};
+     }
     }
     case (string* error) {
       return *error;

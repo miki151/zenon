@@ -1,0 +1,9 @@
+// no_compile
+
+int main() {
+  if (const x = 5)
+    return 0;
+  else
+    return 1;
+}
+

@@ -1,0 +1,36 @@
+// 6
+import "std/nullable.znn";
+
+struct X {
+  int value;
+};
+
+int f(X* x) {
+  return 1;
+}
+
+nullable<X> get1() {
+  return null<X>();
+}
+
+nullable<X> get2() {
+  return value(X(5));
+}
+
+bool get_bool() {
+  return false;
+}
+
+int main() {
+  if (const b = get_bool())
+    return 1;
+  if (const x = 5; x == 4)
+    return 2;
+  if (const x = get1())
+    return 3;
+  if (const x = get2()) {
+    return x->value + x->f();
+  } else
+    return 4;
+}
+

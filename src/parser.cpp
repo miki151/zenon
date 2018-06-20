@@ -322,24 +322,6 @@ unique_ptr<ConceptDefinition> parseConceptDefinition(Tokens& tokens) {
   return ret;
 }
 
-unique_ptr<IfStatement> parseIfStatement(Tokens& tokens) {
-  auto codeLoc = tokens.eat(Keyword::IF).codeLoc;
-  tokens.eat(Keyword::OPEN_BRACKET);
-  auto cond = parseExpression(tokens);
-  tokens.eat(Keyword::CLOSE_BRACKET);
-  auto ifTrue = parseNonTopLevelStatement(tokens);
-  unique_ptr<Statement> ifFalse;
-  if (!tokens.empty()) {
-    auto token2 = tokens.peek();
-    if (auto k1 = token2.getReferenceMaybe<Keyword>())
-      if (*k1 == Keyword::ELSE) {
-        tokens.popNext();
-        ifFalse = parseNonTopLevelStatement(tokens);
-      }
-  }
-  return unique<IfStatement>(codeLoc, std::move(cond), std::move(ifTrue), std::move(ifFalse));
-}
-
 unique_ptr<ReturnStatement> parseReturnStatement(Tokens& tokens) {
   auto ret = unique<ReturnStatement>(tokens.eat(Keyword::RETURN).codeLoc);
   auto token2 = tokens.peek("expression or " + quote(";"));
@@ -443,7 +425,7 @@ unique_ptr<SwitchStatement> parseSwitchStatement(Tokens& tokens) {
   return ret;
 }
 
-unique_ptr<Statement> parseVariableDeclaration(Tokens& tokens) {
+unique_ptr<VariableDeclaration> parseVariableDeclaration(Tokens& tokens, bool eatSemicolon = true) {
   auto typeLoc = tokens.peek().codeLoc;
   optional<IdentifierInfo> type;
   bool isMutable = false;
@@ -473,10 +455,39 @@ unique_ptr<Statement> parseVariableDeclaration(Tokens& tokens) {
   unique_ptr<Expression> initExpression;
   if (tokens.eatMaybe(Operator::ASSIGNMENT))
     initExpression = parseExpression(tokens);
-  tokens.eat(Keyword::SEMICOLON);
+  if (eatSemicolon)
+    tokens.eat(Keyword::SEMICOLON);
   auto ret = unique<VariableDeclaration>(typeLoc, type, variableName, std::move(initExpression));
   ret->isMutable = isMutable;
   return ret;
+}
+
+unique_ptr<IfStatement> parseIfStatement(Tokens& tokens) {
+  auto codeLoc = tokens.eat(Keyword::IF).codeLoc;
+  tokens.eat(Keyword::OPEN_BRACKET);
+  unique_ptr<VariableDeclaration> decl;
+  unique_ptr<Expression> cond;
+  if (tokens.peek("if statement") == Keyword::CONST || tokens.peek() == Keyword::MUTABLE) {
+    decl = parseVariableDeclaration(tokens, false);
+    if (tokens.peek("if statement") == Keyword::SEMICOLON) {
+      tokens.popNext();
+      cond = parseExpression(tokens);
+    }
+  } else
+    cond = parseExpression(tokens);
+  codeLoc.check(!!decl || !!cond, "Expected condition expression or declaration");
+  tokens.eat(Keyword::CLOSE_BRACKET);
+  auto ifTrue = parseNonTopLevelStatement(tokens);
+  unique_ptr<Statement> ifFalse;
+  if (!tokens.empty()) {
+    auto token2 = tokens.peek();
+    if (auto k1 = token2.getReferenceMaybe<Keyword>())
+      if (*k1 == Keyword::ELSE) {
+        tokens.popNext();
+        ifFalse = parseNonTopLevelStatement(tokens);
+      }
+  }
+  return unique<IfStatement>(codeLoc, std::move(decl), std::move(cond), std::move(ifTrue), std::move(ifFalse));
 }
 
 unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {

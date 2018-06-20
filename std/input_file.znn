@@ -20,7 +20,7 @@ T read(input_file mutable* f) {
   }
 }
 
-bool is_good(input_file* f) {
-  embed { return f->f.good(); }
+bool operator! (input_file* f) {
+  embed { return !f->f.good(); }
 }
 

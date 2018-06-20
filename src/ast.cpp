@@ -15,8 +15,9 @@ BinaryExpression::BinaryExpression(CodeLoc loc, Operator o, unique_ptr<Expressio
   e2 = std::move(u2);
 }
 
-IfStatement::IfStatement(CodeLoc loc, unique_ptr<Expression> c, unique_ptr<Statement> t, unique_ptr<Statement> f)
-  : Statement(loc), cond(std::move(c)), ifTrue(std::move(t)), ifFalse(std::move(f)) {
+IfStatement::IfStatement(CodeLoc loc, unique_ptr<VariableDeclaration> d, unique_ptr<Expression> c,
+    unique_ptr<Statement> t, unique_ptr<Statement> f)
+  : Statement(loc), declaration(std::move(d)), condition(std::move(c)), ifTrue(std::move(t)), ifFalse(std::move(f)) {
 }
 
 Constant::Constant(CodeLoc l, SType t, string v) : Expression(l), type(t), value(v) {
@@ -166,12 +167,22 @@ void StatementBlock::check(Context& context) {
 }
 
 void IfStatement::check(Context& context) {
-  auto condType = cond->getType(context);
-  codeLoc.check(context.canConvert(condType, ArithmeticType::BOOL),
-      "Expected a type convertible to bool inside if statement, got " + quote(condType->getName()));
-  ifTrue->check(context);
+  auto ifContext = Context::withParent(context);
+  if (declaration)
+    declaration->check(ifContext);
+  if (!condition) {
+    auto negate = [&] (unique_ptr<Expression> expr) {
+      return unique<UnaryExpression>(declaration->codeLoc, Operator::LOGICAL_NOT, std::move(expr));
+    };
+    condition = negate(negate(unique<Variable>(declaration->codeLoc, declaration->identifier)));
+  }
+  auto condType = condition->getType(ifContext);
+  codeLoc.check(ifContext.canConvert(condType, ArithmeticType::BOOL),
+      "Expected a type convertible to bool or with overloaded operator " +
+      quote("!") + " inside if statement, got " + quote(condType->getName()));
+  ifTrue->check(ifContext);
   if (ifFalse)
-    ifFalse->check(context);
+    ifFalse->check(ifContext);
 }
 
 void VariableDeclaration::check(Context& context) {

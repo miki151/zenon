@@ -119,7 +119,13 @@ void VariableDeclaration::codegen(Accu& accu, CodegenStage stage) const {
 void IfStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   accu.newLine("if (");
-  cond->codegen(accu, stage);
+  if (declaration) {
+    declaration->codegen(accu, stage);
+    if (!condition)
+      accu.pop_back();
+  }
+  if (condition)
+    condition->codegen(accu, stage);
   accu.add(")");
   ++accu.indent;
   accu.newLine();
