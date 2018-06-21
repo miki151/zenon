@@ -141,6 +141,10 @@ class basic_lite_str {
     return length;
   }
 
+  bool empty() const {
+    return length == 0;
+  }
+
   const char_type* data() const {
     return ptr;
   }
@@ -156,6 +160,11 @@ class basic_lite_str {
 template <typename char_type, typename char_traits, typename alloc>
 auto size(const basic_lite_str<char_type, char_traits, alloc>* s) {
   return s->size();
+}
+
+template <typename char_type, typename char_traits, typename alloc>
+auto empty(const basic_lite_str<char_type, char_traits, alloc>* s) {
+  return s->empty();
 }
 
 template <typename char_type, typename char_traits, typename alloc>

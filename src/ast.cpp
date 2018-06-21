@@ -345,6 +345,8 @@ void FunctionDefinition::addToContext(Context& context) {
 static void initializeArithmeticTypes(Context& context) {
   CHECK(!context.addFunction(FunctionType("size"s, FunctionCallType::FUNCTION, ArithmeticType::INT,
       {{PointerType::get(ArithmeticType::STRING)}}, {})));
+  CHECK(!context.addFunction(FunctionType("empty"s, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+      {{PointerType::get(ArithmeticType::STRING)}}, {})));
   CHECK(!context.addFunction(FunctionType("substring"s, FunctionCallType::FUNCTION, ArithmeticType::STRING,
       {{PointerType::get(ArithmeticType::STRING)}, {ArithmeticType::INT}, {ArithmeticType::INT}}, {})));
   CHECK(!context.addFunction(FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION, ArithmeticType::CHAR,
