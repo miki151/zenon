@@ -1,5 +1,5 @@
 
-import "std/concepts.znn";
+public import "std/concepts.znn";
 
 template <T> requires comparable<T>
 T min(mutable T a, mutable T b) {
@@ -17,3 +17,14 @@ T max(mutable T a, mutable T b) {
     return move(a);
 }
 
+int as_int(double a) {
+  embed {
+    return (int) a;
+  }
+}
+
+double as_double(int a) {
+  embed {
+    return (double) a;
+  }
+}

@@ -86,6 +86,10 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
         tokens.popNext();
         return unique<Constant>(token.codeLoc, ArithmeticType::INT, token.value);
       },
+      [&](const RealNumber&) -> unique_ptr<Expression> {
+        tokens.popNext();
+        return unique<Constant>(token.codeLoc, ArithmeticType::DOUBLE, token.value);
+      },
       [&](const StringToken&) -> unique_ptr<Expression> {
         tokens.popNext();
         return unique<Constant>(token.codeLoc, ArithmeticType::STRING, token.value);

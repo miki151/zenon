@@ -1,0 +1,12 @@
+// 50
+import "std/math.znn";
+
+int main() {
+  double a = 33.0;
+  double b = 0.7;
+  double c = 3.0;
+  double d = 2;
+  int e = as_int((a + b) * c / d);
+  return e;
+}
+

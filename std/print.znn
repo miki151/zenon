@@ -1,3 +1,5 @@
+import "concepts.znn";
+
 public embed{
 #include <cstdio>
 }
@@ -10,6 +12,12 @@ concept can_print {
 void print(int i) {
   embed {
     printf("%d\n", i);
+  }
+}
+
+void print(double i) {
+  embed {
+    printf("%f\n", i);
   }
 }
 
@@ -26,14 +34,13 @@ void print(bool b) {
     print("false");
 }
 
-void print(int* i) {
+template <T>
+concept can_print_value {
+  void print(T);
+};
+
+template <T> requires can_print_value<T>, can_copy<T>
+void print(T* i) {
   print(*i);
 }
 
-void print(string* s) {
-  print(*s);
-}
-
-void print(bool* b) {
-  print(*b);
-}

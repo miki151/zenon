@@ -11,6 +11,10 @@ struct Number {
   bool operator == (const Number&) const { return true; }
 };
 
+struct RealNumber {
+  bool operator == (const RealNumber&) const { return true; }
+};
+
 struct IdentifierToken {
   bool operator == (const IdentifierToken&) const { return true; }
 };
@@ -70,7 +74,7 @@ string getString(Token);
 extern vector<string> getAllKeywords();
 string process(Token, string matched);
 
-class Token : public variant<Number, IdentifierToken, Keyword, Operator, EmbedToken, StringToken, CharToken> {
+class Token : public variant<Number, RealNumber, IdentifierToken, Keyword, Operator, EmbedToken, StringToken, CharToken> {
   public:
   using variant::variant;
   string value;

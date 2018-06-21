@@ -3,6 +3,7 @@
 #include "ast.h"
 
 ArithmeticType::DefType ArithmeticType::INT = shared<ArithmeticType>("int");
+ArithmeticType::DefType ArithmeticType::DOUBLE = shared<ArithmeticType>("double");
 ArithmeticType::DefType ArithmeticType::VOID = shared<ArithmeticType>("void");
 ArithmeticType::DefType ArithmeticType::BOOL = shared<ArithmeticType>("bool");
 ArithmeticType::DefType ArithmeticType::STRING = shared<ArithmeticType>("string");

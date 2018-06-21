@@ -165,6 +165,8 @@ vector<SType> Context::getConversions(SType type) const {
   vector<SType> ret = {type};
   if (canCopyConstruct(type->getUnderlying()) && type != type->getUnderlying())
     ret.push_back(type->getUnderlying());
+  if (type->getUnderlying() == ArithmeticType::INT)
+    ret.push_back(ArithmeticType::DOUBLE);
   if (auto ptr = type->getUnderlying().dynamicCast<MutablePointerType>())
     ret.push_back(PointerType::get(ptr->underlying));
   return ret;

@@ -33,6 +33,7 @@ struct ArithmeticType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   using DefType = shared_ptr<ArithmeticType>;
   static DefType INT;
+  static DefType DOUBLE;
   static DefType BOOL;
   static DefType VOID;
   static DefType CHAR;

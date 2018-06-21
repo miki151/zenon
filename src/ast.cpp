@@ -105,6 +105,31 @@ static vector<FunctionType> filterOverloads(vector<FunctionType> overloads, cons
   return overloads;
 }
 
+
+static SType handleOperatorOverloads(Context& context, CodeLoc codeLoc, Operator op, vector<Expression*> args) {
+  vector<FunctionType> overloads;
+  vector<SType> types;
+  vector<CodeLoc> locs;
+  for (auto& arg : args) {
+    types.push_back(arg->getType(context));
+    locs.push_back(arg->codeLoc);
+  }
+  for (auto fun : context.getOperatorType(op))
+    if (auto inst = instantiateFunction(context, fun, codeLoc, {}, types, locs, {}))
+      overloads.push_back(*inst);
+  overloads = filterOverloads(overloads, types);
+  if (overloads.size() == 1) {
+    //cout << "Chosen overload " << overloads[0].toString() << endl;
+    return overloads[0].retVal;
+  } else {
+      string error = "No overload found for operator: " + quote(getString(op)) + " with argument types: " +
+          joinTypeList(types);
+      for (auto& f : overloads)
+        error += "\nCandidate: " + f.toString();
+      codeLoc.error(error);
+  }
+}
+
 SType BinaryExpression::getType(Context& context) {
   if (op == Operator::POINTER_MEMBER_ACCESS) {
     e1 = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(e1));
@@ -139,24 +164,25 @@ SType BinaryExpression::getType(Context& context) {
               quote(left->getName()) + " and " + quote(right->getName()) + "\n"
               "Candidate: "s + fun.toString() + ": " + inst.get_error().error);
       }
-      vector<FunctionType> overloads;
-      for (auto fun : context.getOperatorType(op))
-        if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {left, right},
-            {leftExpr.codeLoc, rightExpr.codeLoc}, {}))
-          overloads.push_back(*inst);
-      overloads = filterOverloads(overloads, {left, right});
-      if (overloads.size() == 1) {
-        //cout << "Chosen overload " << overloads[0].toString() << endl;
-        return overloads[0].retVal;
-      } else {
-          string error = "No overload found for operator: " + quote(getString(op)) + " with argument types: " +
-              quote(left->getName()) + " and " + quote(right->getName());
-          for (auto& f : overloads)
-            error += "\nCandidate: " + f.toString();
-          codeLoc.error(error);
-      }
+      return handleOperatorOverloads(context, codeLoc, op, {e1.get(), e2.get()});
     }
   }
+}
+
+UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
+    : Expression(l), op(o), expr(std::move(e)) {}
+
+SType UnaryExpression::getType(Context& context) {
+  nullable<SType> ret;
+  auto right = expr->getType(context);
+  ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName())};
+  for (auto fun : right->getContext().getOperatorType(op))
+    if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {}, {})) {
+      CHECK(!ret);
+      return inst->retVal;
+    } else
+      codeLoc.error(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);
+  return handleOperatorOverloads(context, codeLoc, op, {expr.get()});
 }
 
 void StatementBlock::check(Context& context) {
@@ -354,33 +380,36 @@ static void initializeArithmeticTypes(Context& context) {
   CHECK(!context.addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
       {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {})));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
-    CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT, {{ArithmeticType::INT}}, {})));
+    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
+      CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{type}}, {})));
   for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
     CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, MutableReferenceType::get(ArithmeticType::INT),
         {{MutableReferenceType::get(ArithmeticType::INT)}}, {})));
   for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
-    CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::INT,
-        {{ArithmeticType::INT}, {ArithmeticType::INT}}, {})));
+    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
+      if (type != ArithmeticType::DOUBLE || op != Operator::MODULO)
+        CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{type}, {type}}, {})));
   for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
     CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
         {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {})));
   CHECK(!context.addFunction(FunctionType(Operator::LOGICAL_NOT, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
       {{ArithmeticType::BOOL}}, {})));
   for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
-    for (auto type : {ArithmeticType::INT, ArithmeticType::STRING})
+    for (auto type : {ArithmeticType::INT, ArithmeticType::STRING, ArithmeticType::DOUBLE})
       CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
           {{type}, {type}}, {})));
   for (auto op : {Operator::EQUALS})
     for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
       CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{type}, {type}}, {})));
-  for (auto& type : {ArithmeticType::BOOL, ArithmeticType::CHAR, ArithmeticType::INT, ArithmeticType::STRING})
+  for (auto& type : {ArithmeticType::BOOL, ArithmeticType::CHAR, ArithmeticType::INT, ArithmeticType::STRING,
+      ArithmeticType::DOUBLE})
     context.addCopyConstructorFor(type);
 }
 
 vector<string> correctness(const AST& ast, const vector<string>& importPaths) {
   Context context;
   initializeArithmeticTypes(context);
-  for (auto type : {ArithmeticType::INT, ArithmeticType::BOOL,
+  for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE, ArithmeticType::BOOL,
        ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
     context.addType(type->getName(), type);
   for (auto& elem : ast.elems) {
@@ -737,31 +766,6 @@ void StructDefinition::check(Context& context) {
   }
   type->updateInstantations();
   codeLoc.check(!type->hasInfiniteSize(), quote(type->getName()) + " has infinite size");
-}
-
-UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
-    : Expression(l), op(o), expr(std::move(e)) {}
-
-SType UnaryExpression::getType(Context& context) {
-  nullable<SType> ret;
-  auto right = expr->getType(context);
-  ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName())};
-  for (auto fun : right->getContext().getOperatorType(op))
-    if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {}, {})) {
-      CHECK(!ret);
-      ret = inst->retVal;
-    } else
-      error = codeLoc.getError(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);
-  for (auto fun : context.getOperatorType(op))
-    if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {right}, {expr->codeLoc})) {
-      CHECK(!ret);
-      ret = inst->retVal;
-    } else
-      error = codeLoc.getError(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);
-  if (ret)
-    return ret.get();
-  else
-    error.execute();
 }
 
 MoveExpression::MoveExpression(CodeLoc l, string id) : Expression(l), identifier(id) {

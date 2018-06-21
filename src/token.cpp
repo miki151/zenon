@@ -68,6 +68,9 @@ string getString(Token t) {
       [](Number) {
         return "number";
       },
+      [](RealNumber) {
+        return "real number";
+      },
       [](const IdentifierToken&) {
         return "identifier";
       },
