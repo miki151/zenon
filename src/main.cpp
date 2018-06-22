@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
     auto objFile = fullCompile
         ? buildDir + "/"s + to_string(std::hash<string>()(program->value)) + ".znn.o"
         : flags["o"].get().string;
-    if (compileCpp(gccCmd, cppCode, objFile)) {
+    if ((!fullCompile || !fs::exists(objFile)) && compileCpp(gccCmd, cppCode, objFile)) {
       cerr << "C++ compilation failed, which is a Zenon bug :(\n\n" << endl;
       cerr << cppCode << endl;
       return 2;
