@@ -43,6 +43,7 @@ Tokens lex(const string& input, const string& path) {
   string idLetter = idLetterFirst + "0-9_";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
       {"//.*", [](const string&) -> optional<Token> { return none;}},
+      {"/\\*[\\s\\S]*?\\*/", [](const string&) -> optional<Token> { return none;}},
       {getKeywords(), [](const string& s) -> optional<Token> { return Token(getKeyword(s));}},
       {getOperators(), [](const string& s) -> optional<Token> {
           return Token(*getOperator(s));}},
