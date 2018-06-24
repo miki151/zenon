@@ -12,6 +12,7 @@ struct CodeLoc {
   void check(bool, const string&) const;
   void checkNoError(optional<string> error) const;
   ErrorLoc getError(string) const;
+  CodeLoc plus(int numLines, int numColumns);
 
   string file;
   int line;

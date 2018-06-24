@@ -24,6 +24,10 @@ ErrorLoc CodeLoc::getError(string s) const {
   return ErrorLoc{*this, s};
 }
 
+CodeLoc CodeLoc::plus(int numLines, int numColumns) {
+  return CodeLoc(file, line + numLines, column + numColumns);
+}
+
 void ErrorLoc::execute() const {
   loc.error(error);
 }

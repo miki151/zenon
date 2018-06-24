@@ -1,46 +1,53 @@
-import "concepts.znn";
+public import "concepts.znn";
 
 public embed{
 #include <cstdio>
 }
 
+string to_string(int i) {
+  embed {
+    char buf[12];
+    snprintf(buf, 12, "%d", i);
+    return lite_str<>(buf);
+  }
+}
+
+string to_string(double i) {
+  embed {
+    char buf[20];
+    snprintf(buf, 20, "%f", i);
+    return lite_str<>(buf);
+  }
+}
+
+string to_string(string s) {
+  return s;
+}
+
+string to_string(bool b) {
+  if (b)
+    return "true";
+  else
+    return "false";
+}
+
 template <T>
-concept can_print {
-  void print(T*);
+concept can_print_value {
+  string to_string(T);
 };
 
-void print(int i) {
-  embed {
-    printf("%d\n", i);
-  }
+template <T> requires can_print_value<T>, can_copy<T>
+string to_string(T* i) {
+  return to_string(*i);
 }
 
-void print(double i) {
-  embed {
-    printf("%f\n", i);
-  }
-}
+template <T>
+concept can_print {
+  string to_string(T*);
+};
 
 void print(string s) {
   embed {
     printf("%s\n", s.data());
   }
 }
-
-void print(bool b) {
-  if (b)
-    print("true");
-  else
-    print("false");
-}
-
-template <T>
-concept can_print_value {
-  void print(T);
-};
-
-template <T> requires can_print_value<T>, can_copy<T>
-void print(T* i) {
-  print(*i);
-}
-

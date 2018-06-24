@@ -2,6 +2,7 @@
 #include "parser.h"
 #include "token.h"
 #include "ast.h"
+#include "lexer.h"
 
 unique_ptr<Expression> parseExpression(Tokens&, int minPrecedence = 0);
 
@@ -38,6 +39,46 @@ unique_ptr<Expression> parseFunctionCall(IdentifierInfo id, Tokens& tokens) {
   }
   tokens.eat(Keyword::CLOSE_BRACKET);
   return ret;
+}
+
+static string getInputReg() {
+  return "((?:(?:\\\\\\{)|[^\\{])+)|(\\{.*?\\})";
+  /*string inputReg;
+  std::cin >> inputReg;
+  return inputReg;*/
+}
+
+unique_ptr<Expression> parseStringLiteral(CodeLoc initialLoc, string literal) {
+  if (literal.empty())
+    return unique<Constant>(initialLoc, ArithmeticType::STRING, "");
+  unique_ptr<Expression> left;
+  auto addElem = [&left] (unique_ptr<Expression> right, CodeLoc loc) {
+    if (!left)
+      left = std::move(right);
+    else
+      left = unique<BinaryExpression>(loc, Operator::PLUS, std::move(left), std::move(right));
+  };
+  regex re(getInputReg());
+  int lastPos = 0;
+  auto words_begin = sregex_iterator(literal.begin(), literal.end(), re);
+  auto words_end = sregex_iterator();
+  for (auto it = words_begin; it != words_end; ++it)
+    for (int index = 0 ; index < it->size(); ++index)
+      if (!it->str(index + 1).empty()) { // determine which submatch was matched
+        CodeLoc loc = initialLoc.plus(0, (int) it->position() + 1);
+        //cout << "Matched \"" << it->str() << "\" with rule " << index << " at " << loc.line << ":" << loc.column << endl;
+        if (index == 0) {
+          addElem(unique<Constant>(loc, ArithmeticType::STRING,
+              std::regex_replace(it->str(), std::regex("\\\\([\\{\\}])"), "$1")), loc);
+        } else {
+          loc = loc.plus(0, 1);
+          auto call = unique<FunctionCall>(loc, IdentifierInfo("to_string"));
+          auto tokens = lex("(" + it->str().substr(1, it->str().size() - 2) + ")", loc);
+          call->arguments.push_back(unique<UnaryExpression>(loc, Operator::GET_ADDRESS, parseExpression(tokens)));
+          addElem(std::move(call), loc);
+        }
+      }
+  return left;
 }
 
 unique_ptr<Expression> parsePrimary(Tokens& tokens) {
@@ -92,7 +133,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
       },
       [&](const StringToken&) -> unique_ptr<Expression> {
         tokens.popNext();
-        return unique<Constant>(token.codeLoc, ArithmeticType::STRING, token.value);
+        return parseStringLiteral(token.codeLoc, token.value);
       },
       [&](const CharToken&) -> unique_ptr<Expression> {
         tokens.popNext();
@@ -115,6 +156,8 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
 
 unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression> lhs, int minPrecedence) {
   while (1) {
+    if (tokens.empty())
+      break;
     auto token = tokens.peek("arithmetic operator");
     if (auto op1 = token.getValueMaybe<Operator>()) {
       if (getPrecedence(*op1) < minPrecedence)

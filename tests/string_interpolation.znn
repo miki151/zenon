@@ -1,0 +1,23 @@
+// 1
+
+import "std/print.znn";
+
+struct A {
+  int a;
+};
+
+string to_string(A* a) {
+  return "A\{{a->a}\}";
+}
+
+int main() {
+  const a = A(31);
+  const b = 5;
+  const c = "foo";
+  const d = false;
+  const str = "a = {a}, b = {b}, c = {c}, d = {d}";
+  if (str == "a = A\{31\}, b = 5, c = foo, d = false")
+    return 1;
+  else
+    return 0;
+}
