@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
     if (!program)
       ERROR << program.get_error();
     INFO << "Parsing:\n\n" << program->value;
-    auto tokens = lex(program->value, CodeLoc(path, 0, 0));
+    auto tokens = lex(program->value, CodeLoc(path, 0, 0), "end of file");
     auto ast = parse(tokens);
     auto imported = correctness(ast, {installDir});
     auto cppCode = codegen(ast, installDir + "/codegen_includes/all.h"s);

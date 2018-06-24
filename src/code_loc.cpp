@@ -6,7 +6,7 @@ CodeLoc::CodeLoc(string f, int l, int c) : file(f), line(l), column(c) {}
 CodeLoc::CodeLoc() {}
 
 void CodeLoc::error(const string& e) const {
-  ERROR << file << ": " << "Line " << line << ", column " << column << ": " << e;
+  ERROR << file << ": " << "Line " << line + 1 << ", column " << column + 1 << ": " << e;
   exit(-1);
 }
 

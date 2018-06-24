@@ -38,7 +38,7 @@ static string getOperators() {
   return ret;
 }
 
-Tokens lex(const string& input, CodeLoc initialPos) {
+Tokens lex(const string& input, CodeLoc initialPos, const string& eofTokenValue) {
   string idLetterFirst = "a-zA-Z";
   string idLetter = idLetterFirst + "0-9_";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
@@ -58,14 +58,14 @@ Tokens lex(const string& input, CodeLoc initialPos) {
     INFO << elem.first;
   vector<int> lines(input.size());
   vector<int> columns(input.size());
-  int currentLine = 1;
-  int currentColumn = 1;
+  int currentLine = 0;
+  int currentColumn = 0;
   for (int i = 0; i < input.size(); ++i) {
     lines[i] = currentLine;
     columns[i] = currentColumn;
     if (input[i] == '\n') {
       ++currentLine;
-      currentColumn = 1;
+      currentColumn = 0;
     } else
       ++currentColumn;
   }
@@ -136,5 +136,9 @@ Tokens lex(const string& input, CodeLoc initialPos) {
         break;
       }
   }
+  Token eof = EofToken{};
+  eof.value = eofTokenValue;
+  eof.codeLoc = initialPos.plus(currentLine, currentColumn);
+  ret.push_back(eof);
   return Tokens(ret);
 }

@@ -1,0 +1,6 @@
+// no_compile
+
+int main() {
+  const s = " { ";
+  return 0;
+}

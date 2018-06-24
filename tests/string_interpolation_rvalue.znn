@@ -1,0 +1,19 @@
+// 1
+
+import "std/print.znn";
+
+int get() {
+  return 1;
+}
+
+string getA() {
+  return "and";
+}
+
+int main() {
+  const s = "foo {getA()} bar {get() + 2}";
+  if (s == "foo and bar 3")
+    return 1;
+  else
+    return 0;
+}

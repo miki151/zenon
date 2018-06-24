@@ -85,26 +85,22 @@ string getString(Token t) {
       },
       [](CharToken) {
         return "character";
+      },
+      [&t](EofToken) {
+        return t.value.c_str();
       }
   );
 }
 
 Tokens::Tokens(std::vector<Token> d) : data(d) {}
 
-Token Tokens::peek(string expected) const {
-  if (!expected.empty()) {
-    check(index < data.size(), "Expected " + quote(expected) + ", got end-of-file.");
-  } else
-    CHECK(index < data.size());
+Token Tokens::peek() const {
+  CHECK(index < data.size());
   return data[index];
 }
 
-Token Tokens::popNext(string expected) {
-  if (!expected.empty()) {
-    check(index < data.size(), "Expected " + quote(expected) + ", got end-of-file.");
-  } else
-    CHECK(index < data.size());
-  //INFO << "Popping token " << getString(data[index]);
+Token Tokens::popNext() {
+  CHECK(index < data.size());
   return data[index++];
 }
 
@@ -142,13 +138,13 @@ void Tokens::check(bool b, const string& e) const {
 
 Token Tokens::eat(Token t) {
   auto expected = "Expected "s + quote(getString(t));
-  auto token = peek(expected + ", got EOF.");
+  auto token = peek();
   check(token == t, expected + ", got " + quote(token.value));
   return popNext();
 }
 
 optional<Token> Tokens::eatMaybe(Token t) {
-  auto token = peek("Expected "s + quote(getString(t)) + ", got EOF.");
+  auto token = peek();
   if (token == t) {
     popNext();
     return token;

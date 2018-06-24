@@ -4,41 +4,31 @@ public embed{
 #include <cstdio>
 }
 
-string to_string(int i) {
+string to_string(int* i) {
   embed {
     char buf[12];
-    snprintf(buf, 12, "%d", i);
+    snprintf(buf, 12, "%d", *i);
     return lite_str<>(buf);
   }
 }
 
-string to_string(double i) {
+string to_string(double* i) {
   embed {
     char buf[20];
-    snprintf(buf, 20, "%f", i);
+    snprintf(buf, 20, "%f", *i);
     return lite_str<>(buf);
   }
 }
 
-string to_string(string s) {
-  return s;
+string to_string(string* s) {
+  return *s;
 }
 
-string to_string(bool b) {
-  if (b)
+string to_string(bool* b) {
+  if (*b)
     return "true";
   else
     return "false";
-}
-
-template <T>
-concept can_print_value {
-  string to_string(T);
-};
-
-template <T> requires can_print_value<T>, can_copy<T>
-string to_string(T* i) {
-  return to_string(*i);
 }
 
 template <T>

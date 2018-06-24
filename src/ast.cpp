@@ -845,7 +845,7 @@ void ImportStatement::processImport(Context& context, const string& content, con
   if ((!isPublic && !context.getCurrentImports().empty()) || context.wasEverImported(contentHash))
     return;
   context.pushImport(path, contentHash);
-  auto tokens = lex(content, CodeLoc(path, 0, 0));
+  auto tokens = lex(content, CodeLoc(path, 0, 0), "end of file");
   ast = unique<AST>(parse(tokens));
   for (auto& elem : ast->elems) {
     if (auto import = dynamic_cast<ImportStatement*>(elem.get()))

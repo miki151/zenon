@@ -16,17 +16,17 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
   IdentifierInfo ret;
   while (1) {
     ret.parts.emplace_back();
-    auto token = tokens.popNext("identifier");
+    auto token = tokens.popNext();
     token.codeLoc.check(token.contains<IdentifierToken>(), "Expected identifier");
     ret.codeLoc = token.codeLoc;
     ret.parts.back().name = token.value;
-    if (tokens.peek("identifier") == Operator::LESS_THAN) {
+    if (tokens.peek() == Operator::LESS_THAN) {
       tokens.popNext();
       bool firstParam = true;
       while (1) {
-        auto templateParamToken = tokens.popNext("template parameter");
+        auto templateParamToken = tokens.popNext();
         if (firstParam) {
-          auto nextToken = tokens.peek("Expression or template parameter");
+          auto nextToken = tokens.peek();
           if (!templateParamToken.contains<IdentifierToken>() ||
               (nextToken != Keyword::COMMA && nextToken != Operator::LESS_THAN && nextToken != Operator::MORE_THAN &&
                   nextToken != Operator::MULTIPLY && nextToken != Keyword::MUTABLE)) {
@@ -41,13 +41,13 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
         if (templateParamToken.contains<IdentifierToken>() || templateParamToken == Keyword::MUTABLE) {
           tokens.rewind();
           ret.parts.back().templateArguments.push_back(IdentifierInfo::parseFrom(tokens, true));
-          if (tokens.peek("template parameter") != Operator::MORE_THAN)
+          if (tokens.peek() != Operator::MORE_THAN)
             tokens.eat(Keyword::COMMA);
         } else
           templateParamToken.codeLoc.error("Couldn't parse template parameters");
       }
     }
-    if (tokens.peek("something") == Keyword::NAMESPACE_ACCESS) {
+    if (tokens.peek() == Keyword::NAMESPACE_ACCESS) {
       tokens.popNext();
       continue;
     } else

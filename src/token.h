@@ -69,12 +69,17 @@ struct CharToken {
   bool operator == (const CharToken&) const { return true; }
 };
 
+struct EofToken {
+  bool operator == (const EofToken&) const { return true; }
+};
+
 extern Keyword getKeyword(const string&);
 string getString(Token);
 extern vector<string> getAllKeywords();
 string process(Token, string matched);
 
-class Token : public variant<Number, RealNumber, IdentifierToken, Keyword, Operator, EmbedToken, StringToken, CharToken> {
+class Token : public variant<Number, RealNumber, IdentifierToken, Keyword, Operator, EmbedToken, StringToken,
+    CharToken, EofToken> {
   public:
   using variant::variant;
   string value;
@@ -84,8 +89,8 @@ class Token : public variant<Number, RealNumber, IdentifierToken, Keyword, Opera
 class Tokens {
   public:
   Tokens(std::vector<Token>);
-  Token peek(string expected = "") const;
-  Token popNext(string expected = "");
+  Token peek() const;
+  Token popNext();
   const Token& peekPrevious() const;
   bool empty() const;
   void rewind();

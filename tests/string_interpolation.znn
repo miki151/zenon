@@ -16,7 +16,8 @@ int main() {
   const c = "foo";
   const d = false;
   const str = "a = {a}, b = {b}, c = {c}, d = {d}";
-  if (str == "a = A\{31\}, b = 5, c = foo, d = false")
+  const str2 = "a = A\{31\}, b = 5, c = foo, d = false";
+  if (str == str2)
     return 1;
   else
     return 0;
