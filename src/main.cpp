@@ -88,7 +88,7 @@ int main(int argc, char* argv[]) {
         if (!finished.count(import))
           toCompile.insert(import);
     auto objFile = fullCompile
-        ? buildDir + "/"s + to_string(std::hash<string>()(program->value)) + ".znn.o"
+        ? buildDir + "/"s + to_string(std::hash<string>()(cppCode)) + ".znn.o"
         : flags["o"].get().string;
     if ((!fullCompile || !fs::exists(objFile)) && compileCpp(gccCmd, cppCode, objFile)) {
       cerr << "C++ compilation failed, which is a Zenon bug :(\n\n" << endl;
