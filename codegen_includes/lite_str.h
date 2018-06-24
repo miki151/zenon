@@ -69,8 +69,8 @@ class basic_lite_str {
 
   basic_lite_str(const char_type* s = "") {
     type = LITERAL;
-    ptr = s;
-    length = char_traits::get_length(s);
+    auto buf = create_buffer(char_traits::get_length(s));
+    strcpy(buf, s);
   }
 
   basic_lite_str(const basic_lite_str& other) {
@@ -158,7 +158,7 @@ class basic_lite_str {
 };
 
 template <typename char_type, typename char_traits, typename alloc>
-auto size(const basic_lite_str<char_type, char_traits, alloc>* s) {
+int size(const basic_lite_str<char_type, char_traits, alloc>* s) {
   return s->size();
 }
 
