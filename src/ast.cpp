@@ -956,6 +956,10 @@ void RangedLoopStatement::check(Context& context) {
   condition = unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT,
       unique<BinaryExpression>(codeLoc, Operator::EQUALS, unique<Variable>(codeLoc, init->identifier),
           unique<Variable>(codeLoc, containerEndName)));
+  increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(codeLoc, init->identifier));
   init->check(bodyContext);
+  codeLoc.check(condition->getType(bodyContext) == ArithmeticType::BOOL, "Equality comparison between iterators"
+      " does not return type " + quote("bool"));
+  increment->getType(bodyContext);
   body->check(bodyContext);
 }

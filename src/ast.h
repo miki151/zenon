@@ -201,6 +201,7 @@ struct RangedLoopStatement : Statement {
   unique_ptr<VariableDeclaration> init;
   unique_ptr<Expression> container;
   unique_ptr<Expression> condition;
+  unique_ptr<Expression> increment;
   unique_ptr<Statement> body;
   optional<string> containerName;
   unique_ptr<VariableDeclaration> containerEnd;

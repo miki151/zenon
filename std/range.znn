@@ -1,0 +1,31 @@
+
+struct range {
+  range(int a, int b) : start(a), finish(b) {}
+  int start;
+  int finish;
+};
+
+struct range_iterator {
+  int elem;
+};
+
+range_iterator begin(range* r) {
+  return range_iterator(r->start);
+}
+
+range_iterator end(range* r) {
+  return range_iterator(r->finish);
+}
+
+bool operator == (range_iterator *it1, range_iterator *it2) {
+  return it1->elem == it2->elem;
+}
+
+int operator * (range_iterator* it) {
+  return it->elem;
+}
+
+range_iterator* operator ++ (range_iterator mutable* it) {
+  ++it->elem;
+  return it;
+}

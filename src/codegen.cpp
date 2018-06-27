@@ -22,6 +22,11 @@ struct Accu {
     buf[pos] += s;
   }
 
+  void newLine(CodeLoc codeLoc) {
+    buf[CURRENT] += "\n";
+    add("#line " + to_string(codeLoc.line) + " \"" + codeLoc.file + "\"\n");
+  }
+
   void pop_back(Position pos = CURRENT) {
     buf[pos].pop_back();
   }
@@ -96,7 +101,7 @@ void StatementBlock::codegen(Accu& accu, CodegenStage stage) const {
   accu.add("{");
   ++accu.indent;
   for (auto& s : elems) {
-    accu.newLine();
+    accu.newLine(s->codeLoc);
     s->codegen(accu, stage);
   }
   --accu.indent;
@@ -617,7 +622,8 @@ void RangedLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.newLine("for (");
   init->codegen(accu, stage);
   condition->codegen(accu, stage);
-  accu.add(";++" + init->identifier);
+  accu.add(";");
+  increment->codegen(accu, stage);
   accu.add(")");
   ++accu.indent;
   accu.newLine();
