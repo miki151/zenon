@@ -603,6 +603,30 @@ void ForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.newLine();
 }
 
+
+void RangedLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
+  CHECK(stage.isDefine);
+  accu.add("{");
+  ++accu.indent;
+  accu.newLine("auto&& "s + *containerName + " = ");
+  container->codegen(accu, stage);
+  accu.add(";");
+  accu.newLine();
+  containerEnd->codegen(accu, stage);
+  accu.newLine();
+  accu.newLine("for (");
+  init->codegen(accu, stage);
+  condition->codegen(accu, stage);
+  accu.add(";++" + init->identifier);
+  accu.add(")");
+  ++accu.indent;
+  accu.newLine();
+  body->codegen(accu, CodegenStage::define());
+  --accu.indent;
+  --accu.indent;
+  accu.newLine("}");
+}
+
 void WhileLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   accu.add("while (");

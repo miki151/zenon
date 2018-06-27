@@ -409,10 +409,25 @@ unique_ptr<VariantDefinition> parseVariantDefinition(Tokens& tokens) {
   return ret;
 }
 
-unique_ptr<ForLoopStatement> parseForLoopStatement(Tokens& tokens) {
+unique_ptr<Statement> parseForLoopStatement(Tokens& tokens) {
   auto codeLoc = tokens.peek().codeLoc;
   tokens.eat(Keyword::FOR);
   tokens.eat(Keyword::OPEN_BRACKET);
+  auto normalForBookmark = tokens.getBookmark();
+  if (tokens.eatMaybe(Keyword::MUTABLE))
+    if (tokens.peek().contains<IdentifierToken>()) {
+      auto id = tokens.popNext();
+      if (tokens.eatMaybe(Keyword::COLON)) {
+        auto container = parseExpression(tokens);
+        tokens.eat(Keyword::CLOSE_BRACKET);
+        auto body = parseNonTopLevelStatement(tokens);
+        return unique<RangedLoopStatement>(codeLoc,
+            unique<VariableDeclaration>(codeLoc, none, id.value, nullptr),
+            std::move(container),
+            std::move(body));
+      }
+    }
+  tokens.rewind(normalForBookmark);
   auto init = parseNonTopLevelStatement(tokens);
   auto cond = parseExpression(tokens);
   tokens.eat(Keyword::SEMICOLON);

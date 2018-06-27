@@ -3,14 +3,71 @@ public embed {
 
 #include <vector>
 using std::vector;
-
+#include <algorithm>
+template <typename T>
+using vector_iterator = typename vector<T>::const_iterator;
+template <typename T>
+using vector_mut_iterator = typename vector<T>::iterator;
 }
+
+public import "std/math.znn";
 
 template <T>
 extern struct vector {
   vector(vector<T>*);
   vector();
 };
+
+template <T>
+extern struct vector_iterator {
+};
+
+template <T>
+extern struct vector_mut_iterator {
+};
+
+template <T>
+vector_iterator<T> begin(vector<T>* v) {
+  embed {
+    return v->begin();
+  }
+}
+
+template <T>
+vector_iterator<T> end(vector<T>* v) {
+  embed {
+    return v->end();
+  }
+}
+
+template <T>
+T* operator *(vector_iterator<T>* it) {
+  embed {
+    return &*it;
+  }
+}
+
+template <T>
+vector_mut_iterator<T> begin(vector<T> mutable* v) {
+  embed {
+    return v->begin();
+  }
+}
+
+template <T>
+vector_mut_iterator<T> end(vector<T> mutable* v) {
+  embed {
+    return v->end();
+  }
+}
+
+
+template <T>
+T mutable* operator *(vector_mut_iterator<T>* it) {
+  embed {
+    return &*it;
+  }
+}
 
 template <T>
 void push_back(vector<T> mutable* v, T elem) {
@@ -37,6 +94,13 @@ template <T>
 int size(vector<T>* v) {
   embed {
     return v->size();
+  }
+}
+
+template <T> requires comparable<T>
+void sort(vector<T> mutable* v) {
+  embed {
+    std::sort(v->begin(), v->end());
   }
 }
 

@@ -191,7 +191,19 @@ struct ForLoopStatement : Statement {
   unique_ptr<Expression> cond;
   unique_ptr<Expression> iter;
   unique_ptr<Statement> body;
-  virtual bool hasReturnStatement(const Context&) const override;
+  virtual void check(Context&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+};
+
+struct RangedLoopStatement : Statement {
+  RangedLoopStatement(CodeLoc l, unique_ptr<VariableDeclaration> init, unique_ptr<Expression> container,
+      unique_ptr<Statement> body);
+  unique_ptr<VariableDeclaration> init;
+  unique_ptr<Expression> container;
+  unique_ptr<Expression> condition;
+  unique_ptr<Statement> body;
+  optional<string> containerName;
+  unique_ptr<VariableDeclaration> containerEnd;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };

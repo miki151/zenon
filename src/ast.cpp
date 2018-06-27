@@ -801,10 +801,6 @@ ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<Statement> i, unique_pt
                                    unique_ptr<Expression> it, unique_ptr<Statement> b)
   : Statement(l), init(std::move(i)), cond(std::move(c)), iter(std::move(it)), body(std::move(b)) {}
 
-bool ForLoopStatement::hasReturnStatement(const Context& s) const {
-  return body->hasReturnStatement(s);
-}
-
 void ForLoopStatement::check(Context& context) {
   auto bodyContext = Context::withParent(context);
   init->check(bodyContext);
@@ -935,4 +931,31 @@ CodegenStage CodegenStage::declare() {
 CodegenStage CodegenStage::setImport() {
   isImport = true;
   return *this;
+}
+
+RangedLoopStatement::RangedLoopStatement(CodeLoc l, unique_ptr<VariableDeclaration> init,
+    unique_ptr<Expression> container, unique_ptr<Statement> body)
+    : Statement(l), init(std::move(init)), container(std::move(container)), body(std::move(body)) {}
+
+void RangedLoopStatement::check(Context& context) {
+  auto bodyContext = Context::withParent(context);
+  auto containerType = container->getType(context);
+  if (containerType->getUnderlying() == containerType.get())
+    containerType = ReferenceType::get(containerType);
+  auto uniqueSufix = to_string(codeLoc.line) + "_" + to_string(codeLoc.column);
+  containerName = "container"s + uniqueSufix;
+  auto containerEndName = "container_end"s + uniqueSufix;
+  bodyContext.addVariable(*containerName, containerType);
+  containerEnd = unique<VariableDeclaration>(codeLoc, none, containerEndName,
+      unique<BinaryExpression>(codeLoc, Operator::MEMBER_ACCESS,
+          unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("end"))));
+  containerEnd->check(bodyContext);
+  init->initExpr = unique<BinaryExpression>(codeLoc, Operator::MEMBER_ACCESS,
+      unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("begin")));
+  init->isMutable = true;
+  condition = unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT,
+      unique<BinaryExpression>(codeLoc, Operator::EQUALS, unique<Variable>(codeLoc, init->identifier),
+          unique<Variable>(codeLoc, containerEndName)));
+  init->check(bodyContext);
+  body->check(bodyContext);
 }

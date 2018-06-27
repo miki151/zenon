@@ -1,0 +1,21 @@
+// no_compile
+
+import "std/vector.znn";
+
+vector<int> get() {
+  mutable v = vector<int>();
+  for (mutable i = 1; i < 7; i = i + 1)
+    v.push_back(i * i); // 1 + 4 + 9 + 16 + 25 + 36 = 91
+  return v;
+}
+
+int main() {
+  mutable sum = 0;
+  const v = get();
+  for (mutable it : v) {
+    *it = 5;
+    sum = sum + *it;
+  }
+  return 0;
+}
+
