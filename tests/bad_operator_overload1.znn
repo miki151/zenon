@@ -7,6 +7,6 @@ int operator + (int a, T b) {
 
 int main() {
   const x = 5 + false;
-  return 0;
+  return x;
 }
 

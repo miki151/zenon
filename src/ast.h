@@ -336,7 +336,7 @@ struct FunctionDefinition : Statement {
   virtual void addToContext(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
-  void setFunctionType(const Context&, bool method);
+  void setFunctionType(const Context&, bool concept = false);
   void checkFunctionBody(Context&, bool templateStruct) const;
   void addSignature(Accu&, string structName) const;
   void handlePointerParamsInOperator(Accu&) const;

@@ -306,11 +306,18 @@ static SType convertPointerToReference(SType type) {
     return type;
 }
 
-void FunctionDefinition::setFunctionType(const Context& context, bool method) {
+static bool paramsAreGoodForOperator(const vector<FunctionType::Param>& params) {
+  for (auto& p : params)
+    if (p.type->getUnderlying().dynamicCast<StructType>())
+      return true;
+  return false;
+}
+
+void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
   if (auto s = name.getReferenceMaybe<string>())
     context.checkNameConflictExcludingFunctions(codeLoc, *s, "Function");
   else if (auto op = name.getValueMaybe<Operator>()) {
-    codeLoc.check(canOverload(*op, (int) parameters.size() + (method ? 1 : 0)), "Can't overload operator " + quote(getString(*op)) +
+    codeLoc.check(canOverload(*op, (int) parameters.size()), "Can't overload operator " + quote(getString(*op)) +
         " with " + to_string(parameters.size()) + " arguments.");
   }
   Context contextWithTemplateParams = Context::withParent(context);
@@ -332,7 +339,10 @@ void FunctionDefinition::setFunctionType(const Context& context, bool method) {
         type = convertPointerToReference(type);
       params.push_back({p.name, std::move(type)});
     }
+    codeLoc.check(concept || !name.contains<Operator>() || paramsAreGoodForOperator(params),
+        "Operator parameters must include at least one user-defined type");
     functionType = FunctionType(context.getFunctionId(name), FunctionCallType::FUNCTION, returnType, params, templateTypes);
+    functionType->fromConcept = concept;
     functionType->requirements = requirements;
   } else
     codeLoc.error(returnType1.get_error());
@@ -687,7 +697,7 @@ void StructDefinition::addToContext(Context& context) {
       // We have to fix the return type of the constructor otherwise it can't be looked up in the context
       method->returnType.parts[0].templateArguments =
           transform(templateInfo.params, [](const auto& p) { return IdentifierInfo(p.name); });
-      method->setFunctionType(membersContext, true);
+      method->setFunctionType(membersContext);
       method->functionType->callType = FunctionCallType::CONSTRUCTOR;
       method->codeLoc.check(method->functionType->templateParams.empty(), "Constructor can't have template parameters.");
       method->functionType->templateParams = type->templateParams;
@@ -903,8 +913,7 @@ void ConceptDefinition::addToContext(Context& context) {
     declarationsContext.addType(param.name, concept->modParams().back());
   }
   for (auto& function : functions) {
-    function->setFunctionType(declarationsContext, false);
-    function->functionType->fromConcept = true;
+    function->setFunctionType(declarationsContext, true);
     function->check(declarationsContext);
     function->codeLoc.checkNoError(concept->modContext().addFunction(*function->functionType));
   }
