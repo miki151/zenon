@@ -48,6 +48,20 @@ T* operator *(vector_iterator<T>* it) {
 }
 
 template <T>
+vector_iterator<T> operator ++(vector_iterator<T>* it) {
+  embed {
+    return ++(*it);
+  }
+}
+
+template <T>
+bool operator == (vector_iterator<T>* it1, vector_iterator<T>* it2) {
+  embed {
+    return *it1 == *it2;
+  }
+}
+
+template <T>
 vector_mut_iterator<T> begin(vector<T> mutable* v) {
   embed {
     return v->begin();
@@ -66,6 +80,20 @@ template <T>
 T mutable* operator *(vector_mut_iterator<T>* it) {
   embed {
     return &*it;
+  }
+}
+
+template <T>
+vector_mut_iterator<T> operator ++(vector_mut_iterator<T>* it) {
+  embed {
+    return ++(*it);
+  }
+}
+
+template <T>
+bool operator == (vector_mut_iterator<T>* it1, vector_mut_iterator<T>* it2) {
+  embed {
+    return *it1 == *it2;
   }
 }
 
