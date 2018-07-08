@@ -206,9 +206,14 @@ void IfStatement::check(Context& context) {
   codeLoc.check(ifContext.canConvert(condType, ArithmeticType::BOOL),
       "Expected a type convertible to bool or with overloaded operator " +
       quote("!") + " inside if statement, got " + quote(condType->getName()));
+  auto movedBeforeTrueSegment = ifContext.getMovedVarsSnapshot();
   ifTrue->check(ifContext);
-  if (ifFalse)
+  if (ifFalse) {
+    auto movedAfterTrueSegment = ifContext.getMovedVarsSnapshot();
+    ifContext.setMovedVars(std::move(movedBeforeTrueSegment));
     ifFalse->check(ifContext);
+    ifContext.mergeMovedVars(std::move(movedAfterTrueSegment));
+  }
 }
 
 void VariableDeclaration::check(Context& context) {

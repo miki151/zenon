@@ -19,10 +19,11 @@ class Context : public owned_object<Context> {
   static Context withParent(const Context&);
   static Context withParent(vector<Context*>);
   void merge(const Context&);
-  void mergeAndCollapse(const Context&);
   Context();
   Context(const Context&) = delete;
   Context(Context&&) = default;
+  void operator = (const Context&) = delete;
+  void operator = (Context&&) = delete;
   void deepCopyFrom(const Context&);
   vector<FunctionType> getMissingFunctions(const Context&, vector<FunctionType> existing) const;
   WithError<SType> getTypeOfVariable(const string&) const;
@@ -57,12 +58,10 @@ class Context : public owned_object<Context> {
   vector<SType> getConversions(SType) const;
   bool canConvert(SType from, SType to) const;
 
-  private:
-
   struct State : public owned_object<State> {
     map<string, SType> vars;
     vector<string> varsList;
-    mutable vector<string> movedVars;
+    mutable set<string> movedVars;
     map<string, SType> types;
     map<FunctionId, vector<FunctionType>> functions;
     nullable<SType> returnType;
@@ -74,6 +73,14 @@ class Context : public owned_object<Context> {
     void merge(const State&);
     void print() const;
   };
+  using MovedVarsSnapshot = map<shared_ptr<const State>, set<string>>;
+
+  MovedVarsSnapshot getMovedVarsSnapshot() const;
+  void setMovedVars(MovedVarsSnapshot);
+  void mergeMovedVars(MovedVarsSnapshot);
+
+  private:
+
   vector<shared_ptr<const State>> parentStates;
   shared_ptr<State> state;
   vector<shared_ptr<const State>> getReversedStates() const;

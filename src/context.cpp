@@ -24,11 +24,6 @@ void Context::merge(const Context& context) {
   parentStates.push_back(context.state);
 }
 
-void Context::mergeAndCollapse(const Context& context) {
-  for (auto& s : context.getReversedStates())
-    state->merge(*s);
-}
-
 Context::Context() : state(shared<State>()) {
 }
 
@@ -114,9 +109,27 @@ vector<FunctionType> Context::getMissingFunctions(const Context& required, vecto
   return ret;
 }
 
+Context::MovedVarsSnapshot Context::getMovedVarsSnapshot() const {
+  MovedVarsSnapshot ret;
+  for (auto& state : getReversedStates())
+    ret[state] = state->movedVars;
+  return ret;
+}
+
+void Context::setMovedVars(Context::MovedVarsSnapshot snapshot) {
+  for (auto& state : getReversedStates())
+    state->movedVars = getValueMaybe(snapshot, state).value_or(set<string>());
+}
+
+void Context::mergeMovedVars(Context::MovedVarsSnapshot snapshot) {
+  for (auto& state : getReversedStates())
+    for (auto& var : getValueMaybe(snapshot, state).value_or(set<string>()))
+      state->movedVars.insert(var);
+}
+
 WithError<SType> Context::getTypeOfVariable(const string& id) const {
   for (auto& state : getReversedStates()) {
-    if (contains(state->movedVars, id))
+    if (state->movedVars.count(id))
       return "Variable has been moved: " + id;
     if (state->vars.count(id))
       return state->vars.at(id);
@@ -127,7 +140,7 @@ WithError<SType> Context::getTypeOfVariable(const string& id) const {
 optional<string> Context::setVariableAsMoved(const string& id) {
   for (auto& state : getReversedStates())
     if (state->vars.count(id)) {
-      state->movedVars.push_back(id);
+      state->movedVars.insert(id);
       return none;
     }
   return "Variable not found: " + id;
