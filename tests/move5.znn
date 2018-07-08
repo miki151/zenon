@@ -1,0 +1,15 @@
+// 5
+
+int main() {
+  mutable x = 5;
+  mutable y = 6;
+  if (true) {
+    if (false) {
+      y = move(x);
+    } else
+      y = move(x);
+  } else
+    y = move(x);
+  return y;
+}
+
