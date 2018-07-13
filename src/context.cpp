@@ -189,6 +189,17 @@ bool Context::canConvert(SType from, SType to) const {
   return contains(getConversions(from), to);
 }
 
+bool Context::breakAllowed() const {
+  for (auto state : getReversedStates())
+    if (state->breakAllowed)
+      return true;
+  return false;
+}
+
+void Context::setBreakAllowed() {
+  state->breakAllowed = true;
+}
+
 void Context::replace(SType from, SType to) {
   for (auto& varName : state->varsList) {
     auto& var = state->vars.at(varName);

@@ -54,7 +54,9 @@ enum class Keyword {
   REQUIRES,
   COLON,
   MOVE,
-  MUTABLE
+  MUTABLE,
+  BREAK,
+  CONTINUE
 };
 
 struct EmbedToken {

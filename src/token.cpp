@@ -28,6 +28,8 @@ static const unordered_map<string, Keyword> keywords {
   {"requires", Keyword::REQUIRES},
   {"move", Keyword::MOVE},
   {"mutable", Keyword::MUTABLE},
+  {"break", Keyword::BREAK},
+  {"continue", Keyword::CONTINUE},
   {"?", Keyword::MAYBE},
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},

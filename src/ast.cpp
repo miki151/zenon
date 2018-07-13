@@ -822,20 +822,18 @@ void ForLoopStatement::check(Context& context) {
   cond->codeLoc.check(cond->getType(bodyContext) == ArithmeticType::BOOL,
       "Loop condition must be of type " + quote("bool"));
   iter->getType(bodyContext);
+  bodyContext.setBreakAllowed();
   body->check(bodyContext);
 }
 
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
   : Statement(l), cond(std::move(c)), body(std::move(b)) {}
 
-bool WhileLoopStatement::hasReturnStatement(const Context& s) const {
-  return body->hasReturnStatement(s);
-}
-
 void WhileLoopStatement::check(Context& context) {
   auto bodyContext = Context::withParent(context);
   cond->codeLoc.check(cond->getType(bodyContext) == ArithmeticType::BOOL,
       "Loop condition must be of type " + quote("bool"));
+  bodyContext.setBreakAllowed();
   body->check(bodyContext);
 }
 
@@ -975,5 +973,14 @@ void RangedLoopStatement::check(Context& context) {
   codeLoc.check(condition->getType(bodyContext) == ArithmeticType::BOOL, "Equality comparison between iterators"
       " does not return type " + quote("bool"));
   increment->getType(bodyContext);
+  bodyContext.setBreakAllowed();
   body->check(bodyContext);
+}
+
+void BreakStatement::check(Context& context) {
+  codeLoc.check(context.breakAllowed(), "Break statement outside of a loop");
+}
+
+void ContinueStatement::check(Context& context) {
+  codeLoc.check(context.breakAllowed(), "Continue statement outside of a loop");
 }

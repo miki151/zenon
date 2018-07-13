@@ -1,0 +1,12 @@
+// 15
+
+int main() {
+  mutable sum = 0;
+  for (mutable i = 0; i < 10; ++i) {
+    sum = sum + i;
+    if (i == 5)
+      break;
+  }
+  return sum;
+}
+

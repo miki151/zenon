@@ -671,3 +671,11 @@ void EnumConstant::codegen(Accu& accu, CodegenStage) const {
 
 void ConceptDefinition::codegen(Accu&, CodegenStage) const {
 }
+
+void BreakStatement::codegen(Accu& accu, CodegenStage) const {
+  accu.add("break;");
+}
+
+void ContinueStatement::codegen(Accu& accu, CodegenStage) const {
+  accu.add("continue;");
+}

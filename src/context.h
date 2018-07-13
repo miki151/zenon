@@ -57,6 +57,8 @@ class Context : public owned_object<Context> {
   void print() const;
   vector<SType> getConversions(SType) const;
   bool canConvert(SType from, SType to) const;
+  bool breakAllowed() const;
+  void setBreakAllowed();
 
   struct State : public owned_object<State> {
     map<string, SType> vars;
@@ -70,6 +72,7 @@ class Context : public owned_object<Context> {
     vector<string> allImports;
     unordered_set<size_t> allImportHashes;
     map<string, shared_ptr<Concept>> concepts;
+    bool breakAllowed = false;
     void merge(const State&);
     void print() const;
   };

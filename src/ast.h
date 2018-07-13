@@ -177,6 +177,18 @@ struct ReturnStatement : Statement {
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
+struct BreakStatement : Statement {
+  using Statement::Statement;
+  virtual void check(Context&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+};
+
+struct ContinueStatement : Statement {
+  using Statement::Statement;
+  virtual void check(Context&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+};
+
 struct ExpressionStatement : Statement {
   ExpressionStatement(unique_ptr<Expression>);
   unique_ptr<Expression> expr;
@@ -213,7 +225,6 @@ struct WhileLoopStatement : Statement {
   WhileLoopStatement(CodeLoc l, unique_ptr<Expression> cond, unique_ptr<Statement> body);
   unique_ptr<Expression> cond;
   unique_ptr<Statement> body;
-  virtual bool hasReturnStatement(const Context&) const override;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };

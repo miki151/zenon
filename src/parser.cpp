@@ -384,6 +384,18 @@ unique_ptr<ReturnStatement> parseReturnStatement(Tokens& tokens) {
   return ret;
 }
 
+unique_ptr<BreakStatement> parseBreakStatement(Tokens& tokens) {
+  auto ret = unique<BreakStatement>(tokens.eat(Keyword::BREAK).codeLoc);
+  tokens.eat(Keyword::SEMICOLON);
+  return ret;
+}
+
+unique_ptr<ContinueStatement> parseContinueStatement(Tokens& tokens) {
+  auto ret = unique<ContinueStatement>(tokens.eat(Keyword::CONTINUE).codeLoc);
+  tokens.eat(Keyword::SEMICOLON);
+  return ret;
+}
+
 unique_ptr<VariantDefinition> parseVariantDefinition(Tokens& tokens) {
   tokens.eat(Keyword::VARIANT);
   auto nameToken = tokens.popNext();
@@ -642,6 +654,10 @@ unique_ptr<Statement> parseStatement(Tokens& tokens, bool topLevel) {
             return parseBlock(tokens);
           case Keyword::RETURN:
             return parseReturnStatement(tokens);
+          case Keyword::BREAK:
+            return parseBreakStatement(tokens);
+          case Keyword::CONTINUE:
+            return parseContinueStatement(tokens);
           case Keyword::EXTERN:
             tokens.popNext();
             return parseStructDefinition(tokens, true);
