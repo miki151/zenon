@@ -11,12 +11,16 @@ const static vector<pair<string, Operator>> operators {
   {"++", Operator::INCREMENT},
   {"+", Operator::PLUS},
   {"+", Operator::PLUS_UNARY},
+  {"+=", Operator::INCREMENT_BY},
   {"*", Operator::MULTIPLY},
   {"*", Operator::POINTER_DEREFERENCE},
+  {"*=", Operator::MULTIPLY_BY},
   {"/", Operator::DIVIDE},
+  {"/=", Operator::DIVIDE_BY},
   {"--", Operator::DECREMENT},
   {"-", Operator::MINUS},
   {"-", Operator::MINUS_UNARY},
+  {"-=", Operator::DECREMENT_BY},
   {"=", Operator::ASSIGNMENT},
   {".", Operator::MEMBER_ACCESS},
   {"->", Operator::POINTER_MEMBER_ACCESS},
@@ -52,6 +56,10 @@ const char* getString(Operator op) {
 int getPrecedence(Operator op) {
   switch (op) {
     case Operator::ASSIGNMENT:
+    case Operator::INCREMENT_BY:
+    case Operator::DECREMENT_BY:
+    case Operator::MULTIPLY_BY:
+    case Operator::DIVIDE_BY:
       return 1;
     case Operator::LOGICAL_OR:
       return 2;
@@ -109,6 +117,10 @@ bool canOverload(Operator op, int numArguments) {
     case Operator::EQUALS:
     case Operator::LESS_THAN:
     case Operator::MORE_THAN:
+    case Operator::INCREMENT_BY:
+    case Operator::DECREMENT_BY:
+    case Operator::MULTIPLY_BY:
+    case Operator::DIVIDE_BY:
       return numArguments == 2;
     case Operator::POINTER_DEREFERENCE:
     case Operator::PLUS_UNARY:

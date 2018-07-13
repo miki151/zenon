@@ -1,0 +1,13 @@
+// 14
+
+int main() {
+  mutable sum = 0;
+  for (mutable i = 0; i < 10; i += 1)
+    sum += i;
+  for (mutable i = 8; i > 3; i -= 1)
+    sum -= i;
+  sum /= 2;
+  sum *= 2;
+  return sum;
+}
+

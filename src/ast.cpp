@@ -404,6 +404,9 @@ static void initializeArithmeticTypes(Context& context) {
     for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
       if (type != ArithmeticType::DOUBLE || op != Operator::MODULO)
         CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{type}, {type}}, {})));
+  for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
+    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
+      CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{MutableReferenceType::get(type)}, {type}}, {})));
   for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
     CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
         {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {})));
