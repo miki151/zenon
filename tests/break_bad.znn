@@ -1,4 +1,4 @@
-// 15
+// no_compile
 
 void f() {
   if (true)
