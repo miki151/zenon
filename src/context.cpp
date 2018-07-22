@@ -20,8 +20,11 @@ Context Context::withParent(vector<Context*> parents) {
 }
 
 void Context::merge(const Context& context) {
-  append(parentStates, context.parentStates);
-  parentStates.push_back(context.state);
+  for (auto& s : context.parentStates)
+    if (!contains(parentStates, s) && state != s)
+      parentStates.push_back(s);
+  if (!contains(parentStates, context.state) && state != context.state)
+    parentStates.push_back(context.state);
 }
 
 Context::Context() : state(shared<State>()) {
@@ -355,35 +358,6 @@ WithError<vector<FunctionType>> Context::getFunctionTemplate(IdentifierInfo id) 
       append(ret, getFunctions(type.get()));
   }
   return ret;
-}
-
-void Context::pushImport(const string& name, size_t contentHash) {
-  CHECK(parentStates.empty());
-  state->imports.push_back(name);
-  state->allImports.push_back(name);
-  state->importHashes.push_back(contentHash);
-  state->allImportHashes.insert(contentHash);
-}
-
-void Context::popImport() {
-  state->imports.pop_back();
-  state->importHashes.pop_back();
-}
-
-bool Context::wasEverImported(size_t contentHash) {
-  return getTopState().allImportHashes.count(contentHash);
-}
-
-bool Context::isCurrentlyImported(size_t contentHash) {
-  return contains(getTopState().importHashes, contentHash);
-}
-
-const vector<string>& Context::getCurrentImports() const {
-  return getTopState().imports;
-}
-
-const vector<string>& Context::getAllImports() const {
-  return getTopState().allImports;
 }
 
 WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType templateType,

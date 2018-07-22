@@ -255,6 +255,10 @@ void ReturnStatement::check(Context& context) {
 
 void Statement::addToContext(Context&) {}
 
+void Statement::addToContext(Context& context, ImportCache& cache) {
+  addToContext(context);
+}
+
 bool Statement::hasReturnStatement(const Context&) const {
   return false;
 }
@@ -353,8 +357,8 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
     codeLoc.error(returnType1.get_error());
 }
 
-void FunctionDefinition::checkFunctionBody(Context& context, bool templateStruct) const {
-  if (body && (!templateInfo.params.empty() || templateStruct || context.getCurrentImports().empty())) {
+void FunctionDefinition::check(Context& context) {
+  if (body) {
     Context bodyContext = Context::withParent(context);
     applyConcept(bodyContext, templateInfo, functionType->templateParams);
     for (auto& param : functionType->templateParams)
@@ -374,71 +378,75 @@ void FunctionDefinition::checkFunctionBody(Context& context, bool templateStruct
   }
 }
 
-void FunctionDefinition::check(Context& context) {
-  checkFunctionBody(context, false);
-}
-
-void FunctionDefinition::addToContext(Context& context) {
+void FunctionDefinition::addToContext(Context& context, ImportCache& cache) {
   setFunctionType(context, false);
   codeLoc.checkNoError(context.addFunction(*functionType));
+  if (templateInfo.params.empty() && !cache.getCurrentImports().empty())
+    // we are going to ignore the function body if we're in an import and it's not a template
+    body = nullptr;
 }
 
-static void initializeArithmeticTypes(Context& context) {
-  CHECK(!context.addFunction(FunctionType("size"s, FunctionCallType::FUNCTION, ArithmeticType::INT,
-      {{PointerType::get(ArithmeticType::STRING)}}, {})));
-  CHECK(!context.addFunction(FunctionType("empty"s, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-      {{PointerType::get(ArithmeticType::STRING)}}, {})));
-  CHECK(!context.addFunction(FunctionType("substring"s, FunctionCallType::FUNCTION, ArithmeticType::STRING,
-      {{PointerType::get(ArithmeticType::STRING)}, {ArithmeticType::INT}, {ArithmeticType::INT}}, {})));
-  CHECK(!context.addFunction(FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION, ArithmeticType::CHAR,
-      {{ArithmeticType::STRING}, {ArithmeticType::INT}}, {})));
-  CHECK(!context.addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
-      {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {})));
-  for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
-    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-      CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{type}}, {})));
-  for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
-    CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, MutableReferenceType::get(ArithmeticType::INT),
-        {{MutableReferenceType::get(ArithmeticType::INT)}}, {})));
-  for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
-    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-      if (type != ArithmeticType::DOUBLE || op != Operator::MODULO)
-        CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{type}, {type}}, {})));
-  for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
-    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-      CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{MutableReferenceType::get(type)}, {type}}, {})));
-  for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
-    CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-        {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {})));
-  CHECK(!context.addFunction(FunctionType(Operator::LOGICAL_NOT, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-      {{ArithmeticType::BOOL}}, {})));
-  for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
-    for (auto type : {ArithmeticType::INT, ArithmeticType::STRING, ArithmeticType::DOUBLE})
-      CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-          {{type}, {type}}, {})));
-  for (auto op : {Operator::EQUALS})
-    for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
-      CHECK(!context.addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{type}, {type}}, {})));
-  for (auto& type : {ArithmeticType::BOOL, ArithmeticType::CHAR, ArithmeticType::INT, ArithmeticType::STRING,
-      ArithmeticType::DOUBLE})
-    context.addCopyConstructorFor(type);
+static Context createNewContext() {
+  static optional<Context> context;
+  if (!context) {
+    context.emplace();
+    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE, ArithmeticType::BOOL,
+         ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
+      context->addType(type->getName(), type);
+    CHECK(!context->addFunction(FunctionType("size"s, FunctionCallType::FUNCTION, ArithmeticType::INT,
+        {{PointerType::get(ArithmeticType::STRING)}}, {})));
+    CHECK(!context->addFunction(FunctionType("empty"s, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+        {{PointerType::get(ArithmeticType::STRING)}}, {})));
+    CHECK(!context->addFunction(FunctionType("substring"s, FunctionCallType::FUNCTION, ArithmeticType::STRING,
+        {{PointerType::get(ArithmeticType::STRING)}, {ArithmeticType::INT}, {ArithmeticType::INT}}, {})));
+    CHECK(!context->addFunction(FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION, ArithmeticType::CHAR,
+        {{ArithmeticType::STRING}, {ArithmeticType::INT}}, {})));
+    CHECK(!context->addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
+        {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {})));
+    for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
+      for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
+        CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{type}}, {})));
+    for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
+      CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, MutableReferenceType::get(ArithmeticType::INT),
+          {{MutableReferenceType::get(ArithmeticType::INT)}}, {})));
+    for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
+      for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
+        if (type != ArithmeticType::DOUBLE || op != Operator::MODULO)
+          CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{type}, {type}}, {})));
+    for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
+      for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
+        CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{MutableReferenceType::get(type)}, {type}}, {})));
+    for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
+      CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+          {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {})));
+    CHECK(!context->addFunction(FunctionType(Operator::LOGICAL_NOT, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+        {{ArithmeticType::BOOL}}, {})));
+    for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
+      for (auto type : {ArithmeticType::INT, ArithmeticType::STRING, ArithmeticType::DOUBLE})
+        CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+            {{type}, {type}}, {})));
+    for (auto op : {Operator::EQUALS})
+      for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
+        CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{type}, {type}}, {})));
+    for (auto& type : {ArithmeticType::BOOL, ArithmeticType::CHAR, ArithmeticType::INT, ArithmeticType::STRING,
+        ArithmeticType::DOUBLE})
+      context->addCopyConstructorFor(type);
+  }
+  return Context::withParent(*context);
 }
 
 vector<string> correctness(const AST& ast, const vector<string>& importPaths) {
-  Context context;
-  initializeArithmeticTypes(context);
-  for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE, ArithmeticType::BOOL,
-       ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
-    context.addType(type->getName(), type);
+  ImportCache cache;
+  auto context = createNewContext();
   for (auto& elem : ast.elems) {
     if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
       import->setImportDirs(importPaths);
-    elem->addToContext(context);
+    elem->addToContext(context, cache);
   }
   for (auto& elem : ast.elems) {
     elem->check(context);
   }
-  return context.getAllImports();
+  return cache.getAllImports();
 }
 
 ExpressionStatement::ExpressionStatement(unique_ptr<Expression> e) : Statement(e->codeLoc), expr(std::move(e)) {}
@@ -689,7 +697,7 @@ void VariantDefinition::check(Context& context) {
     CHECK(!context.addCopyConstructorFor(type.get(), type->templateParams));
 }
 
-void StructDefinition::addToContext(Context& context) {
+void StructDefinition::addToContext(Context& context, ImportCache& cache) {
   context.checkNameConflict(codeLoc, name, "Type");
   type = StructType::get(StructType::STRUCT, name);
   context.addType(name, type.get());
@@ -711,6 +719,8 @@ void StructDefinition::addToContext(Context& context) {
       method->functionType->templateParams = type->templateParams;
       method->functionType->parentType = type.get();
       method->codeLoc.checkNoError(context.addFunction(*method->functionType));
+      if (!cache.getCurrentImports().empty() && templateInfo.params.empty())
+        method->body = nullptr;
       hasConstructor = true;
     } else
       method->codeLoc.error("Only constructors and members can be defined inside struct body.");
@@ -774,13 +784,10 @@ void StructDefinition::check(Context& context) {
     type->context.addVariable(member.name, MutableReferenceType::get(methodBodyContext.getTypeFromString(member.type).get(member.codeLoc)));
   }
   for (int i = 0; i < methods.size(); ++i) {
-    if (!external)
-      methods[i]->codeLoc.check(!!methods[i]->body, "Method body expected in non-extern struct");
     if (methods[i]->functionType->name.contains<SType>()) {
       checkConstructor(*type, methodBodyContext, *methods[i]);
-      methods[i]->checkFunctionBody(staticFunContext, !templateInfo.params.empty());
-    } else
-      methods[i]->checkFunctionBody(methodBodyContext, !templateInfo.params.empty());
+      methods[i]->check(staticFunContext);
+    }
   }
   type->updateInstantations();
   codeLoc.check(!type->hasInfiniteSize(), quote(type->getName()) + " has infinite size");
@@ -850,33 +857,42 @@ void ImportStatement::setImportDirs(const vector<string>& p) {
 void ImportStatement::check(Context&) {
 }
 
-void ImportStatement::processImport(Context& context, const string& content, const string& path) {
-  auto contentHash = std::hash<string>()(content);
-  codeLoc.check(!context.isCurrentlyImported(contentHash),
-      "Public import cycle: " + combine(context.getCurrentImports(), ", "));
-  if ((!isPublic && !context.getCurrentImports().empty()) || context.wasEverImported(contentHash))
+void ImportStatement::processImport(Context& context, ImportCache& cache, const string& content, const string& path) {
+  codeLoc.check(!cache.isCurrentlyImported(path),
+      "Public import cycle: " + combine(cache.getCurrentImports(), ", "));
+  if ((!isPublic && !cache.getCurrentImports().empty())) {
+    INFO << "Skipping non public import " << path;
     return;
-  context.pushImport(path, contentHash);
-  auto tokens = lex(content, CodeLoc(path, 0, 0), "end of file");
-  ast = unique<AST>(parse(tokens));
-  for (auto& elem : ast->elems) {
-    if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
-      import->setImportDirs(importDirs);
-    elem->addToContext(context);
   }
-  for (auto& elem : ast->elems)
-    elem->check(context);
-  context.popImport();
+  if (!cache.contains(path)) {
+    INFO << "Parsing import " << path;
+    cache.pushCurrentImport(path);
+    auto tokens = lex(content, CodeLoc(path, 0, 0), "end of file");
+    ast = unique<AST>(parse(tokens));
+    Context importContext = createNewContext();
+    for (auto& elem : ast->elems) {
+      if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
+        import->setImportDirs(importDirs);
+      elem->addToContext(importContext, cache);
+    }
+    for (auto& elem : ast->elems)
+      elem->check(importContext);
+    cache.popCurrentImport();
+    cache.insert(path, std::move(importContext));
+  } else
+    INFO << "Import " << path << " already cached";
+  context.merge(cache.getContext(path));
 }
 
-void ImportStatement::addToContext(Context& s) {
-  INFO << "Resolving import " << path;
+void ImportStatement::addToContext(Context& context, ImportCache& cache) {
+  INFO << "Resolving import " << path << " from " << codeLoc.file;
   for (auto importDir : concat({getParentPath(codeLoc.file)}, importDirs)) {
-    auto importPath = importDir + "/" + path;
-    INFO << "Trying directory " << importPath;
+    INFO << "Trying directory " << importDir;
+    auto importPath = fs::path(importDir)  / path;
     if (auto content = readFromFile(importPath.c_str())) {
+      importPath = fs::canonical(importPath);
       INFO << "Imported file " << importPath;
-      processImport(s, content->value, importPath);
+      processImport(context, cache, content->value, importPath);
       return;
     }
   }

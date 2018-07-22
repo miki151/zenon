@@ -1,0 +1,14 @@
+// 5
+import "struct1.znn";
+
+int fun1(bool b) {
+  if (b)
+    return fun2();
+  else
+    return 3;
+}
+
+int main() {
+  const s = Struct1(true);
+  return fun1(true);
+}

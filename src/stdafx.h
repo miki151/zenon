@@ -17,25 +17,25 @@
 #define STDAFX_H
 
 #ifndef RELEASE
-#if __has_cpp_attribute(nodiscard)
-#define NODISCARD [[nodiscard]]
-#elif __has_cpp_attribute(gnu::warn_unused_result)
-#define NODISCARD [[gnu::warn_unused_result]]
-#else
-#define NODISCARD
-#endif
+  #if __has_cpp_attribute(nodiscard)
+    #define NODISCARD [[nodiscard]]
+  #elif __has_cpp_attribute(gnu::warn_unused_result)
+    #define NODISCARD [[gnu::warn_unused_result]]
+  #else
+    #define NODISCARD
+  #endif
 
-#if __has_cpp_attribute(fallthrough)
-#define FALLTHROUGH [[fallthrough]]
-#elif __has_cpp_attribute(clang::fallthrough)
-#define FALLTHROUGH [[clang::fallthrough]]
-#else
-#define FALLTHROUGH
-#endif
+  #if __has_cpp_attribute(fallthrough)
+    #define FALLTHROUGH [[fallthrough]]
+  #elif __has_cpp_attribute(clang::fallthrough)
+    #define FALLTHROUGH [[clang::fallthrough]]
+  #else
+    #define FALLTHROUGH
+  #endif
 
 #else
-#define NODISCARD
-#define FALLTHROUGH
+  #define NODISCARD
+  #define FALLTHROUGH
 #endif
 
 #include <iostream>
@@ -66,14 +66,10 @@
 #include <chrono>
 #include <cstddef>
 #include <regex>
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 
-// Use boost threads on OSX to use the main thread for rendering
-// and set a large stack size for the model thread.
-#ifdef OSX
-#include <boost/thread.hpp>
-#else
 #include <thread>
-#endif
 
 #include <typeinfo>
 #include <tuple>

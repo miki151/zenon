@@ -1,0 +1,7 @@
+// 5
+import "struct1.znn";
+
+int main() {
+  const s = Struct1(5);
+  return s.x;
+}

@@ -1,0 +1,10 @@
+import "hidden.znn";
+
+
+struct Struct1 {
+  Struct1(int u) : x(u) {
+    hidden();
+  }
+  int x;
+};
+

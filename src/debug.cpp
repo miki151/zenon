@@ -18,7 +18,8 @@
 #include "debug.h"
 
 void fail() {
-  *((int*) 0x1234) = 0; // best way to fail
+  struct ProgramCrashed {};
+  throw ProgramCrashed{};
 }
 
 DebugOutput DebugOutput::toStream(std::ostream& o) {

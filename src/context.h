@@ -43,12 +43,6 @@ class Context : public owned_object<Context> {
   bool canConstructWith(SType, vector<SType> args) const;
   bool canCopyConstruct(SType) const;
   [[nodiscard]] optional<string> addCopyConstructorFor(SType, const vector<SType>& templateParams = {});
-  void pushImport(const string& name, size_t contentHash);
-  void popImport();
-  bool isCurrentlyImported(size_t contentHash);
-  const vector<string>& getCurrentImports() const;
-  bool wasEverImported(size_t contentHash);
-  const vector<string>& getAllImports() const;
   void checkNameConflict(CodeLoc loc, const string& name, const string& type) const;
   void checkNameConflictExcludingFunctions(CodeLoc loc, const string& name, const string& type) const;
   vector<SType> getTypeList(const vector<IdentifierInfo>&) const;
@@ -67,10 +61,6 @@ class Context : public owned_object<Context> {
     map<string, SType> types;
     map<FunctionId, vector<FunctionType>> functions;
     nullable<SType> returnType;
-    vector<string> imports;
-    vector<size_t> importHashes;
-    vector<string> allImports;
-    unordered_set<size_t> allImportHashes;
     map<string, shared_ptr<Concept>> concepts;
     bool breakAllowed = false;
     void merge(const State&);
@@ -86,6 +76,7 @@ class Context : public owned_object<Context> {
 
   vector<shared_ptr<const State>> parentStates;
   shared_ptr<State> state;
+
   vector<shared_ptr<const State>> getReversedStates() const;
   const State& getTopState() const;
   nullable<SType> getType(const string&) const;

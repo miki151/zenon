@@ -1,6 +1,4 @@
 #include <fstream>
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
 #include "debug.h"
 
 #include "token.h"
@@ -60,7 +58,7 @@ int main(int argc, char* argv[]) {
   set<string> toCompile;
   set<string> finished;
   for (auto pathElem : flags[""])
-    toCompile.insert(pathElem.string);
+    toCompile.insert(fs::canonical(pathElem.string));
   vector<string> objFiles;
   auto buildDir = ".build_cache";
   if (!fs::is_directory(buildDir))

@@ -8,6 +8,7 @@
 #include "identifier.h"
 #include "function_call_type.h"
 #include "type.h"
+#include "import_cache.h"
 
 struct Accu;
 
@@ -125,6 +126,7 @@ struct FunctionCallNamedArgs : Expression {
 struct Statement : Node {
   using Node::Node;
   virtual void addToContext(Context&);
+  virtual void addToContext(Context&, ImportCache&);
   virtual void check(Context&) = 0;
   virtual bool hasReturnStatement(const Context&) const;
   virtual void codegen(Accu&, CodegenStage) const = 0;
@@ -253,7 +255,7 @@ struct StructDefinition : Statement {
   vector<unique_ptr<FunctionDefinition>> methods;
   TemplateInfo templateInfo;
   nullable<shared_ptr<StructType>> type;
-  virtual void addToContext(Context&) override;
+  virtual void addToContext(Context&, ImportCache&) override;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
@@ -344,11 +346,10 @@ struct FunctionDefinition : Statement {
   };
   vector<Initializer> initializers;
   virtual void check(Context&) override;
-  virtual void addToContext(Context&) override;
+  virtual void addToContext(Context&, ImportCache&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   void setFunctionType(const Context&, bool concept = false);
-  void checkFunctionBody(Context&, bool templateStruct) const;
   void addSignature(Accu&, string structName) const;
   void handlePointerParamsInOperator(Accu&) const;
   void handlePointerReturnInOperator(Accu&) const;
@@ -374,13 +375,13 @@ struct ImportStatement : Statement {
   unique_ptr<AST> ast;
   bool isPublic;
   void setImportDirs(const vector<string>& importDirs);
-  virtual void addToContext(Context&) override;
+  virtual void addToContext(Context&, ImportCache& cache) override;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 
   private:
-  void processImport(Context&, const string& content, const string& path);
+  void processImport(Context&, ImportCache&, const string& content, const string& path);
 };
 
 struct AST {

@@ -351,10 +351,8 @@ void FunctionDefinition::handlePointerReturnInOperator(Accu& accu) const {
 }
 
 void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (!body)
-    return;
   addSignature(accu, "");
-  if (stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
+  if (body && stage.isDefine) {
     accu.newLine("");
     handlePointerReturnInOperator(accu);
   } else {
