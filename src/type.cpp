@@ -25,15 +25,27 @@ string MutableReferenceType::getName(bool withTemplateArguments) const {
 }
 
 string PointerType::getName(bool withTemplateArguments) const {
-  return underlying->getName(withTemplateArguments) + " const*";
+  return underlying->getName(withTemplateArguments) + "*";
+}
+
+string PointerType::getCodegenName() const {
+  return underlying->getCodegenName() + " const*";
 }
 
 string MutablePointerType::getName(bool withTemplateArguments) const {
-  return underlying->getName(withTemplateArguments) + "*";
+  return underlying->getName(withTemplateArguments) + " mutable*";
+}
+
+string MutablePointerType::getCodegenName() const {
+  return underlying->getCodegenName() + "*";
 }
 
 string StructType::getName(bool withTemplateArguments) const {
   return name + (withTemplateArguments ? joinTemplateParams(templateParams) : "");
+}
+
+string StructType::getCodegenName() const {
+  return name + joinTemplateParamsCodegen(templateParams);
 }
 
 string TemplateParameterType::getName(bool withTemplateArguments) const {
@@ -71,11 +83,6 @@ void EnumType::handleSwitchStatement(SwitchStatement& statement, Context& contex
   }
 }
 
-int getNewId() {
-  static int idCounter = 0;
-  return ++idCounter;
-}
-
 FunctionType::FunctionType(FunctionId name, FunctionCallType t, SType returnType, vector<Param> p, vector<SType> tpl)
   : name(name), callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
@@ -88,6 +95,10 @@ string FunctionType::toString() const {
   return retVal->getName() + " " + myName + joinTemplateParams(templateParams) + "(" +
       combine(transform(params, [](const Param& t) { return t.type->getName(); }), ", ") + ")" +
       (fromConcept ? " [from concept]" : "");
+}
+
+string Type::getCodegenName() const {
+  return getName();
 }
 
 SType Type::getUnderlying() const {
@@ -125,7 +136,7 @@ shared_ptr<MutableReferenceType> MutableReferenceType::get(SType type) {
     CHECK(!ret->context.addFunction(
         FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION, MutablePointerType::get(type), {}, {})));
     CHECK(!ret->context.addFunction(
-        FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION, ret, {{"right side"s, type}}, {})));
+        FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION, ret, {{type}}, {})));
   }
   return generated.at(type);
 }
@@ -166,15 +177,15 @@ bool Type::canAssign(SType from) const{
   return false;
 }
 
-bool Type::isBuiltinCopyable() const {
+bool Type::isBuiltinCopyable(const Context&) const {
   return false;
 }
 
-bool PointerType::isBuiltinCopyable() const {
+bool PointerType::isBuiltinCopyable(const Context&) const {
   return true;
 }
 
-bool EnumType::isBuiltinCopyable() const {
+bool EnumType::isBuiltinCopyable(const Context&) const {
   return true;
 }
 
@@ -229,7 +240,7 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
   if (!templateParams.empty()) {
     statement.subtypesPrefix += "<";
     for (auto& t : templateParams)
-      statement.subtypesPrefix += t->getName() + ",";
+      statement.subtypesPrefix += t->getCodegenName() + ",";
     statement.subtypesPrefix.pop_back();
     statement.subtypesPrefix += ">";
   }
@@ -485,7 +496,7 @@ optional<string> MutablePointerType::getMappingError(const Context& context, Typ
   return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
 }
 
-bool MutablePointerType::isBuiltinCopyable() const {
+bool MutablePointerType::isBuiltinCopyable(const Context&) const {
   return true;
 }
 
@@ -626,6 +637,17 @@ string joinTemplateParams(const vector<SType>& params) {
     return "<" + joinTypeList(params) + ">";
 }
 
+string joinTypeListCodegen(const vector<SType>& types) {
+  return combine(transform(types, [](const auto& type) { return type->getCodegenName(); }), ", ");
+}
+
+string joinTemplateParamsCodegen(const vector<SType>& params) {
+  if (params.empty())
+    return "";
+  else
+    return "<" + joinTypeListCodegen(params) + ">";
+}
+
 FunctionType::Param::Param(optional<string> name, SType type) : name(name), type(type) {
 }
 
@@ -633,4 +655,39 @@ FunctionType::Param::Param(string name, SType type) : name(name), type(type) {
 }
 
 FunctionType::Param::Param(SType type) : type(type) {
+}
+
+string ArrayType::getName(bool withTemplateArguments) const {
+  return underlying->getName(withTemplateArguments) + "[" + to_string(size) + "]";
+}
+
+string ArrayType::getCodegenName() const {
+  return "std::array<" + underlying->getCodegenName() + "," + to_string(size) + ">";
+}
+
+SType ArrayType::replace(SType from, SType to) const {
+  return get(underlying->replace(from, to), size);
+}
+
+shared_ptr<ArrayType> ArrayType::get(SType type, int size) {
+  static map<pair<SType, int>, shared_ptr<ArrayType>> generated;
+  if (!generated.count({type, size})) {
+    auto ret = shared<ArrayType>(type, size);
+    generated.insert({{type, size}, ret});
+  }
+  return generated.at({type, size});
+}
+
+bool ArrayType::isBuiltinCopyable(const Context& context) const {
+  return context.canCopyConstruct(underlying);
+}
+
+ArrayType::ArrayType(SType type, int size) : size(size), underlying(type) {
+}
+
+optional<string> ArrayType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+  if (auto argPointer = argType.dynamicCast<ArrayType>())
+    if (size == argPointer->size)
+      return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+  return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
 }

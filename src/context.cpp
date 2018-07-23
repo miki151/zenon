@@ -81,10 +81,10 @@ bool Context::isGeneralization(const FunctionType& general, const FunctionType& 
     return false;
 }
 
-static bool isBuiltinCopyConstructor(const FunctionType& f) {
+static bool isBuiltinCopyConstructor(const Context& context, const FunctionType& f) {
   if (auto type = f.name.getValueMaybe<SType>())
     return f.retVal == *type && f.params.size() == 1 && f.params[0].type == PointerType::get(*type)
-        && (*type)->isBuiltinCopyable();
+        && (*type)->isBuiltinCopyable(context);
   return false;
 }
 
@@ -95,7 +95,8 @@ vector<FunctionType> Context::getMissingFunctions(const Context& required, vecto
   for (auto otherState : required.getReversedStates()) {
     for (auto& overloads : otherState->functions)
       for (auto& function : overloads.second) {
-        if (isBuiltinCopyConstructor(function))
+        // what is this line for? no test breaks when it is removed...
+        if (isBuiltinCopyConstructor(*this, function))
           continue;
         //cout << "Looking for function: " << getFunctionNameForError(function) << "\n";
         //print();
@@ -310,15 +311,23 @@ WithError<SType> Context::getTypeFromString(IdentifierInfo id) const {
   if (!topType)
     return "Type not found: " + quote(name);
   auto ret = topType->instantiate(*this, getTypeList(id.parts.at(0).templateArguments));
-  if (ret && id.pointerType)
-    switch (*id.pointerType) {
-      case IdentifierInfo::CONST:
-        *ret = PointerType::get(*ret);
-        break;
-      case IdentifierInfo::MUTABLE:
-        *ret = MutablePointerType::get(*ret);
-        break;
-    }
+  if (ret)
+    for (auto& elem : id.pointerOrArray)
+      elem.visit(
+          [&](IdentifierInfo::PointerType type) {
+            switch (type) {
+              case IdentifierInfo::CONST:
+                *ret = PointerType::get(*ret);
+                break;
+              case IdentifierInfo::MUTABLE:
+                *ret = MutablePointerType::get(*ret);
+                break;
+            }
+          },
+          [&](int arraySize) {
+            *ret = ArrayType::get(*ret, arraySize);
+          }
+      );
   return ret;
 }
 
@@ -368,6 +377,32 @@ WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc
   return ret;
 }
 
+optional<FunctionType> Context::getBuiltinOperator(Operator op, vector<SType> argTypes) const {
+  switch (op) {
+    case Operator::SUBSCRIPT:
+      if (argTypes.size() == 2)
+        if (auto arrayType = argTypes[0]->getUnderlying().dynamicCast<ArrayType>())
+          if (argTypes[1]->getUnderlying() == ArithmeticType::INT) {
+            auto ret = [&] {
+              if (argTypes[0].dynamicCast<ReferenceType>())
+                return FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION,
+                    ReferenceType::get(arrayType->underlying), {{argTypes[0]}, {ArithmeticType::INT}}, {});
+              if (argTypes[0].dynamicCast<MutableReferenceType>())
+                return FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION,
+                    MutableReferenceType::get(arrayType->underlying), {{argTypes[0]}, {ArithmeticType::INT}}, {});
+              return FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION,
+                  arrayType->underlying, {{argTypes[0]}, {ArithmeticType::INT}}, {});
+            }();
+            ret.subscriptOpWorkaround = false;
+            return ret;
+          }
+      break;
+    default:
+      break;
+  }
+  return none;
+}
+
 vector<FunctionType> Context::getOperatorType(Operator op) const {
   return getFunctions(op);
 }
@@ -384,7 +419,7 @@ bool Context::canConstructWith(SType type, vector<SType> argsRef) const {
 //  cout << "Trying to construct " << type->getName() << " with " << combine(transform(argsRef, [](const auto& t) { return t->getName(); }), ", ") << "\n";
 //  print();
   auto args = transform(argsRef, [](const auto& arg) { return arg->getUnderlying();});
-  if (type->isBuiltinCopyable() && argsRef.size() == 1 && argsRef[0] == PointerType::get(type))
+  if (type->isBuiltinCopyable(*this) && argsRef.size() == 1 && argsRef[0] == PointerType::get(type))
     return true;
   if (args.size() == 1 && args[0] == type)
     return true;

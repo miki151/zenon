@@ -15,6 +15,7 @@ struct SwitchStatement;
 
 struct Type : public owned_object<Type> {
   virtual string getName(bool withTemplateArguments = true) const = 0;
+  virtual string getCodegenName() const;
   virtual SType getUnderlying() const;
   virtual bool canAssign(SType from) const;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const;
@@ -24,7 +25,7 @@ struct Type : public owned_object<Type> {
   virtual Context& getContext();
   virtual Context& getStaticContext();
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
-  virtual bool isBuiltinCopyable() const;
+  virtual bool isBuiltinCopyable(const Context&) const;
   Context context;
   Context staticContext;
 };
@@ -73,9 +74,10 @@ struct MutableReferenceType : public Type {
 
 struct PointerType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
+  virtual string getCodegenName() const override;
   virtual SType replace(SType from, SType to) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
-  virtual bool isBuiltinCopyable() const override;
+  virtual bool isBuiltinCopyable(const Context&) const override;
 
   static shared_ptr<PointerType> get(SType);
 
@@ -85,9 +87,10 @@ struct PointerType : public Type {
 
 struct MutablePointerType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
+  virtual string getCodegenName() const override;
   virtual SType replace(SType from, SType to) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
-  virtual bool isBuiltinCopyable() const override;
+  virtual bool isBuiltinCopyable(const Context&) const override;
   static shared_ptr<MutablePointerType> get(SType);
   MutablePointerType(SType);
   SType underlying;
@@ -103,6 +106,7 @@ struct TemplateParameterType : public Type {
 
 struct StructType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
+  virtual string getCodegenName() const override;
   virtual SType replace(SType from, SType to) const override;
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
@@ -136,10 +140,22 @@ struct EnumType : public Type {
 
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
-  virtual bool isBuiltinCopyable() const override;
+  virtual bool isBuiltinCopyable(const Context&) const override;
 
   string name;
   vector<string> elements;
+};
+
+struct ArrayType : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual string getCodegenName() const override;
+  virtual SType replace(SType from, SType to) const override;
+  virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  static shared_ptr<ArrayType> get(SType, int size);
+  virtual bool isBuiltinCopyable(const Context&) const override;
+  ArrayType(SType, int size);
+  int size;
+  SType underlying;
 };
 
 struct FunctionType {
@@ -160,6 +176,7 @@ struct FunctionType {
   nullable<SType> parentType;
   bool externalMethod = false;
   bool fromConcept = false;
+  bool subscriptOpWorkaround = true;
   string toString() const;
 };
 
@@ -188,3 +205,5 @@ extern WithErrorLine<FunctionType> instantiateFunction(const Context& context, c
 extern void replaceInFunction(FunctionType&, SType from, SType to);
 extern string joinTemplateParams(const vector<SType>& params);
 extern string joinTypeList(const vector<SType>&);
+extern string joinTemplateParamsCodegen(const vector<SType>& params);
+extern string joinTypeListCodegen(const vector<SType>&);

@@ -106,7 +106,7 @@ static vector<FunctionType> filterOverloads(vector<FunctionType> overloads, cons
 }
 
 
-static SType handleOperatorOverloads(Context& context, CodeLoc codeLoc, Operator op, vector<Expression*> args) {
+static FunctionType handleOperatorOverloads(Context& context, CodeLoc codeLoc, Operator op, vector<Expression*> args) {
   vector<FunctionType> overloads;
   vector<SType> types;
   vector<CodeLoc> locs;
@@ -114,13 +114,15 @@ static SType handleOperatorOverloads(Context& context, CodeLoc codeLoc, Operator
     types.push_back(arg->getType(context));
     locs.push_back(arg->codeLoc);
   }
+  if (auto fun = context.getBuiltinOperator(op, types))
+    overloads.push_back(*fun);
   for (auto fun : context.getOperatorType(op))
     if (auto inst = instantiateFunction(context, fun, codeLoc, {}, types, locs, {}))
       overloads.push_back(*inst);
   overloads = filterOverloads(overloads, types);
   if (overloads.size() == 1) {
     //cout << "Chosen overload " << overloads[0].toString() << endl;
-    return overloads[0].retVal;
+    return overloads[0];
   } else {
       string error = "No overload found for operator: " + quote(getString(op)) + " with argument types: " +
           joinTypeList(types);
@@ -153,7 +155,6 @@ SType BinaryExpression::getType(Context& context) {
         codeLoc.error("Bad use of operator " + quote("."));
     }
     default: {
-      nullable<SType> ret;
       auto right = rightExpr.getType(context);
       for (auto fun : left->getContext().getOperatorType(op)) {
         if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {right}, {codeLoc}, {})) {
@@ -164,7 +165,9 @@ SType BinaryExpression::getType(Context& context) {
               quote(left->getName()) + " and " + quote(right->getName()) + "\n"
               "Candidate: "s + fun.toString() + ": " + inst.get_error().error);
       }
-      return handleOperatorOverloads(context, codeLoc, op, {e1.get(), e2.get()});
+      auto ret = handleOperatorOverloads(context, codeLoc, op, {e1.get(), e2.get()});
+      subscriptOpWorkaround = ret.subscriptOpWorkaround;
+      return ret.retVal;
     }
   }
 }
@@ -182,7 +185,7 @@ SType UnaryExpression::getType(Context& context) {
       return inst->retVal;
     } else
       codeLoc.error(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);
-  return handleOperatorOverloads(context, codeLoc, op, {expr.get()});
+  return handleOperatorOverloads(context, codeLoc, op, {expr.get()}).retVal;
 }
 
 void StatementBlock::check(Context& context) {
@@ -230,11 +233,11 @@ void VariableDeclaration::check(Context& context) {
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (initExpr) {
     auto exprType = initExpr->getType(context);
-    initExpr->codeLoc.check(context.canConvert(exprType, realType.get()), "Can't initialize variable of type "
-        + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
     initExpr->codeLoc.check((!exprType.dynamicCast<ReferenceType>() && !exprType.dynamicCast<MutableReferenceType>()) ||
         context.canCopyConstruct(exprType->getUnderlying()),
         "Type " + quote(exprType->getUnderlying()->getName()) + " cannot be copied");
+    initExpr->codeLoc.check(context.canConvert(exprType, realType.get()), "Can't initialize variable of type "
+        + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
   } else
     codeLoc.check(context.canConstructWith(realType.get(), {}), "Type " + quote(realType->getName()) + " requires initialization");
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
@@ -1002,4 +1005,17 @@ void BreakStatement::check(Context& context) {
 
 void ContinueStatement::check(Context& context) {
   codeLoc.check(context.breakAllowed(), "Continue statement outside of a loop");
+}
+
+ArrayLiteral::ArrayLiteral(CodeLoc codeLoc) : Expression(codeLoc) {
+}
+
+SType ArrayLiteral::getType(Context& context) {
+  auto ret = contents[0]->getType(context)->getUnderlying();
+  for (int i = 1; i < contents.size(); ++i) {
+    auto t = contents[i]->getType(context)->getUnderlying();
+    contents[i]->codeLoc.check(t == ret, "Incompatible types in array literal: " +
+        quote(ret->getName()) + " and " + quote(t->getName()));
+  }
+  return ArrayType::get(ret, contents.size());
 }

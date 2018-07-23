@@ -54,12 +54,27 @@ IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
       break;
   }
   if (allowPointer) {
-    if (auto t = tokens.eatMaybe(Keyword::MUTABLE)) {
-      tokens.eat(Operator::MULTIPLY);
-      ret.pointerType = MUTABLE;
-    }
-    else if (auto t = tokens.eatMaybe(Operator::MULTIPLY)) {
-      ret.pointerType = CONST;
+    while (1) {
+      auto bookmark = tokens.getBookmark();
+      if (auto t = tokens.eatMaybe(Keyword::MUTABLE)) {
+        tokens.eat(Operator::MULTIPLY);
+        ret.pointerOrArray.push_back(MUTABLE);
+      }
+      else if (auto t = tokens.eatMaybe(Operator::MULTIPLY)) {
+        ret.pointerOrArray.push_back(CONST);
+      }
+      else if (auto t = tokens.eatMaybe(Keyword::OPEN_SQUARE_BRACKET)) {
+        if (auto size = tokens.eatMaybe(Number{})) {
+          int index = std::stoi(size->value);
+          if (tokens.eatMaybe(Keyword::CLOSE_SQUARE_BRACKET)) {
+            ret.pointerOrArray.push_back(index);
+            continue;
+          }
+        }
+        tokens.rewind(bookmark);
+        break;
+      } else
+        break;
     }
   }
   INFO << "Identifier " << ret.toString();
@@ -75,7 +90,7 @@ IdentifierInfo IdentifierInfo::getWithoutFirstPart() const {
 }
 
 optional<string> IdentifierInfo::asBasicIdentifier() const {
-  if (parts.size() > 1 || !parts[0].templateArguments.empty() || pointerType)
+  if (parts.size() > 1 || !parts[0].templateArguments.empty() || !pointerOrArray.empty())
     return none;
   else
     return parts[0].name;
@@ -88,15 +103,22 @@ string IdentifierInfo::toString() const {
       ret.append("::");
     ret.append(part.toString());
   }
-  if (pointerType)
-    switch (*pointerType) {
-      case MUTABLE:
-        ret.append("*");
-        break;
-      case CONST:
-        ret = "const " + ret + "*";
-        break;
-    }
+  for (auto& elem : pointerOrArray)
+    elem.visit(
+        [&](PointerType type) {
+          switch (type) {
+            case MUTABLE:
+              ret.append("*");
+              break;
+            case CONST:
+              ret.append(" const*");
+              break;
+          }
+        },
+        [&](int arraySize) {
+          ret.append("[" + to_string(arraySize) + "]");
+        }
+    );
   return ret;
 }
 

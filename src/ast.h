@@ -86,6 +86,13 @@ struct MoveExpression : Expression {
   nullable<SType> type;
 };
 
+struct ArrayLiteral : Expression {
+  ArrayLiteral(CodeLoc);
+  virtual SType getType(Context&) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  vector<unique_ptr<Expression>> contents;
+};
+
 enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_POINTER };
 
 struct FunctionCall : Expression {

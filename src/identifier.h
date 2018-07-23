@@ -24,7 +24,7 @@ struct IdentifierInfo {
     MUTABLE,
     CONST
   };
-  optional<PointerType> pointerType;
+  vector<variant<PointerType, int>> pointerOrArray;
   CodeLoc codeLoc;
   string toString() const;
   bool operator == (const IdentifierInfo&) const;

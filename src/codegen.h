@@ -4,4 +4,4 @@
 
 class AST;
 
-extern string codegen(const AST&, const string& codegenInclude);
+extern string codegen(const AST&, const string& codegenInclude, bool includeLineNumbers);

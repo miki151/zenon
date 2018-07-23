@@ -39,6 +39,7 @@ class Context : public owned_object<Context> {
   WithError<vector<FunctionType>> getFunctionTemplate(IdentifierInfo) const;
   WithErrorLine<FunctionType> instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<SType> argTypes, vector<CodeLoc> argLoc) const;
   vector<FunctionType> getOperatorType(Operator) const;
+  optional<FunctionType> getBuiltinOperator(Operator, vector<SType> argTypes) const;
   FunctionId getFunctionId(const FunctionName& name) const;
   bool canConstructWith(SType, vector<SType> args) const;
   bool canCopyConstruct(SType) const;

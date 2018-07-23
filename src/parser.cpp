@@ -83,6 +83,19 @@ unique_ptr<Expression> parseStringLiteral(CodeLoc initialLoc, string literal) {
   return left;
 }
 
+static unique_ptr<Expression> parseArrayLiteral(Tokens& tokens) {
+  auto ret = unique<ArrayLiteral>(tokens.peek().codeLoc);
+  tokens.eat(Keyword::OPEN_BLOCK);
+  while (1) {
+    ret->contents.push_back(parseExpression(tokens));
+    if (tokens.eatMaybe(Keyword::CLOSE_BLOCK))
+      break;
+    else
+      tokens.eat(Keyword::COMMA);
+  }
+  return ret;
+}
+
 unique_ptr<Expression> parsePrimary(Tokens& tokens) {
   auto token = tokens.peek();
   return token.visit(
@@ -106,6 +119,8 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
           case Keyword::TRUE:
             tokens.popNext();
             return unique<Constant>(token.codeLoc, ArithmeticType::BOOL, token.value);
+          case Keyword::OPEN_BLOCK:
+            return parseArrayLiteral(tokens);
           default:
             token.codeLoc.error("Expected primary expression, got: " + quote(token.value));
             return {};

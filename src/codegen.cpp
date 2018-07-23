@@ -6,6 +6,7 @@
 
 struct Accu {
   public:
+  Accu(bool l) : includeLineNumbers(l) {}
 
   enum Position {
     CURRENT,
@@ -24,7 +25,8 @@ struct Accu {
 
   void newLine(CodeLoc codeLoc) {
     buf[CURRENT] += "\n";
-    add("#line " + to_string(codeLoc.line) + " \"" + codeLoc.file + "\"\n");
+    if (includeLineNumbers)
+      add("#line " + to_string(codeLoc.line) + " \"" + codeLoc.file + "\"\n");
   }
 
   void pop_back(Position pos = CURRENT) {
@@ -40,6 +42,7 @@ struct Accu {
 
   int indent = 0;
   map<Position, string> buf;
+  bool includeLineNumbers;
 };
 
 void Constant::codegen(Accu& accu, CodegenStage) const {
@@ -110,7 +113,7 @@ void StatementBlock::codegen(Accu& accu, CodegenStage stage) const {
 
 void VariableDeclaration::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
-  accu.add(realType.get()->getName() + " ");
+  accu.add(realType.get()->getCodegenName() + " ");
   if (!isMutable)
     accu.add("const ");
   accu.add(identifier);
@@ -159,7 +162,7 @@ static string getFunctionCallName(const FunctionType& function, bool methodCall)
   string typePrefix;
   auto functionTemplateParams = function.templateParams;
   if (function.parentType) {
-    typePrefix = function.parentType->getName() + "::";
+    typePrefix = function.parentType->getCodegenName() + "::";
     if (function.externalMethod)
       if (auto structParent = function.parentType.get().dynamicCast<StructType>())
         functionTemplateParams = getSubsequence(functionTemplateParams, (int) structParent->templateParams.size());
@@ -167,14 +170,14 @@ static string getFunctionCallName(const FunctionType& function, bool methodCall)
   else if (!methodCall)
     typePrefix += "::";
   return function.name.visit(
-      [&](const string& s) { return typePrefix + s + joinTemplateParams(functionTemplateParams); },
+      [&](const string& s) { return typePrefix + s + joinTemplateParamsCodegen(functionTemplateParams); },
       [&](Operator op) {
         if (op == Operator::SUBSCRIPT)
           return "subscript_op"s;
         else
           return "operator "s + getString(op);
       },
-      [&](SType type) { return type->getName(); }
+      [&](SType type) { return type->getCodegenName(); }
   );
 }
 
@@ -278,18 +281,18 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
     structName += "::";
   string retVal;
   if (!name.contains<ConstructorId>())
-    retVal = functionType->retVal->getName() + " ";
+    retVal = functionType->retVal->getCodegenName() + " ";
   string ret = retVal + structName + getFunctionSignatureName(*functionType) + "(";
   for (auto& param : functionType->params) {
-    string argText = param.type->getName() + " " + param.name.value_or("") + ", ";
+    string argText = param.type->getCodegenName() + " " + param.name.value_or("") + ", ";
     if (functionType->name.contains<Operator>()) {
       if (auto p = param.type.dynamicCast<ReferenceType>()) {
         auto name = param.name ? *param.name + "_ptr" : "";
-        argText = "const " + p->underlying->getName() + "& " + name + ", ";
+        argText = "const " + p->underlying->getCodegenName() + "& " + name + ", ";
       }
       if (auto p = param.type.dynamicCast<MutableReferenceType>()) {
         auto name = param.name ? *param.name + "_ptr" : "";
-        argText = p->underlying->getName() + "& " + name + ", ";
+        argText = p->underlying->getCodegenName() + "& " + name + ", ";
       }
     }
     ret.append(argText);
@@ -361,8 +364,8 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   }
 }
 
-string codegen(const AST& ast, const string& codegenInclude) {
-  Accu accu;
+string codegen(const AST& ast, const string& codegenInclude, bool includeLineNumbers) {
+  Accu accu(includeLineNumbers);
   accu.add("#include \"" + codegenInclude + "\"");
   accu.newLine();
   for (auto& elem : ast.elems) {
@@ -676,4 +679,15 @@ void BreakStatement::codegen(Accu& accu, CodegenStage) const {
 
 void ContinueStatement::codegen(Accu& accu, CodegenStage) const {
   accu.add("continue;");
+}
+
+void ArrayLiteral::codegen(Accu& accu, CodegenStage stage) const {
+  accu.add("make_array(");
+  for (auto& elem : contents) {
+    elem->codegen(accu, stage);
+    accu.add(", ");
+  }
+  accu.pop_back();
+  accu.pop_back();
+  accu.add(")");
 }

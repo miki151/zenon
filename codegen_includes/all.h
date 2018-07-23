@@ -2,6 +2,7 @@
 #define ALL_H
 
 #include "variant_helpers.h"
+#include "array_utils.h"
 #include "lite_str.h"
 using string = lite_str<>;
 
