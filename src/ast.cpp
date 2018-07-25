@@ -52,9 +52,9 @@ SType Variable::getType(Context& context) {
 
 nullable<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
   if (left)
-    return getType(left->getType(callContext)->getContext());
-  else
-    return nullptr;
+    if (auto structType = left->getType(callContext)->getUnderlying().dynamicCast<StructType>())
+      return SType(MutableReferenceType::get(structType->getTypeOfMember(identifier).get(codeLoc)));
+  return nullptr;
 }
 
 static bool isExactArg(SType arg, SType param) {
@@ -752,19 +752,18 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
 static void checkConstructor(const StructType& type, const Context& context, const FunctionDefinition& method) {
   map<string, int> memberIndex;
   int index =  0;
-  for (auto& member : type.context.getBottomLevelVariables())
-    memberIndex[member] = index++;
+  for (auto& member : type.members)
+    memberIndex[member.name] = index++;
   index = -1;
   for (auto& initializer : method.initializers) {
-    auto memberType = type.context.getTypeOfVariable(initializer.paramName).get_value();
+    auto memberType = type.getTypeOfMember(initializer.paramName).get(initializer.codeLoc);
     auto initContext = Context::withParent(context);
     for (auto& p : method.functionType->params)
       if (p.name)
         initContext.addVariable(*p.name, p.type);
     auto exprType = initializer.expr->getType(initContext);
-    initializer.codeLoc.check(!!memberType, type.getName() + " has no member named " + quote(initializer.paramName));
     initializer.codeLoc.check(context.canConstructWith(memberType->getUnderlying(), {exprType}),
-        "Can't assign to member " + quote(initializer.paramName) + " of type " + quote(memberType->getName()) +
+        "Can't assign to member " + quote(initializer.paramName) + " of type " + quote(memberType.->getName()) +
         " from expression of type " + quote(exprType->getName()));
     int currentIndex = memberIndex.at(initializer.paramName);
     initializer.codeLoc.check(currentIndex > index, "Can't initialize member " + quote(initializer.paramName) + " out of order");
@@ -772,7 +771,7 @@ static void checkConstructor(const StructType& type, const Context& context, con
     memberIndex.erase(initializer.paramName);
   }
   for (auto& nonInitialized : memberIndex)
-    method.codeLoc.check(context.canConstructWith(type.context.getTypeOfVariable(nonInitialized.first).get_value()->getUnderlying(), {}),
+    method.codeLoc.check(context.canConstructWith(type.getTypeOfMember(nonInitialized.first).get_value(), {}),
         "Member " + quote(nonInitialized.first) + " needs to be initialized");
 }
 
@@ -785,7 +784,7 @@ void StructDefinition::check(Context& context) {
   applyConcept(methodBodyContext, templateInfo, type->templateParams);
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
-    type->context.addVariable(member.name, MutableReferenceType::get(methodBodyContext.getTypeFromString(member.type).get(member.codeLoc)));
+    type->members.push_back({member.name, methodBodyContext.getTypeFromString(member.type).get(member.codeLoc)});
   }
   for (int i = 0; i < methods.size(); ++i) {
     if (methods[i]->functionType->name.contains<SType>()) {

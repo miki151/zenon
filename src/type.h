@@ -111,7 +111,7 @@ struct StructType : public Type {
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
-
+  WithError<SType> getTypeOfMember(const string&) const;
   enum Kind {
     STRUCT,
     VARIANT
@@ -125,11 +125,12 @@ struct StructType : public Type {
   vector<shared_ptr<StructType>> instantations;
   nullable<shared_ptr<StructType>> parent;
   vector<SConcept> requirements;
-  struct Alternative {
+  struct Variable {
     string name;
     SType type;
   };
-  vector<Alternative> alternatives;
+  vector<Variable> members;
+  vector<Variable> alternatives;
   void updateInstantations();
   SType getInstantiated(vector<SType> templateParams);
   StructType() {}

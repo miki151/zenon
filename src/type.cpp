@@ -202,9 +202,8 @@ static bool checkMembers(set<SType> &visited, const SType& t, int maxDepth) {
     if (visited.count(t))
       return true;
     visited.insert(t);
-    for (auto& member : s->context.getBottomLevelVariables()) {
-      auto type = s->context.getTypeOfVariable(member).get_value()->getUnderlying();
-      if (checkMembers(visited, type, maxDepth - 1))
+    for (auto& member : s->members) {
+      if (checkMembers(visited, member.type, maxDepth - 1))
         return true;
     }
   }
@@ -299,6 +298,13 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
   }
 }
 
+WithError<SType> StructType::getTypeOfMember(const string& name) const {
+  for (auto& member : members)
+    if (member.name == name)
+      return member.type;
+  return "No member named " + quote(name) + " in struct " + quote(getName());
+}
+
 shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) {
   auto self = get_this().get().dynamicCast<StructType>();
   if (templateParams == newTemplateParams)
@@ -309,6 +315,7 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
   }
   auto type = StructType::get(kind, name);
   type->alternatives = alternatives;
+  type->members = members;
   type->parent = self;
   instantations.push_back(type);
   return type;
@@ -317,14 +324,15 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
 void StructType::updateInstantations() {
   for (auto type1 : copyOf(instantations)) {
     auto type = type1.dynamicCast<StructType>();
-    type->context.deepCopyFrom(context);
     type->staticContext.deepCopyFrom(staticContext);
     type->alternatives = alternatives;
+    type->members = members;
     for (int i = 0; i < templateParams.size(); ++i) {
-      type->context.replace(templateParams[i], type->templateParams[i]);
       type->staticContext.replace(templateParams[i], type->templateParams[i]);
       for (auto& alternative : type->alternatives)
         alternative.type = alternative.type->replace(templateParams[i], type->templateParams[i]);
+      for (auto& member : type->members)
+        member.type = member.type->replace(templateParams[i], type->templateParams[i]);
     }
   }
 }
@@ -370,21 +378,20 @@ SType StructType::replace(SType from, SType to) const {
   if (ret->templateParams != newTemplateParams) {
     ret->templateParams = newTemplateParams;
     INFO << "New instantiation: " << ret->getName();
-    ret->context.deepCopyFrom(context);
     ret->staticContext.deepCopyFrom(staticContext);
-    for (auto& member : ret->context.getBottomLevelVariables()) {
-      auto memberType = *ret->context.getTypeOfVariable(member);
-      checkNonVoidMember(memberType, to);
-    }
     ret->alternatives = alternatives;
     for (auto& alternative : ret->alternatives) {
       checkNonVoidMember(alternative.type, to);
       alternative.type = alternative.type->replace(from, to);
     }
+    ret->members = members;
+    for (auto& members : ret->members) {
+      checkNonVoidMember(members.type, to);
+      members.type = members.type->replace(from, to);
+    }
     ret->requirements = requirements;
     for (auto& concept : ret->requirements)
       concept = concept->replace(from, to);
-    ret->context.replace(from, to);
     ret->staticContext.replace(from, to);
   } else
     INFO << "Found instantiated: " << ret->getName();
@@ -500,11 +507,11 @@ bool MutablePointerType::isBuiltinCopyable(const Context&) const {
   return true;
 }
 
-optional<string> ReferenceType::getMappingError(const Context&, TypeMapping& mapping, SType from) const {
+optional<string> ReferenceType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
   return ::getDeductionError(context, mapping, underlying, from->getUnderlying());
 }
 
-optional<string> MutableReferenceType::getMappingError(const Context&, TypeMapping& mapping, SType from) const {
+optional<string> MutableReferenceType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
   if (auto argRef = from.dynamicCast<MutableReferenceType>())
     return ::getDeductionError(context, mapping, underlying, argRef->underlying);
   else

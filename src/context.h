@@ -29,7 +29,6 @@ class Context : public owned_object<Context> {
   WithError<SType> getTypeOfVariable(const string&) const;
   optional<string> setVariableAsMoved(const string&);
   void addVariable(const string& ident, SType);
-  const vector<string>& getBottomLevelVariables() const;
   void replace(SType from, SType to);
   nullable<SType> getReturnType() const;
   void setReturnType(SType);

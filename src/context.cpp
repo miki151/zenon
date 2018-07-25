@@ -155,10 +155,6 @@ void Context::addVariable(const string& ident, SType t) {
   state->varsList.push_back(ident);
 }
 
-const vector<string>& Context::getBottomLevelVariables() const {
-  return state->varsList;
-}
-
 void Context::State::print() const {
   for (auto& varName : varsList) {
     auto& var = vars.at(varName);

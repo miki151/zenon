@@ -397,8 +397,8 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
       method->addSignature(accu, "");
       accu.add(";");
     }
-    for (auto& member : type->getContext().getBottomLevelVariables())
-      accu.newLine(type->getContext().getTypeOfVariable(member).get_value()->getUnderlying()->getName() + " " + member + ";");
+    for (auto& member : type->members)
+      accu.newLine(member.type->getName() + " " + member.name + ";");
     --accu.indent;
     accu.newLine("};");
   }
