@@ -353,7 +353,8 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
     }
     codeLoc.check(concept || !name.contains<Operator>() || paramsAreGoodForOperator(params),
         "Operator parameters must include at least one user-defined type");
-    functionType = FunctionType(context.getFunctionId(name), FunctionCallType::FUNCTION, returnType, params, templateTypes);
+    auto callType = name.contains<ConstructorId>() ? FunctionCallType::CONSTRUCTOR : FunctionCallType::FUNCTION;
+    functionType = FunctionType(context.getFunctionId(name), callType, returnType, params, templateTypes);
     functionType->fromConcept = concept;
     functionType->requirements = requirements;
   } else
@@ -1019,3 +1020,4 @@ SType ArrayLiteral::getType(Context& context) {
   }
   return ArrayType::get(ret, contents.size());
 }
+

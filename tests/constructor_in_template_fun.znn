@@ -1,0 +1,26 @@
+// 5
+
+template <T>
+concept C1 {
+  T(int);
+  int get(T*);
+};
+
+template <T> requires C1<T>
+int f() {
+  T t = T(5);
+  return t.get();
+}
+
+struct X {
+  int a;
+};
+
+int get(X* x) {
+  return x->a;
+}
+
+int main() {
+  return f<X>();
+}
+
