@@ -13,6 +13,30 @@ string ArithmeticType::getName(bool withTemplateArguments) const {
   return name;
 }
 
+WithError<CompileTimeValue> ArithmeticType::parse(const string& value) const {
+  if (ArithmeticType::INT == this)
+    return CompileTimeValue(stoi(value));
+  if (ArithmeticType::BOOL == this) {
+    if (value == "true")
+      return CompileTimeValue(true);
+    if (value == "false")
+      return CompileTimeValue(false);
+    return "Not a valid boolean literal: " + quote(value);
+  }
+  if (ArithmeticType::DOUBLE == this)
+    return CompileTimeValue(stod(value));
+  if (ArithmeticType::STRING == this)
+    return CompileTimeValue(value);
+  if (ArithmeticType::CHAR == this) {
+    if (value.front() == '\'' && value.back() == '\'' && value.size() == 3)
+      return CompileTimeValue(value[1]);
+    return "Not a valid char literal: " + quote(value);
+  }
+  if (ArithmeticType::VOID == this)
+    return "Cannot create value of type " + quote(getName());
+  fail();
+}
+
 ArithmeticType::ArithmeticType(const string& name) : name(name) {
 }
 
@@ -167,6 +191,10 @@ bool Type::canAssign(SType from) const{
 
 bool Type::isBuiltinCopyable(const Context&) const {
   return false;
+}
+
+WithError<CompileTimeValue> Type::parse(const string&) const {
+  return "Can't evaluate constant of type " + quote(getName()) + " at compile-time";
 }
 
 bool PointerType::isBuiltinCopyable(const Context&) const {

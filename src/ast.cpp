@@ -46,6 +46,10 @@ SType Constant::getType(Context&) {
   return type;
 }
 
+WithErrorLine<CompileTimeValue> Constant::eval() const {
+  return type->parse(value).addCodeLoc(codeLoc);
+}
+
 SType Variable::getType(Context& context) {
   return context.getTypeOfVariable(identifier).get(codeLoc);
 }
@@ -163,6 +167,16 @@ SType BinaryExpression::getType(Context& context) {
   }
 }
 
+WithErrorLine<CompileTimeValue> BinaryExpression::eval() const {
+  if (auto value1 = e1->eval()) {
+    if (auto value2 = e2->eval())
+      return ::eval(op, {*value1, *value2}).addCodeLoc(codeLoc);
+    else
+      return value2;
+  } else
+    return value1;
+}
+
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
     : Expression(l), op(o), expr(std::move(e)) {}
 
@@ -171,6 +185,13 @@ SType UnaryExpression::getType(Context& context) {
   auto right = expr->getType(context);
   ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName())};
   return handleOperatorOverloads(context, codeLoc, op, {expr.get()}).retVal;
+}
+
+WithErrorLine<CompileTimeValue> UnaryExpression::eval() const {
+  if (auto value = expr->eval())
+    return ::eval(op, {*value}).addCodeLoc(codeLoc);
+  else
+    return value;
 }
 
 void StatementBlock::check(Context& context) {
@@ -406,7 +427,8 @@ static Context createNewContext() {
           CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{type}, {type}}, {})));
     for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
       for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-        CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{MutableReferenceType::get(type)}, {type}}, {})));
+        CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::VOID,
+            {{MutableReferenceType::get(type)}, {type}}, {})));
     for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
       CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
           {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {})));
@@ -888,6 +910,10 @@ void ImportStatement::addToContext(Context& context, ImportCache& cache) {
     }
   }
   codeLoc.error("Couldn't resolve import path: " + path);
+}
+
+WithErrorLine<CompileTimeValue> Expression::eval() const {
+  return ErrorLoc{codeLoc, "Cannot evaluate expression at compile time"};
 }
 
 nullable<SType> Expression::getDotOperatorType(Expression* left, Context& callContext) {

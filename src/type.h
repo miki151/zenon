@@ -7,6 +7,7 @@
 #include "function_call_type.h"
 #include "context.h"
 #include "function_name.h"
+#include "compile_time_value.h"
 
 class Context;
 struct TypeMapping;
@@ -25,11 +26,13 @@ struct Type : public owned_object<Type> {
   virtual Context& getStaticContext();
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
   virtual bool isBuiltinCopyable(const Context&) const;
+  virtual WithError<CompileTimeValue> parse(const string&) const;
   Context staticContext;
 };
 
 struct ArithmeticType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
+  virtual WithError<CompileTimeValue> parse(const string&) const override;
   using DefType = shared_ptr<ArithmeticType>;
   static DefType INT;
   static DefType DOUBLE;

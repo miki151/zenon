@@ -9,6 +9,7 @@
 #include "function_call_type.h"
 #include "type.h"
 #include "import_cache.h"
+#include "compile_time_value.h"
 
 struct Accu;
 
@@ -33,6 +34,7 @@ struct Node {
 struct Expression : Node {
   using Node::Node;
   virtual SType getType(Context&) = 0;
+  virtual WithErrorLine<CompileTimeValue> eval() const;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext);
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const;
 };
@@ -40,6 +42,7 @@ struct Expression : Node {
 struct Constant : Expression {
   Constant(CodeLoc, SType, string value);
   virtual SType getType(Context&) override;
+  virtual WithErrorLine<CompileTimeValue> eval() const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   SType type;
   string value;
@@ -56,6 +59,7 @@ struct EnumConstant : Expression {
 struct Variable : Expression {
   Variable(CodeLoc, string);
   virtual SType getType(Context&) override;
+  //virtual WithErrorLine<CompileTimeValue> eval() const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   string identifier;
@@ -64,6 +68,7 @@ struct Variable : Expression {
 struct BinaryExpression : Expression {
   BinaryExpression(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>);
   virtual SType getType(Context&) override;
+  virtual WithErrorLine<CompileTimeValue> eval() const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   unique_ptr<Expression> e1, e2;
@@ -73,6 +78,7 @@ struct BinaryExpression : Expression {
 struct UnaryExpression : Expression {
   UnaryExpression(CodeLoc, Operator, unique_ptr<Expression>);
   virtual SType getType(Context&) override;
+  virtual WithErrorLine<CompileTimeValue> eval() const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   unique_ptr<Expression> expr;

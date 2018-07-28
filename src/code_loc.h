@@ -51,6 +51,14 @@ template <typename T>
 class [[nodiscard]] WithError : public expected<T, string> {
   public:
   using expected<T, string>::expected;
+
+  WithErrorLine<T> addCodeLoc(CodeLoc loc) const {
+    if (*this)
+      return **this;
+    else
+      return WithErrorLine<T>(ErrorLoc{loc, this->get_error()});
+  }
+
   [[nodiscard]] T get(CodeLoc loc) const {
     if (!(*this))
       loc.error(this->get_error());
