@@ -31,9 +31,11 @@ struct Node {
   virtual ~Node() {}
 };
 
+extern SType getType(Context&, unique_ptr<Expression>&);
+
 struct Expression : Node {
   using Node::Node;
-  virtual SType getType(Context&) = 0;
+  virtual SType getTypeImpl(Context&) = 0;
   virtual WithErrorLine<CompileTimeValue> eval() const;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext);
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const;
@@ -41,7 +43,7 @@ struct Expression : Node {
 
 struct Constant : Expression {
   Constant(CodeLoc, SType, string value);
-  virtual SType getType(Context&) override;
+  virtual SType getTypeImpl(Context&) override;
   virtual WithErrorLine<CompileTimeValue> eval() const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   SType type;
@@ -50,7 +52,7 @@ struct Constant : Expression {
 
 struct EnumConstant : Expression {
   EnumConstant(CodeLoc, string enumName, string enumElement);
-  virtual SType getType(Context&) override;
+  virtual SType getTypeImpl(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   string enumName;
   string enumElement;
@@ -58,7 +60,7 @@ struct EnumConstant : Expression {
 
 struct Variable : Expression {
   Variable(CodeLoc, string);
-  virtual SType getType(Context&) override;
+  virtual SType getTypeImpl(Context&) override;
   //virtual WithErrorLine<CompileTimeValue> eval() const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
@@ -67,7 +69,7 @@ struct Variable : Expression {
 
 struct BinaryExpression : Expression {
   BinaryExpression(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>);
-  virtual SType getType(Context&) override;
+  virtual SType getTypeImpl(Context&) override;
   virtual WithErrorLine<CompileTimeValue> eval() const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
@@ -77,7 +79,7 @@ struct BinaryExpression : Expression {
 
 struct UnaryExpression : Expression {
   UnaryExpression(CodeLoc, Operator, unique_ptr<Expression>);
-  virtual SType getType(Context&) override;
+  virtual SType getTypeImpl(Context&) override;
   virtual WithErrorLine<CompileTimeValue> eval() const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
@@ -86,7 +88,7 @@ struct UnaryExpression : Expression {
 
 struct MoveExpression : Expression {
   MoveExpression(CodeLoc, string);
-  virtual SType getType(Context&) override;
+  virtual SType getTypeImpl(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   string identifier;
   nullable<SType> type;
@@ -94,7 +96,7 @@ struct MoveExpression : Expression {
 
 struct ArrayLiteral : Expression {
   ArrayLiteral(CodeLoc);
-  virtual SType getType(Context&) override;
+  virtual SType getTypeImpl(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   vector<unique_ptr<Expression>> contents;
 };
@@ -103,7 +105,7 @@ enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_
 
 struct FunctionCall : Expression {
   FunctionCall(CodeLoc, IdentifierInfo);
-  virtual SType getType(Context&) override;
+  virtual SType getTypeImpl(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const override;
@@ -115,7 +117,7 @@ struct FunctionCall : Expression {
 
 struct FunctionCallNamedArgs : Expression {
   FunctionCallNamedArgs(CodeLoc, IdentifierInfo);
-  virtual SType getType(Context&) override;
+  virtual SType getTypeImpl(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const override;

@@ -273,9 +273,7 @@ WithError<CompileTimeValue> eval(Operator op, vector<CompileTimeValue> args) {
     case Operator::MULTIPLY:
       return tryArithmetic(op, args, [](auto v1, auto v2) { return v1 * v2; });
     case Operator::DECREMENT:
-      return tryArithmeticUnary(op, args, [](auto v) { return v - 1; });
     case Operator::INCREMENT:
-      return tryArithmeticUnary(op, args, [](auto v) { return v + 1; });
     case Operator::POINTER_DEREFERENCE:
     case Operator::GET_ADDRESS:
     case Operator::SUBSCRIPT:

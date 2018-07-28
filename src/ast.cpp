@@ -42,7 +42,7 @@ VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, 
 
 FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionName name) : Statement(l), returnType(r), name(name) {}
 
-SType Constant::getType(Context&) {
+SType Constant::getTypeImpl(Context&) {
   return type;
 }
 
@@ -50,13 +50,13 @@ WithErrorLine<CompileTimeValue> Constant::eval() const {
   return type->parse(value).addCodeLoc(codeLoc);
 }
 
-SType Variable::getType(Context& context) {
+SType Variable::getTypeImpl(Context& context) {
   return context.getTypeOfVariable(identifier).get(codeLoc);
 }
 
 nullable<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
   if (left)
-    if (auto structType = left->getType(callContext)->getUnderlying().dynamicCast<StructType>())
+    if (auto structType = left->getTypeImpl(callContext)->getUnderlying().dynamicCast<StructType>())
       return SType(MutableReferenceType::get(structType->getTypeOfMember(identifier).get(codeLoc)));
   return nullptr;
 }
@@ -115,7 +115,7 @@ static FunctionType handleOperatorOverloads(Context& context, CodeLoc codeLoc, O
   vector<SType> types;
   vector<CodeLoc> locs;
   for (auto& arg : args) {
-    types.push_back(arg->getType(context));
+    types.push_back(arg->getTypeImpl(context));
     locs.push_back(arg->codeLoc);
   }
   if (auto fun = context.getBuiltinOperator(op, types))
@@ -136,20 +136,18 @@ static FunctionType handleOperatorOverloads(Context& context, CodeLoc codeLoc, O
   }
 }
 
-SType BinaryExpression::getType(Context& context) {
+SType BinaryExpression::getTypeImpl(Context& context) {
   if (op == Operator::POINTER_MEMBER_ACCESS) {
     e1 = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(e1));
     op = Operator::MEMBER_ACCESS;
   }
-  auto& leftExpr = *e1;
-  auto& rightExpr = *e2;
-  auto left = leftExpr.getType(context);
+  auto left = getType(context, e1);
   switch (op) {
     case Operator::POINTER_MEMBER_ACCESS:
       FATAL << "This was handled above";
       return left;
     case Operator::MEMBER_ACCESS: {
-      if (auto rightType = rightExpr.getDotOperatorType(&leftExpr, context)) {
+      if (auto rightType = e2->getDotOperatorType(&*e1, context)) {
         if (!left.dynamicCast<ReferenceType>() && !left.dynamicCast<MutableReferenceType>())
           rightType = rightType->getUnderlying();
         else if (left.dynamicCast<ReferenceType>() && rightType.get().dynamicCast<MutableReferenceType>())
@@ -159,7 +157,7 @@ SType BinaryExpression::getType(Context& context) {
         codeLoc.error("Bad use of operator " + quote("."));
     }
     default: {
-      auto right = rightExpr.getType(context);
+      auto right = getType(context, e2);
       auto ret = handleOperatorOverloads(context, codeLoc, op, {e1.get(), e2.get()});
       subscriptOpWorkaround = ret.subscriptOpWorkaround;
       return ret.retVal;
@@ -180,9 +178,9 @@ WithErrorLine<CompileTimeValue> BinaryExpression::eval() const {
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
     : Expression(l), op(o), expr(std::move(e)) {}
 
-SType UnaryExpression::getType(Context& context) {
+SType UnaryExpression::getTypeImpl(Context& context) {
   nullable<SType> ret;
-  auto right = expr->getType(context);
+  auto right = getType(context, expr);
   ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName())};
   return handleOperatorOverloads(context, codeLoc, op, {expr.get()}).retVal;
 }
@@ -211,7 +209,7 @@ void IfStatement::check(Context& context) {
     };
     condition = negate(negate(unique<Variable>(declaration->codeLoc, declaration->identifier)));
   }
-  auto condType = condition->getType(ifContext);
+  auto condType = getType(ifContext, condition);
   codeLoc.check(ifContext.canConvert(condType, ArithmeticType::BOOL),
       "Expected a type convertible to bool or with overloaded operator " +
       quote("!") + " inside if statement, got " + quote(condType->getName()));
@@ -231,7 +229,7 @@ void VariableDeclaration::check(Context& context) {
     if (type)
       return context.getTypeFromString(*type).get(codeLoc);
     else if (initExpr)
-      return initExpr->getType(context)->getUnderlying();
+      return getType(context, initExpr)->getUnderlying();
     else
       codeLoc.error("Initializing expression needed to infer variable type");
   };
@@ -240,7 +238,7 @@ void VariableDeclaration::check(Context& context) {
       "Can't declare variable of type " + quote(ArithmeticType::VOID->getName()));
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (initExpr) {
-    auto exprType = initExpr->getType(context);
+    auto exprType = getType(context, initExpr);
     initExpr->codeLoc.check((!exprType.dynamicCast<ReferenceType>() && !exprType.dynamicCast<MutableReferenceType>()) ||
         context.canCopyConstruct(exprType->getUnderlying()),
         "Type " + quote(exprType->getUnderlying()->getName()) + " cannot be copied");
@@ -257,7 +255,7 @@ void ReturnStatement::check(Context& context) {
     codeLoc.check(context.getReturnType() && context.getReturnType() == ArithmeticType::VOID,
         "Expected an expression in return statement in a function returning non-void");
   else {
-    auto returnType = expr->getType(context);
+    auto returnType = getType(context, expr);
     codeLoc.check(context.canConvert(returnType, context.getReturnType().get()),
         "Can't return value of type " + quote(returnType->getName()) +
         " from a function returning " + context.getReturnType()->getName());
@@ -465,13 +463,13 @@ vector<string> correctness(const AST& ast, const vector<string>& importPaths) {
 ExpressionStatement::ExpressionStatement(unique_ptr<Expression> e) : Statement(e->codeLoc), expr(std::move(e)) {}
 
 void ExpressionStatement::check(Context& context) {
-  expr->getType(context);
+  getType(context, expr);
 }
 
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-SType FunctionCall::getType(Context& context) {
+SType FunctionCall::getTypeImpl(Context& context) {
   return getDotOperatorType(nullptr, context).get();
 }
 
@@ -504,7 +502,7 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
     vector<SType> argTypes;
     vector<CodeLoc> argLocs;
     for (int i = 0; i < arguments.size(); ++i) {
-      argTypes.push_back(arguments[i]->getType(callContext));
+      argTypes.push_back(getType(callContext, arguments[i]));
       argLocs.push_back(arguments[i]->codeLoc);
       INFO << "Function argument " << argTypes.back()->getName();
     }
@@ -512,7 +510,7 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
       getFunction(callContext, callContext, codeLoc, identifier, argTypes, argLocs)
           .unpack(functionType, error);
     else {
-      auto leftType = left->getType(callContext);
+      auto leftType = left->getTypeImpl(callContext);
       callType = MethodCallType::METHOD;
       auto tryMethodCall = [&](MethodCallType thisCallType) {
         auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType}, argTypes), concat({left->codeLoc}, argLocs));
@@ -543,7 +541,7 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
 
 FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {}
 
-SType FunctionCallNamedArgs::getType(Context& context) {
+SType FunctionCallNamedArgs::getTypeImpl(Context& context) {
   return getDotOperatorType(nullptr, context).get();
 }
 
@@ -561,7 +559,7 @@ nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, Cont
             break;
         }
     } else {
-      auto leftType = left->getType(callContext);
+      auto leftType = left->getTypeImpl(callContext);
       callType = MethodCallType::METHOD;
       matchArgs(callContext, callContext, true).unpack(matchings, error);
       if (matchings) {
@@ -637,7 +635,7 @@ WithErrorLine<vector<FunctionCallNamedArgs::ArgMatching>> FunctionCallNamedArgs:
     sort(arguments.begin(), arguments.end(),
         [&](const Argument& m1, const Argument& m2) { return paramIndex[m1.name] < paramIndex[m2.name]; });
     for (auto& arg : arguments) {
-      argTypes.push_back(arg.expr->getType(callContext));
+      argTypes.push_back(getType(callContext, arg.expr));
       argLocs.push_back(arg.codeLoc);
     }
     ret.push_back(ArgMatching{argTypes, argLocs, overload});
@@ -653,7 +651,7 @@ WithErrorLine<vector<FunctionCallNamedArgs::ArgMatching>> FunctionCallNamedArgs:
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
 void SwitchStatement::check(Context& context) {
-  expr->getType(context)->handleSwitchStatement(*this, context, expr->codeLoc, false);
+  getType(context, expr)->handleSwitchStatement(*this, context, expr->codeLoc, false);
 }
 
 bool SwitchStatement::hasReturnStatement(const Context& context) const {
@@ -759,7 +757,7 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
     CHECK(!context.addCopyConstructorFor(type.get(), type->templateParams));
 }
 
-static void checkConstructor(const StructType& type, const Context& context, const FunctionDefinition& method) {
+static void checkConstructor(const StructType& type, const Context& context, FunctionDefinition& method) {
   map<string, int> memberIndex;
   int index =  0;
   for (auto& member : type.members)
@@ -771,7 +769,7 @@ static void checkConstructor(const StructType& type, const Context& context, con
     for (auto& p : method.functionType->params)
       if (p.name)
         initContext.addVariable(*p.name, p.type);
-    auto exprType = initializer.expr->getType(initContext);
+    auto exprType = getType(initContext, initializer.expr);
     initializer.codeLoc.check(context.canConstructWith(memberType->getUnderlying(), {exprType}),
         "Can't assign to member " + quote(initializer.paramName) + " of type " + quote(memberType->getName()) +
         " from expression of type " + quote(exprType->getName()));
@@ -809,7 +807,7 @@ void StructDefinition::check(Context& context) {
 MoveExpression::MoveExpression(CodeLoc l, string id) : Expression(l), identifier(id) {
 }
 
-SType MoveExpression::getType(Context& context) {
+SType MoveExpression::getTypeImpl(Context& context) {
   if (!type) {
     if (auto ret = context.getTypeOfVariable(identifier)) {
       codeLoc.check(!!ret.get_value().dynamicCast<MutableReferenceType>(), "Can't move from " + quote(ret.get_value()->getName()));
@@ -842,9 +840,9 @@ ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<Statement> i, unique_pt
 void ForLoopStatement::check(Context& context) {
   auto bodyContext = Context::withParent(context);
   init->check(bodyContext);
-  cond->codeLoc.check(cond->getType(bodyContext) == ArithmeticType::BOOL,
+  cond->codeLoc.check(getType(bodyContext, cond) == ArithmeticType::BOOL,
       "Loop condition must be of type " + quote("bool"));
-  iter->getType(bodyContext);
+  getType(bodyContext, iter);
   bodyContext.setBreakAllowed();
   body->check(bodyContext);
 }
@@ -854,7 +852,7 @@ WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, uniq
 
 void WhileLoopStatement::check(Context& context) {
   auto bodyContext = Context::withParent(context);
-  cond->codeLoc.check(cond->getType(bodyContext) == ArithmeticType::BOOL,
+  cond->codeLoc.check(getType(bodyContext, cond) == ArithmeticType::BOOL,
       "Loop condition must be of type " + quote("bool"));
   bodyContext.setBreakAllowed();
   body->check(bodyContext);
@@ -936,7 +934,7 @@ void EnumDefinition::check(Context& s) {
 EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(l), enumName(name), enumElement(element) {
 }
 
-SType EnumConstant::getType(Context& context) {
+SType EnumConstant::getTypeImpl(Context& context) {
   return context.getTypeFromString(IdentifierInfo(enumName)).get(codeLoc);
 }
 
@@ -987,7 +985,7 @@ RangedLoopStatement::RangedLoopStatement(CodeLoc l, unique_ptr<VariableDeclarati
 
 void RangedLoopStatement::check(Context& context) {
   auto bodyContext = Context::withParent(context);
-  auto containerType = container->getType(context);
+  auto containerType = getType(context, container);
   if (containerType->getUnderlying() == containerType.get())
     containerType = ReferenceType::get(containerType);
   auto uniqueSufix = to_string(codeLoc.line) + "_" + to_string(codeLoc.column);
@@ -1006,9 +1004,9 @@ void RangedLoopStatement::check(Context& context) {
           unique<Variable>(codeLoc, containerEndName)));
   increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(codeLoc, init->identifier));
   init->check(bodyContext);
-  codeLoc.check(condition->getType(bodyContext) == ArithmeticType::BOOL, "Equality comparison between iterators"
+  codeLoc.check(getType(bodyContext, condition) == ArithmeticType::BOOL, "Equality comparison between iterators"
       " does not return type " + quote("bool"));
-  increment->getType(bodyContext);
+  getType(bodyContext, increment);
   bodyContext.setBreakAllowed();
   body->check(bodyContext);
 }
@@ -1024,13 +1022,21 @@ void ContinueStatement::check(Context& context) {
 ArrayLiteral::ArrayLiteral(CodeLoc codeLoc) : Expression(codeLoc) {
 }
 
-SType ArrayLiteral::getType(Context& context) {
-  auto ret = contents[0]->getType(context)->getUnderlying();
+SType ArrayLiteral::getTypeImpl(Context& context) {
+  auto ret = getType(context, contents[0])->getUnderlying();
   for (int i = 1; i < contents.size(); ++i) {
-    auto t = contents[i]->getType(context)->getUnderlying();
+    auto t = getType(context, contents[i])->getUnderlying();
     contents[i]->codeLoc.check(t == ret, "Incompatible types in array literal: " +
         quote(ret->getName()) + " and " + quote(t->getName()));
   }
   return ArrayType::get(ret, contents.size());
 }
 
+
+SType getType(Context& context, unique_ptr<Expression>& expr) {
+  if (auto value = expr->eval()) {
+    std::cout << "Rewriting as " + toString(*value) << std::endl;
+    expr = unique<Constant>(expr->codeLoc, getType(*value), toString(*value));
+  }
+  return expr->getTypeImpl(context);
+}

@@ -43,6 +43,4 @@ extern bool canOverload(Operator);
 extern bool canOverload(Operator, int numArgs);
 extern bool isUnary(Operator);
 extern bool isRightAssociative(Operator);
-struct Type;
-using SType = shared_ptr<Type>;
 extern WithError<CompileTimeValue> eval(Operator, vector<CompileTimeValue> args);
