@@ -393,6 +393,32 @@ optional<FunctionType> Context::getBuiltinOperator(Operator op, vector<SType> ar
             return ret;
           }
       break;
+    case Operator::GET_ADDRESS:
+      if (argTypes.size() == 1) {
+        if (auto referenceType = argTypes[0].dynamicCast<ReferenceType>())
+          return FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION,
+              PointerType::get(referenceType->underlying), {argTypes[0]}, {});
+        else if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
+          return FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION,
+              MutablePointerType::get(referenceType->underlying), {argTypes[0]}, {});
+      }
+      break;
+    case Operator::POINTER_DEREFERENCE:
+      if (argTypes.size() == 1) {
+        if (auto pointerType = argTypes[0]->getUnderlying().dynamicCast<PointerType>())
+          return FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION,
+              ReferenceType::get(pointerType->underlying), {argTypes[0]}, {});
+        else if (auto pointerType = argTypes[0]->getUnderlying().dynamicCast<MutablePointerType>())
+          return FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION,
+              MutableReferenceType::get(pointerType->underlying), {argTypes[0]}, {});
+      }
+      break;
+    case Operator::ASSIGNMENT:
+      if (argTypes.size() == 2 && canConvert(argTypes[1], argTypes[0]->getUnderlying()))
+        if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
+          return FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION,
+              ArithmeticType::VOID, {argTypes[0], referenceType->underlying}, {});
+      break;
     default:
       break;
   }

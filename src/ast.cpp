@@ -156,15 +156,6 @@ SType BinaryExpression::getType(Context& context) {
     }
     default: {
       auto right = rightExpr.getType(context);
-      for (auto fun : left->getContext().getOperatorType(op)) {
-        if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {right}, {codeLoc}, {})) {
-          subscriptOpWorkaround = false;
-          return inst->retVal;
-        } else
-          codeLoc.error("Can't apply operator: " + quote(getString(op)) + " to types: " +
-              quote(left->getName()) + " and " + quote(right->getName()) + "\n"
-              "Candidate: "s + fun.toString() + ": " + inst.get_error().error);
-      }
       auto ret = handleOperatorOverloads(context, codeLoc, op, {e1.get(), e2.get()});
       subscriptOpWorkaround = ret.subscriptOpWorkaround;
       return ret.retVal;
@@ -179,12 +170,6 @@ SType UnaryExpression::getType(Context& context) {
   nullable<SType> ret;
   auto right = expr->getType(context);
   ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName())};
-  for (auto fun : right->getContext().getOperatorType(op))
-    if (auto inst = instantiateFunction(context, fun, codeLoc, {}, {}, {})) {
-      CHECK(!ret);
-      return inst->retVal;
-    } else
-      codeLoc.error(error.error + "\nCandidate: "s + fun.toString() + ": " + inst.get_error().error);
   return handleOperatorOverloads(context, codeLoc, op, {expr.get()}).retVal;
 }
 
@@ -230,6 +215,8 @@ void VariableDeclaration::check(Context& context) {
       codeLoc.error("Initializing expression needed to infer variable type");
   };
   realType = inferType();
+  codeLoc.check(realType != ArithmeticType::VOID,
+      "Can't declare variable of type " + quote(ArithmeticType::VOID->getName()));
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (initExpr) {
     auto exprType = initExpr->getType(context);
@@ -539,12 +526,11 @@ SType FunctionCallNamedArgs::getType(Context& context) {
 }
 
 nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, Context& callContext) {
-  const auto& leftContext = left ? left->getType(callContext)->getContext() : callContext;
   optional<ErrorLoc> error = ErrorLoc{codeLoc, "Function not found: " + identifier.toString()};
   if (!functionType) {
     optional<vector<ArgMatching>> matchings;
     if (!left) {
-      matchArgs(leftContext, callContext, false).unpack(matchings, error);
+      matchArgs(callContext, callContext, false).unpack(matchings, error);
       if (matchings)
         for (auto& matching : *matchings) {
           callContext.instantiateFunctionTemplate(codeLoc, matching.function, identifier, matching.args, matching.codeLocs)
@@ -664,12 +650,12 @@ void VariantDefinition::addToContext(Context& context) {
   context.checkNameConflict(codeLoc, name, "Type");
   type = StructType::get(StructType::VARIANT, name);
   context.addType(name, type.get());
-  auto membersContext = Context::withParent({&context, &type->context});
+  auto membersContext = Context::withParent(context);
   for (auto& param : templateInfo.params)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-  type->requirements = applyConcept(membersContext, templateInfo, type->templateParams);
   for (auto& param : type->templateParams)
-    type->context.addType(param->getName(), param);
+    membersContext.addType(param->getName(), param);
+  type->requirements = applyConcept(membersContext, templateInfo, type->templateParams);
   unordered_set<string> subtypeNames;
   for (auto& subtype : elements) {
     subtype.codeLoc.check(!subtypeNames.count(subtype.name), "Duplicate variant alternative: " + quote(subtype.name));
@@ -685,7 +671,9 @@ void VariantDefinition::addToContext(Context& context) {
 }
 
 void VariantDefinition::check(Context& context) {
-  auto bodyContext = Context::withParent({&context, &type->context});
+  auto bodyContext = Context::withParent(context);
+  for (auto& param : type->templateParams)
+    bodyContext.addType(param->getName(), param);
   applyConcept(bodyContext, templateInfo, type->templateParams);
   for (auto& subtype : elements)
     type->alternatives.push_back({subtype.name, bodyContext.getTypeFromString(subtype.type).get(subtype.codeLoc)});
@@ -705,7 +693,7 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
   context.checkNameConflict(codeLoc, name, "Type");
   type = StructType::get(StructType::STRUCT, name);
   context.addType(name, type.get());
-  auto membersContext = Context::withParent({&context, &type->context});
+  auto membersContext = Context::withParent(context);
   for (auto& param : templateInfo.params)
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
   for (auto& param : type->templateParams)
@@ -763,7 +751,7 @@ static void checkConstructor(const StructType& type, const Context& context, con
         initContext.addVariable(*p.name, p.type);
     auto exprType = initializer.expr->getType(initContext);
     initializer.codeLoc.check(context.canConstructWith(memberType->getUnderlying(), {exprType}),
-        "Can't assign to member " + quote(initializer.paramName) + " of type " + quote(memberType.->getName()) +
+        "Can't assign to member " + quote(initializer.paramName) + " of type " + quote(memberType->getName()) +
         " from expression of type " + quote(exprType->getName()));
     int currentIndex = memberIndex.at(initializer.paramName);
     initializer.codeLoc.check(currentIndex > index, "Can't initialize member " + quote(initializer.paramName) + " out of order");
@@ -776,7 +764,7 @@ static void checkConstructor(const StructType& type, const Context& context, con
 }
 
 void StructDefinition::check(Context& context) {
-  auto methodBodyContext = Context::withParent({&context, &type->context});
+  auto methodBodyContext = Context::withParent(context);
   auto staticFunContext = Context::withParent({&context, &type->staticContext});
   for (auto& param : type->templateParams)
     methodBodyContext.addType(param->getName(), param);

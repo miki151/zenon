@@ -18,7 +18,8 @@ bool negate(bool b) {
 int main() {
   bool b = false;
   mutable y = 3;
-  mutable x = y = 4;
+  y = 4;
+  mutable x = y;
   if (negate(b))
     x = x - 1;
   return -sum(minus(x) - 1, y - 1);

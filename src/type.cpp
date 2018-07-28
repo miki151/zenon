@@ -118,14 +118,11 @@ shared_ptr<ReferenceType> ReferenceType::get(SType type) {
   if (!generated.count(type)) {
     auto ret = shared<ReferenceType>(type);
     generated.insert({type, ret});
-    CHECK(!ret->context.addFunction(
-        FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION, PointerType::get(type), {}, {})));
   }
   return generated.at(type);
 }
 
 ReferenceType::ReferenceType(SType t) : underlying(t->getUnderlying()) {
-  context.merge(underlying->getContext());
 }
 
 shared_ptr<MutableReferenceType> MutableReferenceType::get(SType type) {
@@ -133,16 +130,11 @@ shared_ptr<MutableReferenceType> MutableReferenceType::get(SType type) {
   if (!generated.count(type)) {
     auto ret = shared<MutableReferenceType>(type);
     generated.insert({type, ret});
-    CHECK(!ret->context.addFunction(
-        FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION, MutablePointerType::get(type), {}, {})));
-    CHECK(!ret->context.addFunction(
-        FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION, ret, {{type}}, {})));
   }
   return generated.at(type);
 }
 
 MutableReferenceType::MutableReferenceType(SType t) : underlying(t) {
-  context.merge(underlying->getContext());
 }
 
 shared_ptr<PointerType> PointerType::get(SType type) {
@@ -150,8 +142,6 @@ shared_ptr<PointerType> PointerType::get(SType type) {
   if (!generated.count(type)) {
     auto ret = shared<PointerType>(type);
     generated.insert({type, ret});
-    CHECK(!ret->context.addFunction(
-        FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION, ReferenceType::get(type), {}, {})));
   }
   return generated.at(type);
 }
@@ -164,8 +154,6 @@ shared_ptr<MutablePointerType> MutablePointerType::get(SType type) {
   if (!generated.count(type)) {
     auto ret = shared<MutablePointerType>(type);
     generated.insert({type, ret});
-    CHECK(!ret->context.addFunction(
-        FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION, MutableReferenceType::get(type), {}, {})));
   }
   return generated.at(type);
 }
@@ -419,10 +407,6 @@ WithError<SType> Type::instantiate(const Context& context, vector<SType> templat
     return get_this().get();
   else
     return "Type " + quote(getName()) + " is not a template";
-}
-
-Context& Type::getContext() {
-  return context;
 }
 
 Context& Type::getStaticContext() {

@@ -22,11 +22,9 @@ struct Type : public owned_object<Type> {
   virtual SType replace(SType from, SType to) const;
   virtual ~Type() {}
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const;
-  virtual Context& getContext();
   virtual Context& getStaticContext();
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
   virtual bool isBuiltinCopyable(const Context&) const;
-  Context context;
   Context staticContext;
 };
 

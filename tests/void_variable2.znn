@@ -1,0 +1,9 @@
+// no_compile
+
+void f() {
+}
+
+int main() {
+  const x = f();
+  return 0;
+}

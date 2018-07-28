@@ -1,0 +1,6 @@
+// no_compile
+
+int main() {
+  void x;
+  return 0;
+}
