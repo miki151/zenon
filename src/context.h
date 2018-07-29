@@ -4,6 +4,7 @@
 #include "variant.h"
 #include "identifier.h"
 #include "function_name.h"
+#include "compile_time_value.h"
 
 struct IdentifierInfo;
 struct Type;
@@ -53,6 +54,8 @@ class Context : public owned_object<Context> {
   bool canConvert(SType from, SType to) const;
   bool breakAllowed() const;
   void setBreakAllowed();
+  void setCompileTimeValue(const string&, CompileTimeValue);
+  WithError<CompileTimeValue> getCompileTimeValue(const string&) const;
 
   struct State : public owned_object<State> {
     map<string, SType> vars;
@@ -62,6 +65,7 @@ class Context : public owned_object<Context> {
     map<FunctionId, vector<FunctionType>> functions;
     nullable<SType> returnType;
     map<string, shared_ptr<Concept>> concepts;
+    map<string, CompileTimeValue> compileTimeValues;
     bool breakAllowed = false;
     void merge(const State&);
     void print() const;

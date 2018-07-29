@@ -155,6 +155,21 @@ void Context::addVariable(const string& ident, SType t) {
   state->varsList.push_back(ident);
 }
 
+void Context::setCompileTimeValue(const string& ident, CompileTimeValue value) {
+  state->compileTimeValues.insert({ident, std::move(value)});
+}
+
+WithError<CompileTimeValue> Context::getCompileTimeValue(const string& id) const {
+  for (auto& state : getReversedStates()) {
+    if (state->compileTimeValues.count(id))
+      return state->compileTimeValues.at(id);
+  }
+  if (!getTypeOfVariable(id))
+    return "Variable not found: " + id;
+  else
+    return "Value cannot be evaluated at compile-time: " + id;
+}
+
 void Context::State::print() const {
   for (auto& varName : varsList) {
     auto& var = vars.at(varName);
@@ -323,7 +338,7 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
             }
           },
           [&](const IdentifierInfo::ArraySize& size) {
-            if (auto value = size.expr->eval()) {
+            if (auto value = size.expr->eval(*this)) {
               if (auto intValue = value->getValueMaybe<int>())
                 *ret = ArrayType::get(*ret, *intValue);
               else

@@ -47,12 +47,16 @@ SType Constant::getTypeImpl(Context&) {
   return type;
 }
 
-WithErrorLine<CompileTimeValue> Constant::eval() const {
+WithErrorLine<CompileTimeValue> Constant::eval(const Context&) const {
   return type->parse(value).addCodeLoc(codeLoc);
 }
 
 SType Variable::getTypeImpl(Context& context) {
   return context.getTypeOfVariable(identifier).get(codeLoc);
+}
+
+WithErrorLine<CompileTimeValue> Variable::eval(const Context& context) const {
+  return context.getCompileTimeValue(identifier).addCodeLoc(codeLoc);
 }
 
 nullable<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
@@ -166,9 +170,9 @@ SType BinaryExpression::getTypeImpl(Context& context) {
   }
 }
 
-WithErrorLine<CompileTimeValue> BinaryExpression::eval() const {
-  if (auto value1 = e1->eval()) {
-    if (auto value2 = e2->eval())
+WithErrorLine<CompileTimeValue> BinaryExpression::eval(const Context& context) const {
+  if (auto value1 = e1->eval(context)) {
+    if (auto value2 = e2->eval(context))
       return ::eval(op, {*value1, *value2}).addCodeLoc(codeLoc);
     else
       return value2;
@@ -186,8 +190,8 @@ SType UnaryExpression::getTypeImpl(Context& context) {
   return handleOperatorOverloads(context, codeLoc, op, {expr.get()}).retVal;
 }
 
-WithErrorLine<CompileTimeValue> UnaryExpression::eval() const {
-  if (auto value = expr->eval())
+WithErrorLine<CompileTimeValue> UnaryExpression::eval(const Context& context) const {
+  if (auto value = expr->eval(context))
     return ::eval(op, {*value}).addCodeLoc(codeLoc);
   else
     return value;
@@ -240,6 +244,9 @@ void VariableDeclaration::check(Context& context) {
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (initExpr) {
     auto exprType = getType(context, initExpr);
+    if (!isMutable)
+      if (auto value = initExpr->eval(context))
+        context.setCompileTimeValue(identifier, *value);
     initExpr->codeLoc.check((!exprType.dynamicCast<ReferenceType>() && !exprType.dynamicCast<MutableReferenceType>()) ||
         context.canCopyConstruct(exprType->getUnderlying()),
         "Type " + quote(exprType->getUnderlying()->getName()) + " cannot be copied");
@@ -911,7 +918,7 @@ void ImportStatement::addToContext(Context& context, ImportCache& cache) {
   codeLoc.error("Couldn't resolve import path: " + path);
 }
 
-WithErrorLine<CompileTimeValue> Expression::eval() const {
+WithErrorLine<CompileTimeValue> Expression::eval(const Context&) const {
   return ErrorLoc{codeLoc, "Cannot evaluate expression at compile time"};
 }
 
@@ -1035,7 +1042,7 @@ SType ArrayLiteral::getTypeImpl(Context& context) {
 
 
 SType getType(Context& context, unique_ptr<Expression>& expr) {
-  if (auto value = expr->eval())
+  if (auto value = expr->eval(context))
     expr = unique<Constant>(expr->codeLoc, getType(*value), toString(*value));
   return expr->getTypeImpl(context);
 }

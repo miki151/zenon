@@ -5,7 +5,7 @@
 #include "util.h"
 #include "token.h"
 
-class Expression;
+struct Expression;
 
 struct IdentifierInfo {
   struct IdentifierPart {

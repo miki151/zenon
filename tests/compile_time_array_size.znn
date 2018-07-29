@@ -1,0 +1,8 @@
+// 2
+
+int main() {
+  const num = 4;
+  const num2 = num + 1;
+  const int[num2] a = {1, 2, 3, 4, 5};
+  return a[1];
+}

@@ -1,0 +1,12 @@
+// no_compile
+
+int f() {
+  return 4;
+}
+
+int main() {
+  const num = f();
+  const num2 = num + 1;
+  const int[num2] a = {1, 2, 3, 4, 5};
+  return 0;
+}
