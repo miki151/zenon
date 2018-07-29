@@ -656,10 +656,20 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
   };
   if (nextToken == Keyword::EXTERN) {
     tokens.popNext();
-    auto ret = parseStructDefinition(tokens, true);
-    checkNameConflict(ret->name, "struct");
-    ret->templateInfo = templateInfo;
-    return ret;
+    if (tokens.peek() == Keyword::STRUCT) {
+      auto ret = parseStructDefinition(tokens, true);
+      checkNameConflict(ret->name, "struct");
+      ret->templateInfo = templateInfo;
+      return ret;
+    } else {
+      auto ret = parseFunctionSignature(parseIdentifier(tokens, true), tokens);
+      tokens.eat(Keyword::SEMICOLON);
+      if (auto name = ret->name.getReferenceMaybe<string>())
+        checkNameConflict(*name, "function");
+      ret->templateInfo = templateInfo;
+      ret->external = true;
+      return ret;
+    }
   } else
   if (nextToken == Keyword::STRUCT) {
     auto ret = parseStructDefinition(tokens, false);
@@ -741,7 +751,14 @@ unique_ptr<Statement> parseStatement(Tokens& tokens, bool topLevel) {
             return parseContinueStatement(tokens);
           case Keyword::EXTERN:
             tokens.popNext();
-            return parseStructDefinition(tokens, true);
+            if (tokens.peek() == Keyword::STRUCT)
+              return parseStructDefinition(tokens, true);
+            else {
+              auto ret = parseFunctionSignature(parseIdentifier(tokens, true), tokens);
+              ret->external = true;
+              tokens.eat(Keyword::SEMICOLON);
+              return ret;
+            }
           case Keyword::STRUCT:
             return parseStructDefinition(tokens, false);
           case Keyword::VARIANT:

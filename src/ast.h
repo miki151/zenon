@@ -353,7 +353,7 @@ struct FunctionDefinition : Statement {
   unique_ptr<StatementBlock> body;
   TemplateInfo templateInfo;
   optional<FunctionType> functionType;
-  bool isMutableMethod = false;
+  bool external = false;
   struct Initializer {
     CodeLoc codeLoc;
     string paramName;

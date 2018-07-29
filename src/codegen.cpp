@@ -354,6 +354,8 @@ void FunctionDefinition::handlePointerReturnInOperator(Accu& accu) const {
 }
 
 void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
+  if (external)
+    return;
   addSignature(accu, "");
   if (body && stage.isDefine) {
     accu.newLine("");

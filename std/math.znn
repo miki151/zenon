@@ -1,6 +1,10 @@
 
 public import "std/concepts.znn";
 
+public embed {
+#include <cmath>
+}
+
 template <T> requires comparable<T>
 T min(mutable T a, mutable T b) {
   if (a < b)
@@ -28,3 +32,6 @@ double as_double(int a) {
     return (double) a;
   }
 }
+
+extern double sqrt(double value);
+
