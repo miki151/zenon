@@ -28,7 +28,7 @@ Variable::Variable(CodeLoc l, string id) : Expression(l), identifier(id) {
   INFO << "Parsed variable " << id;
 }
 
-FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {
+FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(std::move(id)) {
   INFO << "Function call " << id.toString();;
 }
 
@@ -40,7 +40,8 @@ VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, 
   INFO << "Declared variable " << quote(id) << " of type " << quote(type);
 }
 
-FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionName name) : Statement(l), returnType(r), name(name) {}
+FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionName name)
+  : Statement(l), returnType(std::move(r)), name(name) {}
 
 SType Constant::getTypeImpl(Context&) {
   return type;
@@ -227,7 +228,7 @@ void VariableDeclaration::check(Context& context) {
   context.checkNameConflict(codeLoc, identifier, "Variable");
   auto inferType = [&] () -> SType {
     if (type)
-      return context.getTypeFromString(*type).get(codeLoc);
+      return context.getTypeFromString(*type).get();
     else if (initExpr)
       return getType(context, initExpr)->getUnderlying();
     else
@@ -289,7 +290,7 @@ bool ReturnStatement::hasReturnStatement(const Context&) const {
 
 static vector<SConcept> applyConcept(Context& from, const TemplateInfo& templateInfo, const vector<SType>& templateTypes) {
   auto getTemplateParam = [&](CodeLoc codeLoc, const string& name) {
-    if (auto type = from.getTypeFromString(IdentifierInfo(name)))
+    if (auto type = from.getTypeFromString(IdentifierInfo(name, codeLoc)))
       return *type;
     for (int i = 0; i < templateInfo.params.size(); ++i)
       if (templateInfo.params[i].name == name)
@@ -352,7 +353,7 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
       returnType = convertPointerToReference(returnType);
     vector<FunctionType::Param> params;
     for (auto& p : parameters) {
-      auto type = contextWithTemplateParams.getTypeFromString(p.type).get(p.codeLoc);
+      auto type = contextWithTemplateParams.getTypeFromString(p.type).get();
       if (name.contains<Operator>())
         type = convertPointerToReference(type);
       params.push_back({p.name, std::move(type)});
@@ -364,7 +365,7 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
     functionType->fromConcept = concept;
     functionType->requirements = requirements;
   } else
-    codeLoc.error(returnType1.get_error());
+    returnType1.get_error().execute();
 }
 
 void FunctionDefinition::check(Context& context) {
@@ -375,12 +376,12 @@ void FunctionDefinition::check(Context& context) {
       bodyContext.addType(param->getName(), param);
     for (auto& p : parameters)
       if (p.name) {
-        auto rawType = bodyContext.getTypeFromString(p.type).get(p.codeLoc);
+        auto rawType = bodyContext.getTypeFromString(p.type).get();
         bodyContext.addVariable(*p.name, p.isMutable
             ? SType(MutableReferenceType::get(std::move(rawType)))
             : SType(ReferenceType::get(std::move(rawType))));
       }
-    auto retVal = bodyContext.getTypeFromString(returnType).get(codeLoc);
+    auto retVal = bodyContext.getTypeFromString(returnType).get();
     bodyContext.setReturnType(retVal);
     if (retVal != ArithmeticType::VOID && body && !body->hasReturnStatement(context) && !name.contains<ConstructorId>())
       codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
@@ -681,7 +682,7 @@ void VariantDefinition::addToContext(Context& context) {
     subtype.codeLoc.check(!subtypeNames.count(subtype.name), "Duplicate variant alternative: " + quote(subtype.name));
     subtypeNames.insert(subtype.name);
     vector<FunctionType::Param> params;
-    auto subtypeInfo = membersContext.getTypeFromString(subtype.type).get(subtype.codeLoc);
+    auto subtypeInfo = membersContext.getTypeFromString(subtype.type).get();
     if (subtypeInfo != ArithmeticType::VOID)
       params.push_back(FunctionType::Param{subtypeInfo});
     auto constructor = FunctionType(subtype.name, FunctionCallType::FUNCTION, type.get(), params, {});
@@ -696,7 +697,7 @@ void VariantDefinition::check(Context& context) {
     bodyContext.addType(param->getName(), param);
   applyConcept(bodyContext, templateInfo, type->templateParams);
   for (auto& subtype : elements)
-    type->alternatives.push_back({subtype.name, bodyContext.getTypeFromString(subtype.type).get(subtype.codeLoc)});
+    type->alternatives.push_back({subtype.name, bodyContext.getTypeFromString(subtype.type).get()});
   bodyContext.addVariable("this", PointerType::get(type.get()));
   type->updateInstantations();
   auto canCopyConstructAllAlternatives = [&] {
@@ -724,7 +725,7 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
     if (method->name.contains<ConstructorId>()) {
       // We have to fix the return type of the constructor otherwise it can't be looked up in the context
       method->returnType.parts[0].templateArguments =
-          transform(templateInfo.params, [](const auto& p) { return IdentifierInfo(p.name); });
+          transform(templateInfo.params, [](const auto& p) { return IdentifierInfo(p.name, p.codeLoc); });
       method->setFunctionType(membersContext);
       method->functionType->callType = FunctionCallType::CONSTRUCTOR;
       method->codeLoc.check(method->functionType->templateParams.empty(), "Constructor can't have template parameters.");
@@ -792,7 +793,7 @@ void StructDefinition::check(Context& context) {
   applyConcept(methodBodyContext, templateInfo, type->templateParams);
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
-    type->members.push_back({member.name, methodBodyContext.getTypeFromString(member.type).get(member.codeLoc)});
+    type->members.push_back({member.name, methodBodyContext.getTypeFromString(member.type).get()});
   }
   for (int i = 0; i < methods.size(); ++i) {
     if (methods[i]->functionType->name.contains<SType>()) {
@@ -935,7 +936,7 @@ EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(
 }
 
 SType EnumConstant::getTypeImpl(Context& context) {
-  return context.getTypeFromString(IdentifierInfo(enumName)).get(codeLoc);
+  return context.getTypeFromString(IdentifierInfo(enumName, codeLoc)).get();
 }
 
 ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
@@ -994,10 +995,10 @@ void RangedLoopStatement::check(Context& context) {
   bodyContext.addVariable(*containerName, containerType);
   containerEnd = unique<VariableDeclaration>(codeLoc, none, containerEndName,
       unique<BinaryExpression>(codeLoc, Operator::MEMBER_ACCESS,
-          unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("end"))));
+          unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("end", codeLoc))));
   containerEnd->check(bodyContext);
   init->initExpr = unique<BinaryExpression>(codeLoc, Operator::MEMBER_ACCESS,
-      unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("begin")));
+      unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("begin", codeLoc)));
   init->isMutable = true;
   condition = unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT,
       unique<BinaryExpression>(codeLoc, Operator::EQUALS, unique<Variable>(codeLoc, init->identifier),
@@ -1034,9 +1035,7 @@ SType ArrayLiteral::getTypeImpl(Context& context) {
 
 
 SType getType(Context& context, unique_ptr<Expression>& expr) {
-  if (auto value = expr->eval()) {
-    std::cout << "Rewriting as " + toString(*value) << std::endl;
+  if (auto value = expr->eval())
     expr = unique<Constant>(expr->codeLoc, getType(*value), toString(*value));
-  }
   return expr->getTypeImpl(context);
 }

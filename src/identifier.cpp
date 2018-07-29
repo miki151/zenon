@@ -1,84 +1,11 @@
 #include "identifier.h"
+#include "ast.h"
 
-IdentifierInfo::IdentifierInfo(string n) : parts(1, IdentifierPart{n, {}}) {
+IdentifierInfo::IdentifierInfo(string n, CodeLoc l) : parts(1, IdentifierPart{n, {}}), codeLoc(l) {
   CHECK(!n.empty());
 }
 
-IdentifierInfo::IdentifierInfo(IdentifierInfo::IdentifierPart part) : parts(1, part) {
-}
-
-/*IdentifierInfo::IdentifierInfo(vector<string> s, string n, vector<IdentifierInfo> t)
-    : namespaces(s), templateParams(t), name(n) {
-  CHECK(!name.empty());
-}*/
-
-IdentifierInfo IdentifierInfo::parseFrom(Tokens& tokens, bool allowPointer) {
-  IdentifierInfo ret;
-  while (1) {
-    ret.parts.emplace_back();
-    auto token = tokens.popNext();
-    token.codeLoc.check(token.contains<IdentifierToken>(), "Expected identifier");
-    ret.codeLoc = token.codeLoc;
-    ret.parts.back().name = token.value;
-    if (tokens.peek() == Operator::LESS_THAN) {
-      tokens.popNext();
-      bool firstParam = true;
-      while (1) {
-        auto templateParamToken = tokens.popNext();
-        if (firstParam) {
-          auto nextToken = tokens.peek();
-          if (!templateParamToken.contains<IdentifierToken>() ||
-              (nextToken != Keyword::COMMA && nextToken != Operator::LESS_THAN && nextToken != Operator::MORE_THAN &&
-                  nextToken != Operator::MULTIPLY && nextToken != Keyword::MUTABLE)) {
-            tokens.rewind();
-            tokens.rewind();
-            break;
-          }
-          firstParam = false;
-        }
-        if (templateParamToken == Operator::MORE_THAN)
-          break;
-        if (templateParamToken.contains<IdentifierToken>() || templateParamToken == Keyword::MUTABLE) {
-          tokens.rewind();
-          ret.parts.back().templateArguments.push_back(IdentifierInfo::parseFrom(tokens, true));
-          if (tokens.peek() != Operator::MORE_THAN)
-            tokens.eat(Keyword::COMMA);
-        } else
-          templateParamToken.codeLoc.error("Couldn't parse template parameters");
-      }
-    }
-    if (tokens.peek() == Keyword::NAMESPACE_ACCESS) {
-      tokens.popNext();
-      continue;
-    } else
-      break;
-  }
-  if (allowPointer) {
-    while (1) {
-      auto bookmark = tokens.getBookmark();
-      if (auto t = tokens.eatMaybe(Keyword::MUTABLE)) {
-        tokens.eat(Operator::MULTIPLY);
-        ret.pointerOrArray.push_back(MUTABLE);
-      }
-      else if (auto t = tokens.eatMaybe(Operator::MULTIPLY)) {
-        ret.pointerOrArray.push_back(CONST);
-      }
-      else if (auto t = tokens.eatMaybe(Keyword::OPEN_SQUARE_BRACKET)) {
-        if (auto size = tokens.eatMaybe(Number{})) {
-          int index = std::stoi(size->value);
-          if (tokens.eatMaybe(Keyword::CLOSE_SQUARE_BRACKET)) {
-            ret.pointerOrArray.push_back(index);
-            continue;
-          }
-        }
-        tokens.rewind(bookmark);
-        break;
-      } else
-        break;
-    }
-  }
-  INFO << "Identifier " << ret.toString();
-  return ret;
+IdentifierInfo::IdentifierInfo(IdentifierInfo::IdentifierPart part, CodeLoc l) : parts(1, part), codeLoc(l) {
 }
 
 IdentifierInfo IdentifierInfo::getWithoutFirstPart() const {
@@ -115,8 +42,8 @@ string IdentifierInfo::toString() const {
               break;
           }
         },
-        [&](int arraySize) {
-          ret.append("[" + to_string(arraySize) + "]");
+        [&](const ArraySize&) {
+          ret.append("[expr]");
         }
     );
   return ret;

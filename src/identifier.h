@@ -5,6 +5,8 @@
 #include "util.h"
 #include "token.h"
 
+class Expression;
+
 struct IdentifierInfo {
   struct IdentifierPart {
     string name;
@@ -13,10 +15,9 @@ struct IdentifierInfo {
     bool operator == (const IdentifierPart&) const;
     HASH_ALL(name, templateArguments)
   };
-  explicit IdentifierInfo(string name);
-  IdentifierInfo(IdentifierPart);
-  //IdentifierInfo(vector<string> namespaces, string name, vector<IdentifierInfo> templateParams = {});
-  static IdentifierInfo parseFrom(Tokens&, bool allowPointer);
+  explicit IdentifierInfo(string name, CodeLoc);
+  IdentifierInfo(IdentifierPart, CodeLoc);
+  IdentifierInfo();
   IdentifierInfo getWithoutFirstPart() const;
   optional<string> asBasicIdentifier() const;
   vector<IdentifierPart> parts;
@@ -24,11 +25,12 @@ struct IdentifierInfo {
     MUTABLE,
     CONST
   };
-  vector<variant<PointerType, int>> pointerOrArray;
+  struct ArraySize {
+    shared_ptr<Expression> expr;
+  };
+  vector<variant<PointerType, ArraySize>> pointerOrArray;
   CodeLoc codeLoc;
   string toString() const;
   bool operator == (const IdentifierInfo&) const;
   HASH_ALL(parts)
-  private:
-  IdentifierInfo();
 };

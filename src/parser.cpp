@@ -6,6 +6,72 @@
 
 unique_ptr<Expression> parseExpression(Tokens&, int minPrecedence = 0);
 
+template <typename T>
+static shared_ptr<T> getSharedPtr(unique_ptr<T> p) {
+  return shared_ptr<T>(p.release());
+}
+
+static IdentifierInfo parseIdentifier(Tokens& tokens, bool allowPointer) {
+  IdentifierInfo ret;
+  while (1) {
+    ret.parts.emplace_back();
+    auto token = tokens.popNext();
+    token.codeLoc.check(token.contains<IdentifierToken>(), "Expected identifier");
+    ret.codeLoc = token.codeLoc;
+    ret.parts.back().name = token.value;
+    if (tokens.peek() == Operator::LESS_THAN) {
+      tokens.popNext();
+      bool firstParam = true;
+      while (1) {
+        auto templateParamToken = tokens.popNext();
+        if (firstParam) {
+          auto nextToken = tokens.peek();
+          if (!templateParamToken.contains<IdentifierToken>() ||
+              (nextToken != Keyword::COMMA && nextToken != Operator::LESS_THAN && nextToken != Operator::MORE_THAN &&
+                  nextToken != Operator::MULTIPLY && nextToken != Keyword::MUTABLE)) {
+            tokens.rewind();
+            tokens.rewind();
+            break;
+          }
+          firstParam = false;
+        }
+        if (templateParamToken == Operator::MORE_THAN)
+          break;
+        if (templateParamToken.contains<IdentifierToken>() || templateParamToken == Keyword::MUTABLE) {
+          tokens.rewind();
+          ret.parts.back().templateArguments.push_back(parseIdentifier(tokens, true));
+          if (tokens.peek() != Operator::MORE_THAN)
+            tokens.eat(Keyword::COMMA);
+        } else
+          templateParamToken.codeLoc.error("Couldn't parse template parameters");
+      }
+    }
+    if (tokens.peek() == Keyword::NAMESPACE_ACCESS) {
+      tokens.popNext();
+      continue;
+    } else
+      break;
+  }
+  if (allowPointer) {
+    while (1) {
+      if (auto t = tokens.eatMaybe(Keyword::MUTABLE)) {
+        tokens.eat(Operator::MULTIPLY);
+        ret.pointerOrArray.push_back(IdentifierInfo::MUTABLE);
+      }
+      else if (auto t = tokens.eatMaybe(Operator::MULTIPLY)) {
+        ret.pointerOrArray.push_back(IdentifierInfo::CONST);
+      }
+      else if (auto t = tokens.eatMaybe(Keyword::OPEN_SQUARE_BRACKET)) {
+        ret.pointerOrArray.push_back(IdentifierInfo::ArraySize{getSharedPtr(parseExpression(tokens))});
+        tokens.eat(Keyword::CLOSE_SQUARE_BRACKET);
+      } else
+        break;
+    }
+  }
+  //INFO << "Identifier " << ret.toString();
+  return ret;
+}
+
 unique_ptr<FunctionCallNamedArgs> parseFunctionCallWithNamedArguments(IdentifierInfo id, Tokens& tokens) {
   auto ret = unique<FunctionCallNamedArgs>(tokens.peek().codeLoc, id);
   tokens.eat(Keyword::OPEN_BRACKET);
@@ -74,7 +140,7 @@ unique_ptr<Expression> parseStringLiteral(CodeLoc initialLoc, string literal) {
           loc = loc.plus(0, 2);
           auto tokens = lex(it->str().substr(1, it->str().size() - 2), loc, "end of expression");
           auto call = unique<BinaryExpression>(loc, Operator::MEMBER_ACCESS, parseExpression(tokens),
-              unique<FunctionCall>(loc, IdentifierInfo("to_string")));
+              unique<FunctionCall>(loc, IdentifierInfo("to_string", loc)));
           addElem(std::move(call), loc);
         } else {
           loc.error("Unmatched " + quote("{"));
@@ -127,7 +193,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
         }
       },
       [&](const IdentifierToken&) -> unique_ptr<Expression> {
-        auto identifier = IdentifierInfo::parseFrom(tokens, false);
+        auto identifier = parseIdentifier(tokens, false);
         auto token2 = tokens.peek();
         if (token2 == Keyword::OPEN_BRACKET) {
           auto ret = parseFunctionCall(identifier, tokens);
@@ -251,7 +317,7 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
     if (!ret->parameters.empty())
       tokens.eat(Keyword::COMMA);
     bool isParamMutable = !!tokens.eatMaybe(Keyword::MUTABLE);
-    auto typeId = IdentifierInfo::parseFrom(tokens, true);
+    auto typeId = parseIdentifier(tokens, true);
     optional<string> paramName;
     auto nameToken = tokens.peek();
     if (nameToken.contains<IdentifierToken>()) {
@@ -311,7 +377,7 @@ static TemplateInfo parseTemplateInfo(Tokens& tokens) {
   if (tokens.peek() == Keyword::REQUIRES) {
     tokens.popNext();
     while (1) {
-      ret.requirements.push_back(IdentifierInfo::parseFrom(tokens, false));
+      ret.requirements.push_back(parseIdentifier(tokens, false));
       if (!tokens.eatMaybe(Keyword::COMMA))
         break;
     }
@@ -336,7 +402,7 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
     TemplateInfo templateParams;
     if (memberToken == Keyword::TEMPLATE)
       templateParams = parseTemplateInfo(tokens);
-    auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
+    auto typeIdent = parseIdentifier(tokens, true);
     auto memberName = tokens.popNext();
     if (memberName == Keyword::OPEN_BRACKET) { // constructor
       tokens.rewind();
@@ -371,7 +437,7 @@ unique_ptr<ConceptDefinition> parseConceptDefinition(Tokens& tokens) {
       tokens.popNext();
       break;
     }
-    auto typeId = IdentifierInfo::parseFrom(tokens, true);
+    auto typeId = parseIdentifier(tokens, true);
     bool constructor = false;
     if (tokens.peek() == Keyword::OPEN_BRACKET) {
       tokens.rewind();
@@ -426,7 +492,7 @@ unique_ptr<VariantDefinition> parseVariantDefinition(Tokens& tokens) {
     TemplateInfo templateParams;
     if (memberToken == Keyword::TEMPLATE)
       templateParams = parseTemplateInfo(tokens);
-    auto typeIdent = IdentifierInfo::parseFrom(tokens, true);
+    auto typeIdent = parseIdentifier(tokens, true);
     auto token2 = tokens.popNext();
     token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected name of a variant alternative");
     ret->elements.push_back(VariantDefinition::Element{typeIdent, token2.value, token2.codeLoc});
@@ -494,7 +560,7 @@ unique_ptr<SwitchStatement> parseSwitchStatement(Tokens& tokens) {
     } else {
       tokens.eat(Keyword::CASE);
       tokens.eat(Keyword::OPEN_BRACKET);
-      auto identifier = IdentifierInfo::parseFrom(tokens, true);
+      auto identifier = parseIdentifier(tokens, true);
       SwitchStatement::CaseElem caseElem;
       caseElem.codeloc = token2.codeLoc;
       token2 = tokens.popNext();
@@ -526,7 +592,7 @@ unique_ptr<VariableDeclaration> parseVariableDeclaration(Tokens& tokens, bool ea
     isDeclaration = true;
   } else if (tokens.eatMaybe(Keyword::CONST))
     isDeclaration = true;
-  auto id1 = IdentifierInfo::parseFrom(tokens, true);
+  auto id1 = parseIdentifier(tokens, true);
   string variableName;
   if (tokens.peek() == Operator::ASSIGNMENT && isDeclaration) {
     if (auto name = id1.asBasicIdentifier())
@@ -613,7 +679,7 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
     ret->templateInfo = templateInfo;
     return ret;
   } else {
-    auto ret = parseFunctionDefinition(IdentifierInfo::parseFrom(tokens, true), tokens);
+    auto ret = parseFunctionDefinition(parseIdentifier(tokens, true), tokens);
     if (auto name = ret->name.getReferenceMaybe<string>())
       checkNameConflict(*name, "function");
     ret->templateInfo = templateInfo;
@@ -710,7 +776,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens, bool topLevel) {
             return parseExpressionAndSemicolon();
           case Keyword::MUTABLE:
             if (topLevel)
-              return parseFunctionDefinition(IdentifierInfo::parseFrom(tokens, true), tokens);
+              return parseFunctionDefinition(parseIdentifier(tokens, true), tokens);
             else
               return parseVariableDeclaration(tokens);
           case Keyword::CONST:
@@ -724,7 +790,7 @@ unique_ptr<Statement> parseStatement(Tokens& tokens, bool topLevel) {
       },
       [&](const IdentifierToken&) -> unique_ptr<Statement> {
         if (topLevel)
-          return parseFunctionDefinition(IdentifierInfo::parseFrom(tokens, true), tokens);
+          return parseFunctionDefinition(parseIdentifier(tokens, true), tokens);
         else {
           auto bookmark = tokens.getBookmark();
           if (auto decl = parseVariableDeclaration(tokens))

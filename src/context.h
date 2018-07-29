@@ -33,7 +33,7 @@ class Context : public owned_object<Context> {
   nullable<SType> getReturnType() const;
   void setReturnType(SType);
   void addType(const string& name, SType);
-  WithError<SType> getTypeFromString(IdentifierInfo) const;
+  WithErrorLine<SType> getTypeFromString(IdentifierInfo) const;
   [[nodiscard]] optional<string> addFunction(FunctionType);
   WithError<vector<FunctionType>> getFunctionTemplate(IdentifierInfo) const;
   WithErrorLine<FunctionType> instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<SType> argTypes, vector<CodeLoc> argLoc) const;

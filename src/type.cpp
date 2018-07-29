@@ -278,7 +278,7 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
     if (realType != ArithmeticType::VOID)
       caseElem.varType = caseElem.VALUE;
     if (caseElem.type) {
-      auto t = outsideContext.getTypeFromString(*caseElem.type).get(caseElem.type->codeLoc);
+      auto t = outsideContext.getTypeFromString(*caseElem.type).get();
       caseElem.type->codeLoc.check(t == realType || t == MutablePointerType::get(realType)
            || t == PointerType::get(realType),
           "Can't handle variant element "

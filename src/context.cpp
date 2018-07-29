@@ -247,14 +247,14 @@ void Context::setReturnType(SType t) {
 }
 
 void Context::addType(const string& name, SType t) {
-  CHECK(!getTypeFromString(IdentifierInfo(name)));
+  CHECK(!getType(name));
   state->types.insert({name, t});
 }
 
 vector<SType> Context::getTypeList(const vector<IdentifierInfo>& ids) const {
   vector<SType> params;
   for (auto& id : ids)
-    params.push_back(getTypeFromString(id).get(id.codeLoc));
+    params.push_back(getTypeFromString(id).get());
   return params;
 }
 
@@ -300,13 +300,15 @@ nullable<SType> Context::getVariable(const string& name) const {
   return nullptr;
 }
 
-WithError<SType> Context::getTypeFromString(IdentifierInfo id) const {
-  id.codeLoc.check(id.parts.size() == 1, "Bad type identifier: " + id.toString());
+WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
+  if (id.parts.size() != 1)
+    return id.codeLoc.getError("Bad type identifier: " + id.toString());
   auto name = id.parts.at(0).name;
   auto topType = getType(name);
   if (!topType)
-    return "Type not found: " + quote(name);
-  auto ret = topType->instantiate(*this, getTypeList(id.parts.at(0).templateArguments));
+    return id.codeLoc.getError("Type not found: " + quote(name));
+  WithErrorLine<SType> ret = topType->instantiate(*this, getTypeList(id.parts.at(0).templateArguments))
+      .addCodeLoc(id.codeLoc);
   if (ret)
     for (auto& elem : id.pointerOrArray)
       elem.visit(
@@ -320,8 +322,14 @@ WithError<SType> Context::getTypeFromString(IdentifierInfo id) const {
                 break;
             }
           },
-          [&](int arraySize) {
-            *ret = ArrayType::get(*ret, arraySize);
+          [&](const IdentifierInfo::ArraySize& size) {
+            if (auto value = size.expr->eval()) {
+              if (auto intValue = value->getValueMaybe<int>())
+                *ret = ArrayType::get(*ret, *intValue);
+              else
+                ret = size.expr->codeLoc.getError("Inappropriate type of array size: " + ::getType(*value)->getName());
+            } else
+              ret = value.get_error();
           }
       );
   return ret;
@@ -352,7 +360,7 @@ optional<string> Context::addFunction(FunctionType f) {
 WithError<vector<FunctionType>> Context::getFunctionTemplate(IdentifierInfo id) const {
   vector<FunctionType> ret;
   if (id.parts.size() > 1) {
-    if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0))))
+    if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0), id.codeLoc)))
       return (*type)->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
     else
       return "Type not found: " + id.toString();
