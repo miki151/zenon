@@ -31,7 +31,7 @@ struct Node {
   virtual ~Node() {}
 };
 
-extern SType getType(Context&, unique_ptr<Expression>&);
+extern SType getType(Context&, unique_ptr<Expression>&, bool evaluateAtCompileTime = true);
 
 struct Expression : Node {
   using Node::Node;

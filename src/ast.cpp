@@ -185,7 +185,7 @@ UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e
 
 SType UnaryExpression::getTypeImpl(Context& context) {
   nullable<SType> ret;
-  auto right = getType(context, expr);
+  auto right = getType(context, expr, op != Operator::GET_ADDRESS);
   ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName())};
   return handleOperatorOverloads(context, codeLoc, op, {expr.get()}).retVal;
 }
@@ -1041,8 +1041,9 @@ SType ArrayLiteral::getTypeImpl(Context& context) {
 }
 
 
-SType getType(Context& context, unique_ptr<Expression>& expr) {
-  if (auto value = expr->eval(context))
-    expr = unique<Constant>(expr->codeLoc, getType(*value), toString(*value));
+SType getType(Context& context, unique_ptr<Expression>& expr, bool evaluateAtCompileTime) {
+  if (evaluateAtCompileTime)
+    if (auto value = expr->eval(context))
+      expr = unique<Constant>(expr->codeLoc, getType(*value), toString(*value));
   return expr->getTypeImpl(context);
 }
