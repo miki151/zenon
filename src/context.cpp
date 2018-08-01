@@ -88,18 +88,18 @@ static bool isBuiltinCopyConstructor(const Context& context, const FunctionType&
   return false;
 }
 
-vector<FunctionType> Context::getMissingFunctions(const Context& required, vector<FunctionType> existing) const {
+optional<string> Context::getMissingFunctions(const Concept& required, vector<FunctionType> existing) const {
   //cout << "Looking for missing functions in:\n";
   //required.print();
   vector<FunctionType> ret;
-  for (auto otherState : required.getReversedStates()) {
+  for (auto otherState : required.getContext().getReversedStates()) {
     for (auto& overloads : otherState->functions)
       for (auto& function : overloads.second) {
         // what is this line for? no test breaks when it is removed...
         if (isBuiltinCopyConstructor(*this, function))
           continue;
-        //cout << "Looking for function: " << getFunctionNameForError(function) << "\n";
-        //print();
+    //    cout << "Looking for function: " << getFunctionNameForError(function) << "\n";
+      //  print();
         bool found = false;
         for (auto& myFun : getAllFunctions())
           if (isGeneralization(myFun, function, existing)) {
@@ -107,10 +107,11 @@ vector<FunctionType> Context::getMissingFunctions(const Context& required, vecto
             break;
           }
         if (!found)
-          ret.push_back(function);
+          return "Required function not implemented: " +
+              function.toString() + ", required by concept: " + quote(required.getName());
       }
   }
-  return ret;
+  return none;
 }
 
 Context::MovedVarsSnapshot Context::getMovedVarsSnapshot() const {

@@ -458,22 +458,25 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
         if (alternative.type != ArithmeticType::VOID) {
           accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
           ++accu.indent;
-          accu.newLine("std::forward<Visitor>(v)("s + variantUnionEntryPrefix + alternative.name + ");");
-          accu.newLine("break;");
+          accu.newLine("return std::forward<Visitor>(v)("s + variantUnionEntryPrefix + alternative.name + ");");
           --accu.indent;
-        } else
-          accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ": break;");
+        } else {
+          accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
+          ++accu.indent;
+          accu.newLine("return;");
+          --accu.indent;
+        }
       }
       --accu.indent;
       accu.newLine("}");
       --accu.indent;
     };
     accu.newLine("template <typename Visitor>");
-    accu.newLine("void visit(Visitor&& v) const {");
+    accu.newLine("auto visit(Visitor&& v) const {");
     visitBody();
     accu.newLine("}");
     accu.newLine("template <typename Visitor>");
-    accu.newLine("void visit(Visitor&& v) {");
+    accu.newLine("auto visit(Visitor&& v) {");
     visitBody();
     accu.newLine("}");
     accu.newLine(name + "(const " + name + "& o) { VariantHelper<" + name + ">::copy(o, *this);  }");

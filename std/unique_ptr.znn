@@ -1,0 +1,24 @@
+
+public embed {
+#include <memory>
+using std::unique_ptr;
+}
+
+
+template <T>
+extern struct unique_ptr {};
+
+template <T>
+unique_ptr<T> make_unique(T t) {
+  embed {
+    return std::make_unique<T>(std::move(t));
+  }
+}
+
+template <T>
+T mutable* operator * (unique_ptr<T>* ptr) {
+  embed {
+    return ptr->get();
+  }
+}
+

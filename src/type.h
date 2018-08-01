@@ -20,13 +20,15 @@ struct Type : public owned_object<Type> {
   virtual SType getUnderlying() const;
   virtual bool canAssign(SType from) const;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const;
-  virtual SType replace(SType from, SType to) const;
+  SType replace(SType from, SType to) const;
+  virtual SType replaceImpl(SType from, SType to) const;
   virtual ~Type() {}
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const;
   virtual Context& getStaticContext();
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const;
   virtual bool isBuiltinCopyable(const Context&) const;
   virtual WithError<CompileTimeValue> parse(const string&) const;
+  virtual SType removePointer() const;
   Context staticContext;
 };
 
@@ -52,8 +54,9 @@ struct ReferenceType : public Type {
   virtual SType getUnderlying() const override;
   virtual bool canAssign(SType from) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
-  virtual SType replace(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
+  virtual SType removePointer() const override;
 
   static shared_ptr<ReferenceType> get(SType);
   SType underlying;
@@ -65,8 +68,9 @@ struct MutableReferenceType : public Type {
   virtual SType getUnderlying() const override;
   virtual bool canAssign(SType from) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
-  virtual SType replace(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
+  virtual SType removePointer() const override;
 
   static shared_ptr<MutableReferenceType> get(SType);
   MutableReferenceType(SType);
@@ -76,12 +80,12 @@ struct MutableReferenceType : public Type {
 struct PointerType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
-  virtual SType replace(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
+  virtual SType removePointer() const override;
 
   static shared_ptr<PointerType> get(SType);
-
   SType underlying;
   PointerType(SType);
 };
@@ -89,9 +93,11 @@ struct PointerType : public Type {
 struct MutablePointerType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
-  virtual SType replace(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
+  virtual SType removePointer() const override;
+
   static shared_ptr<MutablePointerType> get(SType);
   MutablePointerType(SType);
   SType underlying;
@@ -108,7 +114,7 @@ struct TemplateParameterType : public Type {
 struct StructType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
-  virtual SType replace(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to) const override;
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
@@ -151,7 +157,7 @@ struct EnumType : public Type {
 struct ArrayType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
-  virtual SType replace(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   static shared_ptr<ArrayType> get(SType, int size);
   virtual bool isBuiltinCopyable(const Context&) const override;

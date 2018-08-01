@@ -19,6 +19,7 @@ const static vector<pair<string, Operator>> operators {
   {"/=", Operator::DIVIDE_BY},
   {"--", Operator::DECREMENT},
   {"-", Operator::MINUS},
+  {"%", Operator::MODULO},
   {"-", Operator::MINUS_UNARY},
   {"-=", Operator::DECREMENT_BY},
   {"=", Operator::ASSIGNMENT},

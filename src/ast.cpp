@@ -295,25 +295,17 @@ bool ReturnStatement::hasReturnStatement(const Context&) const {
   return true;
 }
 
-static vector<SConcept> applyConcept(Context& from, const TemplateInfo& templateInfo, const vector<SType>& templateTypes) {
-  auto getTemplateParam = [&](CodeLoc codeLoc, const string& name) {
-    if (auto type = from.getTypeFromString(IdentifierInfo(name, codeLoc)))
-      return *type;
-    for (int i = 0; i < templateInfo.params.size(); ++i)
-      if (templateInfo.params[i].name == name)
-        return templateTypes[i];
-    codeLoc.error("Uknown type: " + quote(name));
-  };
+static vector<SConcept> applyConcept(Context& from, const vector<IdentifierInfo>& requirements) {
   vector<SConcept> ret;
-  for (auto& requirement : templateInfo.requirements) {
+  for (auto& requirement : requirements) {
     if (auto concept = from.getConcept(requirement.parts[0].name)) {
       auto& requirementArgs = requirement.parts[0].templateArguments;
       requirement.codeLoc.check(requirementArgs.size() == concept->getParams().size(),
           "Wrong number of template arguments to concept " + quote(requirement.parts[0].toString()));
       vector<SType> translatedParams;
       for (int i = 0; i < requirementArgs.size(); ++i)
-        translatedParams.push_back(
-            getTemplateParam(requirementArgs[i].codeLoc, requirementArgs[i].parts[0].name));
+        translatedParams.push_back(from.getTypeFromString(
+            IdentifierInfo(requirementArgs[i].parts[0], requirementArgs[i].codeLoc)).get());
       auto translated = concept->translate(translatedParams);
       from.merge(translated->getContext());
       ret.push_back(translated);
@@ -353,7 +345,7 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
     contextWithTemplateParams.checkNameConflict(param.codeLoc, param.name, "template parameter");
     contextWithTemplateParams.addType(param.name, templateTypes.back());
   }
-  auto requirements = applyConcept(contextWithTemplateParams, templateInfo, templateTypes);
+  auto requirements = applyConcept(contextWithTemplateParams, templateInfo.requirements);
   if (auto returnType1 = contextWithTemplateParams.getTypeFromString(this->returnType)) {
     auto returnType = *returnType1;
     if (name.contains<Operator>())
@@ -378,9 +370,9 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
 void FunctionDefinition::check(Context& context) {
   if (body) {
     Context bodyContext = Context::withParent(context);
-    applyConcept(bodyContext, templateInfo, functionType->templateParams);
     for (auto& param : functionType->templateParams)
       bodyContext.addType(param->getName(), param);
+    applyConcept(bodyContext, templateInfo.requirements);
     for (auto& p : parameters)
       if (p.name) {
         auto rawType = bodyContext.getTypeFromString(p.type).get();
@@ -683,7 +675,7 @@ void VariantDefinition::addToContext(Context& context) {
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
-  type->requirements = applyConcept(membersContext, templateInfo, type->templateParams);
+  type->requirements = applyConcept(membersContext, templateInfo.requirements);
   unordered_set<string> subtypeNames;
   for (auto& subtype : elements) {
     subtype.codeLoc.check(!subtypeNames.count(subtype.name), "Duplicate variant alternative: " + quote(subtype.name));
@@ -702,10 +694,9 @@ void VariantDefinition::check(Context& context) {
   auto bodyContext = Context::withParent(context);
   for (auto& param : type->templateParams)
     bodyContext.addType(param->getName(), param);
-  applyConcept(bodyContext, templateInfo, type->templateParams);
+  applyConcept(bodyContext, templateInfo.requirements);
   for (auto& subtype : elements)
     type->alternatives.push_back({subtype.name, bodyContext.getTypeFromString(subtype.type).get()});
-  bodyContext.addVariable("this", PointerType::get(type.get()));
   type->updateInstantations();
   auto canCopyConstructAllAlternatives = [&] {
     for (auto& alternative : type->alternatives)
@@ -726,7 +717,7 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
     type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
-  type->requirements = applyConcept(membersContext, templateInfo, type->templateParams);
+  type->requirements = applyConcept(membersContext, templateInfo.requirements);
   bool hasConstructor = false;
   for (auto& method : methods) {
     if (method->name.contains<ConstructorId>()) {
@@ -797,7 +788,7 @@ void StructDefinition::check(Context& context) {
   for (auto& param : type->templateParams)
     methodBodyContext.addType(param->getName(), param);
   methodBodyContext.addVariable("this", PointerType::get(type.get()));
-  applyConcept(methodBodyContext, templateInfo, type->templateParams);
+  applyConcept(methodBodyContext, templateInfo.requirements);
   for (auto& member : members) {
     INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
     type->members.push_back({member.name, methodBodyContext.getTypeFromString(member.type).get()});

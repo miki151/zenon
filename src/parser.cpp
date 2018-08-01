@@ -335,10 +335,7 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
 
 unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Tokens& tokens) {
   auto ret = parseFunctionSignature(type, tokens);
-  if (tokens.peek() == Keyword::OPEN_BLOCK)
-    ret->body = parseBlock(tokens);
-  else
-    tokens.eat(Keyword::SEMICOLON);
+  ret->body = parseBlock(tokens);
   return ret;
 }
 
@@ -374,14 +371,12 @@ static TemplateInfo parseTemplateInfo(Tokens& tokens) {
       tokens.eat(Keyword::COMMA);
   }
   tokens.eat(Operator::MORE_THAN);
-  if (tokens.peek() == Keyword::REQUIRES) {
-    tokens.popNext();
+  if (tokens.eatMaybe(Keyword::REQUIRES))
     while (1) {
       ret.requirements.push_back(parseIdentifier(tokens, false));
       if (!tokens.eatMaybe(Keyword::COMMA))
         break;
     }
-  }
   return ret;
 }
 

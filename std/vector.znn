@@ -10,7 +10,7 @@ template <typename T>
 using vector_mut_iterator = typename vector<T>::iterator;
 }
 
-public import "std/math.znn";
+public import "std/concepts.znn";
 
 template <T>
 extern struct vector {

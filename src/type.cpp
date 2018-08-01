@@ -197,8 +197,16 @@ WithError<CompileTimeValue> Type::parse(const string&) const {
   return "Can't evaluate constant of type " + quote(getName()) + " at compile-time";
 }
 
+SType Type::removePointer() const {
+  return get_this().get();
+}
+
 bool PointerType::isBuiltinCopyable(const Context&) const {
   return true;
+}
+
+SType PointerType::removePointer() const {
+  return underlying;
 }
 
 bool EnumType::isBuiltinCopyable(const Context&) const {
@@ -244,8 +252,16 @@ void ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& c
   underlying->handleSwitchStatement(statement, context, codeLoc, false);
 }
 
+SType ReferenceType::removePointer() const {
+  return underlying->removePointer();
+}
+
 void MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc, bool isReference) const {
   underlying->handleSwitchStatement(statement, context, codeLoc, true);
+}
+
+SType MutableReferenceType::removePointer() const {
+  return underlying->removePointer();
 }
 
 void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext, CodeLoc codeLoc, bool isReference) const {
@@ -360,22 +376,26 @@ SType Type::replace(SType from, SType to) const {
   if (from == self)
     return to;
   else
-    return self;
+    return replaceImpl(from, to);
 }
 
-SType ReferenceType::replace(SType from, SType to) const {
+SType Type::replaceImpl(SType, SType) const {
+  return get_this().get();
+}
+
+SType ReferenceType::replaceImpl(SType from, SType to) const {
   return ReferenceType::get(underlying->replace(from, to));
 }
 
-SType MutableReferenceType::replace(SType from, SType to) const {
+SType MutableReferenceType::replaceImpl(SType from, SType to) const {
   return MutableReferenceType::get(underlying->replace(from, to));
 }
 
-SType PointerType::replace(SType from, SType to) const {
+SType PointerType::replaceImpl(SType from, SType to) const {
   return PointerType::get(underlying->replace(from, to));
 }
 
-SType MutablePointerType::replace(SType from, SType to) const {
+SType MutablePointerType::replaceImpl(SType from, SType to) const {
   return MutablePointerType::get(underlying->replace(from, to));
 }
 
@@ -385,7 +405,7 @@ static void checkNonVoidMember (const SType& type, const SType& to) {
         "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
 }
 
-SType StructType::replace(SType from, SType to) const {
+SType StructType::replaceImpl(SType from, SType to) const {
   vector<SType> newTemplateParams;
   for (auto& param : templateParams)
     newTemplateParams.push_back(param->replace(from, to));
@@ -451,12 +471,9 @@ WithError<SType> StructType::instantiate(const Context& context, vector<SType> t
   auto ret = get_this().get();
   for (int i = 0; i < templateParams.size(); ++i)
     ret = ret->replace(templateParams[i], templateArgs[i]);
-  for (auto& concept : ret.dynamicCast<StructType>()->requirements) {
-    auto missing = context.getMissingFunctions(concept->getContext(), {});
-    if (!missing.empty())
-      return "Required function not implemented: " +
-          missing[0].toString() + ", required by concept: " + quote(concept->getName());
-  }
+  for (auto& concept : ret.dynamicCast<StructType>()->requirements)
+    if (auto error = context.getMissingFunctions(*concept, {}))
+      return *error;
   return ret;
 }
 
@@ -517,6 +534,10 @@ optional<string> MutablePointerType::getMappingError(const Context& context, Typ
 
 bool MutablePointerType::isBuiltinCopyable(const Context&) const {
   return true;
+}
+
+SType MutablePointerType::removePointer() const {
+  return underlying;
 }
 
 optional<string> ReferenceType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
@@ -590,13 +611,9 @@ WithErrorLine<FunctionType> instantiateFunction(const Context& context, const Fu
       return type;
   existing.push_back(input);
   //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
-  for (auto& concept : type.requirements) {
-    auto missing = context.getMissingFunctions(concept->getContext(), existing);
-    if (!missing.empty()) {
-      return codeLoc.getError("Required function not implemented: " +
-          missing[0].toString() + ", required by concept: " + quote(concept->getName()));
-    }
-  }
+  for (auto& concept : type.requirements)
+    if (auto error = context.getMissingFunctions(*concept, existing))
+      return codeLoc.getError(*error);
   return type;
 }
 
@@ -629,11 +646,11 @@ SConcept Concept::replace(SType from, SType to) const {
   return ret;
 }
 
-const vector<SType>&Concept::getParams() const {
+const vector<SType>& Concept::getParams() const {
   return params;
 }
 
-const Context&Concept::getContext() const {
+const Context& Concept::getContext() const {
   return context;
 }
 
@@ -684,7 +701,7 @@ string ArrayType::getCodegenName() const {
   return "std::array<" + underlying->getCodegenName() + "," + to_string(size) + ">";
 }
 
-SType ArrayType::replace(SType from, SType to) const {
+SType ArrayType::replaceImpl(SType from, SType to) const {
   return get(underlying->replace(from, to), size);
 }
 

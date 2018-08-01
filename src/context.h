@@ -26,7 +26,7 @@ class Context : public owned_object<Context> {
   void operator = (const Context&) = delete;
   void operator = (Context&&) = delete;
   void deepCopyFrom(const Context&);
-  vector<FunctionType> getMissingFunctions(const Context&, vector<FunctionType> existing) const;
+  optional<string> getMissingFunctions(const Concept&, vector<FunctionType> existing) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   optional<string> setVariableAsMoved(const string&);
   void addVariable(const string& ident, SType);
