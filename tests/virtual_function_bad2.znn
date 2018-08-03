@@ -1,0 +1,11 @@
+// no_compile
+
+struct X {
+};
+
+void f(virtual X* x) {
+}
+
+int main() {
+  return 0;
+}

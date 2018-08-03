@@ -175,3 +175,8 @@ template <typename T>
 T copyOf(const T& t) {
   return t;
 }
+
+template <typename T>
+vector<T*> extractPtrs(const vector<unique_ptr<T>>& v) {
+  return transform(v, [](const auto& elem) { return elem.get(); });
+}

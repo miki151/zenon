@@ -1,0 +1,10 @@
+// no_compile
+
+void f(int a, int a) {
+}
+
+int main() {
+  f(1, 2);
+  return 0;
+}
+

@@ -1,4 +1,4 @@
-// no_compile
+// 2
 
 int f(int a) {
   return 2;

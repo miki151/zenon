@@ -317,6 +317,10 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
     if (!ret->parameters.empty())
       tokens.eat(Keyword::COMMA);
     bool isParamMutable = !!tokens.eatMaybe(Keyword::MUTABLE);
+    bool isParamVirtual = !!tokens.eatMaybe(Keyword::VIRTUAL);
+    isParamMutable |= !!tokens.eatMaybe(Keyword::MUTABLE);
+    tokens.check(!isParamMutable || !isParamVirtual, "Parameter can't be both mutable and virtual");
+    ret->isVirtual |= isParamVirtual;
     auto typeId = parseIdentifier(tokens, true);
     optional<string> paramName;
     auto nameToken = tokens.peek();
@@ -324,7 +328,7 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
       paramName = nameToken.value;
       tokens.popNext();
     }
-    ret->parameters.push_back({type.codeLoc, typeId, paramName, isParamMutable});
+    ret->parameters.push_back({type.codeLoc, typeId, paramName, isParamMutable, isParamVirtual});
   }
   if (ret->parameters.size() == 1)
     if (auto op = ret->name.getValueMaybe<Operator>())
@@ -335,12 +339,14 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
 
 unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Tokens& tokens) {
   auto ret = parseFunctionSignature(type, tokens);
-  ret->body = parseBlock(tokens);
+  if (!ret->isVirtual || !tokens.eatMaybe(Keyword::SEMICOLON))
+    ret->body = parseBlock(tokens);
   return ret;
 }
 
 unique_ptr<FunctionDefinition> parseConstructorDefinition(IdentifierInfo type, Tokens& tokens) {
   auto ret = parseFunctionSignature(type, tokens);
+  ret->codeLoc.check(!ret->isVirtual, "Constructor can't be virtual");
   if (tokens.eatMaybe(Keyword::COLON)) {
     while (1) {
       auto id = tokens.popNext();
@@ -555,8 +561,9 @@ unique_ptr<SwitchStatement> parseSwitchStatement(Tokens& tokens) {
     } else {
       tokens.eat(Keyword::CASE);
       tokens.eat(Keyword::OPEN_BRACKET);
-      auto identifier = parseIdentifier(tokens, true);
       SwitchStatement::CaseElem caseElem;
+      caseElem.isMutable = !!tokens.eatMaybe(Keyword::MUTABLE);
+      auto identifier = parseIdentifier(tokens, true);
       caseElem.codeloc = token2.codeLoc;
       token2 = tokens.popNext();
       if (token2 != Keyword::CLOSE_BRACKET) {

@@ -56,6 +56,7 @@ class Context : public owned_object<Context> {
   void setBreakAllowed();
   void setCompileTimeValue(const string&, CompileTimeValue);
   WithError<CompileTimeValue> getCompileTimeValue(const string&) const;
+  bool areParamsEquivalent(const FunctionType&, const FunctionType&) const;
 
   struct State : public owned_object<State> {
     map<string, SType> vars;
@@ -86,7 +87,6 @@ class Context : public owned_object<Context> {
   nullable<SType> getType(const string&) const;
   vector<FunctionType> getFunctions(FunctionId) const;
   nullable<SType> getVariable(const string&) const;
-  bool areParamsEquivalent(const FunctionType&, const FunctionType&) const;
   bool isGeneralization(const FunctionType& general, const FunctionType& specific, vector<FunctionType> existing) const;
   vector<FunctionType> getAllFunctions() const;
 };

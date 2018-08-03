@@ -72,19 +72,19 @@ void Expression::codegenDotOperator(Accu& accu, CodegenStage stage, Expression* 
 void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   if (op == Operator::MEMBER_ACCESS) {
-    e2->codegenDotOperator(accu, stage, e1.get());
+    expr[1]->codegenDotOperator(accu, stage, expr[0].get());
     return;
   }
   if (op == Operator::SUBSCRIPT && subscriptOpWorkaround) {
     accu.add("subscript_op(");
-    e1->codegen(accu, stage);
+    expr[0]->codegen(accu, stage);
     accu.add(", ");
-    e2->codegen(accu, stage);
+    expr[1]->codegen(accu, stage);
     accu.add(")");
     return;
   }
   accu.add("(");
-  e1->codegen(accu, stage);
+  expr[0]->codegen(accu, stage);
   accu.add(") ");
   if (op == Operator::SUBSCRIPT)
     accu.add("[");
@@ -92,7 +92,7 @@ void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
     accu.add(getString(op) + " "s);
   if (op != Operator::MEMBER_ACCESS)
     accu.add("(");
-  e2->codegen(accu, stage);
+  expr[1]->codegen(accu, stage);
   if (op != Operator::MEMBER_ACCESS)
     accu.add(")");
   if (op == Operator::SUBSCRIPT)

@@ -30,6 +30,7 @@ static const unordered_map<string, Keyword> keywords {
   {"mutable", Keyword::MUTABLE},
   {"break", Keyword::BREAK},
   {"continue", Keyword::CONTINUE},
+  {"virtual", Keyword::VIRTUAL},
   {"?", Keyword::MAYBE},
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},

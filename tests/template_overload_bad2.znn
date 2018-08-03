@@ -1,4 +1,4 @@
-// no_compile
+// 2
 
 template <T>
 int f(T t) {

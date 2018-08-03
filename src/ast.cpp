@@ -9,10 +9,14 @@
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
 
+BinaryExpression::BinaryExpression(CodeLoc loc, Operator o, vector<unique_ptr<Expression>> expr)
+    : Expression(loc), op(o), expr(std::move(expr)) {
+}
+
 BinaryExpression::BinaryExpression(CodeLoc loc, Operator o, unique_ptr<Expression> u1, unique_ptr<Expression> u2)
     : Expression(loc), op(o) {
-  e1 = std::move(u1);
-  e2 = std::move(u2);
+  expr.push_back(std::move(u1));
+  expr.push_back(std::move(u2));
 }
 
 IfStatement::IfStatement(CodeLoc loc, unique_ptr<VariableDeclaration> d, unique_ptr<Expression> c,
@@ -79,7 +83,7 @@ static bool isExactArg(SType arg, SType param) {
 }
 
 static bool exactArgs(const vector<SType>& argTypes, const FunctionType& f) {
-  if (f.params.size() != argTypes.size())
+  if (f.params.size() != argTypes.size() || !f.templateParams.empty())
     return false;
   for (int i = 0; i < f.params.size(); ++i)
     if (!isExactArg(argTypes[i], f.params[i].type))
@@ -115,19 +119,17 @@ static vector<FunctionType> filterOverloads(vector<FunctionType> overloads, cons
 }
 
 
-static FunctionType handleOperatorOverloads(Context& context, CodeLoc codeLoc, Operator op, vector<Expression*> args) {
+static WithErrorLine<FunctionType> handleOperatorOverloads(Context& context, CodeLoc codeLoc, Operator op,
+    vector<SType> types, vector<CodeLoc> argLocs) {
   vector<FunctionType> overloads;
-  vector<SType> types;
-  vector<CodeLoc> locs;
-  for (auto& arg : args) {
-    types.push_back(arg->getTypeImpl(context));
-    locs.push_back(arg->codeLoc);
-  }
   if (auto fun = context.getBuiltinOperator(op, types))
     overloads.push_back(*fun);
+  vector<string> errors;
   for (auto fun : context.getOperatorType(op))
-    if (auto inst = instantiateFunction(context, fun, codeLoc, {}, types, locs, {}))
+    if (auto inst = instantiateFunction(context, fun, codeLoc, {}, types, argLocs, {}))
       overloads.push_back(*inst);
+    else
+      errors.push_back("Candidate: " + fun.toString() + ": " + inst.get_error().error);
   overloads = filterOverloads(overloads, types);
   if (overloads.size() == 1) {
     //cout << "Chosen overload " << overloads[0].toString() << endl;
@@ -137,22 +139,24 @@ static FunctionType handleOperatorOverloads(Context& context, CodeLoc codeLoc, O
           joinTypeList(types);
       for (auto& f : overloads)
         error += "\nCandidate: " + f.toString();
-      codeLoc.error(error);
+      for (auto& f : errors)
+        error += "\n" + f;
+      return codeLoc.getError(error);
   }
 }
 
 SType BinaryExpression::getTypeImpl(Context& context) {
   if (op == Operator::POINTER_MEMBER_ACCESS) {
-    e1 = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(e1));
+    expr[0] = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(expr[0]));
     op = Operator::MEMBER_ACCESS;
   }
-  auto left = getType(context, e1);
+  auto left = getType(context, expr[0]);
   switch (op) {
     case Operator::POINTER_MEMBER_ACCESS:
       FATAL << "This was handled above";
       return left;
     case Operator::MEMBER_ACCESS: {
-      if (auto rightType = e2->getDotOperatorType(&*e1, context)) {
+      if (auto rightType = expr[1]->getDotOperatorType(&*expr[0], context)) {
         if (!left.dynamicCast<ReferenceType>() && !left.dynamicCast<MutableReferenceType>())
           rightType = rightType->getUnderlying();
         else if (left.dynamicCast<ReferenceType>() && rightType.get().dynamicCast<MutableReferenceType>())
@@ -162,17 +166,21 @@ SType BinaryExpression::getTypeImpl(Context& context) {
         codeLoc.error("Bad use of operator " + quote("."));
     }
     default: {
-      auto right = getType(context, e2);
-      auto ret = handleOperatorOverloads(context, codeLoc, op, {e1.get(), e2.get()});
-      subscriptOpWorkaround = ret.subscriptOpWorkaround;
-      return ret.retVal;
+      auto right = getType(context, expr[1]);
+      if (auto fun = handleOperatorOverloads(context, codeLoc, op,
+          transform(expr, [&](auto& e) { return e->getTypeImpl(context);}),
+          transform(expr, [&](auto& e) { return e->codeLoc;}))) {
+        subscriptOpWorkaround = fun->subscriptOpWorkaround;
+        return fun->retVal;
+      } else
+        fun.get_error().execute();
     }
   }
 }
 
 WithErrorLine<CompileTimeValue> BinaryExpression::eval(const Context& context) const {
-  if (auto value1 = e1->eval(context)) {
-    if (auto value2 = e2->eval(context))
+  if (auto value1 = expr[0]->eval(context)) {
+    if (auto value2 = expr[1]->eval(context))
       return ::eval(op, {*value1, *value2}).addCodeLoc(codeLoc);
     else
       return value2;
@@ -187,7 +195,10 @@ SType UnaryExpression::getTypeImpl(Context& context) {
   nullable<SType> ret;
   auto right = getType(context, expr, op != Operator::GET_ADDRESS);
   ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName())};
-  return handleOperatorOverloads(context, codeLoc, op, {expr.get()}).retVal;
+  if (auto fun = handleOperatorOverloads(context, codeLoc, op, {expr->getTypeImpl(context)}, {expr->codeLoc}))
+    return fun->retVal;
+  else
+    fun.get_error().execute();
 }
 
 WithErrorLine<CompileTimeValue> UnaryExpression::eval(const Context& context) const {
@@ -291,6 +302,9 @@ bool StatementBlock::hasReturnStatement(const Context& context) const {
   return false;
 }
 
+ReturnStatement::ReturnStatement(CodeLoc codeLoc, unique_ptr<Expression> expr)
+    : Statement(codeLoc), expr(std::move(expr)) {}
+
 bool ReturnStatement::hasReturnStatement(const Context&) const {
   return true;
 }
@@ -367,12 +381,151 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
     returnType1.get_error().execute();
 }
 
+static WithErrorLine<FunctionType> getFunction(const Context& idContext, const Context& callContext, CodeLoc codeLoc,
+    IdentifierInfo id, const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
+  ErrorLoc errors = codeLoc.getError("Couldn't find function " + id.toString() +
+      " matching arguments: (" + joinTypeList(argTypes) + ")");
+  vector<FunctionType> overloads;
+  if (auto templateType = idContext.getFunctionTemplate(id)) {
+    for (auto& overload : *templateType)
+      if (auto f = callContext.instantiateFunctionTemplate(codeLoc, overload, id, argTypes, argLoc)) {
+        overloads.push_back(*f);
+      } else
+        errors = codeLoc.getError(errors.error + "\nCandidate: "s + overload.toString() + ": " + f.get_error().error);
+  }
+  if (overloads.empty())
+    return errors;
+  overloads = filterOverloads(overloads, argTypes);
+  CHECK(!overloads.empty());
+  if (overloads.size() == 1)
+    return overloads[0];
+  else
+    return codeLoc.getError("Multiple function overloads found:\n" +
+        combine(transform(overloads, [](const auto& o) { return o.toString();}), "\n"));
+}
+
+WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
+    const string& funName, const string& alternativeName, const SType& alternativeType, int virtualIndex) {
+  auto functionCall = unique<FunctionCall>(codeLoc, IdentifierInfo(funName, codeLoc));
+  vector<SType> args;
+  for (int i = 0; i < parameters.size(); ++i)
+    if (i != virtualIndex) {
+      functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
+      args.push_back(functionType->params[i].type);
+    } else {
+      functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
+      args.push_back(alternativeType);
+    }
+  if (auto fun = getFunction(context, context, codeLoc, IdentifierInfo(funName, codeLoc), args,
+      vector<CodeLoc>(args.size(), codeLoc)))
+    return unique_ptr<Expression>(std::move(functionCall));
+  else
+    return fun.get_error();
+}
+
+WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCallExpr(Context& context,
+    Operator op, const string& alternativeName, const SType& alternativeType, int virtualIndex) {
+  vector<unique_ptr<Expression>> arguments;
+  vector<SType> argTypes;
+  for (int i = 0; i < parameters.size(); ++i)
+    if (i != virtualIndex) {
+      arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
+      argTypes.push_back(functionType->params[i].type);
+    } else {
+      arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
+      argTypes.push_back(alternativeType);
+      if (i == 0 && (alternativeType.dynamicCast<PointerType>() || alternativeType.dynamicCast<MutablePointerType>())) {
+        arguments.back() = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(arguments.back()));
+        argTypes.back() = argTypes.back()->removePointer();
+      }
+    }
+  if (auto fun = handleOperatorOverloads(context, codeLoc, op, argTypes, vector<CodeLoc>(argTypes.size(), codeLoc))) {
+    if (parameters.size() == 1)
+      return unique_ptr<Expression>(unique<UnaryExpression>(codeLoc, op, std::move(arguments[0])));
+    else {
+      CHECK(parameters.size() == 2);
+      return unique_ptr<Expression>(unique<BinaryExpression>(codeLoc, op, std::move(arguments)));
+    }
+  } else
+    return fun.get_error();
+}
+
+void FunctionDefinition::generateVirtualDispatchBody(Context& bodyContext) {
+  unique_ptr<StatementBlock> defaultBlock;
+  if (body)
+    defaultBlock = std::move(body);
+  for (int i = 0; i < parameters.size(); ++i)
+    parameters[i].isMutable = true;
+  int virtualIndex = [&]() {
+    for (int i = 0; i < parameters.size(); ++i) {
+      if (!parameters[i].name) {
+        parameters[i].name = "virtualParam"s + to_string(i);
+        functionType->params[i].name = parameters[i].name;
+      }
+      if (parameters[i].isVirtual) {
+        return i;
+      }
+    }
+    fail();
+  }();
+  auto& virtualParam = parameters[virtualIndex];
+  auto virtualType = bodyContext.getTypeFromString(virtualParam.type);
+  unique_ptr<Expression> switchExpr = unique<Variable>(codeLoc, *virtualParam.name);
+  body = unique<StatementBlock>(codeLoc);
+  auto variantType = virtualType->dynamicCast<StructType>();
+  bool isPointerParam = false;
+  if (!variantType) {
+    variantType = virtualType.get()->removePointer().dynamicCast<StructType>();
+    switchExpr = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(switchExpr));
+    isPointerParam = true;
+  }
+  codeLoc.check(!!variantType && !variantType->alternatives.empty(),
+      "Virtual parameter must be of a variant type or a pointer to one");
+  auto switchStatementPtr = unique<SwitchStatement>(codeLoc, std::move(switchExpr));
+  auto& switchStatement = *switchStatementPtr;
+  body->elems.push_back(std::move(switchStatementPtr));
+  for (auto& alternative : variantType->alternatives) {
+    auto alternativeType = alternative.type;
+    if (virtualType->dynamicCast<MutablePointerType>())
+      alternativeType = MutablePointerType::get(std::move(alternativeType));
+    else if (virtualType->dynamicCast<PointerType>())
+      alternativeType = PointerType::get(std::move(alternativeType));
+    WithErrorLine<unique_ptr<Expression>> call = [&] {
+      if (auto regularName = name.getReferenceMaybe<string>())
+        return getVirtualFunctionCallExpr(bodyContext, *regularName, alternative.name, alternativeType, virtualIndex);
+      else if (auto op = name.getValueMaybe<Operator>())
+        return getVirtualOperatorCallExpr(bodyContext, *op, alternative.name, alternativeType, virtualIndex);
+      else
+        fail();
+    }();
+    if (!call) {
+      if (defaultBlock)
+        switchStatement.defaultBlock = std::move(defaultBlock);
+      else if (!switchStatement.defaultBlock)
+        call.get_error().execute();
+      continue;
+    }
+    auto block = unique<StatementBlock>(codeLoc);
+    block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(*call)));
+    switchStatement.caseElems.push_back(
+        SwitchStatement::CaseElem {
+          codeLoc,
+          alternativeType,
+          alternative.name,
+          std::move(block),
+          !isPointerParam
+        });
+  }
+}
+
 void FunctionDefinition::check(Context& context) {
+  Context bodyContext = Context::withParent(context);
+  for (auto& param : functionType->templateParams)
+    bodyContext.addType(param->getName(), param);
+  applyConcept(bodyContext, templateInfo.requirements);
+  if (isVirtual)
+    generateVirtualDispatchBody(bodyContext);
   if (body) {
-    Context bodyContext = Context::withParent(context);
-    for (auto& param : functionType->templateParams)
-      bodyContext.addType(param->getName(), param);
-    applyConcept(bodyContext, templateInfo.requirements);
     for (auto& p : parameters)
       if (p.name) {
         auto rawType = bodyContext.getTypeFromString(p.type).get();
@@ -471,29 +624,6 @@ StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) 
 
 SType FunctionCall::getTypeImpl(Context& context) {
   return getDotOperatorType(nullptr, context).get();
-}
-
-static WithErrorLine<FunctionType> getFunction(const Context& idContext, const Context& callContext, CodeLoc codeLoc,
-    IdentifierInfo id, const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
-  ErrorLoc errors = codeLoc.getError("Couldn't find function " + id.toString() +
-      " matching arguments: (" + joinTypeList(argTypes) + ")");
-  vector<FunctionType> overloads;
-  if (auto templateType = idContext.getFunctionTemplate(id)) {
-    for (auto& overload : *templateType)
-      if (auto f = callContext.instantiateFunctionTemplate(codeLoc, overload, id, argTypes, argLoc)) {
-        overloads.push_back(*f);
-      } else
-        errors = codeLoc.getError(errors.error + "\nCandidate: "s + overload.toString() + ": " + f.get_error().error);
-  }
-  if (overloads.empty())
-    return errors;
-  overloads = filterOverloads(overloads, argTypes);
-  CHECK(!overloads.empty());
-  if (overloads.size() == 1)
-    return overloads[0];
-  else
-    return codeLoc.getError("Multiple function overloads found:\n" +
-        combine(transform(overloads, [](const auto& o) { return o.toString();}), "\n"));
 }
 
 nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& callContext) {
@@ -949,6 +1079,7 @@ void ConceptDefinition::addToContext(Context& context) {
     declarationsContext.addType(param.name, concept->modParams().back());
   }
   for (auto& function : functions) {
+    function->codeLoc.check(!function->isVirtual, "Virtual functions are not allowed here");
     function->setFunctionType(declarationsContext, true);
     function->check(declarationsContext);
     function->codeLoc.checkNoError(concept->modContext().addFunction(*function->functionType));
@@ -1037,4 +1168,12 @@ SType getType(Context& context, unique_ptr<Expression>& expr, bool evaluateAtCom
     if (auto value = expr->eval(context))
       expr = unique<Constant>(expr->codeLoc, getType(*value), toString(*value));
   return expr->getTypeImpl(context);
+}
+
+nullable<SType> SwitchStatement::CaseElem::getType(const Context& context) {
+  return type.visit(
+      [&](const IdentifierInfo& id) -> nullable<SType> { return context.getTypeFromString(id).get(); },
+      [](const SType& t) -> nullable<SType> { return t;},
+      [](none_t) -> nullable<SType> { return nullptr; }
+  );
 }

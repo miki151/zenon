@@ -56,7 +56,8 @@ enum class Keyword {
   MOVE,
   MUTABLE,
   BREAK,
-  CONTINUE
+  CONTINUE,
+  VIRTUAL
 };
 
 struct EmbedToken {

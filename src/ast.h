@@ -69,11 +69,12 @@ struct Variable : Expression {
 
 struct BinaryExpression : Expression {
   BinaryExpression(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>);
+  BinaryExpression(CodeLoc, Operator, vector<unique_ptr<Expression>>);
   virtual SType getTypeImpl(Context&) override;
   virtual WithErrorLine<CompileTimeValue> eval(const Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
-  unique_ptr<Expression> e1, e2;
+  vector<unique_ptr<Expression>> expr;
   bool subscriptOpWorkaround = true;
 };
 
@@ -188,6 +189,7 @@ struct StatementBlock : Statement {
 
 struct ReturnStatement : Statement {
   using Statement::Statement;
+  ReturnStatement(CodeLoc, unique_ptr<Expression>);
   unique_ptr<Expression> expr;
   virtual bool hasReturnStatement(const Context&) const override;
   virtual void check(Context&) override;
@@ -320,9 +322,11 @@ struct SwitchStatement : Statement {
   SwitchStatement(CodeLoc, unique_ptr<Expression>);
   struct CaseElem {
     CodeLoc codeloc;
-    optional<IdentifierInfo> type;
+    nullable<SType> getType(const Context&);
+    variant<none_t, IdentifierInfo, SType> type = none;
     string id;
     unique_ptr<StatementBlock> block;
+    bool isMutable = false;
     enum VarType { VALUE, POINTER, NONE } varType = NONE;
   };
   string subtypesPrefix;
@@ -348,6 +352,7 @@ struct FunctionDefinition : Statement {
     IdentifierInfo type;
     optional<string> name;
     bool isMutable;
+    bool isVirtual;
   };
   vector<Parameter> parameters;
   unique_ptr<StatementBlock> body;
@@ -359,6 +364,7 @@ struct FunctionDefinition : Statement {
     string paramName;
     unique_ptr<Expression> expr;
   };
+  bool isVirtual = false;
   vector<Initializer> initializers;
   virtual void check(Context&) override;
   virtual void addToContext(Context&, ImportCache&) override;
@@ -368,6 +374,11 @@ struct FunctionDefinition : Statement {
   void addSignature(Accu&, string structName) const;
   void handlePointerParamsInOperator(Accu&) const;
   void handlePointerReturnInOperator(Accu&) const;
+  void generateVirtualDispatchBody(Context& bodyContext);
+  WithErrorLine<unique_ptr<Expression>> getVirtualFunctionCallExpr(const Context&, const string& funName,
+      const string& alternativeName, const SType& alternativeType, int virtualIndex);
+  WithErrorLine<unique_ptr<Expression>> getVirtualOperatorCallExpr(Context&, Operator,
+      const string& alternativeName, const SType& alternativeType, int virtualIndex);
 };
 
 struct EmbedStatement : Statement {

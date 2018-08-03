@@ -1,0 +1,75 @@
+// 9
+
+import "std/print.znn";
+import "std/math.znn";
+import "std/vector.znn";
+
+template <T>
+struct Circle {
+  int radius;
+};
+
+template <T>
+int get(Circle<T>* c, int) {
+  return c->radius;
+}
+
+template <T>
+void set(Circle<T> mutable* c, int v) {
+  c->radius = v;
+}
+
+struct Rectangle {
+  int width;
+  int height;
+};
+
+int get(Rectangle* r, int index) {
+  return r->width;
+}
+
+void set(Rectangle mutable* r, int v) {
+  r->width = v;
+}
+
+struct Triangle {
+  int edge1;
+  int edge2;
+  int edge3;
+};
+
+template <T>
+concept ShapeInterface {
+  int get(T*, int);
+  void set(T mutable*, int);
+  T(T*);
+};
+
+template <T> requires ShapeInterface<T>
+variant Shape {
+  Triangle triangle;
+  Rectangle rectangle;
+  T circle;
+};
+
+template <T> requires ShapeInterface<T>
+int get(virtual Shape<T>* s, int index) {
+  return 1;
+}
+
+template <T> requires ShapeInterface<T>
+void set(virtual Shape<T> mutable*, int v) {
+}
+
+int main() {
+  mutable vector<Shape<Circle<bool>>> v;
+  v.push_back(Shape<Circle<bool>>::triangle(Triangle(1, 5, 5)));
+  v.push_back(Shape<Circle<bool>>::rectangle(Rectangle(2, 4)));
+  v.push_back(Shape<Circle<bool>>::circle(Circle<bool>(3)));
+  for (mutable i = 0; i < v.size(); ++i)
+    v[i].set(4);
+  mutable ret = 0;
+  for (mutable i = 0; i < v.size(); ++i)
+    ret += v[i].get(123);
+  return ret;
+}

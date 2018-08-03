@@ -85,7 +85,7 @@ void EnumType::handleSwitchStatement(SwitchStatement& statement, Context& contex
   unordered_set<string> handledElems;
   statement.subtypesPrefix = name + "::";
   for (auto& caseElem : statement.caseElems) {
-    caseElem.codeloc.check(!caseElem.type, "Expected enum element");
+    caseElem.codeloc.check(caseElem.type.contains<none_t>(), "Expected enum element");
     caseElem.codeloc.check(contains(elements, caseElem.id), "Element " + quote(caseElem.id) +
         " not present in enum" + quote(name));
     caseElem.codeloc.check(!handledElems.count(caseElem.id), "Enum element " + quote(caseElem.id)
@@ -283,6 +283,7 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
         return alternative.type;
     return nullptr;
   };
+  vector<Context::MovedVarsSnapshot> allMovedVars;
   for (auto& caseElem : statement.caseElems) {
     caseElem.codeloc.check(!!getAlternativeType(caseElem.id), "Element " + quote(caseElem.id) +
         " not present in variant " + quote(getName()));
@@ -293,29 +294,39 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
     auto realType = getAlternativeType(caseElem.id).get();
     if (realType != ArithmeticType::VOID)
       caseElem.varType = caseElem.VALUE;
-    if (caseElem.type) {
-      auto t = outsideContext.getTypeFromString(*caseElem.type).get();
-      caseElem.type->codeLoc.check(t == realType || t == MutablePointerType::get(realType)
-           || t == PointerType::get(realType),
+    if (auto caseType = caseElem.getType(outsideContext)) {
+      caseElem.codeloc.check(caseType == realType || caseType == MutablePointerType::get(realType)
+           || caseType == PointerType::get(realType),
           "Can't handle variant element "
-          + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(t->getName()));
-      if (t == MutablePointerType::get(realType)) {
+          + quote(caseElem.id) + " of type " + quote(realType->getName()) + " as type " + quote(caseType->getName()));
+      if (caseType == MutablePointerType::get(realType)) {
         caseElem.varType = caseElem.POINTER;
-        caseElem.type->codeLoc.check(isReference,
-            "Can't bind element to mutable pointer when switching on a non-reference variant");
-        caseElem.type->codeLoc.check(realType != ArithmeticType::VOID, "Can't bind void element to pointer");
-        caseBodyContext.addVariable(caseElem.id, MutablePointerType::get(realType));
+        caseElem.codeloc.check(isReference,
+            "Can't bind element to mutable pointer when switching on a non-mutable variant");
+        caseElem.codeloc.check(realType != ArithmeticType::VOID, "Can't bind void element to pointer");
+        caseBodyContext.addVariable(caseElem.id, MutableReferenceType::get(MutablePointerType::get(realType)));
       } else
-      if (t == PointerType::get(realType)) {
+      if (caseType == PointerType::get(realType)) {
         caseElem.varType = caseElem.POINTER;
-        caseElem.type->codeLoc.check(realType != ArithmeticType::VOID, "Can't bind void element to pointer");
-        caseBodyContext.addVariable(caseElem.id, PointerType::get(realType));
+        caseElem.codeloc.check(realType != ArithmeticType::VOID, "Can't bind void element to pointer");
+        caseBodyContext.addVariable(caseElem.id, MutableReferenceType::get(PointerType::get(realType)));
       }
     }
-    if (caseElem.varType == caseElem.VALUE)
-      caseBodyContext.addVariable(caseElem.id, ReferenceType::get(realType));
+    if (caseElem.varType == caseElem.VALUE) {
+      if (caseElem.isMutable) {
+        caseElem.codeloc.check(isReference,
+            "Can't bind element to mutable variable when switching on a non-mutable variant");
+        caseBodyContext.addVariable(caseElem.id, MutableReferenceType::get(realType));
+      } else
+        caseBodyContext.addVariable(caseElem.id, ReferenceType::get(realType));
+    }
+    auto movedBeforeTrueSegment = outsideContext.getMovedVarsSnapshot();
     caseElem.block->check(caseBodyContext);
+    allMovedVars.push_back(outsideContext.getMovedVarsSnapshot());
+    outsideContext.setMovedVars(std::move(movedBeforeTrueSegment));
   }
+  for (auto& elem : allMovedVars)
+    outsideContext.mergeMovedVars(elem);
   if (!statement.defaultBlock) {
     vector<string> unhandled;
     for (auto& alternative : alternatives)
@@ -513,7 +524,7 @@ static optional<string> getDeductionError(const Context& context, TypeMapping& m
 optional<string> StructType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
   auto argStruct = argType.dynamicCast<StructType>();
   if (!argStruct || parent.get() != argStruct->parent.get())
-    return "Can't bind non-struct type " + quote(argType->getName()) + " to struct type " + quote(getName());
+    return "Can't bind type " + quote(argType->getName()) + " to struct type " + quote(getName());
   for (int i = 0; i < templateParams.size(); ++i)
     if (auto error = ::getDeductionError(context, mapping, templateParams[i], argStruct->templateParams[i]))
       return error;
