@@ -20,7 +20,7 @@ void fun(S2<S, bool, int> s) {
 }
 
 int main() {
-  const s = S();
+  mutable s = S();
   S2<S, bool, int> s2 = S2<S, bool, int>();
-  return s2.add3(s, true);
+  return s2.add3(move(s), true);
 }

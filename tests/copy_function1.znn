@@ -1,0 +1,13 @@
+// 5
+
+struct X {
+  int a;
+};
+
+X copy(X*) = default;
+
+int main() {
+  const x = X(5);
+  const y = x.copy();
+  return y.a;
+}

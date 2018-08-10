@@ -339,6 +339,11 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
 
 unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Tokens& tokens) {
   auto ret = parseFunctionSignature(type, tokens);
+  if (tokens.eatMaybe(Operator::ASSIGNMENT)) {
+    tokens.eat(Keyword::DEFAULT);
+    ret->isDefault = true;
+    tokens.eat(Keyword::SEMICOLON);
+  } else
   if (!ret->isVirtual || !tokens.eatMaybe(Keyword::SEMICOLON))
     ret->body = parseBlock(tokens);
   return ret;

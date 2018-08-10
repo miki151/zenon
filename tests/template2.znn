@@ -1,35 +1,38 @@
 // 2
 
-template<T>
-concept can_copy {
-  T(T*);
-};
+import "std/concepts.znn";
 
-template <Param> requires can_copy<Param>
+template <Param>
 variant nullable {
   Param p;
   void null;
 };
 
-template <T> requires can_copy<T>
+template <Param> requires can_copy<Param>
+nullable<Param> copy(nullable<Param>* x) = default;
+
+template <T>
 nullable<T> null() {
   return nullable<T>::null();
 }
 
-template <T> requires can_copy<T>
-nullable<T> value(T t) {
-  return nullable<T>::p(t);
+template <T>
+nullable<T> value(mutable T t) {
+  return nullable<T>::p(move(t));
 }
 
-template <U, V> requires can_copy<U>, can_copy<V>
+template <U, V>
 variant V2 {
   nullable<U> e1;
   nullable<V> e2;
 };
 
 template <U, V> requires can_copy<U>, can_copy<V>
-bool equal(V2<U,V> v, U u) {
-  V2<U,V> vTmp = v;
+V2<U, V> copy(V2<U, V>*) = default;
+
+template <U, V> requires can_copy<U>, can_copy<V>
+bool equal(V2<U,V>* v, U u) {
+  V2<U,V> vTmp = v->copy();
   switch (vTmp) {
     case (e1) {
       switch (e1) {
@@ -47,18 +50,21 @@ bool equal(V2<U,V> v, U u) {
   }
 }
 
-template<T> requires can_copy<T>
+template<T>
 struct X {
   T elem;
 };
 
+template<T> requires can_copy<T>
+X<T> copy(X<T>*) = default;
+
 int main() {
   const z = X<int>(5);
-  const x = value(z);
+  const x = value(z.copy());
   const y = value(X<bool>(true));
-  const v2 = V2<X<int>,X<bool>>::e1(x);
+  const v2 = V2<X<int>,X<bool>>::e1(x.copy());
   mutable a = 1;
-  if (equal(v2, z))
+  if (equal(&v2, z.copy()))
     a = a + 1;
   return a;
 }

@@ -4,14 +4,16 @@ struct A {
   int x;
 };
 
-A mutable* operator ++ (A mutable* a) {
+A copy(A*) = default;
+
+A mutable* operator ++ (mutable A mutable* a) {
   ++a->x;
-  return a;
+  return move(a);
 }
 
 int main() {
   mutable a = A(1);
-  const b = ++a;
+  const b = (++a).copy();
   return b.x;
 }
 

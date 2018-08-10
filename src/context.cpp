@@ -192,7 +192,7 @@ void Context::print() const {
 
 vector<SType> Context::getConversions(SType type) const {
   vector<SType> ret = {type};
-  if (canCopyConstruct(type->getUnderlying()) && type != type->getUnderlying())
+  if (type->getUnderlying()->isBuiltinCopyable(*this) && type != type->getUnderlying())
     ret.push_back(type->getUnderlying());
   if (type->getUnderlying() == ArithmeticType::INT)
     ret.push_back(ArithmeticType::DOUBLE);
@@ -465,8 +465,6 @@ bool Context::canConstructWith(SType type, vector<SType> argsRef) const {
 //  cout << "Trying to construct " << type->getName() << " with " << combine(transform(argsRef, [](const auto& t) { return t->getName(); }), ", ") << "\n";
 //  print();
   auto args = transform(argsRef, [](const auto& arg) { return arg->getUnderlying();});
-  if (type->isBuiltinCopyable(*this) && argsRef.size() == 1 && argsRef[0] == PointerType::get(type))
-    return true;
   if (args.size() == 1 && args[0] == type)
     return true;
   vector<SType> templateParams;
@@ -478,14 +476,4 @@ bool Context::canConstructWith(SType type, vector<SType> argsRef) const {
     if (instantiateFunction(*this, f, CodeLoc(), templateParams, args, vector<CodeLoc>(args.size())))
       return true;
   return false;
-}
-
-bool Context::canCopyConstruct(SType t) const {
-  return canConstructWith(t, {PointerType::get(t)});
-}
-
-optional<std::string> Context::addCopyConstructorFor(SType type, const vector<SType>& templateParams) {
-  auto constructor = FunctionType(type, FunctionCallType::CONSTRUCTOR, type, {{PointerType::get(type)}}, templateParams);
-  constructor.parentType = type;
-  return addFunction(constructor);
 }

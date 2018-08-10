@@ -85,6 +85,9 @@ class Token : public variant<Number, RealNumber, IdentifierToken, Keyword, Opera
     CharToken, EofToken> {
   public:
   using variant::variant;
+  bool operator == (const Token& t) {
+    return variant::operator==(t);
+  }
   string value;
   CodeLoc codeLoc;
 };

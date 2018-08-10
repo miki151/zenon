@@ -3,6 +3,8 @@
 struct X {
 };
 
+X copy(X*) = default;
+
 int f(X*, int a) {
   return 1;
 }
@@ -13,6 +15,6 @@ int f(X x, int c) {
 
 int main() {
   X x;
-  x.f(3);
+  x.copy().f(3);
   return 0;
 }

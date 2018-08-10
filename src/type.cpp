@@ -193,6 +193,10 @@ bool Type::isBuiltinCopyable(const Context&) const {
   return false;
 }
 
+bool ArithmeticType::isBuiltinCopyable(const Context&) const {
+  return true;
+}
+
 WithError<CompileTimeValue> Type::parse(const string&) const {
   return "Can't evaluate constant of type " + quote(getName()) + " at compile-time";
 }
@@ -506,7 +510,7 @@ static string getCantBindError(const SType& from, const SType& to) {
 static optional<string> getDeductionError(const Context& context, TypeMapping& mapping, SType paramType, SType argType) {
   if ((!paramType.dynamicCast<ReferenceType>() && !paramType.dynamicCast<MutableReferenceType>()) &&
       (argType.dynamicCast<ReferenceType>() || argType.dynamicCast<MutableReferenceType>())) {
-    if (context.canCopyConstruct(argType->getUnderlying()))
+    if (argType->getUnderlying()->isBuiltinCopyable(context))
       argType = argType->getUnderlying();
     else
       return "Type " + quote(argType->getUnderlying()->getName()) + " cannot be copied.";
@@ -726,7 +730,7 @@ shared_ptr<ArrayType> ArrayType::get(SType type, int size) {
 }
 
 bool ArrayType::isBuiltinCopyable(const Context& context) const {
-  return context.canCopyConstruct(underlying);
+  return underlying->isBuiltinCopyable(context);
 }
 
 ArrayType::ArrayType(SType type, int size) : size(size), underlying(type) {

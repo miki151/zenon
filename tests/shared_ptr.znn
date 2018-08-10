@@ -5,11 +5,16 @@ embed {
 using std::shared_ptr;
 }
 
-
 template <T>
 extern struct shared_ptr {
-  shared_ptr(shared_ptr<T>*);
 };
+
+template <T>
+shared_ptr<T> copy(shared_ptr<T>* s) {
+  embed {
+    return *s;
+  }
+}
 
 template <T>
 T mutable* get(shared_ptr<T> mutable* ptr) {
@@ -34,6 +39,6 @@ shared_ptr<T> shared(T t) {
 
 int main() {
   const ptr = shared(3);
-  const ptr2 = ptr;
+  const ptr2 = ptr.copy();
   return *ptr2.get();
 }

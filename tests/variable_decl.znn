@@ -3,6 +3,8 @@
 struct A {
 };
 
+A copy(A*) = default;
+
 int funValue(A a) {
   return 1;
 }
@@ -18,7 +20,7 @@ int funPtr(A mutable* a) {
 int main() {
   mutable res = 0;
   const a = A(); // const A
-  res = res + funValue(a);
+  res = res + funValue(a.copy());
   const b = &a; // const reference to A
   res = res + funRef(b);
   mutable A* c1 = b; // mutable reference to A
@@ -32,7 +34,7 @@ int main() {
   A* c4 = b;
   A c5;
   mutable A c6;
-  res = res + funValue(c6);
+  res = res + funValue(c6.copy());
   const c7 = &c6; // const pointer to A
   res = res + funRef(c7);
   res = res + funPtr(c7);

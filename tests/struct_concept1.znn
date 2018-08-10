@@ -2,8 +2,7 @@
 
 template <T>
 concept CanAdd {
-  T(T*);
-  T operator + (T t1, T t2);
+  T operator + (T* t1, T* t2);
 };
 
 template <A>

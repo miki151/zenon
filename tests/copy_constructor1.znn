@@ -1,17 +1,16 @@
 // 3
 
-template <T>
-concept can_copy {
-  T(T*);
-};
+import "std/concepts.znn";
 
 struct S {
   int a;
 };
 
+S copy(S*) = default;
+
 template <T> requires can_copy<T>
 int f(T t) {
-  T u = t;
+  T u = t.copy();
   return 1;
 }
 
@@ -29,7 +28,7 @@ int f2(T t) {
 
 int main() {
   S s = S(1);
-  S s2 = s;
-  return f(s) + f2(s);
+  S s2 = s.copy();
+  return f(s.copy()) + f2(s.copy());
 }
 

@@ -3,7 +3,7 @@
 struct X {
 };
 
-int operator[](X x, int a) {
+int operator[](X* x, int a) {
   return 2 * a;
 }
 

@@ -32,7 +32,6 @@ struct Triangle {
 template <T>
 concept ShapeInterface {
   int get(T*, int);
-  T(T*);
 };
 
 template <T> requires ShapeInterface<T>

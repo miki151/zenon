@@ -10,7 +10,7 @@ int main() {
   mutable a = V<int>(1);
   mutable b = V<int>(2);
   mutable c = V<bool>(3);
-  b = a;
-  c = a;
+  b = move(a);
+  c = move(b);
   return 0;
 }

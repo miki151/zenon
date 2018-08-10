@@ -1,8 +1,5 @@
 
-template<T>
-concept can_copy {
-  T(T*);
-};
+public import "std/concepts.znn";
 
 struct X {
   int v;
@@ -10,7 +7,7 @@ struct X {
 
 template<T> requires can_copy<T>
 int get(X* x, T u) {
-  return (*x).v;
+  return x->v;
 }
 
 template <T>
@@ -20,7 +17,7 @@ struct Y {
 
 template<T, U> requires can_copy<T>
 T get(Y<T>* x, U u) {
-  return (*x).v;
+  return x->v.copy();
 }
 
 

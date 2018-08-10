@@ -3,7 +3,7 @@
 struct A {
 };
 
-char operator[](A a, string s) {
+char operator[](A* a, string s) {
   return s[0];
 }
 

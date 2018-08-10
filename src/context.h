@@ -42,8 +42,6 @@ class Context : public owned_object<Context> {
   optional<FunctionType> getBuiltinOperator(Operator, vector<SType> argTypes) const;
   FunctionId getFunctionId(const FunctionName& name) const;
   bool canConstructWith(SType, vector<SType> args) const;
-  bool canCopyConstruct(SType) const;
-  [[nodiscard]] optional<string> addCopyConstructorFor(SType, const vector<SType>& templateParams = {});
   void checkNameConflict(CodeLoc loc, const string& name, const string& type) const;
   void checkNameConflictExcludingFunctions(CodeLoc loc, const string& name, const string& type) const;
   vector<SType> getTypeList(const vector<IdentifierInfo>&) const;

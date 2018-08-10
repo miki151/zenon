@@ -32,7 +32,6 @@ struct Triangle {
 template <T>
 concept ShapeInterface {
   int get(T, int);
-  T(T*);
 };
 
 template <T> requires ShapeInterface<T>
@@ -46,12 +45,6 @@ template <T> requires ShapeInterface<T>
 int get(virtual Shape<T> s, int index);
 
 int main() {
-  mutable vector<Shape<Circle<bool>>> v;
-  v.push_back(Shape<Circle<bool>>::triangle(Triangle(1, 5, 5)));
-  v.push_back(Shape<Circle<bool>>::rectangle(Rectangle(2, 4)));
-  v.push_back(Shape<Circle<bool>>::circle(Circle<bool>(3)));
-  mutable ret = 0;
-  for (mutable i = 0; i < v.size(); ++i)
-    ret += v[i].get(123);
-  return ret;
+  mutable v = Shape<Circle<bool>>::rectangle(Rectangle(2, 4));
+  return move(v).get(1);
 }

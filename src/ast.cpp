@@ -36,6 +36,10 @@ FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identi
   INFO << "Function call " << id.toString();;
 }
 
+FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id, unique_ptr<Expression> arg) : FunctionCall(l, id) {
+  arguments.push_back(std::move(arg));
+}
+
 VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, string id, unique_ptr<Expression> ini)
     : Statement(l), type(t), identifier(id), initExpr(std::move(ini)) {
   string type = "auto";
@@ -259,7 +263,7 @@ void VariableDeclaration::check(Context& context) {
       if (auto value = initExpr->eval(context))
         context.setCompileTimeValue(identifier, *value);
     initExpr->codeLoc.check((!exprType.dynamicCast<ReferenceType>() && !exprType.dynamicCast<MutableReferenceType>()) ||
-        context.canCopyConstruct(exprType->getUnderlying()),
+        exprType->getUnderlying()->isBuiltinCopyable(context),
         "Type " + quote(exprType->getUnderlying()->getName()) + " cannot be copied");
     initExpr->codeLoc.check(context.canConvert(exprType, realType.get()), "Can't initialize variable of type "
         + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
@@ -518,6 +522,56 @@ void FunctionDefinition::generateVirtualDispatchBody(Context& bodyContext) {
   }
 }
 
+void FunctionDefinition::checkAndGenerateCopyFunction(const Context& context) {
+  if (!body && isDefault) {
+    codeLoc.check(parameters.size() == 1, "Expected exactly one parameter in copy function");
+    auto type = context.getTypeFromString(parameters[0].type).get();
+    codeLoc.check(type == PointerType::get(context.getTypeFromString(returnType).get()),
+        "Copy function parameter type must be the same as pointer to return type");
+    auto structType = type->removePointer().dynamicCast<StructType>();
+    codeLoc.check(!!structType, "Can only generate copy function for user-defined types");
+    body = unique<StatementBlock>(codeLoc);
+    if (!functionType->params[0].name)
+      parameters[0].name = functionType->params[0].name = "elem"s;
+    if (structType->alternatives.empty()) {
+      auto call = unique<FunctionCall>(codeLoc, returnType);
+      for (auto elem : structType->members) {
+        auto copiedParam = unique<Variable>(codeLoc, *parameters[0].name);
+        auto copyCall = unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc));
+        copyCall->arguments.push_back(unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
+            unique<BinaryExpression>(codeLoc, Operator::POINTER_MEMBER_ACCESS,
+            std::move(copiedParam), unique<Variable>(codeLoc, elem.name))));
+        call->arguments.push_back(std::move(copyCall));
+      }
+      body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
+    } else {
+      auto copiedParam = unique<Variable>(codeLoc, *parameters[0].name);
+      auto topSwitch = unique<SwitchStatement>(codeLoc,
+          unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(copiedParam)));
+      for (auto& alternative : structType->alternatives) {
+        auto block = unique<StatementBlock>(codeLoc);
+        auto constructorName = returnType;
+        constructorName.parts.push_back(IdentifierInfo::IdentifierPart { alternative.name, {} });
+        auto constructorCall = unique<FunctionCall>(codeLoc, constructorName);
+        if (alternative.type != ArithmeticType::VOID)
+          constructorCall->arguments.push_back(unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc),
+              unique<Variable>(codeLoc, alternative.name)));
+        block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(constructorCall)));
+        topSwitch->caseElems.push_back(
+            SwitchStatement::CaseElem {
+              codeLoc,
+              SType(alternative.type != ArithmeticType::VOID ? PointerType::get(alternative.type) : alternative.type),
+              alternative.name,
+              std::move(block),
+              false
+            }
+        );
+      }
+      body->elems.push_back(std::move(topSwitch));
+    }
+  }
+}
+
 void FunctionDefinition::check(Context& context) {
   Context bodyContext = Context::withParent(context);
   for (auto& param : functionType->templateParams)
@@ -525,6 +579,8 @@ void FunctionDefinition::check(Context& context) {
   applyConcept(bodyContext, templateInfo.requirements);
   if (isVirtual)
     generateVirtualDispatchBody(bodyContext);
+  if (name == "copy"s)
+    checkAndGenerateCopyFunction(bodyContext);
   if (body) {
     for (auto& p : parameters)
       if (p.name) {
@@ -594,7 +650,7 @@ static Context createNewContext() {
         CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{type}, {type}}, {})));
     for (auto& type : {ArithmeticType::BOOL, ArithmeticType::CHAR, ArithmeticType::INT, ArithmeticType::STRING,
         ArithmeticType::DOUBLE})
-      context->addCopyConstructorFor(type);
+      context->addFunction(FunctionType("copy"s, FunctionCallType::FUNCTION, type, {{PointerType::get(type)}}, {}));
   }
   return Context::withParent(*context);
 }
@@ -828,14 +884,6 @@ void VariantDefinition::check(Context& context) {
   for (auto& subtype : elements)
     type->alternatives.push_back({subtype.name, bodyContext.getTypeFromString(subtype.type).get()});
   type->updateInstantations();
-  auto canCopyConstructAllAlternatives = [&] {
-    for (auto& alternative : type->alternatives)
-      if (alternative.type != ArithmeticType::VOID && !bodyContext.canCopyConstruct(alternative.type))
-        return false;
-    return true;
-  };
-  if (canCopyConstructAllAlternatives() && !context.canCopyConstruct(type.get()))
-    CHECK(!context.addCopyConstructorFor(type.get(), type->templateParams));
 }
 
 void StructDefinition::addToContext(Context& context, ImportCache& cache) {
@@ -875,15 +923,6 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
     constructor.parentType = type.get();
     CHECK(!context.addFunction(constructor));
   }
-  auto canCopyConstructAllMembers = [&] {
-    for (auto& member : members)
-      if (auto memberType = membersContext.getTypeFromString(member.type))
-        if (!membersContext.canCopyConstruct(*memberType))
-          return false;
-    return true;
-  };
-  if (!external && canCopyConstructAllMembers() && !context.canCopyConstruct(type.get()))
-    CHECK(!context.addCopyConstructorFor(type.get(), type->templateParams));
 }
 
 static void checkConstructor(const StructType& type, const Context& context, FunctionDefinition& method) {

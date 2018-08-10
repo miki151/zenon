@@ -1,13 +1,14 @@
 // 105
 
+import "std/concepts.znn";
+
 template <A>
 concept Arithmetic {
-  A(A*);
-  A operator + (A a1, A a2);
-  A operator - (A a1, A a2);
-  A operator - (A a);
-  A operator + (A a);
-  A operator * (A a, int a);
+  A operator + (A*, A*);
+  A operator - (A*, A*);
+  A operator - (A*);
+  A operator + (A*);
+  A operator * (A*, int a);
 };
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
@@ -17,35 +18,35 @@ struct Vec {
 };
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
-Vec<T, U> operator + (Vec<T, U> v1, Vec<T, U> v2) {
-  return Vec(v1.x + v2.x, v1.y + v2.y);
+Vec<T, U> operator + (Vec<T, U>* v1, Vec<T, U>* v2) {
+  return Vec(v1->x + v2->x, v1->y + v2->y);
 }
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
-Vec<T, U> operator - (Vec<T, U> v1, Vec<T, U> v2) {
-  return Vec(v1.x - v2.x, v1.y - v2.y);
+Vec<T, U> operator - (Vec<T, U>* v1, Vec<T, U>* v2) {
+  return Vec(v1->x - v2->x, v1->y - v2->y);
 }
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
-Vec<T, U> operator * (Vec<T, U> v, int a) {
-  return Vec(v.x * a, v.y * a);
+Vec<T, U> operator * (Vec<T, U>* v, int a) {
+  return Vec(v->x * a, v->y * a);
 }
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
-Vec<T, U> operator + (Vec<T, U> v) {
-  return v;
+Vec<T, U> operator + (Vec<T, U>* v) {
+  return Vec(+v->x, +v->y);
 }
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
-Vec<T, U> operator - (Vec<T, U> v) {
-  return Vec(-v.x, -v.y);
+Vec<T, U> operator - (Vec<T, U>* v) {
+  return Vec(-v->x, -v->y);
 }
 
 template <T> requires Arithmetic<T>
 T getResult(T t1, T t2) {
   const t3 = t1 + t2;
-  const t4 = -t3 * -5;
-  return t4;
+  mutable t4 = -t3 * -5;
+  return move(t4);
 }
 
 int main() {

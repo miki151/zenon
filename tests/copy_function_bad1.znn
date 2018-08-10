@@ -1,0 +1,9 @@
+// no_compile
+
+
+int copy(int*) = default;
+
+
+int main() {
+  return 0;
+}

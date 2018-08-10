@@ -35,6 +35,7 @@ struct Type : public owned_object<Type> {
 struct ArithmeticType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual WithError<CompileTimeValue> parse(const string&) const override;
+  virtual bool isBuiltinCopyable(const Context&) const override;
   using DefType = shared_ptr<ArithmeticType>;
   static DefType INT;
   static DefType DOUBLE;

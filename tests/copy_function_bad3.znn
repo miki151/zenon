@@ -1,0 +1,11 @@
+// no_compile
+
+struct X {
+};
+
+X copy(X) = default;
+
+
+int main() {
+  return 0;
+}

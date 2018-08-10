@@ -15,8 +15,8 @@ T* get(X<T>* x) {
 }
 
 template<T> requires can_copy<T>
-void set(X<T> mutable* x, T t) {
-  (*x).v = t;
+void set(X<T> mutable* x, mutable T t) {
+  (*x).v = move(t);
 }
 
 

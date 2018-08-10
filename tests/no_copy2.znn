@@ -1,13 +1,10 @@
 // no_compile
 
-template<T>
-concept can_copy {
-  T(T*);
-};
+import "std/concepts.znn";
 
 template <T> requires can_copy<T>
 void f(T t) {
-  T t2 = t;
+  T t2 = t.copy();
 }
 
 template <T>

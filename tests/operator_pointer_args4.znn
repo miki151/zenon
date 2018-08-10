@@ -2,12 +2,14 @@
 
 template <T>
 concept can_add {
-  T operator + (T, T);
+  T operator + (T*, T*);
 };
 
 struct Vector {
   int v;
 };
+
+Vector copy(Vector*) = default;
 
 Vector operator + (Vector* a, Vector* b) {
   return Vector(a->v + b->v);
@@ -35,7 +37,7 @@ int* operator [](Vector* v, int *a) {
 int main() {
   const v1 = Vector(1);
   const v2 = Vector(2);
-  const v3 = add(v1, v2);
+  const v3 = add(v1.copy(), v2.copy());
   const i = 5;
   const v4 = get_elem<int>(&v1, &i);
   return add(1, 5) + v3.v + *v4;

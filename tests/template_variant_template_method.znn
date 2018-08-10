@@ -1,11 +1,8 @@
 // 4
 
-template<T>
-concept can_copy {
-  T(T*);
-};
+import "std/concepts.znn";
 
-template <T> requires can_copy<T>
+template <T>
 variant V {
   T value;
   void null;
@@ -14,8 +11,8 @@ variant V {
 template<U, T> requires can_copy<T>
 T getValueOr(V<T>* v, U u, mutable T a) {
   switch (*v) {
-    case (T value) {
-      return value;
+    case (T* value) {
+      return value->copy();
     }
     case (null) {
       return move(a);

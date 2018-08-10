@@ -4,7 +4,7 @@ struct A {
 };
 
 template <T>
-T operator [] (A a, mutable T b) {
+T operator [] (A* a, mutable T b) {
   return move(b);
 }
 

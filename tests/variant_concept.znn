@@ -2,7 +2,6 @@
 
 template <T, U, V>
 concept CanAdd {
-  U(U*);
   V add(T*, U);
 };
 
@@ -19,8 +18,8 @@ int add(S* s, bool a) {
 }
 
 template <A, B, C> requires CanAdd<A, B, C>
-C add2(A a, B b) {
-  return a.add(b);
+C add2(A a, mutable B b) {
+  return a.add(move(b));
 }
 
 template <A, B, C>
@@ -28,16 +27,16 @@ struct S2 {
 };
 
 template <A, B, C> requires CanAdd<A, B, C>
-C add3(S2<A, B, C>* s2, A a, B b) {
-  return a.add(b);
+C add3(S2<A, B, C>* s2, A a, mutable B b) {
+  return a.add(move(b));
 }
 
 void fun(S2<S, bool, int>) {
 }
 
 int main() {
-  const s = S::i(1);
+  mutable s = S::i(1);
   s.add(true);
   S2<S, bool, int> s2 = S2<S, bool, int>();
-  return add2<S, bool, int>(s, false);
+  return add2<S, bool, int>(move(s), false);
 }

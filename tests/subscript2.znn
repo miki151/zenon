@@ -4,8 +4,8 @@ struct A {
   string s;
 };
 
-char operator[](A a, int x) {
-  return a.s[x];
+char operator[](A* a, int x) {
+  return a->s[x];
 }
 
 int main() {

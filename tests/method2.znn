@@ -1,18 +1,18 @@
 // 5
 
-template <T>
-concept can_copy {
-  T(T*);
-};
+import "std/concepts.znn";
 
 template <T>
 struct X {
   T v;
 };
 
+template <T> requires can_copy<T>
+X<T> copy(X<T>*) = default;
+
 template<T> requires can_copy<T>
 void set(X<T> mutable* x, T t) {
-  x->v = t;
+  x->v = t.copy();
 }
 
 template <T>

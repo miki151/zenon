@@ -2,21 +2,23 @@
 
 struct X {
   int value;
-  X(int a) : value(a) {}
-  X(X* x) : value(13 + x->value) {}
 };
 
-X operator + (X x, int a) {
-  return X(x.value + a);
+X copy(X* x) {
+  return X(x->value + 13);
 }
 
-X operator + (X x, X a) {
-  return X(x.value + a.value + 1);
+X operator + (X* x, int a) {
+  return X(x->value + a);
+}
+
+X operator + (X* x, X* a) {
+  return X(x->value + a->value + 1);
 }
 
 int main() {
   const x1 = X(5);
-  mutable x2 = X(&x1);
+  mutable x2 = x1.copy();
   x2 = x1 + x2;
   x2 = x2 + 17;
   return x2.value;

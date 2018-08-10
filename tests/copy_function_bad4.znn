@@ -1,0 +1,15 @@
+// no_compile
+
+struct X {
+};
+
+struct Y {
+  X x;
+};
+
+Y copy(Y*) = default;
+
+
+int main() {
+  return 0;
+}

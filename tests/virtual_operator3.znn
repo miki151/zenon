@@ -10,6 +10,9 @@ struct Circle {
 };
 
 template <T>
+Circle<T> copy(Circle<T>*) = default;
+
+template <T>
 int operator [](Circle<T> c, int index) {
   return c.radius;
 }
@@ -18,6 +21,8 @@ struct Rectangle {
   int width;
   int height;
 };
+
+Rectangle copy(Rectangle*) = default;
 
 int operator [](Rectangle r, int index) {
   return r.width;
@@ -29,10 +34,11 @@ struct Triangle {
   int edge3;
 };
 
+Triangle copy(Triangle*) = default;
+
 template <T>
 concept ShapeInterface {
   int operator[](T, int);
-  T(T*);
 };
 
 template <T> requires ShapeInterface<T>
@@ -41,6 +47,9 @@ variant Shape {
   Rectangle rectangle;
   T circle;
 };
+
+template <T> requires can_copy<T>, ShapeInterface<T>
+Shape<T> copy(Shape<T>*) = default;
 
 template <T> requires ShapeInterface<T>
 int operator [](virtual Shape<T> s, int index) {
@@ -54,6 +63,6 @@ int main() {
   v.push_back(Shape<Circle<bool>>::circle(Circle<bool>(3)));
   mutable ret = 0;
   for (mutable i = 0; i < v.size(); ++i)
-    ret += v[i][123];
+    ret += v[i].copy()[123];
   return ret;
 }

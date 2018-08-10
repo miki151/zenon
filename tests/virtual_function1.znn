@@ -3,11 +3,15 @@
 import "std/print.znn";
 import "std/math.znn";
 import "std/vector.znn";
+import "std/concepts.znn";
 
 template <T>
 struct Circle {
   int radius;
 };
+
+template <T>
+Circle<T> copy(Circle<T>*) = default;
 
 template <T>
 int get(Circle<T> c, int) {
@@ -19,6 +23,8 @@ struct Rectangle {
   int height;
 };
 
+Rectangle copy(Rectangle*) = default;
+
 int get(Rectangle r, int index) {
   return r.width;
 }
@@ -29,10 +35,11 @@ struct Triangle {
   int edge3;
 };
 
+Triangle copy(Triangle*) = default;
+
 template <T>
 concept ShapeInterface {
   int get(T, int);
-  T(T*);
 };
 
 template <T> requires ShapeInterface<T>
@@ -41,6 +48,9 @@ variant Shape {
   Rectangle rectangle;
   T circle;
 };
+
+template <T> requires can_copy<T>, ShapeInterface<T>
+Shape<T> copy(Shape<T>*) = default;
 
 template <T> requires ShapeInterface<T>
 int get(virtual Shape<T> s, int index) {
@@ -54,6 +64,6 @@ int main() {
   v.push_back(Shape<Circle<bool>>::circle(Circle<bool>(3)));
   mutable ret = 0;
   for (mutable i = 0; i < v.size(); ++i)
-    ret += v[i].get(123);
+    ret += v[i].copy().get(123);
   return ret;
 }

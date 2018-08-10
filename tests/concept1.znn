@@ -1,17 +1,16 @@
 // 3
 
+import "std/concepts.znn";
+
 template <T, U, V>
 concept CanAdd {
   V add(T* t, U u);
 };
 
-template <T>
-concept CanCopy {
-  T(T*);
-};
-
 struct S {
 };
+
+S copy(S*) = default;
 
 int add(S* s, bool a) {
   if (a)
@@ -20,18 +19,21 @@ int add(S* s, bool a) {
     return 2;
 }
 
-template <A, B, C> requires CanAdd<A, B, C>, CanCopy<B>
-C add2(A a, B b) {
-  return a.add(b);
+template <A, B, C> requires CanAdd<A, B, C>, can_copy<B>
+C add2(A a, mutable B b) {
+  return a.add(move(b));
 }
 
 template <A1, B1, C1> requires CanAdd<A1, B1, C1>
 struct S2 {
 };
 
-template <A, B, C> requires CanAdd<A, B, C>, CanCopy<B>
-C add3(S2<A, B, C> s, A a, B b) {
-  return a.add(b);
+template <A1, B1, C1> requires CanAdd<A1, B1, C1>
+S2<A1, B1, C1> copy(S2<A1, B1, C1>*) = default;
+
+template <A, B, C> requires CanAdd<A, B, C>, can_copy<B>
+C add3(S2<A, B, C> s, A a, mutable B b) {
+  return a.add(move(b));
 }
 
 void fun(S2<S, bool, int> s) {
@@ -40,5 +42,5 @@ void fun(S2<S, bool, int> s) {
 int main() {
   const s = S();
   S2<S, bool, int> s2 = S2<S, bool, int>();
-  return add2<S, bool, int>(s, false) + s2.add3(s, true);
+  return add2<S, bool, int>(s.copy(), false) + s2.copy().add3(s.copy(), true);
 }

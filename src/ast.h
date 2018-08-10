@@ -106,6 +106,7 @@ enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_
 
 struct FunctionCall : Expression {
   FunctionCall(CodeLoc, IdentifierInfo);
+  FunctionCall(CodeLoc, IdentifierInfo, unique_ptr<Expression> arg);
   virtual SType getTypeImpl(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
@@ -365,6 +366,7 @@ struct FunctionDefinition : Statement {
     unique_ptr<Expression> expr;
   };
   bool isVirtual = false;
+  bool isDefault = false;
   vector<Initializer> initializers;
   virtual void check(Context&) override;
   virtual void addToContext(Context&, ImportCache&) override;
@@ -379,6 +381,7 @@ struct FunctionDefinition : Statement {
       const string& alternativeName, const SType& alternativeType, int virtualIndex);
   WithErrorLine<unique_ptr<Expression>> getVirtualOperatorCallExpr(Context&, Operator,
       const string& alternativeName, const SType& alternativeType, int virtualIndex);
+  void checkAndGenerateCopyFunction(const Context&);
 };
 
 struct EmbedStatement : Statement {
