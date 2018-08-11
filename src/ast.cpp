@@ -369,11 +369,16 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
     if (name.contains<Operator>())
       returnType = convertPointerToReference(returnType);
     vector<FunctionType::Param> params;
+    set<string> paramNames;
     for (auto& p : parameters) {
       auto type = contextWithTemplateParams.getTypeFromString(p.type).get();
       if (name.contains<Operator>())
         type = convertPointerToReference(type);
       params.push_back({p.name, std::move(type)});
+      if (p.name) {
+        p.codeLoc.check(!paramNames.count(*p.name), "Duplicate function parameter name: " + quote(*p.name));
+        paramNames.insert(*p.name);
+      }
     }
     codeLoc.check(concept || !name.contains<Operator>() || paramsAreGoodForOperator(params),
         "Operator parameters must include at least one user-defined type");

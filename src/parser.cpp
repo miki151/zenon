@@ -322,13 +322,15 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
     tokens.check(!isParamMutable || !isParamVirtual, "Parameter can't be both mutable and virtual");
     ret->isVirtual |= isParamVirtual;
     auto typeId = parseIdentifier(tokens, true);
+    auto paramCodeLoc = typeId.codeLoc;
     optional<string> paramName;
     auto nameToken = tokens.peek();
     if (nameToken.contains<IdentifierToken>()) {
       paramName = nameToken.value;
+      paramCodeLoc = nameToken.codeLoc;
       tokens.popNext();
     }
-    ret->parameters.push_back({type.codeLoc, typeId, paramName, isParamMutable, isParamVirtual});
+    ret->parameters.push_back({paramCodeLoc, typeId, paramName, isParamMutable, isParamVirtual});
   }
   if (ret->parameters.size() == 1)
     if (auto op = ret->name.getValueMaybe<Operator>())
