@@ -35,6 +35,7 @@ class Context : public owned_object<Context> {
   void setReturnType(SType);
   void addType(const string& name, SType);
   WithErrorLine<SType> getTypeFromString(IdentifierInfo) const;
+  nullable<SType> getType(const string&) const;
   [[nodiscard]] optional<string> addFunction(FunctionType);
   WithError<vector<FunctionType>> getFunctionTemplate(IdentifierInfo) const;
   WithErrorLine<FunctionType> instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<SType> argTypes, vector<CodeLoc> argLoc) const;
@@ -82,7 +83,6 @@ class Context : public owned_object<Context> {
 
   vector<shared_ptr<const State>> getReversedStates() const;
   const State& getTopState() const;
-  nullable<SType> getType(const string&) const;
   vector<FunctionType> getFunctions(FunctionId) const;
   nullable<SType> getVariable(const string&) const;
   bool isGeneralization(const FunctionType& general, const FunctionType& specific, vector<FunctionType> existing) const;

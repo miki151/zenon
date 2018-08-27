@@ -1,0 +1,11 @@
+// no_compile
+
+struct Y {
+  int* a;
+};
+
+int main() {
+  const a = 5;
+  const y = Y(&a);
+  return 0;
+}

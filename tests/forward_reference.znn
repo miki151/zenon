@@ -1,11 +1,16 @@
 // 6
 
+import "std/concepts.znn";
+
 int f() {
   const a = A(5);
   const v = V<int>::null();
   const e = E::E1;
   return g();
 }
+
+template <T>
+struct A;
 
 A<int> a1() {
   return A(1);
@@ -21,23 +26,31 @@ int g() {
 template <T>
 struct A {
   T a;
-  T m1() {
-    const c = A(same(a));
-    if (1 == 1)
-      return c.a;
-    else
-      return m2();
-  }
-  T m2() {
-    if (1 == 2)
-      return same(m1());
-    else
-      return getA(a).a;
-  }
-  E m3() {
-    return E::E2;
-  }
 };
+
+template <T> requires can_copy<T>
+A<T> copy(A<T>*) = default;
+
+template <T> requires can_copy<T>
+T m1(A<T>* a) {
+  const c = A(same(a->a.copy()));
+  if (1 == 1)
+    return c.a.copy();
+  else
+    return a->m2();
+}
+
+template <T> requires can_copy<T>
+T m2(A<T>* a) {
+  if (1 == 2)
+    return same(a->m1());
+  else
+    return getA(a->a.copy()).a;
+}
+
+/*E m3() {
+  return E::E2;
+}*/
 
 template <T>
 variant V {
@@ -46,13 +59,13 @@ variant V {
 };
 
 template<T>
-T same(T a) {
-  return a;
+T same(mutable T a) {
+  return move(a);
 }
 
 template<T>
-A<T> getA(T t) {
-  return A(t);
+A<T> getA(mutable T t) {
+  return A(move(t));
 }
 
 enum E {

@@ -205,6 +205,10 @@ SType Type::removePointer() const {
   return get_this().get();
 }
 
+optional<string> Type::getSizeError() const {
+  return none;
+}
+
 bool PointerType::isBuiltinCopyable(const Context&) const {
   return true;
 }
@@ -225,28 +229,30 @@ bool MutableReferenceType::canAssign(SType from) const {
   return underlying == from->getUnderlying();
 }
 
-static bool checkMembers(set<SType> &visited, const SType& t, int maxDepth) {
+static optional<string> checkMembers(set<SType> &visited, const SType& t) {
   if (auto s = t.dynamicCast<StructType>()) {
     if (visited.count(t))
-      return true;
+      return "has infinite size"s;
+    if (s->incomplete)
+      return "has an incomplete type"s;
     visited.insert(t);
-    for (auto& member : s->members) {
-      if (checkMembers(visited, member.type, maxDepth - 1))
-        return true;
-    }
+    for (auto& member : s->members)
+      if (auto res = checkMembers(visited, member.type))
+        return res;
+    for (auto& member : s->alternatives)
+      if (auto res = checkMembers(visited, member.type))
+        return res;
   }
-  return false;
+  return none;
 }
 
-
-bool StructType::hasInfiniteSize() const {
+optional<string> StructType::getSizeError() const {
   set<SType> visited;
-  return checkMembers(visited, get_this().get(), 500);
+  return checkMembers(visited, get_this().get());
 }
 
-shared_ptr<StructType> StructType::get(Kind kind, string name) {
+shared_ptr<StructType> StructType::get(string name) {
   auto ret = shared<StructType>();
-  ret->kind = kind;
   ret->name = name;
   ret->parent = ret;
   return ret;
@@ -269,7 +275,7 @@ SType MutableReferenceType::removePointer() const {
 }
 
 void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext, CodeLoc codeLoc, bool isReference) const {
-  codeLoc.check(kind == StructType::VARIANT, "Expected a variant or enum type");
+  codeLoc.check(!alternatives.empty(), "Expected a variant or enum type");
   statement.type = SwitchStatement::VARIANT;
   statement.subtypesPrefix = name;
   if (!templateParams.empty()) {
@@ -360,7 +366,7 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
     if (type->templateParams == newTemplateParams)
       return type;
   }
-  auto type = StructType::get(kind, name);
+  auto type = StructType::get(name);
   type->alternatives = alternatives;
   type->members = members;
   type->parent = self;
@@ -731,6 +737,10 @@ shared_ptr<ArrayType> ArrayType::get(SType type, int size) {
 
 bool ArrayType::isBuiltinCopyable(const Context& context) const {
   return underlying->isBuiltinCopyable(context);
+}
+
+optional<string> ArrayType::getSizeError() const {
+  return underlying->getSizeError();
 }
 
 ArrayType::ArrayType(SType type, int size) : size(size), underlying(type) {

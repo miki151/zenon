@@ -857,13 +857,37 @@ bool SwitchStatement::hasReturnStatement(const Context& context) const {
 VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
+static shared_ptr<StructType> getNewOrIncompleteStruct(Context& context, string name, CodeLoc codeLoc,
+    const TemplateInfo& templateInfo) {
+  if (auto existing = context.getType(name)) {
+    if (auto asStruct = existing.get().dynamicCast<StructType>()) {
+      auto returnType = asStruct;
+      if (!returnType->incomplete) {
+        // if it's not an incomplete type then this triggers a conflict error
+        context.checkNameConflict(codeLoc, name, "Type");
+        fail();
+      }
+      returnType->incomplete = false;
+      return returnType;
+    } else {
+      context.checkNameConflict(codeLoc, name, "Type");
+      fail();
+    }
+  } else {
+    context.checkNameConflict(codeLoc, name, "Type");
+    auto returnType = StructType::get(name);
+    for (auto& param : templateInfo.params)
+      returnType->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+    context.addType(name, returnType);
+    return returnType;
+  }
+}
+
 void VariantDefinition::addToContext(Context& context) {
-  context.checkNameConflict(codeLoc, name, "Type");
-  type = StructType::get(StructType::VARIANT, name);
-  context.addType(name, type.get());
+  type = getNewOrIncompleteStruct(context, name, codeLoc, templateInfo);
   auto membersContext = Context::withParent(context);
-  for (auto& param : templateInfo.params)
-    type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+  codeLoc.check(templateInfo.params.size() == type->templateParams.size(),
+      "Number of template parameters differs from forward declaration");
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
   type->requirements = applyConcept(membersContext, templateInfo.requirements);
@@ -892,41 +916,48 @@ void VariantDefinition::check(Context& context) {
 }
 
 void StructDefinition::addToContext(Context& context, ImportCache& cache) {
-  context.checkNameConflict(codeLoc, name, "Type");
-  type = StructType::get(StructType::STRUCT, name);
-  context.addType(name, type.get());
-  auto membersContext = Context::withParent(context);
-  for (auto& param : templateInfo.params)
-    type->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-  for (auto& param : type->templateParams)
-    membersContext.addType(param->getName(), param);
-  type->requirements = applyConcept(membersContext, templateInfo.requirements);
-  bool hasConstructor = false;
-  for (auto& method : methods) {
-    if (method->name.contains<ConstructorId>()) {
-      // We have to fix the return type of the constructor otherwise it can't be looked up in the context
-      method->returnType.parts[0].templateArguments =
-          transform(templateInfo.params, [](const auto& p) { return IdentifierInfo(p.name, p.codeLoc); });
-      method->setFunctionType(membersContext);
-      method->functionType->callType = FunctionCallType::CONSTRUCTOR;
-      method->codeLoc.check(method->functionType->templateParams.empty(), "Constructor can't have template parameters.");
-      method->functionType->templateParams = type->templateParams;
-      method->functionType->parentType = type.get();
-      method->codeLoc.checkNoError(context.addFunction(*method->functionType));
-      if (!cache.getCurrentImports().empty() && templateInfo.params.empty())
-        method->body = nullptr;
-      hasConstructor = true;
-    } else
-      method->codeLoc.error("Only constructors and members can be defined inside struct body.");
-  }
-  if (!hasConstructor) {
-    vector<FunctionType::Param> constructorParams;
+  type = getNewOrIncompleteStruct(context, name, codeLoc, templateInfo);
+  type->incomplete = incomplete;
+  if (!incomplete) {
+    codeLoc.check(templateInfo.params.size() == type->templateParams.size(),
+        "Number of template parameters differs from forward declaration");
+    auto membersContext = Context::withParent(context);
+    for (auto& param : type->templateParams)
+      membersContext.addType(param->getName(), param);
+    type->requirements = applyConcept(membersContext, templateInfo.requirements);
+    bool hasConstructor = false;
+    for (auto& method : methods) {
+      if (method->name.contains<ConstructorId>()) {
+        // We have to fix the return type of the constructor otherwise it can't be looked up in the context
+        method->returnType.parts[0].templateArguments =
+            transform(templateInfo.params, [](const auto& p) { return IdentifierInfo(p.name, p.codeLoc); });
+        method->setFunctionType(membersContext);
+        method->functionType->callType = FunctionCallType::CONSTRUCTOR;
+        method->codeLoc.check(method->functionType->templateParams.empty(), "Constructor can't have template parameters.");
+        method->functionType->templateParams = type->templateParams;
+        method->functionType->parentType = type.get();
+        method->codeLoc.checkNoError(context.addFunction(*method->functionType));
+        if (!cache.getCurrentImports().empty() && templateInfo.params.empty())
+          method->body = nullptr;
+        hasConstructor = true;
+      } else
+        method->codeLoc.error("Only constructors and members can be defined inside struct body.");
+    }
+    for (auto& member : members) {
+      INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
+      type->members.push_back({member.name, membersContext.getTypeFromString(member.type).get()});
+    }
     for (auto& member : members)
-      if (auto memberType = membersContext.getTypeFromString(member.type))
-        constructorParams.push_back({member.name, *memberType});
-    auto constructor = FunctionType(SType(type.get()), FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
-    constructor.parentType = type.get();
-    CHECK(!context.addFunction(constructor));
+      if (auto error = type->members.back().type->getSizeError())
+        member.codeLoc.error("Member " + quote(member.name) + " of type " + quote(type->getName()) + " " + *error);
+    if (!hasConstructor) {
+      vector<FunctionType::Param> constructorParams;
+      for (auto& member : type->members)
+        constructorParams.push_back({member.name, member.type});
+      auto constructor = FunctionType(SType(type.get()), FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
+      constructor.parentType = type.get();
+      CHECK(!context.addFunction(constructor));
+    }
   }
 }
 
@@ -961,12 +992,7 @@ void StructDefinition::check(Context& context) {
   auto staticFunContext = Context::withParent({&context, &type->staticContext});
   for (auto& param : type->templateParams)
     methodBodyContext.addType(param->getName(), param);
-  methodBodyContext.addVariable("this", PointerType::get(type.get()));
   applyConcept(methodBodyContext, templateInfo.requirements);
-  for (auto& member : members) {
-    INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
-    type->members.push_back({member.name, methodBodyContext.getTypeFromString(member.type).get()});
-  }
   for (int i = 0; i < methods.size(); ++i) {
     if (methods[i]->functionType->name.contains<SType>()) {
       checkConstructor(*type, methodBodyContext, *methods[i]);
@@ -974,7 +1000,8 @@ void StructDefinition::check(Context& context) {
     }
   }
   type->updateInstantations();
-  codeLoc.check(!type->hasInfiniteSize(), quote(type->getName()) + " has infinite size");
+  if (auto error = type->getSizeError())
+    codeLoc.error("Type " + quote(type->getName()) + " " + *error);
 }
 
 MoveExpression::MoveExpression(CodeLoc l, string id) : Expression(l), identifier(id) {

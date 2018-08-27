@@ -263,6 +263,7 @@ struct TemplateInfo {
 
 struct StructDefinition : Statement {
   StructDefinition(CodeLoc, string name);
+  bool incomplete = false;
   string name;
   struct Member {
     IdentifierInfo type;

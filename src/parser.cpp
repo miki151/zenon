@@ -400,34 +400,37 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
   auto ret = unique<StructDefinition>(token2.codeLoc, token2.value);
   if (external)
     ret->external = true;
-  tokens.eat(Keyword::OPEN_BLOCK);
-  while (1) {
-    auto memberToken = tokens.peek();
-    if (memberToken == Keyword::CLOSE_BLOCK) {
-      tokens.popNext();
-      break;
-    }
-    TemplateInfo templateParams;
-    if (memberToken == Keyword::TEMPLATE)
-      templateParams = parseTemplateInfo(tokens);
-    auto typeIdent = parseIdentifier(tokens, true);
-    auto memberName = tokens.popNext();
-    if (memberName == Keyword::OPEN_BRACKET) { // constructor
-      tokens.rewind();
-      tokens.rewind();
-      if (external) {
-        ret->methods.push_back(parseFunctionSignature(typeIdent, tokens));
-        ret->methods.back()->name = ConstructorId{*ret->methods.back()->name.getValueMaybe<string>()};
+  if (tokens.eatMaybe(Keyword::OPEN_BLOCK))
+    while (1) {
+      auto memberToken = tokens.peek();
+      if (memberToken == Keyword::CLOSE_BLOCK) {
+        tokens.popNext();
+        break;
+      }
+      TemplateInfo templateParams;
+      if (memberToken == Keyword::TEMPLATE)
+        templateParams = parseTemplateInfo(tokens);
+      auto typeIdent = parseIdentifier(tokens, true);
+      auto memberName = tokens.popNext();
+      if (memberName == Keyword::OPEN_BRACKET) { // constructor
+        tokens.rewind();
+        tokens.rewind();
+        if (external) {
+          ret->methods.push_back(parseFunctionSignature(typeIdent, tokens));
+          ret->methods.back()->name = ConstructorId{*ret->methods.back()->name.getValueMaybe<string>()};
+          tokens.eat(Keyword::SEMICOLON);
+        } else
+          ret->methods.push_back(parseConstructorDefinition(typeIdent, tokens));
+        ret->methods.back()->templateInfo = templateParams;
+      } else { // member
+        memberToken.codeLoc.check(templateParams.params.empty(), "Member variable can't have template parameters");
+        memberName.codeLoc.check(memberName.contains<IdentifierToken>(), "Expected identifier");
+        ret->members.push_back({typeIdent, memberName.value, memberToken.codeLoc});
         tokens.eat(Keyword::SEMICOLON);
-      } else
-        ret->methods.push_back(parseConstructorDefinition(typeIdent, tokens));
-      ret->methods.back()->templateInfo = templateParams;
-    } else { // member
-      memberToken.codeLoc.check(templateParams.params.empty(), "Member variable can't have template parameters");
-      memberName.codeLoc.check(memberName.contains<IdentifierToken>(), "Expected identifier");
-      ret->members.push_back({typeIdent, memberName.value, memberToken.codeLoc});
-      tokens.eat(Keyword::SEMICOLON);
+      }
     }
+  else {
+    ret->incomplete = true;
   }
   tokens.eat(Keyword::SEMICOLON);
   return ret;

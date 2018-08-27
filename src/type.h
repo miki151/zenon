@@ -29,6 +29,7 @@ struct Type : public owned_object<Type> {
   virtual bool isBuiltinCopyable(const Context&) const;
   virtual WithError<CompileTimeValue> parse(const string&) const;
   virtual SType removePointer() const;
+  virtual optional<string> getSizeError() const;
   Context staticContext;
 };
 
@@ -119,14 +120,9 @@ struct StructType : public Type {
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, bool isReference) const override;
+  virtual optional<string> getSizeError() const override;
   WithError<SType> getTypeOfMember(const string&) const;
-  enum Kind {
-    STRUCT,
-    VARIANT
-  };
-  bool hasInfiniteSize() const;
-  static shared_ptr<StructType> get(Kind, string name);
-  Kind kind;
+  static shared_ptr<StructType> get(string name);
   string name;
   shared_ptr<StructType> getInstance(vector<SType> templateParams);
   vector<SType> templateParams;
@@ -139,6 +135,7 @@ struct StructType : public Type {
   };
   vector<Variable> members;
   vector<Variable> alternatives;
+  bool incomplete = false;
   void updateInstantations();
   SType getInstantiated(vector<SType> templateParams);
   StructType() {}
@@ -162,6 +159,7 @@ struct ArrayType : public Type {
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   static shared_ptr<ArrayType> get(SType, int size);
   virtual bool isBuiltinCopyable(const Context&) const override;
+  virtual optional<string> getSizeError() const override;
   ArrayType(SType, int size);
   int size;
   SType underlying;

@@ -1,0 +1,65 @@
+// 15
+
+import "std/vector.znn";
+
+template <T>
+struct Leaf {
+  T value;
+};
+
+template <T>
+struct Node;
+
+template <T>
+struct NonLeaf {
+  vector<Node<T>> nodes;
+};
+
+template <T>
+variant Node {
+  Leaf<T> leaf;
+  NonLeaf<T> nonLeaf;
+};
+
+template <T>
+Node<T> withChildren(mutable Node<T> a, mutable Node<T>b) {
+  mutable vector<Node<T>> children;
+  children.push_back(move(a));
+  children.push_back(move(b));
+  return Node<T>::nonLeaf(NonLeaf(move(children)));
+}
+
+template <T>
+Node<T> leaf(mutable T a) {
+  return Node<T>::leaf(Leaf(move(a)));
+}
+
+template <T>
+concept CanAdd {
+  T operator + (T*, T*);
+  T copy(T*);
+};
+
+template <T> requires CanAdd<T>
+T calculateSum(Node<T>* node, T neutralElem) {
+  switch (*node) {
+    case (Leaf<T> leaf) {
+      return leaf.value.copy();
+    }
+    case (NonLeaf<T> nonLeaf) {
+      mutable T ret = neutralElem.copy();
+      for (mutable elem : nonLeaf.nodes)
+        ret = ret + calculateSum(&*elem, neutralElem.copy());
+      return move(ret);
+    }
+  }
+}
+
+int main() {
+  const node = withChildren(
+      withChildren(
+          leaf(4),
+          leaf(5)),
+      leaf(6));
+  return calculateSum(&node, 0);
+}

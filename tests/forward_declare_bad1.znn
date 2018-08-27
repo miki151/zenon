@@ -1,0 +1,13 @@
+// no_compile
+
+struct V;
+
+template <T>
+variant V {
+  int x;
+  string s;
+};
+
+int main() {
+  return 0;
+}

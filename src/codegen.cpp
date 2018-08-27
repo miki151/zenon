@@ -392,7 +392,13 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
     return;
   if (!stage.isDefine) {
     considerTemplateParams(accu, templateInfo.params);
-    accu.add("struct " + name + " {");
+    accu.add("struct " + name);
+    if (incomplete) {
+      accu.add(";");
+      accu.newLine();
+      return;
+    } else
+      accu.add(" {");
     ++accu.indent;
     for (auto& method : methods) {
       accu.newLine();
