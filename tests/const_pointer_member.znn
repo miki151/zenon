@@ -1,4 +1,4 @@
-// no_compile
+// 5
 
 struct Y {
   int* a;
@@ -7,5 +7,5 @@ struct Y {
 int main() {
   const a = 5;
   const y = Y(&a);
-  return 0;
+  return *y.a;
 }

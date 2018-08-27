@@ -406,7 +406,7 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
       accu.add(";");
     }
     for (auto& member : type->members)
-      accu.newLine(member.type->getName() + " " + member.name + ";");
+      accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
     --accu.indent;
     accu.newLine("};");
   }
