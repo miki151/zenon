@@ -2,7 +2,7 @@
 
 
 template<T>
-void copy(T mutable* out, mutable T in) {
+void copy(T mutable* out, T in) {
   *out = move(in);
 }
 
@@ -13,9 +13,9 @@ variant V {
 };
 
 template<T>
-T get(mutable V<T> v, mutable T def) {
-  switch (v) {
-    case (mutable T elem) {
+T get(V<T> v, T def) {
+  switch (move(v)) {
+    case (T elem) {
       return move(elem);
     }
     default {

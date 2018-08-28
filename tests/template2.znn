@@ -33,9 +33,9 @@ V2<U, V> copy(V2<U, V>*) = default;
 template <U, V> requires can_copy<U>, can_copy<V>
 bool equal(V2<U,V>* v, U u) {
   V2<U,V> vTmp = v->copy();
-  switch (vTmp) {
+  switch (move(vTmp)) {
     case (e1) {
-      switch (e1) {
+      switch (move(e1)) {
         case (null) {
           return false;
         }

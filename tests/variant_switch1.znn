@@ -1,0 +1,43 @@
+// 20
+
+struct A {
+  int value;
+};
+
+variant X {
+  int i;
+  A a;
+};
+
+int main() {
+  mutable result = 0;
+  const x1 = X::i(5);
+  switch (x1) {
+    case (A* a) {
+      result += a->value;
+    }
+    case (int i) {
+      result += i;
+    }
+  }
+  mutable x2 = X::a(A(6));
+  switch (x2) {
+    case (A mutable* a) {
+      a->value = 10;
+      result += a->value;
+    }
+    case (int* i) {
+      result += *i;
+    }
+  }
+  switch (move(x1)) {
+    case (A a) {
+      const tmp = move(a);
+      result += tmp.value;
+    }
+    case (int i) {
+      result += i;
+    }
+  }
+  return result;
+}

@@ -8,7 +8,7 @@ variant nullable {
 template <T>
 bool ok(nullable<T>* v) {
   switch (*v) {
-    case (value) {
+    case (T* value) {
       return true;
     }
     case (null) {

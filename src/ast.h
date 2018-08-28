@@ -328,7 +328,6 @@ struct SwitchStatement : Statement {
     variant<none_t, IdentifierInfo, SType> type = none;
     string id;
     unique_ptr<StatementBlock> block;
-    bool isMutable = false;
     enum VarType { VALUE, POINTER, NONE } varType = NONE;
   };
   string subtypesPrefix;

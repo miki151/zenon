@@ -479,7 +479,7 @@ void FunctionDefinition::generateVirtualDispatchBody(Context& bodyContext) {
   }();
   auto& virtualParam = parameters[virtualIndex];
   auto virtualType = bodyContext.getTypeFromString(virtualParam.type);
-  unique_ptr<Expression> switchExpr = unique<Variable>(codeLoc, *virtualParam.name);
+  unique_ptr<Expression> switchExpr = unique<MoveExpression>(codeLoc, *virtualParam.name);
   body = unique<StatementBlock>(codeLoc);
   auto variantType = virtualType->dynamicCast<StructType>();
   bool isPointerParam = false;
@@ -521,8 +521,7 @@ void FunctionDefinition::generateVirtualDispatchBody(Context& bodyContext) {
           codeLoc,
           alternativeType,
           alternative.name,
-          std::move(block),
-          !isPointerParam
+          std::move(block)
         });
   }
 }
@@ -567,8 +566,7 @@ void FunctionDefinition::checkAndGenerateCopyFunction(const Context& context) {
               codeLoc,
               SType(alternative.type != ArithmeticType::VOID ? PointerType::get(alternative.type) : alternative.type),
               alternative.name,
-              std::move(block),
-              false
+              std::move(block)
             }
         );
       }
@@ -842,7 +840,7 @@ WithErrorLine<vector<FunctionCallNamedArgs::ArgMatching>> FunctionCallNamedArgs:
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
 void SwitchStatement::check(Context& context) {
-  getType(context, expr)->handleSwitchStatement(*this, context, expr->codeLoc, false);
+  getType(context, expr)->handleSwitchStatement(*this, context, expr->codeLoc, Type::SwitchArgument::VALUE);
 }
 
 bool SwitchStatement::hasReturnStatement(const Context& context) const {

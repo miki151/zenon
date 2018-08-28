@@ -1,0 +1,23 @@
+// no_compile
+
+struct A {
+};
+
+variant X {
+  int i;
+  A a;
+};
+
+int main() {
+  mutable x1 = X::i(5);
+  mutable result = 0;
+  switch (move(x1)) {
+    case (A* a) {
+      result += a->value;
+    }
+    case (int i) {
+      result += i;
+    }
+  }
+  return result;
+}

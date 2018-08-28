@@ -29,8 +29,8 @@ variant V {
 template <S> requires hasValue<S>
 int getValue(V<S>* v) {
   switch (*v) {
-    case (S s) {
-      return s.getValue();
+    case (S* s) {
+      return s->getValue();
     }
     case (null) {
       return -1;

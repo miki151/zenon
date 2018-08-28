@@ -572,7 +572,6 @@ unique_ptr<SwitchStatement> parseSwitchStatement(Tokens& tokens) {
       tokens.eat(Keyword::CASE);
       tokens.eat(Keyword::OPEN_BRACKET);
       SwitchStatement::CaseElem caseElem;
-      caseElem.isMutable = !!tokens.eatMaybe(Keyword::MUTABLE);
       auto identifier = parseIdentifier(tokens, true);
       caseElem.codeloc = token2.codeLoc;
       token2 = tokens.popNext();
