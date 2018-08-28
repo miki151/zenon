@@ -59,7 +59,7 @@ void Variable::codegen(Accu& accu, CodegenStage) const {
 }
 
 void MoveExpression::codegen(Accu& accu, CodegenStage) const {
-  accu.add("std::move(" + identifier + ")");
+  accu.add("std::move(const_cast<" + type->getCodegenName() + "&>(" + identifier + "))");
 }
 
 void Expression::codegenDotOperator(Accu& accu, CodegenStage stage, Expression* leftSide) const {

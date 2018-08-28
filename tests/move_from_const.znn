@@ -1,8 +1,0 @@
-// no_compile
-
-int main() {
-  const x = 1;
-  const y = move(x);
-  return y;
-}
-

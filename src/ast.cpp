@@ -1010,7 +1010,9 @@ MoveExpression::MoveExpression(CodeLoc l, string id) : Expression(l), identifier
 SType MoveExpression::getTypeImpl(Context& context) {
   if (!type) {
     if (auto ret = context.getTypeOfVariable(identifier)) {
-      codeLoc.check(!!ret.get_value().dynamicCast<MutableReferenceType>(), "Can't move from " + quote(ret.get_value()->getName()));
+      codeLoc.check(!!ret.get_value().dynamicCast<MutableReferenceType>() ||
+                    !!ret.get_value().dynamicCast<ReferenceType>(),
+          "Can't move from " + quote(ret.get_value()->getName()));
       codeLoc.checkNoError(context.setVariableAsMoved(identifier));
       type = ret.get_value()->getUnderlying();
     } else
