@@ -2,7 +2,12 @@
 
 #include "stdafx.h"
 #include "code_loc.h"
-#include "compile_time_value.h"
+
+struct Type;
+using SType = shared_ptr<Type>;
+
+struct CompileTimeValue;
+using SCompileTimeValue = shared_ptr<CompileTimeValue>;
 
 enum class Operator {
   LESS_THAN,
@@ -43,4 +48,4 @@ extern bool canOverload(Operator);
 extern bool canOverload(Operator, int numArgs);
 extern bool isUnary(Operator);
 extern bool isRightAssociative(Operator);
-extern WithError<CompileTimeValue> eval(Operator, vector<CompileTimeValue> args);
+extern WithError<SCompileTimeValue> eval(Operator, vector<SCompileTimeValue> args);

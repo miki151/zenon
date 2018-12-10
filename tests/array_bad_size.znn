@@ -1,0 +1,10 @@
+// no_compile
+
+template <T, T N>
+struct S {
+  T[N] elems;
+};
+
+int main() {
+  return 0;
+}

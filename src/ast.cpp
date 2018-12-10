@@ -55,7 +55,7 @@ SType Constant::getTypeImpl(Context&) {
   return type;
 }
 
-WithErrorLine<CompileTimeValue> Constant::eval(const Context&) const {
+WithErrorLine<SCompileTimeValue> Constant::eval(const Context&) const {
   return type->parse(value).addCodeLoc(codeLoc);
 }
 
@@ -63,7 +63,7 @@ SType Variable::getTypeImpl(Context& context) {
   return context.getTypeOfVariable(identifier).get(codeLoc);
 }
 
-WithErrorLine<CompileTimeValue> Variable::eval(const Context& context) const {
+WithErrorLine<SCompileTimeValue> Variable::eval(const Context& context) const {
   return context.getCompileTimeValue(identifier).addCodeLoc(codeLoc);
 }
 
@@ -182,7 +182,7 @@ SType BinaryExpression::getTypeImpl(Context& context) {
   }
 }
 
-WithErrorLine<CompileTimeValue> BinaryExpression::eval(const Context& context) const {
+WithErrorLine<SCompileTimeValue> BinaryExpression::eval(const Context& context) const {
   if (auto value1 = expr[0]->eval(context)) {
     if (auto value2 = expr[1]->eval(context))
       return ::eval(op, {*value1, *value2}).addCodeLoc(codeLoc);
@@ -205,7 +205,7 @@ SType UnaryExpression::getTypeImpl(Context& context) {
     fun.get_error().execute();
 }
 
-WithErrorLine<CompileTimeValue> UnaryExpression::eval(const Context& context) const {
+WithErrorLine<SCompileTimeValue> UnaryExpression::eval(const Context& context) const {
   if (auto value = expr->eval(context))
     return ::eval(op, {*value}).addCodeLoc(codeLoc);
   else
@@ -321,9 +321,13 @@ static vector<SConcept> applyConcept(Context& from, const vector<IdentifierInfo>
       requirement.codeLoc.check(requirementArgs.size() == concept->getParams().size(),
           "Wrong number of template arguments to concept " + quote(requirement.parts[0].toString()));
       vector<SType> translatedParams;
-      for (int i = 0; i < requirementArgs.size(); ++i)
-        translatedParams.push_back(from.getTypeFromString(
-            IdentifierInfo(requirementArgs[i].parts[0], requirementArgs[i].codeLoc)).get());
+      for (int i = 0; i < requirementArgs.size(); ++i) {
+        if (auto arg = requirementArgs[i].getReferenceMaybe<IdentifierInfo>())
+          translatedParams.push_back(from.getTypeFromString(
+              IdentifierInfo(arg->parts[0], arg->codeLoc)).get());
+        else
+          requirement.codeLoc.error("Expected a type argument");
+      }
       auto translated = concept->translate(translatedParams);
       from.merge(translated->getContext());
       ret.push_back(translated);
@@ -359,9 +363,16 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
   Context contextWithTemplateParams = Context::withParent(context);
   vector<SType> templateTypes;
   for (auto& param : templateInfo.params) {
-    templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-    contextWithTemplateParams.checkNameConflict(param.codeLoc, param.name, "template parameter");
-    contextWithTemplateParams.addType(param.name, templateTypes.back());
+    if (param.type) {
+      auto type = contextWithTemplateParams.getType(*param.type).get();
+      auto valueType = CompileTimeValue::getTemplateValue(type, param.name);
+      templateTypes.push_back(valueType);
+      contextWithTemplateParams.setCompileTimeValue(param.name, valueType);
+    } else {
+      contextWithTemplateParams.checkNameConflict(param.codeLoc, param.name, "template parameter");
+      templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+      contextWithTemplateParams.addType(param.name, templateTypes.back());
+    }
   }
   auto requirements = applyConcept(contextWithTemplateParams, templateInfo.requirements);
   if (auto returnType1 = contextWithTemplateParams.getTypeFromString(this->returnType)) {
@@ -575,10 +586,19 @@ void FunctionDefinition::checkAndGenerateCopyFunction(const Context& context) {
   }
 }
 
+static void addTemplateParam(Context& context, SType param) {
+  if (auto valueType = param.dynamicCast<CompileTimeValue>()) {
+    auto templateValue = valueType->value.getReferenceMaybe<CompileTimeValue::TemplateValue>();
+    context.setCompileTimeValue(templateValue->name,
+        CompileTimeValue::get(CompileTimeValue::TemplateValue{templateValue->type, templateValue->name}));
+  } else
+    context.addType(param->getName(), param);
+}
+
 void FunctionDefinition::check(Context& context) {
   Context bodyContext = Context::withParent(context);
   for (auto& param : functionType->templateParams)
-    bodyContext.addType(param->getName(), param);
+    addTemplateParam(bodyContext, param);
   applyConcept(bodyContext, templateInfo.requirements);
   if (isVirtual)
     generateVirtualDispatchBody(bodyContext);
@@ -873,9 +893,20 @@ static shared_ptr<StructType> getNewOrIncompleteStruct(Context& context, string 
     }
   } else {
     context.checkNameConflict(codeLoc, name, "Type");
+    auto paramsContext = Context::withParent(context);
     auto returnType = StructType::get(name);
-    for (auto& param : templateInfo.params)
-      returnType->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+    for (auto& param : templateInfo.params) {
+      if (param.type) {
+        if (auto type = paramsContext.getType(*param.type)) {
+          auto valueType = CompileTimeValue::getTemplateValue(type.get(), param.name);
+          returnType->templateParams.push_back(valueType);
+        } else
+          param.codeLoc.error("Type not found: " + quote(*param.type));
+      } else {
+        returnType->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+        paramsContext.addType(param.name, returnType->templateParams.back());
+      }
+    }
     context.addType(name, returnType);
     return returnType;
   }
@@ -921,14 +952,14 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
         "Number of template parameters differs from forward declaration");
     auto membersContext = Context::withParent(context);
     for (auto& param : type->templateParams)
-      membersContext.addType(param->getName(), param);
+      addTemplateParam(membersContext, param);
     type->requirements = applyConcept(membersContext, templateInfo.requirements);
     bool hasConstructor = false;
     for (auto& method : methods) {
       if (method->name.contains<ConstructorId>()) {
         // We have to fix the return type of the constructor otherwise it can't be looked up in the context
-        method->returnType.parts[0].templateArguments =
-            transform(templateInfo.params, [](const auto& p) { return IdentifierInfo(p.name, p.codeLoc); });
+        method->returnType.parts[0].templateArguments = transform(templateInfo.params,
+            [](const auto& p) { return TemplateParameterInfo(IdentifierInfo(p.name, p.codeLoc)); });
         method->setFunctionType(membersContext);
         method->functionType->callType = FunctionCallType::CONSTRUCTOR;
         method->codeLoc.check(method->functionType->templateParams.empty(), "Constructor can't have template parameters.");
@@ -989,7 +1020,7 @@ void StructDefinition::check(Context& context) {
   auto methodBodyContext = Context::withParent(context);
   auto staticFunContext = Context::withParent({&context, &type->staticContext});
   for (auto& param : type->templateParams)
-    methodBodyContext.addType(param->getName(), param);
+    addTemplateParam(methodBodyContext, param);
   applyConcept(methodBodyContext, templateInfo.requirements);
   for (int i = 0; i < methods.size(); ++i) {
     if (methods[i]->functionType->name.contains<SType>()) {
@@ -1110,7 +1141,7 @@ void ImportStatement::addToContext(Context& context, ImportCache& cache) {
   codeLoc.error("Couldn't resolve import path: " + path);
 }
 
-WithErrorLine<CompileTimeValue> Expression::eval(const Context&) const {
+WithErrorLine<SCompileTimeValue> Expression::eval(const Context&) const {
   return ErrorLoc{codeLoc, "Cannot evaluate expression at compile time"};
 }
 
@@ -1230,14 +1261,14 @@ SType ArrayLiteral::getTypeImpl(Context& context) {
     contents[i]->codeLoc.check(t == ret, "Incompatible types in array literal: " +
         quote(ret->getName()) + " and " + quote(t->getName()));
   }
-  return ArrayType::get(ret, contents.size());
+  return ArrayType::get(ret, CompileTimeValue::get((int)contents.size()));
 }
 
 
 SType getType(Context& context, unique_ptr<Expression>& expr, bool evaluateAtCompileTime) {
   if (evaluateAtCompileTime)
     if (auto value = expr->eval(context))
-      expr = unique<Constant>(expr->codeLoc, getType(*value), toString(*value));
+      expr = unique<Constant>(expr->codeLoc, (*value)->getType(), (*value)->getCodegenName());
   return expr->getTypeImpl(context);
 }
 

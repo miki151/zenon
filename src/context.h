@@ -4,7 +4,6 @@
 #include "variant.h"
 #include "identifier.h"
 #include "function_name.h"
-#include "compile_time_value.h"
 
 struct IdentifierInfo;
 struct Type;
@@ -45,7 +44,6 @@ class Context : public owned_object<Context> {
   bool canConstructWith(SType, vector<SType> args) const;
   void checkNameConflict(CodeLoc loc, const string& name, const string& type) const;
   void checkNameConflictExcludingFunctions(CodeLoc loc, const string& name, const string& type) const;
-  vector<SType> getTypeList(const vector<IdentifierInfo>&) const;
   void addConcept(const string& name, SConcept);
   nullable<SConcept> getConcept(const string& name) const;
   void print() const;
@@ -53,8 +51,8 @@ class Context : public owned_object<Context> {
   bool canConvert(SType from, SType to) const;
   bool breakAllowed() const;
   void setBreakAllowed();
-  void setCompileTimeValue(const string&, CompileTimeValue);
-  WithError<CompileTimeValue> getCompileTimeValue(const string&) const;
+  void setCompileTimeValue(const string&, SCompileTimeValue);
+  WithError<SCompileTimeValue> getCompileTimeValue(const string&) const;
   bool areParamsEquivalent(const FunctionType&, const FunctionType&) const;
 
   struct State : public owned_object<State> {
@@ -65,7 +63,7 @@ class Context : public owned_object<Context> {
     map<FunctionId, vector<FunctionType>> functions;
     nullable<SType> returnType;
     map<string, shared_ptr<Concept>> concepts;
-    map<string, CompileTimeValue> compileTimeValues;
+    map<string, SCompileTimeValue> compileTimeValues;
     bool breakAllowed = false;
     void merge(const State&);
     void print() const;
@@ -81,6 +79,7 @@ class Context : public owned_object<Context> {
   vector<shared_ptr<const State>> parentStates;
   shared_ptr<State> state;
 
+  vector<SType> getTypeList(const vector<TemplateParameterInfo>&) const;
   vector<shared_ptr<const State>> getReversedStates() const;
   const State& getTopState() const;
   vector<FunctionType> getFunctions(FunctionId) const;

@@ -1,0 +1,30 @@
+// 40
+
+template <int Size, T>
+struct S {
+  T[Size] elems;
+};
+
+template <int Size, T>
+T* get(S<Size, T>* s) {
+  return &(s->elems[0]);
+}
+
+template <int N>
+int get1() {
+  return N;
+}
+
+template <T, T N, T N2, bool B, U>
+T get2() {
+  if (B)
+    return N;
+  else
+    return N2;
+}
+
+int main() {
+  const a = {1, 2, 3, 4};
+  const s = S(move(a));
+  return *get(&s) + get1<3>() + get2<int, 4, 8, true, bool>() + get2<int, 16, 32, false, string>();
+}

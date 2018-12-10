@@ -1,0 +1,21 @@
+// 9
+
+template <T, T N>
+struct S {
+};
+
+template <int N>
+int get(S<int, N>*) {
+  return N;
+}
+
+template <T, T N>
+T get2(S<T, N>*) {
+  return N;
+}
+
+int main() {
+  const s = S<int, 5>();
+  const s2 = S<int, 4>();
+  return get(&s) + get2(&s2);
+}

@@ -13,23 +13,23 @@ string ArithmeticType::getName(bool withTemplateArguments) const {
   return name;
 }
 
-WithError<CompileTimeValue> ArithmeticType::parse(const string& value) const {
+WithError<SCompileTimeValue> ArithmeticType::parse(const string& value) const {
   if (ArithmeticType::INT == this)
-    return CompileTimeValue(stoi(value));
+    return CompileTimeValue::get(stoi(value));
   if (ArithmeticType::BOOL == this) {
     if (value == "true")
-      return CompileTimeValue(true);
+      return CompileTimeValue::get(true);
     if (value == "false")
-      return CompileTimeValue(false);
+      return CompileTimeValue::get(false);
     return "Not a valid boolean literal: " + quote(value);
   }
   if (ArithmeticType::DOUBLE == this)
-    return CompileTimeValue(stod(value));
+    return CompileTimeValue::get(stod(value));
   if (ArithmeticType::STRING == this)
-    return CompileTimeValue(value);
+    return CompileTimeValue::get(value);
   if (ArithmeticType::CHAR == this) {
     if (value.front() == '\'' && value.back() == '\'' && value.size() == 3)
-      return CompileTimeValue(value[1]);
+      return CompileTimeValue::get(value[1]);
     return "Not a valid char literal: " + quote(value);
   }
   if (ArithmeticType::VOID == this)
@@ -76,6 +76,10 @@ string TemplateParameterType::getName(bool withTemplateArguments) const {
   return name;
 }
 
+bool TemplateParameterType::canReplaceBy(SType t) const {
+  return !t.dynamicCast<CompileTimeValue>();
+}
+
 string EnumType::getName(bool withTemplateArguments) const {
   return name;
 }
@@ -108,7 +112,7 @@ void EnumType::handleSwitchStatement(SwitchStatement& statement, Context& contex
 }
 
 FunctionType::FunctionType(FunctionId name, FunctionCallType t, SType returnType, vector<Param> p, vector<SType> tpl)
-  : name(name), callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
+    : name(name), callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
 
 string FunctionType::toString() const {
@@ -197,7 +201,7 @@ bool ArithmeticType::isBuiltinCopyable(const Context&) const {
   return true;
 }
 
-WithError<CompileTimeValue> Type::parse(const string&) const {
+WithError<SCompileTimeValue> Type::parse(const string&) const {
   return "Can't evaluate constant of type " + quote(getName()) + " at compile-time";
 }
 
@@ -394,10 +398,15 @@ TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), dec
 
 SType Type::replace(SType from, SType to) const {
   auto self = get_this().get();
-  if (from == self)
+  if (from == self) {
+    CHECK(canReplaceBy(to));
     return to;
-  else
+  } else
     return replaceImpl(from, to);
+}
+
+bool Type::canReplaceBy(SType) const {
+  return false;
 }
 
 SType Type::replaceImpl(SType, SType) const {
@@ -461,8 +470,8 @@ void replaceInFunction(FunctionType& in, SType from, SType to) {
     in.parentType = in.parentType->replace(from, to);
   for (auto& param : in.params)
     param.type = param.type->replace(from, to);
-  //for (auto& param : in.templateParams)
-  //  param = param->replace(from, to);
+  for (auto& param : in.templateParams)
+    param = param->replace(from, to);
   for (auto& concept : in.requirements)
     concept = concept->replace(from, to);
   in.name.visit(
@@ -489,13 +498,17 @@ void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc, Sw
 WithError<SType> StructType::instantiate(const Context& context, vector<SType> templateArgs) const {
   if (templateArgs.size() != templateParams.size())
     return "Wrong number of template parameters for type " + getName();
-  auto ret = get_this().get();
-  for (int i = 0; i < templateParams.size(); ++i)
-    ret = ret->replace(templateParams[i], templateArgs[i]);
+  auto ret = get_this().get().dynamicCast<StructType>();
+  for (int i = 0; i < templateParams.size(); ++i) {
+    if (!ret->templateParams[i]->canReplaceBy(templateArgs[i]))
+      return "Can't substitute template parameter " + quote(templateParams[i]->getName())
+          + " with " + quote(templateArgs[i]->getName());
+    ret = ret->replace(ret->templateParams[i], templateArgs[i]).dynamicCast<StructType>();
+  }
   for (auto& concept : ret.dynamicCast<StructType>()->requirements)
     if (auto error = context.getMissingFunctions(*concept, {}))
       return *error;
-  return ret;
+  return (SType) ret;
 }
 
 struct TypeMapping {
@@ -622,6 +635,9 @@ WithErrorLine<FunctionType> instantiateFunction(const Context& context, const Fu
     }
   }
   for (int i = 0; i < type.templateParams.size(); ++i) {
+    codeLoc.check(type.templateParams[i]->canReplaceBy(templateArgs[i]),
+        "Can't substitute template parameter " + quote(type.templateParams[i]->getName())
+            + " with " + quote(templateArgs[i]->getName()));
     replaceInFunction(type, type.templateParams[i], templateArgs[i]);
     type.templateParams[i] = templateArgs[i];
   }
@@ -715,19 +731,19 @@ FunctionType::Param::Param(SType type) : type(type) {
 }
 
 string ArrayType::getName(bool withTemplateArguments) const {
-  return underlying->getName(withTemplateArguments) + "[" + to_string(size) + "]";
+  return underlying->getName(withTemplateArguments) + "[" + size->getName() + "]";
 }
 
 string ArrayType::getCodegenName() const {
-  return "std::array<" + underlying->getCodegenName() + "," + to_string(size) + ">";
+  return "std::array<" + underlying->getCodegenName() + "," + size->getCodegenName() + ">";
 }
 
 SType ArrayType::replaceImpl(SType from, SType to) const {
-  return get(underlying->replace(from, to), size);
+  return get(underlying->replace(from, to), size->replace(from, to).dynamicCast<CompileTimeValue>());
 }
 
-shared_ptr<ArrayType> ArrayType::get(SType type, int size) {
-  static map<pair<SType, int>, shared_ptr<ArrayType>> generated;
+shared_ptr<ArrayType> ArrayType::get(SType type, SCompileTimeValue size) {
+  static map<pair<SType, SType>, shared_ptr<ArrayType>> generated;
   if (!generated.count({type, size})) {
     auto ret = shared<ArrayType>(type, size);
     generated.insert({{type, size}, ret});
@@ -743,12 +759,81 @@ optional<string> ArrayType::getSizeError() const {
   return underlying->getSizeError();
 }
 
-ArrayType::ArrayType(SType type, int size) : size(size), underlying(type) {
+ArrayType::ArrayType(SType type, SCompileTimeValue size) : size(std::move(size)), underlying(type) {
 }
 
 optional<string> ArrayType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
-  if (auto argPointer = argType.dynamicCast<ArrayType>())
-    if (size == argPointer->size)
-      return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+  if (auto argPointer = argType.dynamicCast<ArrayType>()) {
+    if (auto error = ::getDeductionError(context, mapping, size, argPointer->size))
+      return error;
+    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+  }
   return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
+}
+
+SCompileTimeValue CompileTimeValue::get(Value value) {
+  static map<Value, SCompileTimeValue> generated;
+  if (!generated.count(value)) {
+    auto ret = shared<CompileTimeValue>(value);
+    generated.insert({value, ret});
+  }
+  return generated.at(value);
+}
+
+CompileTimeValue::CompileTimeValue(Value value) : value(std::move(value)) {
+}
+
+string CompileTimeValue::getName(bool withTemplateArguments) const {
+  return value.visit(
+      [](int v) {  return to_string(v); },
+      [](double v) {  return to_string(v); },
+      [](bool v) {  return v ? "true" : "false"; },
+      [](char v) {  return string(1, v); },
+      [](const string& v) {  return v; },
+      [](const TemplateValue& v) {  return v.type->getName() + " " + v.name; }
+  );
+}
+
+string CompileTimeValue::getCodegenName() const {
+  if (auto t = value.getReferenceMaybe<TemplateValue>())
+    return t->name;
+  else
+    return getName();
+}
+
+SType CompileTimeValue::getType() const {
+  return value.visit(
+      [](int)-> SType {  return ArithmeticType::INT; },
+      [](double)-> SType {  return ArithmeticType::DOUBLE; },
+      [](bool)-> SType {  return ArithmeticType::BOOL; },
+      [](char)-> SType {  return ArithmeticType::CHAR; },
+      [](const string&)-> SType {  return ArithmeticType::STRING; },
+      [](const TemplateValue& v)-> SType {  return v.type; }
+);
+}
+
+shared_ptr<CompileTimeValue> CompileTimeValue::getTemplateValue(SType type, string name) {
+  return get(TemplateValue{std::move(type), std::move(name)});
+}
+
+optional<string> CompileTimeValue::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+  if (auto argValue = argType.dynamicCast<CompileTimeValue>()) {
+    auto argType = argValue->getType();
+    return getDeductionError(context, mapping, getType(), argType);
+  } else
+    return "Trying to bind type " + quote(argType->getName()) + " to a value template parameter";
+}
+
+bool CompileTimeValue::canReplaceBy(SType t) const {
+  if (auto myValue = value.getReferenceMaybe<TemplateValue>())
+    if (auto v = t.dynamicCast<CompileTimeValue>()) {
+      return myValue->type == v->getType();
+    }
+  return false;
+}
+
+SType CompileTimeValue::replaceImpl(SType from, SType to) const {
+  if (auto templateValue = value.getReferenceMaybe<TemplateValue>())
+    return CompileTimeValue::getTemplateValue(templateValue->type->replace(from, to), templateValue->name);
+  return get_this().get();
 }

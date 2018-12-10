@@ -7,13 +7,16 @@
 
 struct Expression;
 
+struct IdentifierInfo;
+using TemplateParameterInfo = variant<shared_ptr<Expression>, IdentifierInfo>;
+
 struct IdentifierInfo {
   struct IdentifierPart {
     string name;
-    vector<IdentifierInfo> templateArguments;
+    vector<TemplateParameterInfo> templateArguments;
     string toString() const;
     bool operator == (const IdentifierPart&) const;
-    HASH_ALL(name, templateArguments)
+    //HASH_ALL(name, templateArguments)
   };
   explicit IdentifierInfo(string name, CodeLoc);
   IdentifierInfo(IdentifierPart, CodeLoc);
@@ -32,5 +35,5 @@ struct IdentifierInfo {
   CodeLoc codeLoc;
   string toString() const;
   bool operator == (const IdentifierInfo&) const;
-  HASH_ALL(parts)
+  //HASH_ALL(parts)
 };

@@ -1,0 +1,17 @@
+// 6
+
+import "std/array.znn";
+
+int main() {
+  const a = {1, 2, 3, 4};
+  mutable sum = 0;
+  for (mutable it : a)
+    sum += *it;
+  mutable b = a.copy();
+  for (mutable it : b)
+    *it = -1;
+  for (mutable it : b)
+    sum += *it;
+  const c = b.copy();
+  return sum;
+}

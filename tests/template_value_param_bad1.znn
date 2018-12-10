@@ -1,0 +1,10 @@
+// no_compile
+
+template <T, T N>
+struct S {
+};
+
+int main() {
+  const s = S<int, true>();
+  return 0;
+}

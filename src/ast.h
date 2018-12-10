@@ -9,7 +9,6 @@
 #include "function_call_type.h"
 #include "type.h"
 #include "import_cache.h"
-#include "compile_time_value.h"
 
 struct Accu;
 
@@ -36,7 +35,7 @@ extern SType getType(Context&, unique_ptr<Expression>&, bool evaluateAtCompileTi
 struct Expression : Node {
   using Node::Node;
   virtual SType getTypeImpl(Context&) = 0;
-  virtual WithErrorLine<CompileTimeValue> eval(const Context&) const;
+  virtual WithErrorLine<SCompileTimeValue> eval(const Context&) const;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext);
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const;
 };
@@ -44,7 +43,7 @@ struct Expression : Node {
 struct Constant : Expression {
   Constant(CodeLoc, SType, string value);
   virtual SType getTypeImpl(Context&) override;
-  virtual WithErrorLine<CompileTimeValue> eval(const Context&) const override;
+  virtual WithErrorLine<SCompileTimeValue> eval(const Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   SType type;
   string value;
@@ -61,7 +60,7 @@ struct EnumConstant : Expression {
 struct Variable : Expression {
   Variable(CodeLoc, string);
   virtual SType getTypeImpl(Context&) override;
-  virtual WithErrorLine<CompileTimeValue> eval(const Context&) const override;
+  virtual WithErrorLine<SCompileTimeValue> eval(const Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   string identifier;
@@ -71,7 +70,7 @@ struct BinaryExpression : Expression {
   BinaryExpression(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>);
   BinaryExpression(CodeLoc, Operator, vector<unique_ptr<Expression>>);
   virtual SType getTypeImpl(Context&) override;
-  virtual WithErrorLine<CompileTimeValue> eval(const Context&) const override;
+  virtual WithErrorLine<SCompileTimeValue> eval(const Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   vector<unique_ptr<Expression>> expr;
@@ -81,7 +80,7 @@ struct BinaryExpression : Expression {
 struct UnaryExpression : Expression {
   UnaryExpression(CodeLoc, Operator, unique_ptr<Expression>);
   virtual SType getTypeImpl(Context&) override;
-  virtual WithErrorLine<CompileTimeValue> eval(const Context&) const override;
+  virtual WithErrorLine<SCompileTimeValue> eval(const Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   unique_ptr<Expression> expr;
@@ -253,6 +252,7 @@ struct FunctionDefinition;
 
 struct TemplateParameter {
   string name;
+  optional<string> type;
   CodeLoc codeLoc;
 };
 

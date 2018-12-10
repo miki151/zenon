@@ -156,11 +156,11 @@ void Context::addVariable(const string& ident, SType t) {
   state->varsList.push_back(ident);
 }
 
-void Context::setCompileTimeValue(const string& ident, CompileTimeValue value) {
+void Context::setCompileTimeValue(const string& ident, SCompileTimeValue value) {
   state->compileTimeValues.insert({ident, std::move(value)});
 }
 
-WithError<CompileTimeValue> Context::getCompileTimeValue(const string& id) const {
+WithError<SCompileTimeValue> Context::getCompileTimeValue(const string& id) const {
   for (auto& state : getReversedStates()) {
     if (state->compileTimeValues.count(id))
       return state->compileTimeValues.at(id);
@@ -264,13 +264,22 @@ void Context::setReturnType(SType t) {
 
 void Context::addType(const string& name, SType t) {
   CHECK(!getType(name));
+  CHECK(!t.dynamicCast<CompileTimeValue>()) << "Tried adding compile time value as a type";
   state->types.insert({name, t});
 }
 
-vector<SType> Context::getTypeList(const vector<IdentifierInfo>& ids) const {
+vector<SType> Context::getTypeList(const vector<TemplateParameterInfo>& ids) const {
   vector<SType> params;
   for (auto& id : ids)
-    params.push_back(getTypeFromString(id).get());
+    id.visit(
+        [&](const IdentifierInfo& id) {
+          if (auto t = getTypeFromString(id))
+            params.push_back(t.get());
+          else if (auto basicId = id.asBasicIdentifier())
+            params.push_back(getCompileTimeValue(*basicId).addCodeLoc(id.codeLoc).get());
+        },
+        [&](const shared_ptr<Expression>& expr) { params.push_back(expr->eval(*this).get()); }
+    );
   return params;
 }
 
@@ -326,7 +335,7 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
   WithErrorLine<SType> ret = topType->instantiate(*this, getTypeList(id.parts.at(0).templateArguments))
       .addCodeLoc(id.codeLoc);
   if (ret)
-    for (auto& elem : id.pointerOrArray)
+    for (auto& elem : id.pointerOrArray) {
       elem.visit(
           [&](IdentifierInfo::PointerType type) {
             switch (type) {
@@ -340,14 +349,18 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
           },
           [&](const IdentifierInfo::ArraySize& size) {
             if (auto value = size.expr->eval(*this)) {
-              if (auto intValue = value->getValueMaybe<int>())
-                *ret = ArrayType::get(*ret, *intValue);
+              auto type = value.get()->getType();
+              if (type == ArithmeticType::INT)
+                *ret = ArrayType::get(*ret, *value);
               else
-                ret = size.expr->codeLoc.getError("Inappropriate type of array size: " + ::getType(*value)->getName());
+                ret = size.expr->codeLoc.getError("Inappropriate type of array size: " + quote(type->getName()));
             } else
               ret = value.get_error();
           }
       );
+      if (!ret)
+        return ret;
+    }
   return ret;
 }
 
@@ -391,10 +404,7 @@ WithError<vector<FunctionType>> Context::getFunctionTemplate(IdentifierInfo id) 
 
 WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType templateType,
     IdentifierInfo id, vector<SType> argTypes, vector<CodeLoc> argLoc) const {
-  auto templateArgNames = id.parts.back().templateArguments;
-  auto templateArgs = getTypeList(templateArgNames);
-  auto ret = instantiateFunction(*this, templateType, codeLoc, templateArgs, argTypes, argLoc, {});
-  return ret;
+  return instantiateFunction(*this, templateType, codeLoc, getTypeList(id.parts.back().templateArguments), argTypes, argLoc, {});
 }
 
 optional<FunctionType> Context::getBuiltinOperator(Operator op, vector<SType> argTypes) const {

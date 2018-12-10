@@ -7,7 +7,6 @@
 #include "function_call_type.h"
 #include "context.h"
 #include "function_name.h"
-#include "compile_time_value.h"
 
 class Context;
 struct TypeMapping;
@@ -21,6 +20,7 @@ struct Type : public owned_object<Type> {
   virtual bool canAssign(SType from) const;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const;
   SType replace(SType from, SType to) const;
+  virtual bool canReplaceBy(SType) const;
   virtual SType replaceImpl(SType from, SType to) const;
   virtual ~Type() {}
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const;
@@ -32,7 +32,7 @@ struct Type : public owned_object<Type> {
   };
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, SwitchArgument) const;
   virtual bool isBuiltinCopyable(const Context&) const;
-  virtual WithError<CompileTimeValue> parse(const string&) const;
+  virtual WithError<SCompileTimeValue> parse(const string&) const;
   virtual SType removePointer() const;
   virtual optional<string> getSizeError() const;
   Context staticContext;
@@ -40,7 +40,7 @@ struct Type : public owned_object<Type> {
 
 struct ArithmeticType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
-  virtual WithError<CompileTimeValue> parse(const string&) const override;
+  virtual WithError<SCompileTimeValue> parse(const string&) const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
   using DefType = shared_ptr<ArithmeticType>;
   static DefType INT;
@@ -110,9 +110,34 @@ struct MutablePointerType : public Type {
   SType underlying;
 };
 
+struct CompileTimeValue : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual string getCodegenName() const override;
+  virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual bool canReplaceBy(SType) const override;
+  virtual SType replaceImpl(SType from, SType to) const override;
+  SType getType() const;
+  struct TemplateValue {
+    SType type;
+    string name;
+    bool operator == (const TemplateValue& o) const {
+      return name == o.name && type == o.type;
+    }
+    bool operator < (const TemplateValue& o) const {
+      return std::forward_as_tuple(name, type) < std::forward_as_tuple(o.name, o.type);
+    }
+  };
+  using Value = variant<int, bool, double, char, string, TemplateValue>;
+  static shared_ptr<CompileTimeValue> get(Value);
+  static shared_ptr<CompileTimeValue> getTemplateValue(SType type, string name);
+  Value value;
+
+  CompileTimeValue(Value);
+};
+
 struct TemplateParameterType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
-
+  virtual bool canReplaceBy(SType) const override;
   TemplateParameterType(string name, CodeLoc);
   string name;
   CodeLoc declarationLoc;
@@ -162,11 +187,11 @@ struct ArrayType : public Type {
   virtual string getCodegenName() const override;
   virtual SType replaceImpl(SType from, SType to) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
-  static shared_ptr<ArrayType> get(SType, int size);
+  static shared_ptr<ArrayType> get(SType, SCompileTimeValue size);
   virtual bool isBuiltinCopyable(const Context&) const override;
   virtual optional<string> getSizeError() const override;
-  ArrayType(SType, int size);
-  int size;
+  ArrayType(SType, SCompileTimeValue size);
+  SCompileTimeValue size;
   SType underlying;
 };
 
@@ -215,7 +240,7 @@ struct IdentifierInfo;
 extern WithErrorLine<FunctionType> instantiateFunction(const Context& context, const FunctionType&, CodeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing = {});
 extern void replaceInFunction(FunctionType&, SType from, SType to);
-extern string joinTemplateParams(const vector<SType>& params);
+extern string joinTemplateParams(const vector<SType>&);
 extern string joinTypeList(const vector<SType>&);
-extern string joinTemplateParamsCodegen(const vector<SType>& params);
+extern string joinTemplateParamsCodegen(const vector<SType>&);
 extern string joinTypeListCodegen(const vector<SType>&);

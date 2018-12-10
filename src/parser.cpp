@@ -5,45 +5,50 @@
 #include "lexer.h"
 
 unique_ptr<Expression> parseExpression(Tokens&, int minPrecedence = 0);
+unique_ptr<Expression> parsePrimary(Tokens&);
 
 template <typename T>
 static shared_ptr<T> getSharedPtr(unique_ptr<T> p) {
   return shared_ptr<T>(p.release());
 }
 
-static IdentifierInfo parseIdentifier(Tokens& tokens, bool allowPointer) {
+static optional<IdentifierInfo> parseIdentifierMaybe(Tokens& tokens, bool allowPointer) {
   IdentifierInfo ret;
   while (1) {
+    if (!tokens.peek().contains<IdentifierToken>())
+      return none;
     ret.parts.emplace_back();
     auto token = tokens.popNext();
-    token.codeLoc.check(token.contains<IdentifierToken>(), "Expected identifier");
     ret.codeLoc = token.codeLoc;
     ret.parts.back().name = token.value;
-    if (tokens.peek() == Operator::LESS_THAN) {
-      tokens.popNext();
-      bool firstParam = true;
+    auto beforeLessThan = tokens.getBookmark();
+    if (tokens.eatMaybe(Operator::LESS_THAN)) {
       while (1) {
-        auto templateParamToken = tokens.popNext();
-        if (firstParam) {
-          auto nextToken = tokens.peek();
-          if (!templateParamToken.contains<IdentifierToken>() ||
-              (nextToken != Keyword::COMMA && nextToken != Operator::LESS_THAN && nextToken != Operator::MORE_THAN &&
-                  nextToken != Operator::MULTIPLY && nextToken != Keyword::MUTABLE)) {
-            tokens.rewind();
-            tokens.rewind();
+        if (auto ident = parseIdentifierMaybe(tokens, true)) {
+          if (tokens.peek() == Keyword::COMMA || tokens.peek() == Operator::MORE_THAN)
+            ret.parts.back().templateArguments.push_back(*ident);
+          else {
+            tokens.rewind(beforeLessThan);
+            ret.parts.back().templateArguments.clear();
             break;
           }
-          firstParam = false;
+        } else {
+          auto expr = parsePrimary(tokens);
+          if (tokens.peek() == Keyword::COMMA || tokens.peek() == Operator::MORE_THAN)
+            ret.parts.back().templateArguments.push_back(getSharedPtr(std::move(expr)));
+          else {
+            ret.parts.back().templateArguments.clear();
+            tokens.rewind(beforeLessThan);
+            break;
+          }
         }
-        if (templateParamToken == Operator::MORE_THAN)
+        if (tokens.eatMaybe(Operator::MORE_THAN))
           break;
-        if (templateParamToken.contains<IdentifierToken>() || templateParamToken == Keyword::MUTABLE) {
-          tokens.rewind();
-          ret.parts.back().templateArguments.push_back(parseIdentifier(tokens, true));
-          if (tokens.peek() != Operator::MORE_THAN)
-            tokens.eat(Keyword::COMMA);
-        } else
-          templateParamToken.codeLoc.error("Couldn't parse template parameters");
+        else if (!tokens.eatMaybe(Keyword::COMMA)) {
+          ret.parts.back().templateArguments.clear();
+          tokens.rewind(beforeLessThan);
+          break;
+        }
       }
     }
     if (tokens.peek() == Keyword::NAMESPACE_ACCESS) {
@@ -70,6 +75,14 @@ static IdentifierInfo parseIdentifier(Tokens& tokens, bool allowPointer) {
   }
   //INFO << "Identifier " << ret.toString();
   return ret;
+}
+
+static IdentifierInfo parseIdentifier(Tokens& tokens, bool allowPointer) {
+  if (auto ret = parseIdentifierMaybe(tokens, allowPointer))
+    return *ret;
+  else
+    tokens.error("Expected identifier");
+  fail();
 }
 
 unique_ptr<FunctionCallNamedArgs> parseFunctionCallWithNamedArguments(IdentifierInfo id, Tokens& tokens) {
@@ -378,10 +391,19 @@ static TemplateInfo parseTemplateInfo(Tokens& tokens) {
   TemplateInfo ret;
   while (tokens.peek() != Operator::MORE_THAN) {
     auto paramToken = tokens.popNext();
-    paramToken.codeLoc.check(paramToken.contains<IdentifierToken>(), "Type parameter expected");
-    ret.params.push_back({paramToken.value, paramToken.codeLoc});
-    if (tokens.peek() != Operator::MORE_THAN)
-      tokens.eat(Keyword::COMMA);
+    paramToken.codeLoc.check(paramToken.contains<IdentifierToken>(), "Template parameter name expected");
+    optional<string> typeName;
+    if (tokens.peek() != Operator::MORE_THAN) {
+      if (tokens.peek() != Keyword::COMMA) {
+        typeName = paramToken.value;
+        paramToken = tokens.popNext();
+        paramToken.codeLoc.check(paramToken.contains<IdentifierToken>(), "Template parameter name expected");
+        if (tokens.peek() != Operator::MORE_THAN)
+          tokens.eat(Keyword::COMMA);
+      } else
+        tokens.popNext();
+    }
+    ret.params.push_back({paramToken.value, typeName, paramToken.codeLoc});
   }
   tokens.eat(Operator::MORE_THAN);
   if (tokens.eatMaybe(Keyword::REQUIRES))

@@ -48,7 +48,7 @@ T* operator *(vector_iterator<T>* it) {
 }
 
 template <T>
-vector_iterator<T> operator ++(vector_iterator<T>* it) {
+vector_iterator<T> operator ++(vector_iterator<T> mutable* it) {
   embed {
     return ++(*it);
   }
@@ -84,7 +84,7 @@ T mutable* operator *(vector_mut_iterator<T>* it) {
 }
 
 template <T>
-vector_mut_iterator<T> operator ++(vector_mut_iterator<T>* it) {
+vector_mut_iterator<T> operator ++(vector_mut_iterator<T> mutable* it) {
   embed {
     return ++(*it);
   }

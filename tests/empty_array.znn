@@ -1,0 +1,11 @@
+// 1
+
+import "std/array.znn";
+
+int main() {
+  int[0] a = {};
+  mutable sum = 1;
+  for (mutable x : a)
+    sum += *x;
+  return sum;
+}

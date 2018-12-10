@@ -61,10 +61,16 @@ IdentifierInfo::IdentifierInfo() {
 
 }
 
-std::string IdentifierInfo::IdentifierPart::toString() const {
+static string getTemplateArgString(const variant<shared_ptr<Expression>, IdentifierInfo>& arg) {
+  return arg.visit(
+      [](const IdentifierInfo& id) { return id.toString(); },
+      [](const shared_ptr<Expression>& expr) { return "expression"s; });
+}
+
+string IdentifierInfo::IdentifierPart::toString() const {
   string ret = name;
   if (!templateArguments.empty()) {
-    auto paramsNames = transform(templateArguments, [](auto& e) { return e.toString(); });
+    auto paramsNames = transform(templateArguments, [](auto& e) { return getTemplateArgString(e); });
     ret = ret + "<" + combine(paramsNames, ",") + ">";
   }
   return ret;

@@ -251,7 +251,10 @@ static void considerTemplateParams(Accu& accu, const vector<TemplateParameter>& 
   if (!params.empty()) {
     accu.add("template <");
     for (auto& param : params)
-      accu.add("typename " + param.name + ", ");
+      if (param.type)
+        accu.add(*param.type + " " + param.name + ", ");
+      else
+        accu.add("typename " + param.name + ", ");
     accu.pop_back();
     accu.pop_back();
     accu.add(">");
