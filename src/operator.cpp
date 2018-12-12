@@ -189,31 +189,23 @@ optional<Operator> getUnary(Operator op) {
   }
 }
 
-static string getError(Operator op, const vector<SCompileTimeValue>& args) {
-  if (args.size() == 2)
-    return "Bad arguments to operator " + quote(getString(op)) + ": " +
-        quote(args[0]->getType()->getName()) + ", " + quote(args[1]->getType()->getName());
-  else
-    return "Bad argument to operator " + quote(getString(op)) + ": " + quote(args[0]->getType()->getName());
-}
-
 template <typename Arg1, typename Arg2, typename Operation>
-WithError<SCompileTimeValue> tryTypes(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
+nullable<SCompileTimeValue> tryTypes(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
   if (auto value1 = args[0]->value.getValueMaybe<Arg1>())
     if (auto value2 = args[1]->value.getValueMaybe<Arg2>())
       return CompileTimeValue::get(operation(*value1, *value2));
-  return getError(op, args);
+  return nullptr;
 }
 
 template <typename Arg, typename Operation>
-WithError<SCompileTimeValue> tryType(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
+nullable<SCompileTimeValue> tryType(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
   if (auto value1 = args[0]->value.getValueMaybe<Arg>())
     return CompileTimeValue::get(operation(*value1));
-  return getError(op, args);
+  return nullptr;
 }
 
 template <typename Operation>
-WithError<SCompileTimeValue> tryArithmetic(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
+nullable<SCompileTimeValue> tryArithmetic(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
   if (auto res = tryTypes<int, int>(op, args, operation))
     return res;
   if (auto res = tryTypes<int, double>(op, args, operation))
@@ -224,24 +216,19 @@ WithError<SCompileTimeValue> tryArithmetic(Operator op, const vector<SCompileTim
 }
 
 template <typename Operation>
-WithError<SCompileTimeValue> tryArithmeticUnary(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
-  if (auto res = tryType<int>(op, args, operation))
-    return res;
-  return tryType<double>(op, args, operation);
+nullable<SCompileTimeValue> tryArithmeticUnary(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
+  return tryType<int>(op, args, operation);
 }
 
-static WithError<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileTimeValue> args) {
-  if (args.size() == 2 && isUnary(op))
-    return "Too many arguments to unary operator"s;
-  if (args.size() == 1 && !isUnary(op))
-    return "Too few arguments to binary operator"s;
+static nullable<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileTimeValue> args) {
+  CHECK((args.size() == 2 && !isUnary(op)) || (args.size() == 1 && isUnary(op)));
   switch (op) {
     case Operator::ASSIGNMENT:
     case Operator::INCREMENT_BY:
     case Operator::DECREMENT_BY:
     case Operator::MULTIPLY_BY:
     case Operator::DIVIDE_BY:
-      return "Compile-time expression has value " + quote(ArithmeticType::VOID->getName());
+      return nullptr;
     case Operator::LOGICAL_OR:
       return tryTypes<bool, bool>(op, args, [](bool b1, bool b2) { return b1 || b2; });
     case Operator::LOGICAL_AND:
@@ -281,7 +268,7 @@ static WithError<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompile
     case Operator::SUBSCRIPT:
     case Operator::MEMBER_ACCESS:
     case Operator::POINTER_MEMBER_ACCESS:
-      return "Can't evaluate operation at compile-time " + quote(getString(op));
+      return nullptr;
   }
 }
 
@@ -300,7 +287,13 @@ static SCompileTimeValue getExampleValue(SType type) {
   fail();
 }
 
-WithError<SCompileTimeValue> eval(Operator op, vector<SCompileTimeValue> args) {
+nullable<SType> eval(Operator op, vector<SType> args1) {
+  vector<SCompileTimeValue> args;
+  for (auto& arg1 : args1)
+    if (auto arg = arg1.dynamicCast<CompileTimeValue>())
+      args.push_back(arg);
+    else
+      return nullptr;
   bool wasTemplate = false;
   for (auto& arg : args)
     if (auto templateValue = arg->value.getReferenceMaybe<CompileTimeValue::TemplateValue>()) {
@@ -309,8 +302,8 @@ WithError<SCompileTimeValue> eval(Operator op, vector<SCompileTimeValue> args) {
     }
   auto ret = evalNonTemplate(op, args);
   if (!ret)
-    return ret;
+    return nullptr;
   if (wasTemplate)
-    ret = CompileTimeValue::get(CompileTimeValue::TemplateValue{(*ret)->getType(), "Template derived value"});
-  return ret;
+    ret = CompileTimeValue::get(CompileTimeValue::TemplateValue{ret->getType(), "Template derived value"});
+  return (SType) ret.get();
 }

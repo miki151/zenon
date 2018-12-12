@@ -37,7 +37,11 @@ class Context : public owned_object<Context> {
   nullable<SType> getType(const string&) const;
   [[nodiscard]] optional<string> addFunction(FunctionType);
   WithError<vector<FunctionType>> getFunctionTemplate(IdentifierInfo) const;
-  WithErrorLine<FunctionType> instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo, vector<SType> argTypes, vector<CodeLoc> argLoc) const;
+  WithErrorLine<FunctionType> instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo,
+      vector<SType> argTypes, vector<CodeLoc> argLoc) const;
+  nullable<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
+  using BuiltInFunction = function<WithError<SType>(const Context&, vector<SType>)>;
+  void addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction);
   vector<FunctionType> getOperatorType(Operator) const;
   optional<FunctionType> getBuiltinOperator(Operator, vector<SType> argTypes) const;
   FunctionId getFunctionId(const FunctionName& name) const;
@@ -51,9 +55,12 @@ class Context : public owned_object<Context> {
   bool canConvert(SType from, SType to) const;
   bool breakAllowed() const;
   void setBreakAllowed();
-  void setCompileTimeValue(const string&, SCompileTimeValue);
-  WithError<SCompileTimeValue> getCompileTimeValue(const string&) const;
   bool areParamsEquivalent(const FunctionType&, const FunctionType&) const;
+
+  struct BuiltInFunctionInfo {
+    vector<SType> argTypes;
+    BuiltInFunction fun;
+  };
 
   struct State : public owned_object<State> {
     map<string, SType> vars;
@@ -63,7 +70,7 @@ class Context : public owned_object<Context> {
     map<FunctionId, vector<FunctionType>> functions;
     nullable<SType> returnType;
     map<string, shared_ptr<Concept>> concepts;
-    map<string, SCompileTimeValue> compileTimeValues;
+    map<string, BuiltInFunctionInfo> builtInFunctions;
     bool breakAllowed = false;
     void merge(const State&);
     void print() const;

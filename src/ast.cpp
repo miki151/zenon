@@ -24,8 +24,8 @@ IfStatement::IfStatement(CodeLoc loc, unique_ptr<VariableDeclaration> d, unique_
   : Statement(loc), declaration(std::move(d)), condition(std::move(c)), ifTrue(std::move(t)), ifFalse(std::move(f)) {
 }
 
-Constant::Constant(CodeLoc l, SType t, string v) : Expression(l), type(t), value(v) {
-  INFO << "Created constant " << quote(v) << " of type " << t->getName();
+Constant::Constant(CodeLoc l, SCompileTimeValue v) : Expression(l), value(v) {
+  INFO << "Created constant " << v->getName() << " of type " << v->getType();
 }
 
 Variable::Variable(CodeLoc l, string id) : Expression(l), identifier(id) {
@@ -52,19 +52,25 @@ FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionName
   : Statement(l), returnType(std::move(r)), name(name) {}
 
 SType Constant::getTypeImpl(Context&) {
-  return type;
+  return value->getType();
 }
 
-WithErrorLine<SCompileTimeValue> Constant::eval(const Context&) const {
-  return type->parse(value).addCodeLoc(codeLoc);
+nullable<SType> Constant::eval(const Context&) const {
+  return (SType) value;
 }
 
 SType Variable::getTypeImpl(Context& context) {
-  return context.getTypeOfVariable(identifier).get(codeLoc);
+  if (auto varType = context.getTypeOfVariable(identifier))
+    return *varType;
+  else {
+    if (auto t = context.getType(identifier))
+      return t->getType();
+    return varType.get(codeLoc); // this causes compile error
+  }
 }
 
-WithErrorLine<SCompileTimeValue> Variable::eval(const Context& context) const {
-  return context.getCompileTimeValue(identifier).addCodeLoc(codeLoc);
+nullable<SType> Variable::eval(const Context& context) const {
+  return context.getType(identifier);
 }
 
 nullable<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
@@ -182,14 +188,12 @@ SType BinaryExpression::getTypeImpl(Context& context) {
   }
 }
 
-WithErrorLine<SCompileTimeValue> BinaryExpression::eval(const Context& context) const {
+nullable<SType> BinaryExpression::eval(const Context& context) const {
   if (auto value1 = expr[0]->eval(context)) {
     if (auto value2 = expr[1]->eval(context))
-      return ::eval(op, {*value1, *value2}).addCodeLoc(codeLoc);
-    else
-      return value2;
-  } else
-    return value1;
+      return ::eval(op, {value1.get(), value2.get()});
+  }
+  return nullptr;
 }
 
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
@@ -205,11 +209,11 @@ SType UnaryExpression::getTypeImpl(Context& context) {
     fun.get_error().execute();
 }
 
-WithErrorLine<SCompileTimeValue> UnaryExpression::eval(const Context& context) const {
+nullable<SType> UnaryExpression::eval(const Context& context) const {
   if (auto value = expr->eval(context))
-    return ::eval(op, {*value}).addCodeLoc(codeLoc);
+    return ::eval(op, {value.get()});
   else
-    return value;
+    return nullptr;
 }
 
 void StatementBlock::check(Context& context) {
@@ -261,7 +265,7 @@ void VariableDeclaration::check(Context& context) {
     auto exprType = getType(context, initExpr);
     if (!isMutable)
       if (auto value = initExpr->eval(context))
-        context.setCompileTimeValue(identifier, *value);
+        context.addType(identifier, value.get());
     initExpr->codeLoc.check((!exprType.dynamicCast<ReferenceType>() && !exprType.dynamicCast<MutableReferenceType>()) ||
         exprType->getUnderlying()->isBuiltinCopyable(context),
         "Type " + quote(exprType->getUnderlying()->getName()) + " cannot be copied");
@@ -365,9 +369,8 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
   for (auto& param : templateInfo.params) {
     if (param.type) {
       auto type = contextWithTemplateParams.getType(*param.type).get();
-      auto valueType = CompileTimeValue::getTemplateValue(type, param.name);
-      templateTypes.push_back(valueType);
-      contextWithTemplateParams.setCompileTimeValue(param.name, valueType);
+      templateTypes.push_back(CompileTimeValue::getTemplateValue(type, param.name));
+      contextWithTemplateParams.addType(param.name, templateTypes.back());
     } else {
       contextWithTemplateParams.checkNameConflict(param.codeLoc, param.name, "template parameter");
       templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
@@ -441,6 +444,22 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
     return unique_ptr<Expression>(std::move(functionCall));
   else
     return fun.get_error();
+}
+
+nullable<SType> FunctionCall::eval(const Context& context) const {
+  if (auto name = identifier.asBasicIdentifier()) {
+    vector<SType> args;
+    vector<CodeLoc> locs;
+    for (auto& e : arguments) {
+      locs.push_back(e->codeLoc);
+      if (auto res = e->eval(context))
+        args.push_back(res.get());
+      else
+        return res;
+    }
+    return context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs));
+  }
+  return nullptr;
 }
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCallExpr(Context& context,
@@ -589,7 +608,7 @@ void FunctionDefinition::checkAndGenerateCopyFunction(const Context& context) {
 static void addTemplateParam(Context& context, SType param) {
   if (auto valueType = param.dynamicCast<CompileTimeValue>()) {
     auto templateValue = valueType->value.getReferenceMaybe<CompileTimeValue::TemplateValue>();
-    context.setCompileTimeValue(templateValue->name,
+    context.addType(templateValue->name,
         CompileTimeValue::get(CompileTimeValue::TemplateValue{templateValue->type, templateValue->name}));
   } else
     context.addType(param->getName(), param);
@@ -674,6 +693,20 @@ static Context createNewContext() {
     for (auto& type : {ArithmeticType::BOOL, ArithmeticType::CHAR, ArithmeticType::INT, ArithmeticType::STRING,
         ArithmeticType::DOUBLE})
       context->addFunction(FunctionType("copy"s, FunctionCallType::FUNCTION, type, {{PointerType::get(type)}}, {}));
+    context->addBuiltInFunction("enum_size", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
+        [](const Context&, vector<SType> args) -> WithError<SType> {
+          auto enumType = args[0].dynamicCast<EnumType>();
+          return (SType) CompileTimeValue::get((int) enumType->elements.size());
+        });
+    context->addBuiltInFunction("enum_strings", ArrayType::get(ArithmeticType::STRING, CompileTimeValue::get(0)),
+            {SType(ArithmeticType::ENUM_TYPE)},
+        [](const Context&, vector<SType> args) -> WithError<SType> {
+          auto enumType = args[0].dynamicCast<EnumType>();
+          vector<SCompileTimeValue> values;
+          for (auto& elem : enumType->elements)
+            values.push_back(CompileTimeValue::get(elem));
+          return (SType) CompileTimeValue::get(CompileTimeValue::ArrayValue{values, ArithmeticType::STRING});
+        });
   }
   return Context::withParent(*context);
 }
@@ -1141,8 +1174,8 @@ void ImportStatement::addToContext(Context& context, ImportCache& cache) {
   codeLoc.error("Couldn't resolve import path: " + path);
 }
 
-WithErrorLine<SCompileTimeValue> Expression::eval(const Context&) const {
-  return ErrorLoc{codeLoc, "Cannot evaluate expression at compile time"};
+nullable<SType> Expression::eval(const Context&) const {
+  return nullptr;
 }
 
 nullable<SType> Expression::getDotOperatorType(Expression* left, Context& callContext) {
@@ -1167,6 +1200,18 @@ EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(
 
 SType EnumConstant::getTypeImpl(Context& context) {
   return context.getTypeFromString(IdentifierInfo(enumName, codeLoc)).get();
+}
+
+nullable<SType> EnumConstant::eval(const Context& context) const {
+  if (auto type = context.getTypeFromString(IdentifierInfo(enumName, codeLoc))) {
+    if (auto enumType = type->dynamicCast<EnumType>()) {
+      for (int i = 0; i < enumType->elements.size(); ++i)
+        if (enumType->elements[i] == enumElement)
+          return (SType) CompileTimeValue::get(CompileTimeValue::EnumValue{enumType, i});
+    }
+  }
+  FATAL << "Unrecognized enum element - should have been discovered by the type checker";
+  fail();
 }
 
 ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
@@ -1266,10 +1311,14 @@ SType ArrayLiteral::getTypeImpl(Context& context) {
 
 
 SType getType(Context& context, unique_ptr<Expression>& expr, bool evaluateAtCompileTime) {
-  if (evaluateAtCompileTime)
-    if (auto value = expr->eval(context))
-      expr = unique<Constant>(expr->codeLoc, (*value)->getType(), (*value)->getCodegenName());
-  return expr->getTypeImpl(context);
+  auto type = expr->getTypeImpl(context);
+  if (evaluateAtCompileTime) {
+    if (auto type = expr->eval(context)) {
+      if (auto value = type.get().dynamicCast<CompileTimeValue>())
+        expr = unique<Constant>(expr->codeLoc, value);
+    }
+  }
+  return type;
 }
 
 nullable<SType> SwitchStatement::CaseElem::getType(const Context& context) {

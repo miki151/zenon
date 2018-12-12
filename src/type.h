@@ -22,6 +22,7 @@ struct Type : public owned_object<Type> {
   SType replace(SType from, SType to) const;
   virtual bool canReplaceBy(SType) const;
   virtual SType replaceImpl(SType from, SType to) const;
+  virtual SType getType() const;
   virtual ~Type() {}
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const;
   virtual Context& getStaticContext();
@@ -32,7 +33,6 @@ struct Type : public owned_object<Type> {
   };
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, SwitchArgument) const;
   virtual bool isBuiltinCopyable(const Context&) const;
-  virtual WithError<SCompileTimeValue> parse(const string&) const;
   virtual SType removePointer() const;
   virtual optional<string> getSizeError() const;
   Context staticContext;
@@ -40,7 +40,6 @@ struct Type : public owned_object<Type> {
 
 struct ArithmeticType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
-  virtual WithError<SCompileTimeValue> parse(const string&) const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
   using DefType = shared_ptr<ArithmeticType>;
   static DefType INT;
@@ -49,7 +48,8 @@ struct ArithmeticType : public Type {
   static DefType VOID;
   static DefType CHAR;
   static DefType STRING;
-
+  static DefType ANY_TYPE;
+  static DefType ENUM_TYPE;
   ArithmeticType(const string& name);
 
   private:
@@ -110,24 +110,56 @@ struct MutablePointerType : public Type {
   SType underlying;
 };
 
+struct EnumType;
+
 struct CompileTimeValue : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual bool canReplaceBy(SType) const override;
   virtual SType replaceImpl(SType from, SType to) const override;
-  SType getType() const;
+  virtual SType getType() const override;
   struct TemplateValue {
     SType type;
     string name;
+    auto asTuple() const {
+      return std::forward_as_tuple(name, type);
+    }
     bool operator == (const TemplateValue& o) const {
-      return name == o.name && type == o.type;
+      return asTuple() == o.asTuple();
     }
     bool operator < (const TemplateValue& o) const {
-      return std::forward_as_tuple(name, type) < std::forward_as_tuple(o.name, o.type);
+      return asTuple() < o.asTuple();
     }
   };
-  using Value = variant<int, bool, double, char, string, TemplateValue>;
+  struct EnumValue {
+    shared_ptr<EnumType> type;
+    int index;
+    auto asTuple() const {
+      return std::forward_as_tuple(type, index);
+    }
+    bool operator == (const EnumValue& o) const {
+      return asTuple() == o.asTuple();
+    }
+    bool operator < (const EnumValue& o) const {
+      return asTuple() < o.asTuple();
+    }
+  };
+  struct ArrayValue {
+    vector<SCompileTimeValue> values;
+    SType type;
+    auto asTuple() const {
+      return std::forward_as_tuple(type, values);
+    }
+    bool operator == (const ArrayValue& o) const {
+      return asTuple() == o.asTuple();
+    }
+    bool operator < (const ArrayValue& o) const {
+      return asTuple() < o.asTuple();
+    }
+  };
+
+  using Value = variant<int, bool, double, char, string, EnumValue, ArrayValue, TemplateValue>;
   static shared_ptr<CompileTimeValue> get(Value);
   static shared_ptr<CompileTimeValue> getTemplateValue(SType type, string name);
   Value value;
@@ -177,6 +209,7 @@ struct EnumType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, SwitchArgument) const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
+  virtual SType getType() const override;
 
   string name;
   vector<string> elements;

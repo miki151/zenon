@@ -1,0 +1,21 @@
+// 33
+
+enum E {
+  E1,
+  E2,
+  E3,
+  E4,
+  E5
+}
+
+int main() {
+  mutable sum = enum_size(E);
+  for (mutable i = 0; i < enum_size(E); ++i) {
+    const elem = enum_strings(E)[i];
+    if (elem == "E2")
+      sum += 20;
+    if (!(elem == "E1"))
+      sum += 2;
+  }
+  return sum;
+}

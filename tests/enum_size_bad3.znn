@@ -1,0 +1,10 @@
+// no_compile
+
+enum E {
+  X
+}
+
+int main() {
+  const x = enum_size<int>(E);
+  return 0;
+}

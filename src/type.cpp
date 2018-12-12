@@ -8,33 +8,11 @@ ArithmeticType::DefType ArithmeticType::VOID = shared<ArithmeticType>("void");
 ArithmeticType::DefType ArithmeticType::BOOL = shared<ArithmeticType>("bool");
 ArithmeticType::DefType ArithmeticType::STRING = shared<ArithmeticType>("string");
 ArithmeticType::DefType ArithmeticType::CHAR = shared<ArithmeticType>("char");
+ArithmeticType::DefType ArithmeticType::ANY_TYPE = shared<ArithmeticType>("any_type");
+ArithmeticType::DefType ArithmeticType::ENUM_TYPE = shared<ArithmeticType>("enum_type");
 
 string ArithmeticType::getName(bool withTemplateArguments) const {
   return name;
-}
-
-WithError<SCompileTimeValue> ArithmeticType::parse(const string& value) const {
-  if (ArithmeticType::INT == this)
-    return CompileTimeValue::get(stoi(value));
-  if (ArithmeticType::BOOL == this) {
-    if (value == "true")
-      return CompileTimeValue::get(true);
-    if (value == "false")
-      return CompileTimeValue::get(false);
-    return "Not a valid boolean literal: " + quote(value);
-  }
-  if (ArithmeticType::DOUBLE == this)
-    return CompileTimeValue::get(stod(value));
-  if (ArithmeticType::STRING == this)
-    return CompileTimeValue::get(value);
-  if (ArithmeticType::CHAR == this) {
-    if (value.front() == '\'' && value.back() == '\'' && value.size() == 3)
-      return CompileTimeValue::get(value[1]);
-    return "Not a valid char literal: " + quote(value);
-  }
-  if (ArithmeticType::VOID == this)
-    return "Cannot create value of type " + quote(getName());
-  fail();
 }
 
 ArithmeticType::ArithmeticType(const string& name) : name(name) {
@@ -201,10 +179,6 @@ bool ArithmeticType::isBuiltinCopyable(const Context&) const {
   return true;
 }
 
-WithError<SCompileTimeValue> Type::parse(const string&) const {
-  return "Can't evaluate constant of type " + quote(getName()) + " at compile-time";
-}
-
 SType Type::removePointer() const {
   return get_this().get();
 }
@@ -223,6 +197,10 @@ SType PointerType::removePointer() const {
 
 bool EnumType::isBuiltinCopyable(const Context&) const {
   return true;
+}
+
+SType EnumType::getType() const {
+  return ArithmeticType::ENUM_TYPE;
 }
 
 bool ReferenceType::canAssign(SType from) const {
@@ -411,6 +389,10 @@ bool Type::canReplaceBy(SType) const {
 
 SType Type::replaceImpl(SType, SType) const {
   return get_this().get();
+}
+
+SType Type::getType() const {
+  return ArithmeticType::ANY_TYPE;
 }
 
 SType ReferenceType::replaceImpl(SType from, SType to) const {
@@ -785,20 +767,26 @@ CompileTimeValue::CompileTimeValue(Value value) : value(std::move(value)) {
 
 string CompileTimeValue::getName(bool withTemplateArguments) const {
   return value.visit(
-      [](int v) {  return to_string(v); },
-      [](double v) {  return to_string(v); },
-      [](bool v) {  return v ? "true" : "false"; },
-      [](char v) {  return string(1, v); },
-      [](const string& v) {  return v; },
-      [](const TemplateValue& v) {  return v.type->getName() + " " + v.name; }
+      [](int v) { return to_string(v); },
+      [](double v) { return to_string(v); },
+      [](bool v) { return v ? "true" : "false"; },
+      [](char v) { return "\'" + string(1, v) + "\'"; },
+      [](const string& v) { return v; },
+      [](const EnumValue& t) { return t.type->getName() + "::" + t.type->elements[t.index]; },
+      [](const ArrayValue& t) { return "{" + combine(transform(t.values,
+           [](const auto& v) { return v->getName();}), ", ") + "}"; },
+      [](const TemplateValue& v) { return v.type->getName() + " " + v.name; }
   );
 }
 
 string CompileTimeValue::getCodegenName() const {
-  if (auto t = value.getReferenceMaybe<TemplateValue>())
-    return t->name;
-  else
-    return getName();
+  return value.visit(
+      [this](const auto&) { return getName(); },
+      [](const string& v) { return "\"" + v +"\"_lstr"; },
+      [](const ArrayValue& t) { return "make_array(" + combine(transform(t.values,
+           [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
+      [](const TemplateValue& v) { return v.name; }
+  );
 }
 
 SType CompileTimeValue::getType() const {
@@ -808,6 +796,8 @@ SType CompileTimeValue::getType() const {
       [](bool)-> SType {  return ArithmeticType::BOOL; },
       [](char)-> SType {  return ArithmeticType::CHAR; },
       [](const string&)-> SType {  return ArithmeticType::STRING; },
+      [](const EnumValue& v)-> SType {  return v.type; },
+      [](const ArrayValue& v)-> SType {  return ArrayType::get(v.type, CompileTimeValue::get((int) v.values.size())); },
       [](const TemplateValue& v)-> SType {  return v.type; }
 );
 }

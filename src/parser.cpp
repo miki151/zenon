@@ -129,7 +129,7 @@ static string getInputReg() {
 
 unique_ptr<Expression> parseStringLiteral(CodeLoc initialLoc, string literal) {
   if (literal.empty())
-    return unique<Constant>(initialLoc, ArithmeticType::STRING, "");
+    return unique<Constant>(initialLoc, CompileTimeValue::get(""s));
   unique_ptr<Expression> left;
   auto addElem = [&left] (unique_ptr<Expression> right, CodeLoc loc) {
     if (!left)
@@ -147,8 +147,8 @@ unique_ptr<Expression> parseStringLiteral(CodeLoc initialLoc, string literal) {
         CodeLoc loc = initialLoc.plus(0, (int) it->position());
         //cout << "Matched \"" << it->str() << "\" with rule " << index << " at " << loc.line << ":" << loc.column << endl;
         if (index == 0) {
-          addElem(unique<Constant>(loc, ArithmeticType::STRING,
-              std::regex_replace(it->str(), std::regex("\\\\([\\{\\}])"), "$1")), loc);
+          addElem(unique<Constant>(loc, CompileTimeValue::get(
+              std::regex_replace(it->str(), std::regex("\\\\([\\{\\}])"), "$1"))), loc);
         } else if (index == 1) {
           loc = loc.plus(0, 2);
           auto tokens = lex(it->str().substr(1, it->str().size() - 2), loc, "end of expression");
@@ -195,9 +195,11 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
             return unique<MoveExpression>(token.codeLoc, var.value);
           } 
           case Keyword::FALSE:
+            tokens.popNext();
+            return unique<Constant>(token.codeLoc, CompileTimeValue::get(false));
           case Keyword::TRUE:
             tokens.popNext();
-            return unique<Constant>(token.codeLoc, ArithmeticType::BOOL, token.value);
+            return unique<Constant>(token.codeLoc, CompileTimeValue::get(true));
           case Keyword::OPEN_BLOCK:
             return parseArrayLiteral(tokens);
           default:
@@ -221,11 +223,11 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
       },
       [&](const Number&) -> unique_ptr<Expression> {
         tokens.popNext();
-        return unique<Constant>(token.codeLoc, ArithmeticType::INT, token.value);
+        return unique<Constant>(token.codeLoc, CompileTimeValue::get(stoi(token.value)));
       },
       [&](const RealNumber&) -> unique_ptr<Expression> {
         tokens.popNext();
-        return unique<Constant>(token.codeLoc, ArithmeticType::DOUBLE, token.value);
+        return unique<Constant>(token.codeLoc, CompileTimeValue::get(stod(token.value)));
       },
       [&](const StringToken&) -> unique_ptr<Expression> {
         tokens.popNext();
@@ -233,7 +235,7 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
       },
       [&](const CharToken&) -> unique_ptr<Expression> {
         tokens.popNext();
-        return unique<Constant>(token.codeLoc, ArithmeticType::CHAR, token.value);
+        return unique<Constant>(token.codeLoc, CompileTimeValue::get(token.value[0]));
       },
       [&](const Operator& op) -> unique_ptr<Expression> {
         tokens.popNext();

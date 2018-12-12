@@ -156,21 +156,6 @@ void Context::addVariable(const string& ident, SType t) {
   state->varsList.push_back(ident);
 }
 
-void Context::setCompileTimeValue(const string& ident, SCompileTimeValue value) {
-  state->compileTimeValues.insert({ident, std::move(value)});
-}
-
-WithError<SCompileTimeValue> Context::getCompileTimeValue(const string& id) const {
-  for (auto& state : getReversedStates()) {
-    if (state->compileTimeValues.count(id))
-      return state->compileTimeValues.at(id);
-  }
-  if (!getTypeOfVariable(id))
-    return "Variable not found: " + id;
-  else
-    return "Value cannot be evaluated at compile-time: " + id;
-}
-
 void Context::State::print() const {
   for (auto& varName : varsList) {
     auto& var = vars.at(varName);
@@ -264,7 +249,6 @@ void Context::setReturnType(SType t) {
 
 void Context::addType(const string& name, SType t) {
   CHECK(!getType(name));
-  CHECK(!t.dynamicCast<CompileTimeValue>()) << "Tried adding compile time value as a type";
   state->types.insert({name, t});
 }
 
@@ -272,12 +256,7 @@ vector<SType> Context::getTypeList(const vector<TemplateParameterInfo>& ids) con
   vector<SType> params;
   for (auto& id : ids)
     id.visit(
-        [&](const IdentifierInfo& id) {
-          if (auto t = getTypeFromString(id))
-            params.push_back(t.get());
-          else if (auto basicId = id.asBasicIdentifier())
-            params.push_back(getCompileTimeValue(*basicId).addCodeLoc(id.codeLoc).get());
-        },
+        [&](const IdentifierInfo& id) { params.push_back(getTypeFromString(id).get()); },
         [&](const shared_ptr<Expression>& expr) { params.push_back(expr->eval(*this).get()); }
     );
   return params;
@@ -348,14 +327,15 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
             }
           },
           [&](const IdentifierInfo::ArraySize& size) {
-            if (auto value = size.expr->eval(*this)) {
-              auto type = value.get()->getType();
-              if (type == ArithmeticType::INT)
-                *ret = ArrayType::get(*ret, *value);
-              else
-                ret = size.expr->codeLoc.getError("Inappropriate type of array size: " + quote(type->getName()));
+            if (auto type = size.expr->eval(*this)) {
+              if (auto value = type.get().dynamicCast<CompileTimeValue>())
+                if (value.get()->getType() == ArithmeticType::INT) {
+                  *ret = ArrayType::get(*ret, value);
+                  return;
+                }
+              ret = size.expr->codeLoc.getError("Inappropriate type of array size: " + quote(type.get()->getName()));
             } else
-              ret = value.get_error();
+              ret = size.expr->codeLoc.getError("Can't evaluate array size expression at compile-time"s);
           }
       );
       if (!ret)
@@ -405,6 +385,27 @@ WithError<vector<FunctionType>> Context::getFunctionTemplate(IdentifierInfo id) 
 WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType templateType,
     IdentifierInfo id, vector<SType> argTypes, vector<CodeLoc> argLoc) const {
   return instantiateFunction(*this, templateType, codeLoc, getTypeList(id.parts.back().templateArguments), argTypes, argLoc, {});
+}
+
+nullable<SType> Context::invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const {
+  for (auto& state : getReversedStates())
+    if (auto f = getReferenceMaybe(state->builtInFunctions, id)) {
+      if (f->argTypes.size() != args.size())
+        loc.error("Expected " + to_string(f->argTypes.size()) + " arguments to built-in function " + quote(id));
+      for (int i = 0; i < args.size(); ++i)
+        if (f->argTypes[i] != args[i]->getType())
+          argLoc[i].error("Expected argument of type " + quote(f->argTypes[i]->getName()) + ", got "
+              + quote(args[i]->getName()) + " of type " + quote(args[i]->getType()->getName()));
+      return f->fun(*this, args).addCodeLoc(loc).get();
+    }
+  return nullptr;
+}
+
+void Context::addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction fun) {
+  CHECK(!state->builtInFunctions.count(id));
+  CHECK(!addFunction(FunctionType(id, FunctionCallType::FUNCTION, returnType,
+      transform(argTypes, [](const auto& p){ return FunctionType::Param(p); }), {})));
+  state->builtInFunctions.insert(make_pair(id, BuiltInFunctionInfo{std::move(argTypes), std::move(fun)}));
 }
 
 optional<FunctionType> Context::getBuiltinOperator(Operator op, vector<SType> argTypes) const {

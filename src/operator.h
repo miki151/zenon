@@ -48,4 +48,4 @@ extern bool canOverload(Operator);
 extern bool canOverload(Operator, int numArgs);
 extern bool isUnary(Operator);
 extern bool isRightAssociative(Operator);
-extern WithError<SCompileTimeValue> eval(Operator, vector<SCompileTimeValue> args);
+extern nullable<SType> eval(Operator, vector<SType> args);

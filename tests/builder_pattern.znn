@@ -1,0 +1,39 @@
+// 1
+
+import "std/print.znn";
+
+struct Builder {
+  int a;
+  string b;
+  Builder() : a(0), b("") {}
+};
+
+Builder setA(mutable Builder x, int a) {
+  x.a = a;
+  return move(x);
+}
+
+Builder setB(mutable Builder x, string b) {
+  x.b = b;
+  return move(x);
+}
+
+struct X {
+  string res;
+};
+
+X build(Builder x1) {
+  const x = move(x1);
+  return X("{x.b} {x.a}");
+}
+
+int main() {
+  const x = Builder()
+      .setA(2)
+      .setB("pok")
+      .build();
+  if (x.res == "pok 2")
+    return 1;
+  else
+    return 2;
+}
