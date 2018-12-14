@@ -1,10 +1,10 @@
 // no_compile
 
 enum E {
-  X
+  E1
 };
 
 int main() {
-  const x = enum_size<int>(E);
+  const e = E::X;
   return 0;
 }

@@ -756,6 +756,7 @@ unique_ptr<Statement> parseEnumStatement(Tokens& tokens) {
     if (tokens.eatMaybe(Keyword::CLOSE_BLOCK))
       break;
   }
+  tokens.eat(Keyword::SEMICOLON);
   return ret;
 }
 

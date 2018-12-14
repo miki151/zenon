@@ -1199,7 +1199,13 @@ EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(
 }
 
 SType EnumConstant::getTypeImpl(Context& context) {
-  return context.getTypeFromString(IdentifierInfo(enumName, codeLoc)).get();
+  auto type = context.getTypeFromString(IdentifierInfo(enumName, codeLoc)).get();
+  if (auto enumType = type.dynamicCast<EnumType>()) {
+    codeLoc.check(contains(enumType->elements, enumElement),
+        quote(enumElement) + " is not an element of enum " + quote(enumName));
+  } else
+    codeLoc.error(quote(type->getName()) + " is not an enum type");
+  return type;
 }
 
 nullable<SType> EnumConstant::eval(const Context& context) const {

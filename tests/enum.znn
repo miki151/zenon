@@ -4,12 +4,12 @@ enum E1 {
   VALUE2,
   VALUE3,
   VALUE4
-}
+};
 
 enum E2 {
   VALUE1,
   VALUE2,
-}
+};
 
 int main() {
   const e1 = E1::VALUE1;

@@ -71,7 +71,7 @@ A<T> getA(mutable T t) {
 enum E {
   E1,
   E2
-}
+};
 
 int main() {
   const a = A<int>(5);

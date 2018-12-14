@@ -6,7 +6,7 @@ enum E {
   E3,
   E4,
   E5
-}
+};
 
 int main() {
   mutable sum = enum_size(E);

@@ -1,10 +1,13 @@
 // no_compile
 
 enum E {
-  X
+  E1
+};
+
+struct S {
 };
 
 int main() {
-  const x = enum_size<int>(E);
+  const e = S::X;
   return 0;
 }
