@@ -8,17 +8,6 @@
 
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
-
-BinaryExpression::BinaryExpression(CodeLoc loc, Operator o, vector<unique_ptr<Expression>> expr)
-    : Expression(loc), op(o), expr(std::move(expr)) {
-}
-
-BinaryExpression::BinaryExpression(CodeLoc loc, Operator o, unique_ptr<Expression> u1, unique_ptr<Expression> u2)
-    : Expression(loc), op(o) {
-  expr.push_back(std::move(u1));
-  expr.push_back(std::move(u2));
-}
-
 IfStatement::IfStatement(CodeLoc loc, unique_ptr<VariableDeclaration> d, unique_ptr<Expression> c,
     unique_ptr<Statement> t, unique_ptr<Statement> f)
   : Statement(loc), declaration(std::move(d)), condition(std::move(c)), ifTrue(std::move(t)), ifFalse(std::move(f)) {
@@ -155,16 +144,40 @@ static WithErrorLine<FunctionType> handleOperatorOverloads(Context& context, Cod
   }
 }
 
-SType BinaryExpression::getTypeImpl(Context& context) {
-  if (op == Operator::POINTER_MEMBER_ACCESS) {
-    expr[0] = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(expr[0]));
-    op = Operator::MEMBER_ACCESS;
+unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr) {
+  switch (op) {
+    case Operator::NOT_EQUAL:
+      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::EQUALS, std::move(expr)));
+    case Operator::LESS_OR_EQUAL:
+      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::MORE_THAN, std::move(expr)));
+    case Operator::MORE_OR_EQUAL:
+      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::LESS_THAN, std::move(expr)));
+    case Operator::POINTER_MEMBER_ACCESS:
+      return get(loc, Operator::MEMBER_ACCESS,
+          unique<UnaryExpression>(loc, Operator::POINTER_DEREFERENCE, std::move(expr[0])),
+          std::move(expr[1]));
+    default:
+      return unique<BinaryExpression>(Private{}, loc, op, std::move(expr));
   }
+}
+
+unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, unique_ptr<Expression> a,
+    unique_ptr<Expression> b) {
+  return get(loc, op, makeVec<unique_ptr<Expression>>(std::move(a), std::move(b)));
+}
+
+BinaryExpression::BinaryExpression(BinaryExpression::Private, CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr)
+    : Expression(loc), op(op), expr(std::move(expr)) {}
+
+SType BinaryExpression::getTypeImpl(Context& context) {
   auto left = getType(context, expr[0]);
   switch (op) {
     case Operator::POINTER_MEMBER_ACCESS:
-      FATAL << "This was handled above";
-      return left;
+    case Operator::NOT_EQUAL:
+    case Operator::LESS_OR_EQUAL:
+    case Operator::MORE_OR_EQUAL:
+      FATAL << "This operator should have been rewritten";
+      fail();
     case Operator::MEMBER_ACCESS: {
       if (auto rightType = expr[1]->getDotOperatorType(&*expr[0], context)) {
         if (!left.dynamicCast<ReferenceType>() && !left.dynamicCast<MutableReferenceType>())
@@ -483,7 +496,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCall
       return unique_ptr<Expression>(unique<UnaryExpression>(codeLoc, op, std::move(arguments[0])));
     else {
       CHECK(parameters.size() == 2);
-      return unique_ptr<Expression>(unique<BinaryExpression>(codeLoc, op, std::move(arguments)));
+      return unique_ptr<Expression>(BinaryExpression::get(codeLoc, op, std::move(arguments)));
     }
   } else
     return fun.get_error();
@@ -573,7 +586,7 @@ void FunctionDefinition::checkAndGenerateCopyFunction(const Context& context) {
         auto copiedParam = unique<Variable>(codeLoc, *parameters[0].name);
         auto copyCall = unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc));
         copyCall->arguments.push_back(unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
-            unique<BinaryExpression>(codeLoc, Operator::POINTER_MEMBER_ACCESS,
+            BinaryExpression::get(codeLoc, Operator::POINTER_MEMBER_ACCESS,
             std::move(copiedParam), unique<Variable>(codeLoc, elem.name))));
         call->arguments.push_back(std::move(copyCall));
       }
@@ -1276,15 +1289,14 @@ void RangedLoopStatement::check(Context& context) {
   auto containerEndName = "container_end"s + uniqueSufix;
   bodyContext.addVariable(*containerName, containerType);
   containerEnd = unique<VariableDeclaration>(codeLoc, none, containerEndName,
-      unique<BinaryExpression>(codeLoc, Operator::MEMBER_ACCESS,
+      BinaryExpression::get(codeLoc, Operator::MEMBER_ACCESS,
           unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("end", codeLoc))));
   containerEnd->check(bodyContext);
-  init->initExpr = unique<BinaryExpression>(codeLoc, Operator::MEMBER_ACCESS,
+  init->initExpr = BinaryExpression::get(codeLoc, Operator::MEMBER_ACCESS,
       unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("begin", codeLoc)));
   init->isMutable = true;
-  condition = unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT,
-      unique<BinaryExpression>(codeLoc, Operator::EQUALS, unique<Variable>(codeLoc, init->identifier),
-          unique<Variable>(codeLoc, containerEndName)));
+  condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL, unique<Variable>(codeLoc, init->identifier),
+      unique<Variable>(codeLoc, containerEndName));
   increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(codeLoc, init->identifier));
   init->check(bodyContext);
   codeLoc.check(getType(bodyContext, condition) == ArithmeticType::BOOL, "Equality comparison between iterators"

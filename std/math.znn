@@ -5,7 +5,7 @@ public embed {
 #include <cmath>
 }
 
-template <T> requires comparable<T>
+template <T> requires ordered<T>
 T min(mutable T a, mutable T b) {
   if (a < b)
     return move(a);
@@ -13,7 +13,7 @@ T min(mutable T a, mutable T b) {
     return move(b);
 }
 
-template <T> requires comparable<T>
+template <T> requires ordered<T>
 T max(mutable T a, mutable T b) {
   if (a < b)
     return move(b);

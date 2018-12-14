@@ -135,7 +135,7 @@ unique_ptr<Expression> parseStringLiteral(CodeLoc initialLoc, string literal) {
     if (!left)
       left = std::move(right);
     else
-      left = unique<BinaryExpression>(loc, Operator::PLUS, std::move(left), std::move(right));
+      left = BinaryExpression::get(loc, Operator::PLUS, std::move(left), std::move(right));
   };
   regex re(getInputReg());
   int lastPos = 0;
@@ -152,7 +152,7 @@ unique_ptr<Expression> parseStringLiteral(CodeLoc initialLoc, string literal) {
         } else if (index == 1) {
           loc = loc.plus(0, 2);
           auto tokens = lex(it->str().substr(1, it->str().size() - 2), loc, "end of expression");
-          auto call = unique<BinaryExpression>(loc, Operator::MEMBER_ACCESS, parseExpression(tokens),
+          auto call = BinaryExpression::get(loc, Operator::MEMBER_ACCESS, parseExpression(tokens),
               unique<FunctionCall>(loc, IdentifierInfo("to_string", loc)));
           addElem(std::move(call), loc);
         } else {
@@ -277,13 +277,13 @@ unique_ptr<Expression> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression
         } else
           break;
       }
-      lhs = unique<BinaryExpression>(token.codeLoc, *op1, std::move(lhs), std::move(rhs));
+      lhs = BinaryExpression::get(token.codeLoc, *op1, std::move(lhs), std::move(rhs));
     } else
     if (token == Keyword::OPEN_SQUARE_BRACKET) {
       tokens.popNext();
       auto rhs = parseExpression(tokens);
       tokens.eat(Keyword::CLOSE_SQUARE_BRACKET);
-      lhs = unique<BinaryExpression>(token.codeLoc, Operator::SUBSCRIPT, std::move(lhs), std::move(rhs));
+      lhs = BinaryExpression::get(token.codeLoc, Operator::SUBSCRIPT, std::move(lhs), std::move(rhs));
     } else
       break;
   }

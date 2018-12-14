@@ -4,9 +4,12 @@
 #include "ast.h"
 
 const static vector<pair<string, Operator>> operators {
+  {"<=", Operator::LESS_OR_EQUAL},
+  {">=", Operator::MORE_OR_EQUAL},
   {"<", Operator::LESS_THAN},
   {">", Operator::MORE_THAN},
   {"==", Operator::EQUALS},
+  {"!=", Operator::NOT_EQUAL},
   // if a binary op has the same symbol as unary it needs to come before it.
   {"++", Operator::INCREMENT},
   {"+", Operator::PLUS},
@@ -66,12 +69,15 @@ int getPrecedence(Operator op) {
       return 2;
     case Operator::LOGICAL_AND:
       return 3;
+    case Operator::NOT_EQUAL:
     case Operator::EQUALS:
       return 4;
     case Operator::LOGICAL_NOT:
       return 5;
     case Operator::LESS_THAN:
     case Operator::MORE_THAN:
+    case Operator::LESS_OR_EQUAL:
+    case Operator::MORE_OR_EQUAL:
       return 6;
     case Operator::PLUS:
     case Operator::PLUS_UNARY:
@@ -116,8 +122,11 @@ bool isUnary(Operator op) {
     case Operator::DIVIDE:
     case Operator::MODULO:
     case Operator::EQUALS:
+    case Operator::NOT_EQUAL:
     case Operator::LESS_THAN:
     case Operator::MORE_THAN:
+    case Operator::LESS_OR_EQUAL:
+    case Operator::MORE_OR_EQUAL:
     case Operator::INCREMENT_BY:
     case Operator::DECREMENT_BY:
     case Operator::MULTIPLY_BY:
@@ -267,8 +276,13 @@ static nullable<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileT
     case Operator::GET_ADDRESS:
     case Operator::SUBSCRIPT:
     case Operator::MEMBER_ACCESS:
-    case Operator::POINTER_MEMBER_ACCESS:
       return nullptr;
+    case Operator::POINTER_MEMBER_ACCESS:
+    case Operator::NOT_EQUAL:
+    case Operator::LESS_OR_EQUAL:
+    case Operator::MORE_OR_EQUAL:
+      FATAL << "This operator should have been rewritten";
+      fail();
   }
 }
 

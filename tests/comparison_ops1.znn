@@ -1,0 +1,45 @@
+// 108
+
+import "std/concepts.znn";
+
+template <T>
+struct S {
+  T elem;
+};
+
+template <T> requires comparable<T>
+bool operator == (S<T>* s1, S<T>* s2) {
+  return s1->elem == s2->elem;
+}
+
+template <T> requires ordered<T>
+bool operator < (S<T>* s1, S<T>* s2) {
+  return s1->elem < s2->elem;
+}
+
+template <T> requires ordered<T>
+bool operator > (S<T>* s1, S<T>* s2) {
+  return s1->elem > s2->elem;
+}
+
+int main() {
+  mutable sum = 0;
+  for (mutable i = 0; i < 3; ++i)
+    for (mutable j = 0; j < 3; ++j) {
+      const x = S(i);
+      const y = S(j);
+      if (x < y)
+        sum += i + 3 * j;
+      if (x > y)
+        sum += i + 3 * j;
+      if (x <= y)
+        sum += i + 3 * j;
+      if (x >= y)
+        sum += i + 3 * j;
+      if (x == y)
+        sum += i + 3 * j;
+      if (x != y)
+        sum += i + 3 * j;
+    }
+  return sum;
+}

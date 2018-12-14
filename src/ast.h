@@ -67,14 +67,16 @@ struct Variable : Expression {
 };
 
 struct BinaryExpression : Expression {
-  BinaryExpression(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>);
-  BinaryExpression(CodeLoc, Operator, vector<unique_ptr<Expression>>);
+  static unique_ptr<Expression> get(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>);
+  static unique_ptr<Expression> get(CodeLoc, Operator, vector<unique_ptr<Expression>>);
   virtual SType getTypeImpl(Context&) override;
   virtual nullable<SType> eval(const Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   vector<unique_ptr<Expression>> expr;
   bool subscriptOpWorkaround = true;
+  struct Private {};
+  BinaryExpression(Private, CodeLoc, Operator, vector<unique_ptr<Expression>>);
 };
 
 struct UnaryExpression : Expression {

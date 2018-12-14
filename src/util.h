@@ -180,3 +180,22 @@ template <typename T>
 vector<T*> extractPtrs(const vector<unique_ptr<T>>& v) {
   return transform(v, [](const auto& elem) { return elem.get(); });
 }
+
+template <typename T>
+void emplaceBack(vector<T>&) {}
+
+template <typename T, typename First, typename... Args>
+void emplaceBack(vector<T>& v, First&& first, Args&&... args) {
+  v.emplace_back(std::move(std::forward<First>(first)));
+  emplaceBack(v, std::forward<Args>(args)...);
+}
+
+template <typename T, typename... Args>
+vector<T> makeVec(T&& f, Args&&... args) {
+  vector<T> ret;
+  ret.reserve(sizeof...(Args) + 1);
+  ret.push_back(std::forward<T>(f));
+  emplaceBack(ret, std::forward<Args>(args)...);
+  return ret;
+}
+
