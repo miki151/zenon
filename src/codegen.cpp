@@ -50,7 +50,7 @@ void Constant::codegen(Accu& accu, CodegenStage) const {
 }
 
 void Variable::codegen(Accu& accu, CodegenStage) const {
-  accu.add(identifier);
+  accu.add(*identifier.asBasicIdentifier());
 }
 
 void MoveExpression::codegen(Accu& accu, CodegenStage) const {

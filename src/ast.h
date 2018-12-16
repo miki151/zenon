@@ -58,12 +58,13 @@ struct EnumConstant : Expression {
 };
 
 struct Variable : Expression {
+  Variable(CodeLoc, IdentifierInfo);
   Variable(CodeLoc, string);
   virtual SType getTypeImpl(Context&) override;
   virtual nullable<SType> eval(const Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
-  string identifier;
+  IdentifierInfo identifier;
 };
 
 struct BinaryExpression : Expression {

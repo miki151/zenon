@@ -213,14 +213,11 @@ unique_ptr<Expression> parsePrimary(Tokens& tokens) {
       },
       [&](const IdentifierToken&) -> unique_ptr<Expression> {
         auto identifier = parseIdentifier(tokens, false);
-        auto token2 = tokens.peek();
-        if (token2 == Keyword::OPEN_BRACKET) {
-          auto ret = parseFunctionCall(identifier, tokens);
-          return ret;
+        if (tokens.peek() == Keyword::OPEN_BRACKET) {
+          return parseFunctionCall(identifier, tokens);
         } else {
-          CHECK(identifier.parts[0].templateArguments.empty()) << identifier.toString();
           if (identifier.parts.size() == 1)
-            return unique<Variable>(token.codeLoc, identifier.parts[0].name);
+            return unique<Variable>(token.codeLoc, identifier);
           else
             return unique<EnumConstant>(token.codeLoc, identifier.parts[0].name, identifier.parts[1].name);
         }

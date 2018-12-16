@@ -17,8 +17,11 @@ Constant::Constant(CodeLoc l, SCompileTimeValue v) : Expression(l), value(v) {
   INFO << "Created constant " << v->getName() << " of type " << v->getType();
 }
 
-Variable::Variable(CodeLoc l, string id) : Expression(l), identifier(id) {
-  INFO << "Parsed variable " << id;
+Variable::Variable(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {
+  INFO << "Parsed variable " << id.toString();
+}
+
+Variable::Variable(CodeLoc l, string s) : Variable(l, IdentifierInfo(s, l)) {
 }
 
 FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(std::move(id)) {
@@ -49,23 +52,30 @@ nullable<SType> Constant::eval(const Context&) const {
 }
 
 SType Variable::getTypeImpl(Context& context) {
-  if (auto varType = context.getTypeOfVariable(identifier))
-    return *varType;
-  else {
-    if (auto t = context.getType(identifier))
-      return t->getType();
-    return varType.get(codeLoc); // this causes compile error
+  optional<string> varError;
+  if (auto id = identifier.asBasicIdentifier()) {
+    if (auto varType = context.getTypeOfVariable(*id))
+      return *varType;
+    else
+      varError = varType.get_error();
   }
+  if (auto t = context.getTypeFromString(identifier))
+    return t.get()->getType();
+  codeLoc.error(varError.value_or("Identifier not found: " + identifier.toString()));
 }
 
 nullable<SType> Variable::eval(const Context& context) const {
-  return context.getType(identifier);
+  if (auto res = context.getTypeFromString(identifier))
+    return *res;
+  else
+    return nullptr;
 }
 
 nullable<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
   if (left)
-    if (auto structType = left->getTypeImpl(callContext)->getUnderlying().dynamicCast<StructType>())
-      return SType(MutableReferenceType::get(structType->getTypeOfMember(identifier).get(codeLoc)));
+    if (auto id = identifier.asBasicIdentifier())
+      if (auto structType = left->getTypeImpl(callContext)->getUnderlying().dynamicCast<StructType>())
+        return SType(MutableReferenceType::get(structType->getTypeOfMember(*id).get(codeLoc)));
   return nullptr;
 }
 

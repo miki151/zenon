@@ -483,6 +483,7 @@ void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc, Sw
 }
 
 WithError<SType> StructType::instantiate(const Context& context, vector<SType> templateArgs) const {
+  CHECK(parent == this) << "Struct instatiated a second time?";
   if (templateArgs.size() != templateParams.size())
     return "Wrong number of template parameters for type " + getName();
   auto ret = get_this().get().dynamicCast<StructType>();
