@@ -370,7 +370,7 @@ static bool paramsAreGoodForOperator(const vector<FunctionType::Param>& params) 
   return false;
 }
 
-void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
+void FunctionDefinition::setFunctionType(const Context& context, bool concept, bool builtInImport) {
   if (auto s = name.getReferenceMaybe<string>())
     context.checkNameConflictExcludingFunctions(codeLoc, *s, "Function");
   else if (auto op = name.getValueMaybe<Operator>()) {
@@ -407,7 +407,7 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept) {
         paramNames.insert(*p.name);
       }
     }
-    codeLoc.check(concept || !name.contains<Operator>() || paramsAreGoodForOperator(params),
+    codeLoc.check(builtInImport || concept || !name.contains<Operator>() || paramsAreGoodForOperator(params),
         "Operator parameters must include at least one user-defined type");
     auto callType = name.contains<ConstructorId>() ? FunctionCallType::CONSTRUCTOR : FunctionCallType::FUNCTION;
     functionType = FunctionType(context.getFunctionId(name), callType, returnType, params, templateTypes);
@@ -653,9 +653,9 @@ void FunctionDefinition::check(Context& context) {
 }
 
 void FunctionDefinition::addToContext(Context& context, ImportCache& cache) {
-  setFunctionType(context, false);
+  setFunctionType(context, false, cache.isCurrentlyBuiltIn());
   codeLoc.checkNoError(context.addFunction(*functionType));
-  if (templateInfo.params.empty() && !cache.getCurrentImports().empty())
+  if (templateInfo.params.empty() && cache.currentlyInImport())
     // we are going to ignore the function body if we're in an import and it's not a template
     body = nullptr;
 }
@@ -724,8 +724,19 @@ static Context createNewContext() {
   return Context::withParent(*context);
 }
 
-vector<string> correctness(const AST& ast, const vector<string>& importPaths) {
-  ImportCache cache;
+static void addBuiltInImport(AST& ast) {
+  auto tmpVec = std::move(ast.elems);
+  ast.elems = makeVec<unique_ptr<Statement>>(
+      unique<ImportStatement>(CodeLoc{}, "std/builtin.znn", true, true)
+  );
+  for (auto& elem : tmpVec)
+    ast.elems.push_back(std::move(elem));
+}
+
+vector<ModuleInfo> correctness(AST& ast, const vector<string>& importPaths, bool isBuiltInModule) {
+  ImportCache cache(isBuiltInModule);
+  if (!isBuiltInModule)
+    addBuiltInImport(ast);
   auto context = createNewContext();
   for (auto& elem : ast.elems) {
     if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
@@ -1012,7 +1023,7 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
         method->functionType->templateParams = type->templateParams;
         method->functionType->parentType = type.get();
         method->codeLoc.checkNoError(context.addFunction(*method->functionType));
-        if (!cache.getCurrentImports().empty() && templateInfo.params.empty())
+        if (cache.currentlyInImport() && templateInfo.params.empty())
           method->body = nullptr;
         hasConstructor = true;
       } else
@@ -1135,7 +1146,8 @@ void WhileLoopStatement::check(Context& context) {
   body->check(bodyContext);
 }
 
-ImportStatement::ImportStatement(CodeLoc l, string p, bool pub) : Statement(l), path(p), isPublic(pub) {
+ImportStatement::ImportStatement(CodeLoc l, string p, bool pub, bool isBuiltIn)
+    : Statement(l), path(p), isPublic(pub), isBuiltIn(isBuiltIn) {
 }
 
 void ImportStatement::setImportDirs(const vector<string>& p) {
@@ -1148,15 +1160,17 @@ void ImportStatement::check(Context&) {
 void ImportStatement::processImport(Context& context, ImportCache& cache, const string& content, const string& path) {
   codeLoc.check(!cache.isCurrentlyImported(path),
       "Public import cycle: " + combine(cache.getCurrentImports(), ", "));
-  if ((!isPublic && !cache.getCurrentImports().empty())) {
+  if ((!isPublic && cache.currentlyInImport())) {
     INFO << "Skipping non public import " << path;
     return;
   }
   if (!cache.contains(path)) {
     INFO << "Parsing import " << path;
-    cache.pushCurrentImport(path);
+    cache.pushCurrentImport(path, isBuiltIn);
     auto tokens = lex(content, CodeLoc(path, 0, 0), "end of file");
     ast = unique<AST>(parse(tokens));
+    if (!isBuiltIn && !cache.isCurrentlyBuiltIn())
+      addBuiltInImport(*ast);
     Context importContext = createNewContext();
     for (auto& elem : ast->elems) {
       if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
@@ -1165,8 +1179,8 @@ void ImportStatement::processImport(Context& context, ImportCache& cache, const 
     }
     for (auto& elem : ast->elems)
       elem->check(importContext);
-    cache.popCurrentImport();
-    cache.insert(path, std::move(importContext));
+    cache.popCurrentImport(isBuiltIn);
+    cache.insert(path, std::move(importContext), isBuiltIn || cache.isCurrentlyBuiltIn());
   } else
     INFO << "Import " << path << " already cached";
   context.merge(cache.getContext(path));

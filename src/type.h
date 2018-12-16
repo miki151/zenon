@@ -228,6 +228,19 @@ struct ArrayType : public Type {
   SType underlying;
 };
 
+struct SliceType : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual string getCodegenName() const override;
+  virtual SType replaceImpl(SType from, SType to) const override;
+  virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  static shared_ptr<SliceType> get(SType);
+  virtual bool isBuiltinCopyable(const Context&) const override;
+  virtual optional<string> getSizeError() const override;
+  struct Private {};
+  SliceType(Private, SType);
+  SType underlying;
+};
+
 struct FunctionType {
   struct Param {
     Param(optional<string> name, SType type);

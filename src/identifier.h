@@ -31,7 +31,9 @@ struct IdentifierInfo {
   struct ArraySize {
     shared_ptr<Expression> expr;
   };
-  vector<variant<PointerType, ArraySize>> pointerOrArray;
+  struct Slice {
+  };
+  vector<variant<PointerType, ArraySize, Slice>> typeOperator;
   CodeLoc codeLoc;
   string toString() const;
   bool operator == (const IdentifierInfo&) const;

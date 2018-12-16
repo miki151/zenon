@@ -55,16 +55,17 @@ int main(int argc, char* argv[]) {
   bool printCpp = !flags["o"].was_set();
   ofstream logFile("log.out");
   initLogging(logFile);
-  set<string> toCompile;
+  vector<ModuleInfo> toCompile;
   set<string> finished;
   for (auto pathElem : flags[""])
-    toCompile.insert(fs::canonical(pathElem.string));
+    toCompile.push_back({fs::canonical(pathElem.string), false});
   vector<string> objFiles;
   auto buildDir = ".build_cache";
   if (!fs::is_directory(buildDir))
     fs::create_directory(buildDir);
   while (!toCompile.empty()) {
-    auto path = *toCompile.begin();
+    auto path = toCompile.begin()->path;
+    bool builtInModule = toCompile.begin()->builtIn;
     cerr << "Compiling " << path << endl;
     toCompile.erase(toCompile.begin());
     finished.insert(path);
@@ -74,7 +75,7 @@ int main(int argc, char* argv[]) {
     INFO << "Parsing:\n\n" << program->value;
     auto tokens = lex(program->value, CodeLoc(path, 0, 0), "end of file");
     auto ast = parse(tokens);
-    auto imported = correctness(ast, {installDir});
+    auto imported = correctness(ast, {installDir}, builtInModule);
     auto cppCode = codegen(ast, installDir + "/codegen_includes/all.h"s, !printCpp);
     if (printCpp) {
       cout << cppCode << endl;
@@ -83,8 +84,8 @@ int main(int argc, char* argv[]) {
       logFile << cppCode;
     if (fullCompile)
       for (auto& import : imported)
-        if (!finished.count(import))
-          toCompile.insert(import);
+        if (!finished.count(import.path))
+          toCompile.push_back(import);
     auto objFile = fullCompile
         ? buildDir + "/"s + to_string(std::hash<string>()(cppCode)) + ".znn.o"
         : flags["o"].get().string;

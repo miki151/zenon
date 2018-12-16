@@ -1,12 +1,17 @@
 #include "import_cache.h"
+#include "ast.h"
 
-
-void ImportCache::insert(string path, Context context) {
-  cache.push_back(CacheElem{path, std::move(context)});
+ImportCache::ImportCache(bool isBuiltInModule) {
+  if (isBuiltInModule)
+    ++builtInCounter;
 }
 
-vector<string> ImportCache::getAllImports() const {
-  return transform(cache, [](const auto& elem) { return elem.path; });
+void ImportCache::insert(string path, Context context, bool builtIn) {
+  cache.push_back(CacheElem{path, std::move(context), builtIn});
+}
+
+vector<ModuleInfo> ImportCache::getAllImports() const {
+  return transform(cache, [](const auto& elem) { return ModuleInfo{elem.path, elem.builtIn}; });
 }
 
 bool ImportCache::contains(string path) const {
@@ -31,10 +36,22 @@ bool ImportCache::isCurrentlyImported(string path) const {
   return ::contains(current, path);
 }
 
-void ImportCache::pushCurrentImport(string path) {
+void ImportCache::pushCurrentImport(string path, bool isBuiltIn) {
   current.push_back(path);
+  if (isBuiltIn)
+    ++builtInCounter;
 }
 
-void ImportCache::popCurrentImport() {
+void ImportCache::popCurrentImport(bool isBuiltIn) {
   current.pop_back();
+  if (isBuiltIn)
+    --builtInCounter;
+}
+
+bool ImportCache::currentlyInImport() const {
+  return current.size() > 0;
+}
+
+bool ImportCache::isCurrentlyBuiltIn() const {
+  return builtInCounter > 0;
 }

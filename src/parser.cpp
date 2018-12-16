@@ -61,13 +61,17 @@ static optional<IdentifierInfo> parseIdentifierMaybe(Tokens& tokens, bool allowP
     while (1) {
       if (auto t = tokens.eatMaybe(Keyword::MUTABLE)) {
         tokens.eat(Operator::MULTIPLY);
-        ret.pointerOrArray.push_back(IdentifierInfo::MUTABLE);
+        ret.typeOperator.push_back(IdentifierInfo::MUTABLE);
       }
       else if (auto t = tokens.eatMaybe(Operator::MULTIPLY)) {
-        ret.pointerOrArray.push_back(IdentifierInfo::CONST);
+        ret.typeOperator.push_back(IdentifierInfo::CONST);
       }
       else if (auto t = tokens.eatMaybe(Keyword::OPEN_SQUARE_BRACKET)) {
-        ret.pointerOrArray.push_back(IdentifierInfo::ArraySize{getSharedPtr(parseExpression(tokens))});
+        if (tokens.peek() != Keyword::CLOSE_SQUARE_BRACKET)
+          ret.typeOperator.push_back(IdentifierInfo::ArraySize{getSharedPtr(parseExpression(tokens))});
+        else {
+          ret.typeOperator.push_back(IdentifierInfo::Slice{});
+        }
         tokens.eat(Keyword::CLOSE_SQUARE_BRACKET);
       } else
         break;
@@ -737,7 +741,7 @@ unique_ptr<Statement> parseImportStatement(Tokens& tokens, bool isPublic) {
   tokens.eat(Keyword::IMPORT);
   auto path = tokens.eat(StringToken{}).value;
   tokens.eat(Keyword::SEMICOLON);
-  return unique<ImportStatement>(codeLoc, path, isPublic);
+  return unique<ImportStatement>(codeLoc, path, isPublic, false);
 }
 
 unique_ptr<Statement> parseEnumStatement(Tokens& tokens) {

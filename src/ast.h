@@ -375,7 +375,7 @@ struct FunctionDefinition : Statement {
   virtual void addToContext(Context&, ImportCache&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
-  void setFunctionType(const Context&, bool concept = false);
+  void setFunctionType(const Context&, bool concept = false, bool builtInImport = false);
   void addSignature(Accu&, string structName) const;
   void handlePointerParamsInOperator(Accu&) const;
   void handlePointerReturnInOperator(Accu&) const;
@@ -401,11 +401,12 @@ struct EmbedStatement : Statement {
 struct AST;
 
 struct ImportStatement : Statement {
-  ImportStatement(CodeLoc, string path, bool isPublic);
+  ImportStatement(CodeLoc, string path, bool isPublic, bool isBuiltIn);
   string path;
   vector<string> importDirs;
   unique_ptr<AST> ast;
-  bool isPublic;
+  const bool isPublic;
+  const bool isBuiltIn;
   void setImportDirs(const vector<string>& importDirs);
   virtual void addToContext(Context&, ImportCache& cache) override;
   virtual void check(Context&) override;
@@ -420,4 +421,9 @@ struct AST {
   vector<unique_ptr<Statement>> elems;
 };
 
-extern vector<std::string> correctness(const AST&, const vector<string>& importPaths);
+struct ModuleInfo {
+  string path;
+  bool builtIn;
+};
+
+extern vector<ModuleInfo> correctness(AST&, const vector<string>& importPaths, bool builtIn);

@@ -17,7 +17,7 @@ IdentifierInfo IdentifierInfo::getWithoutFirstPart() const {
 }
 
 optional<string> IdentifierInfo::asBasicIdentifier() const {
-  if (parts.size() > 1 || !parts[0].templateArguments.empty() || !pointerOrArray.empty())
+  if (parts.size() > 1 || !parts[0].templateArguments.empty() || !typeOperator.empty())
     return none;
   else
     return parts[0].name;
@@ -30,7 +30,7 @@ string IdentifierInfo::toString() const {
       ret.append("::");
     ret.append(part.toString());
   }
-  for (auto& elem : pointerOrArray)
+  for (auto& elem : typeOperator)
     elem.visit(
         [&](PointerType type) {
           switch (type) {
@@ -44,6 +44,9 @@ string IdentifierInfo::toString() const {
         },
         [&](const ArraySize&) {
           ret.append("[expr]");
+        },
+        [&](const Slice&) {
+          ret.append("[]");
         }
     );
   return ret;
@@ -64,7 +67,7 @@ IdentifierInfo::IdentifierInfo() {
 static string getTemplateArgString(const variant<shared_ptr<Expression>, IdentifierInfo>& arg) {
   return arg.visit(
       [](const IdentifierInfo& id) { return id.toString(); },
-      [](const shared_ptr<Expression>& expr) { return "expression"s; });
+      [](const shared_ptr<Expression>&) { return "expression"s; });
 }
 
 string IdentifierInfo::IdentifierPart::toString() const {

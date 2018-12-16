@@ -314,7 +314,7 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
   WithErrorLine<SType> ret = topType->instantiate(*this, getTypeList(id.parts.at(0).templateArguments))
       .addCodeLoc(id.codeLoc);
   if (ret)
-    for (auto& elem : id.pointerOrArray) {
+    for (auto& elem : id.typeOperator) {
       elem.visit(
           [&](IdentifierInfo::PointerType type) {
             switch (type) {
@@ -336,6 +336,9 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
               ret = size.expr->codeLoc.getError("Inappropriate type of array size: " + quote(type.get()->getName()));
             } else
               ret = size.expr->codeLoc.getError("Can't evaluate array size expression at compile-time"s);
+          },
+          [&](IdentifierInfo::Slice) {
+            *ret = SliceType::get(*ret);
           }
       );
       if (!ret)

@@ -1,0 +1,9 @@
+
+public import "std/slice.znn";
+public import "std/array.znn";
+public import "std/concepts.znn";
+
+template <T>
+T* copy(T** p) {
+  return *p;
+}

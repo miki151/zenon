@@ -734,7 +734,7 @@ shared_ptr<ArrayType> ArrayType::get(SType type, SCompileTimeValue size) {
 }
 
 bool ArrayType::isBuiltinCopyable(const Context& context) const {
-  return underlying->isBuiltinCopyable(context);
+  return false;//underlying->isBuiltinCopyable(context);
 }
 
 optional<string> ArrayType::getSizeError() const {
@@ -827,3 +827,41 @@ SType CompileTimeValue::replaceImpl(SType from, SType to) const {
     return CompileTimeValue::getTemplateValue(templateValue->type->replace(from, to), templateValue->name);
   return get_this().get();
 }
+
+string SliceType::getName(bool withTemplateArguments) const {
+  return underlying->getName(withTemplateArguments) + "[]";
+}
+
+string SliceType::getCodegenName() const {
+  return "slice_t<" + underlying->getCodegenName() + ">";
+}
+
+SType SliceType::replaceImpl(SType from, SType to) const {
+  return get(underlying->replace(from, to));
+}
+
+optional<string> SliceType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+  if (auto argPointer = argType.dynamicCast<SliceType>())
+    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+  else
+    return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
+}
+
+shared_ptr<SliceType> SliceType::get(SType type) {
+  static map<SType, shared_ptr<SliceType>> generated;
+  if (!generated.count(type)) {
+    auto ret = shared<SliceType>(Private{}, type);
+    generated.insert({type, ret});
+  }
+  return generated.at(type);
+}
+
+bool SliceType::isBuiltinCopyable(const Context&) const {
+  return true;
+}
+
+optional<string> SliceType::getSizeError() const {
+  return underlying->getSizeError();
+}
+
+SliceType::SliceType(SliceType::Private, SType t) : underlying(std::move(t)) {}

@@ -72,6 +72,7 @@ class Context : public owned_object<Context> {
     map<string, shared_ptr<Concept>> concepts;
     map<string, BuiltInFunctionInfo> builtInFunctions;
     bool breakAllowed = false;
+    bool isBuiltInModule = false;
     void merge(const State&);
     void print() const;
   };
