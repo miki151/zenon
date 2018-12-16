@@ -157,26 +157,6 @@ class basic_lite_str {
   }
 };
 
-template <typename char_type, typename char_traits, typename alloc>
-int size(const basic_lite_str<char_type, char_traits, alloc>* s) {
-  return s->size();
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-auto empty(const basic_lite_str<char_type, char_traits, alloc>* s) {
-  return s->empty();
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-auto substring(const basic_lite_str<char_type, char_traits, alloc>* s, int index, int length) {
-  return s->substring(index, length);
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-char_type subscript_op(basic_lite_str<char_type, char_traits, alloc> s, int index) {
-  return s[index];
-}
-
 template <typename allocator = detail::lite_str_allocator<char>>
 using lite_str = basic_lite_str<char, detail::char_char_traits, allocator>;
 

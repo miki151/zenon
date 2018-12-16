@@ -2,8 +2,25 @@
 public import "std/slice.znn";
 public import "std/array.znn";
 public import "std/concepts.znn";
+public import "std/string.znn";
 
 template <T>
 T* copy(T** p) {
   return *p;
+}
+
+bool copy(bool* b) {
+  return *b;
+}
+
+int copy(int* b) {
+  return *b;
+}
+
+char copy(char* b) {
+  return *b;
+}
+
+double copy(double* b) {
+  return *b;
 }

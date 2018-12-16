@@ -440,7 +440,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
     for (auto& alternative : type->alternatives) {
       string signature = alternative.name + "(";
       if (alternative.type != ArithmeticType::VOID)
-        signature += "const " + alternative.type->getName() + "& elem";
+        signature += "const " + alternative.type->getCodegenName() + "& elem";
       signature += ")";
       string params = joinTemplateParams(type->templateParams);
       accu.newLine("static " + name + params + " " + signature + ";");
@@ -450,7 +450,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
     accu.newLine("bool dummy;");
     for (auto& alternative : type->alternatives) {
       if (alternative.type != ArithmeticType::VOID)
-        accu.newLine(alternative.type->getName() + " " + variantUnionEntryPrefix + alternative.name + ";");
+        accu.newLine(alternative.type->getCodegenName() + " " + variantUnionEntryPrefix + alternative.name + ";");
     }
     --accu.indent;
     accu.newLine("};");
@@ -494,7 +494,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
     for (auto& alternative : type->alternatives) {
       string signature = alternative.name + "(";
       if (alternative.type != ArithmeticType::VOID)
-        signature += "const " + alternative.type->getName() + "& elem";
+        signature += "const " + alternative.type->getCodegenName() + "& elem";
       signature += ")";
       string params = joinTemplateParams(type->templateParams);
       considerTemplateParams(accu, templateInfo.params);
@@ -503,7 +503,8 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
       accu.newLine(name + " ret;");
       accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + alternative.name + ";");
       if (!(alternative.type == ArithmeticType::VOID))
-        accu.newLine("new (&ret."s + variantUnionEntryPrefix + alternative.name + ") " + alternative.type->getName() + "(elem);");
+        accu.newLine("new (&ret."s + variantUnionEntryPrefix + alternative.name + ") " +
+            alternative.type->getCodegenName() + "(elem);");
       accu.newLine("return ret;");
       --accu.indent;
       accu.newLine("}");

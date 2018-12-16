@@ -40,6 +40,7 @@ struct Type : public owned_object<Type> {
 
 struct ArithmeticType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
+  virtual string getCodegenName() const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
   using DefType = shared_ptr<ArithmeticType>;
   static DefType INT;
@@ -50,10 +51,11 @@ struct ArithmeticType : public Type {
   static DefType STRING;
   static DefType ANY_TYPE;
   static DefType ENUM_TYPE;
-  ArithmeticType(const string& name);
+  ArithmeticType(const string& name, optional<string> codegenName = none);
 
   private:
   string name;
+  string codegenName;
 };
 
 struct ReferenceType : public Type {

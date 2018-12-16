@@ -39,7 +39,9 @@ function compile() {
 
 BINARY_TMP=$(mktemp)
 
-for I in `ls *.znn`; do 
+
+function run_test() {
+  I=$1
   EXPECTED=`head -n 1 $I | cut -c 4-`
 #echo -n "Running $I Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then
@@ -61,43 +63,13 @@ for I in `ls *.znn`; do
     continue
   fi
 #echo -e "$GREEN Success$NC"
+}
+for I in `ls *.znn`; do 
+  run_test $I
 done
 
-for D in `ls -d */`; do
-  EXPECTED=`head -n 1 $D/main.znn | grep "//"| cut -c 4-`
-#echo -n "Running directory $D Expecting: $EXPECTED"
-  if [ "$EXPECTED" = "" ]; then
-    echo -e "$D: $RED No expected value specified$NC"
-    continue
-  fi
-   OBJECTS=""
-  FILES=`ls $D`
-  if [ "$EXPECTED" = "no_compile" ]; then
-    FILES="main.znn"
-  fi
-  for I in $FILES; do
-#    echo "Compiling $I"
-    OPATH=$(mktemp)
-    compile "$D/$I -c" $EXPECTED $OPATH
-    if [ "$?" != "0" ]; then
-      continue 2
-    fi
-    if [ "$EXPECTED" = "no_compile" ]; then
-#echo -e "$GREEN Success$NC"
-      continue 2
-    fi
-    OBJECTS="$OBJECTS $OPATH"
-  done
-#  echo "Linking $OBJECTS"
-  clang++ $OBJECTS -o $BINARY_TMP $CLANG_OPT
-  $BINARY_TMP
-  RESULT=$?
-  if [ "$RESULT" != "$EXPECTED" ]; then
-    echo -e "$D: $RED Expected $EXPECTED, got $RESULT$NC"
-    continue
-  fi
-#echo -e "$GREEN Success$NC"
-  rm $OPATH
+for I in `ls */main.znn`; do 
+  run_test $I
 done
 
 rm $BINARY_TMP

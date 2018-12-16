@@ -6,7 +6,7 @@ ArithmeticType::DefType ArithmeticType::INT = shared<ArithmeticType>("int");
 ArithmeticType::DefType ArithmeticType::DOUBLE = shared<ArithmeticType>("double");
 ArithmeticType::DefType ArithmeticType::VOID = shared<ArithmeticType>("void");
 ArithmeticType::DefType ArithmeticType::BOOL = shared<ArithmeticType>("bool");
-ArithmeticType::DefType ArithmeticType::STRING = shared<ArithmeticType>("string");
+ArithmeticType::DefType ArithmeticType::STRING = shared<ArithmeticType>("string", "zenon_string"s);
 ArithmeticType::DefType ArithmeticType::CHAR = shared<ArithmeticType>("char");
 ArithmeticType::DefType ArithmeticType::ANY_TYPE = shared<ArithmeticType>("any_type");
 ArithmeticType::DefType ArithmeticType::ENUM_TYPE = shared<ArithmeticType>("enum_type");
@@ -15,7 +15,12 @@ string ArithmeticType::getName(bool withTemplateArguments) const {
   return name;
 }
 
-ArithmeticType::ArithmeticType(const string& name) : name(name) {
+string ArithmeticType::getCodegenName() const {
+  return codegenName;
+}
+
+ArithmeticType::ArithmeticType(const string& name, optional<std::string> codegenName)
+    : name(name), codegenName(codegenName.value_or(name)) {
 }
 
 string ReferenceType::getName(bool withTemplateArguments) const {

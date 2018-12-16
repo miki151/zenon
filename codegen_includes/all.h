@@ -4,7 +4,6 @@
 #include "variant_helpers.h"
 #include "array_utils.h"
 #include "lite_str.h"
-#include "copy.h"
-using string = lite_str<>;
+using zenon_string = lite_str<>;
 
 #endif

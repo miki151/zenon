@@ -667,14 +667,6 @@ static Context createNewContext() {
     for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE, ArithmeticType::BOOL,
          ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
       context->addType(type->getName(), type);
-    CHECK(!context->addFunction(FunctionType("size"s, FunctionCallType::FUNCTION, ArithmeticType::INT,
-        {{PointerType::get(ArithmeticType::STRING)}}, {})));
-    CHECK(!context->addFunction(FunctionType("empty"s, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-        {{PointerType::get(ArithmeticType::STRING)}}, {})));
-    CHECK(!context->addFunction(FunctionType("substring"s, FunctionCallType::FUNCTION, ArithmeticType::STRING,
-        {{PointerType::get(ArithmeticType::STRING)}, {ArithmeticType::INT}, {ArithmeticType::INT}}, {})));
-    CHECK(!context->addFunction(FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION, ArithmeticType::CHAR,
-        {{ArithmeticType::STRING}, {ArithmeticType::INT}}, {})));
     CHECK(!context->addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
         {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {})));
     for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
@@ -703,9 +695,6 @@ static Context createNewContext() {
     for (auto op : {Operator::EQUALS})
       for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
         CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{type}, {type}}, {})));
-    for (auto& type : {ArithmeticType::BOOL, ArithmeticType::CHAR, ArithmeticType::INT, ArithmeticType::STRING,
-        ArithmeticType::DOUBLE})
-      context->addFunction(FunctionType("copy"s, FunctionCallType::FUNCTION, type, {{PointerType::get(type)}}, {}));
     context->addBuiltInFunction("enum_size", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
         [](const Context&, vector<SType> args) -> WithError<SType> {
           auto enumType = args[0].dynamicCast<EnumType>();
