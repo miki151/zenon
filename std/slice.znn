@@ -65,6 +65,6 @@ bool operator == (slice_iterator<T>* it1, slice_iterator<T>* it2) {
 template <T, int N>
 T[] slice(T[N]* array) {
   embed {
-    return slice_t<T>{&array->front(), &array->back()};
+    return slice_t<T>{&array->front(), &array->back() + 1};
   }
 }

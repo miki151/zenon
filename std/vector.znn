@@ -145,6 +145,6 @@ vector<T> as_vector(mutable T[Sz] array) {
 template <T>
 T[] slice(vector<T>* v) {
   embed {
-    return slice_t<T>{&v->front(), &v->back()};
+    return slice_t<T>{&v->front(), &v->back() + 1};
   }
 }
