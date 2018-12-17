@@ -6,7 +6,6 @@
 #include "context.h"
 #include "operator.h"
 #include "identifier.h"
-#include "function_call_type.h"
 #include "type.h"
 #include "import_cache.h"
 

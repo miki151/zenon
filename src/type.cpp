@@ -94,8 +94,8 @@ void EnumType::handleSwitchStatement(SwitchStatement& statement, Context& contex
   }
 }
 
-FunctionType::FunctionType(FunctionId name, FunctionCallType t, SType returnType, vector<Param> p, vector<SType> tpl)
-    : name(name), callType(t), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
+FunctionType::FunctionType(FunctionId name, SType returnType, vector<Param> p, vector<SType> tpl)
+    : name(name), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
 
 string FunctionType::toString() const {

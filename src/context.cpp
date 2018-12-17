@@ -406,7 +406,7 @@ nullable<SType> Context::invokeFunction(const string& id, CodeLoc loc, vector<ST
 
 void Context::addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction fun) {
   CHECK(!state->builtInFunctions.count(id));
-  CHECK(!addFunction(FunctionType(id, FunctionCallType::FUNCTION, returnType,
+  CHECK(!addFunction(FunctionType(id, returnType,
       transform(argTypes, [](const auto& p){ return FunctionType::Param(p); }), {})));
   state->builtInFunctions.insert(make_pair(id, BuiltInFunctionInfo{std::move(argTypes), std::move(fun)}));
 }
@@ -419,12 +419,12 @@ optional<FunctionType> Context::getBuiltinOperator(Operator op, vector<SType> ar
           if (argTypes[1]->getUnderlying() == ArithmeticType::INT) {
             auto ret = [&] {
               if (argTypes[0].dynamicCast<ReferenceType>())
-                return FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION,
+                return FunctionType(Operator::SUBSCRIPT,
                     ReferenceType::get(arrayType->underlying), {{argTypes[0]}, {ArithmeticType::INT}}, {});
               if (argTypes[0].dynamicCast<MutableReferenceType>())
-                return FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION,
+                return FunctionType(Operator::SUBSCRIPT,
                     MutableReferenceType::get(arrayType->underlying), {{argTypes[0]}, {ArithmeticType::INT}}, {});
-              return FunctionType(Operator::SUBSCRIPT, FunctionCallType::FUNCTION,
+              return FunctionType(Operator::SUBSCRIPT,
                   arrayType->underlying, {{argTypes[0]}, {ArithmeticType::INT}}, {});
             }();
             ret.subscriptOpWorkaround = false;
@@ -434,27 +434,27 @@ optional<FunctionType> Context::getBuiltinOperator(Operator op, vector<SType> ar
     case Operator::GET_ADDRESS:
       if (argTypes.size() == 1) {
         if (auto referenceType = argTypes[0].dynamicCast<ReferenceType>())
-          return FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION,
+          return FunctionType(Operator::GET_ADDRESS,
               PointerType::get(referenceType->underlying), {argTypes[0]}, {});
         else if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
-          return FunctionType(Operator::GET_ADDRESS, FunctionCallType::FUNCTION,
+          return FunctionType(Operator::GET_ADDRESS,
               MutablePointerType::get(referenceType->underlying), {argTypes[0]}, {});
       }
       break;
     case Operator::POINTER_DEREFERENCE:
       if (argTypes.size() == 1) {
         if (auto pointerType = argTypes[0]->getUnderlying().dynamicCast<PointerType>())
-          return FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION,
+          return FunctionType(Operator::POINTER_DEREFERENCE,
               ReferenceType::get(pointerType->underlying), {argTypes[0]}, {});
         else if (auto pointerType = argTypes[0]->getUnderlying().dynamicCast<MutablePointerType>())
-          return FunctionType(Operator::POINTER_DEREFERENCE, FunctionCallType::FUNCTION,
+          return FunctionType(Operator::POINTER_DEREFERENCE,
               MutableReferenceType::get(pointerType->underlying), {argTypes[0]}, {});
       }
       break;
     case Operator::ASSIGNMENT:
       if (argTypes.size() == 2 && canConvert(argTypes[1], argTypes[0]->getUnderlying()))
         if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
-          return FunctionType(Operator::ASSIGNMENT, FunctionCallType::FUNCTION,
+          return FunctionType(Operator::ASSIGNMENT,
               ArithmeticType::VOID, {argTypes[0], referenceType->underlying}, {});
       break;
     default:

@@ -181,13 +181,12 @@ static void genFunctionCall(Accu& accu, const FunctionType& functionType,
   string prefix;
   string suffix;
   string id = getFunctionCallName(functionType, !!callType);
-  switch (functionType.callType) {
-    case FunctionCallType::FUNCTION:
-      prefix = id + "("; suffix = ")";
-      break;
-    case FunctionCallType::CONSTRUCTOR:
-      prefix = id + "{"; suffix = "}";
-      break;
+  if (functionType.name.contains<SType>()) {
+    prefix = id + "{";
+    suffix = "}";
+  } else {
+    prefix = id + "(";
+    suffix = ")";
   }
   accu.add(prefix);
   bool extractPointer = callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;

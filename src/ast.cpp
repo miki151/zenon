@@ -419,8 +419,7 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept, b
     }
     codeLoc.check(builtInImport || concept || !name.contains<Operator>() || paramsAreGoodForOperator(params),
         "Operator parameters must include at least one user-defined type");
-    auto callType = name.contains<ConstructorId>() ? FunctionCallType::CONSTRUCTOR : FunctionCallType::FUNCTION;
-    functionType = FunctionType(context.getFunctionId(name), callType, returnType, params, templateTypes);
+    functionType = FunctionType(context.getFunctionId(name), returnType, params, templateTypes);
     functionType->fromConcept = concept;
     functionType->requirements = requirements;
   } else
@@ -677,34 +676,33 @@ static Context createNewContext() {
     for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE, ArithmeticType::BOOL,
          ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
       context->addType(type->getName(), type);
-    CHECK(!context->addFunction(FunctionType(Operator::PLUS, FunctionCallType::FUNCTION, ArithmeticType::STRING,
+    CHECK(!context->addFunction(FunctionType(Operator::PLUS, ArithmeticType::STRING,
         {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {})));
     for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
       for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-        CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{type}}, {})));
+        CHECK(!context->addFunction(FunctionType(op, type, {{type}}, {})));
     for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
-      CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, MutableReferenceType::get(ArithmeticType::INT),
+      CHECK(!context->addFunction(FunctionType(op, MutableReferenceType::get(ArithmeticType::INT),
           {{MutableReferenceType::get(ArithmeticType::INT)}}, {})));
     for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
       for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
         if (type != ArithmeticType::DOUBLE || op != Operator::MODULO)
-          CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, type, {{type}, {type}}, {})));
+          CHECK(!context->addFunction(FunctionType(op, type, {{type}, {type}}, {})));
     for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
       for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-        CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::VOID,
+        CHECK(!context->addFunction(FunctionType(op, ArithmeticType::VOID,
             {{MutableReferenceType::get(type)}, {type}}, {})));
     for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
-      CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+      CHECK(!context->addFunction(FunctionType(op, ArithmeticType::BOOL,
           {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {})));
-    CHECK(!context->addFunction(FunctionType(Operator::LOGICAL_NOT, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
+    CHECK(!context->addFunction(FunctionType(Operator::LOGICAL_NOT, ArithmeticType::BOOL,
         {{ArithmeticType::BOOL}}, {})));
     for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
       for (auto type : {ArithmeticType::INT, ArithmeticType::STRING, ArithmeticType::DOUBLE})
-        CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL,
-            {{type}, {type}}, {})));
+        CHECK(!context->addFunction(FunctionType(op, ArithmeticType::BOOL, {{type}, {type}}, {})));
     for (auto op : {Operator::EQUALS})
       for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
-        CHECK(!context->addFunction(FunctionType(op, FunctionCallType::FUNCTION, ArithmeticType::BOOL, {{type}, {type}}, {})));
+        CHECK(!context->addFunction(FunctionType(op, ArithmeticType::BOOL, {{type}, {type}}, {})));
     context->addBuiltInFunction("enum_size", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
         [](const Context&, vector<SType> args) -> WithError<SType> {
           auto enumType = args[0].dynamicCast<EnumType>();
@@ -984,7 +982,7 @@ void VariantDefinition::addToContext(Context& context) {
     auto subtypeInfo = membersContext.getTypeFromString(subtype.type).get();
     if (subtypeInfo != ArithmeticType::VOID)
       params.push_back(FunctionType::Param{subtypeInfo});
-    auto constructor = FunctionType(subtype.name, FunctionCallType::FUNCTION, type.get(), params, {});
+    auto constructor = FunctionType(subtype.name, type.get(), params, {});
     constructor.parentType = type.get();
     CHECK(!type->staticContext.addFunction(constructor));
   }
@@ -1017,7 +1015,6 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
         method->returnType.parts[0].templateArguments = transform(templateInfo.params,
             [](const auto& p) { return TemplateParameterInfo(IdentifierInfo(p.name, p.codeLoc)); });
         method->setFunctionType(membersContext);
-        method->functionType->callType = FunctionCallType::CONSTRUCTOR;
         method->codeLoc.check(method->functionType->templateParams.empty(), "Constructor can't have template parameters.");
         method->functionType->templateParams = type->templateParams;
         method->functionType->parentType = type.get();
@@ -1039,7 +1036,7 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
       vector<FunctionType::Param> constructorParams;
       for (auto& member : type->members)
         constructorParams.push_back({member.name, member.type});
-      auto constructor = FunctionType(SType(type.get()), FunctionCallType::CONSTRUCTOR, type.get(), std::move(constructorParams), type->templateParams);
+      auto constructor = FunctionType(SType(type.get()), type.get(), std::move(constructorParams), type->templateParams);
       constructor.parentType = type.get();
       CHECK(!context.addFunction(constructor));
     }

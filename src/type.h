@@ -4,7 +4,6 @@
 #include "util.h"
 #include "operator.h"
 #include "code_loc.h"
-#include "function_call_type.h"
 #include "context.h"
 #include "function_name.h"
 
@@ -251,9 +250,8 @@ struct FunctionType {
     optional<string> name;
     SType type;
   };
-  FunctionType(FunctionId name, FunctionCallType, SType returnType, vector<Param> params, vector<SType> templateParams);
+  FunctionType(FunctionId name, SType returnType, vector<Param> params, vector<SType> templateParams);
   FunctionId name;
-  FunctionCallType callType;
   SType retVal;
   vector<Param> params;
   vector<SType> templateParams;
