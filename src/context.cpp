@@ -48,15 +48,15 @@ static string getFunctionIdName(const FunctionId& id) {
   return id.visit(
       [&](const string& s) { return s; },
       [&](Operator op) { return "operator "s + getString(op); },
-      [&](SType type) { return type->getName(); }
+      [&](ConstructorTag) { return "constructor"; }
   );
 }
 
-static string getFunctionNameForError(const FunctionType& function) {
+static string getFunctionNameForError(const FunctionId& name, const FunctionType& function) {
   string typePrefix;
   if (function.parentType)
     typePrefix = function.parentType->getName() + "::";
-  return function.retVal->getName() + " " + typePrefix + getFunctionIdName(function.name) + "(" +
+  return function.retVal->getName() + " " + typePrefix + getFunctionIdName(name) + "(" +
       combine(transform(function.params, [](const auto& t) { return t.type->getName(); }), ", ") + ")";
 }
 
@@ -71,20 +71,18 @@ bool Context::areParamsEquivalent(const FunctionType& f1, const FunctionType& f2
 bool Context::isGeneralization(const FunctionType& general, const FunctionType& specific,
     vector<FunctionType> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
-  if (!specific.name.contains<SType>() && general.name != specific.name)
-    return false;
   if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, transform(specific.params, [](const auto& param) { return param.type; }),
       vector<CodeLoc>(specific.params.size(), CodeLoc()), existing)) {
-    return specific.name == inst->name && specific.retVal == inst->retVal;
+    return specific.retVal == inst->retVal;
   }
   else
     return false;
 }
 
-static bool isBuiltinCopyConstructor(const Context& context, const FunctionType& f) {
-  if (auto type = f.name.getValueMaybe<SType>())
-    return f.retVal == *type && f.params.size() == 1 && f.params[0].type == PointerType::get(*type)
-        && (*type)->isBuiltinCopyable(context);
+static bool isBuiltinCopyConstructor(const Context& context, const FunctionId& name, const FunctionType& f) {
+  if (auto type = name.contains<ConstructorTag>())
+    return f.params.size() == 1 && f.params[0].type == PointerType::get(f.retVal)
+        && f.retVal->isBuiltinCopyable(context);
   return false;
 }
 
@@ -96,12 +94,12 @@ optional<string> Context::getMissingFunctions(const Concept& required, vector<Fu
     for (auto& overloads : otherState->functions)
       for (auto& function : overloads.second) {
         // what is this line for? no test breaks when it is removed...
-        if (isBuiltinCopyConstructor(*this, function))
+        if (isBuiltinCopyConstructor(*this, overloads.first, function))
           continue;
     //    cout << "Looking for function: " << getFunctionNameForError(function) << "\n";
       //  print();
         bool found = false;
-        for (auto& myFun : getAllFunctions())
+        for (auto& myFun : getFunctions(overloads.first))
           if (isGeneralization(myFun, function, existing)) {
             found = true;
             break;
@@ -164,7 +162,7 @@ void Context::State::print() const {
   for (auto& function : functions) {
     cout << "Function " << quote(getFunctionIdName(function.first)) << " overloads: \n";
     for (auto& overload : function.second)
-      cout << getFunctionNameForError(overload) << "\n";
+      cout << getFunctionNameForError(function.first, overload) << "\n";
   }
   for (auto& type : types)
     cout << "Type: " << type.second->getName() << "\n";
@@ -206,13 +204,6 @@ void Context::replace(SType from, SType to) {
     auto& var = state->vars.at(varName);
     var = var->replace(from, to);
   }
-  for (auto& function : copyOf(state->functions)) {
-    if (auto constructorName = function.first.getValueMaybe<SType>())
-      if (*constructorName == from) {
-        state->functions.erase(function.first);
-        state->functions.insert({to, function.second});
-      }
-    }
   for (auto& function : state->functions) {
     for (auto& overload : function.second)
       replaceInFunction(overload, from, to);
@@ -289,11 +280,12 @@ vector<FunctionType> Context::getFunctions(FunctionId name) const {
   return ret;
 }
 
-vector<FunctionType> Context::getAllFunctions() const {
-  vector<FunctionType> ret;
+vector<FunctionInfo> Context::getAllFunctions() const {
+  vector<FunctionInfo> ret;
   for (auto& state : getReversedStates())
-    for (auto& fun : state->functions)
-      append(ret, fun.second);
+    for (auto& overloadSet : state->functions)
+      for (auto& fun : overloadSet.second)
+        ret.push_back({overloadSet.first, fun});
   return ret;
 }
 
@@ -360,17 +352,21 @@ void Context::checkNameConflictExcludingFunctions(CodeLoc loc, const string& nam
   loc.check(!getVariable(name), desc + " conflicts with an existing variable or function");
 }
 
-optional<string> Context::addFunction(FunctionType f) {
-  auto& overloads = state->functions[f.name];
+optional<string> Context::addFunction(FunctionId id, FunctionType f) {
+  auto& overloads = state->functions[id];
   for (auto& fun : overloads)
-    if (areParamsEquivalent(fun, f))
-      return "Can't overload " + quote(getFunctionNameForError(f)) + " with the same argument types."s;
+    if (areParamsEquivalent(fun, f) && (!id.contains<ConstructorTag>() || fun.retVal == f.retVal))
+      return "Can't overload " + quote(getFunctionNameForError(id, f)) + " with the same argument types."s;
   overloads.push_back(f);
   return none;
 }
 
-WithError<vector<FunctionType>> Context::getFunctionTemplate(IdentifierInfo id) const {
-  vector<FunctionType> ret;
+optional<string> Context::addFunction(FunctionInfo info) {
+  return addFunction(std::move(info.id), std::move(info.type));
+}
+
+WithError<vector<FunctionInfo>> Context::getFunctionTemplate(IdentifierInfo id) const {
+  vector<FunctionInfo> ret;
   if (id.parts.size() > 1) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0), id.codeLoc)))
       return (*type)->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
@@ -378,16 +374,19 @@ WithError<vector<FunctionType>> Context::getFunctionTemplate(IdentifierInfo id) 
       return "Type not found: " + id.toString();
   } else {
     string funName = id.parts.at(0).name;
-    append(ret, getFunctions(funName));
+    for (auto& fun : getFunctions(funName))
+      ret.push_back(FunctionInfo{FunctionId{funName}, fun});
     if (auto type = getType(funName))
-      append(ret, getFunctions(type.get()));
+      for (auto& fun : getFunctions(ConstructorTag{}))
+        if (fun.retVal == type.get())
+          ret.push_back(FunctionInfo{ConstructorTag{}, fun});
   }
   return ret;
 }
 
 WithErrorLine<FunctionType> Context::instantiateFunctionTemplate(CodeLoc codeLoc, FunctionType templateType,
-    IdentifierInfo id, vector<SType> argTypes, vector<CodeLoc> argLoc) const {
-  return instantiateFunction(*this, templateType, codeLoc, getTypeList(id.parts.back().templateArguments), argTypes, argLoc, {});
+    vector<TemplateParameterInfo> templateParams, vector<SType> argTypes, vector<CodeLoc> argLoc) const {
+  return instantiateFunction(*this, templateType, codeLoc, getTypeList(templateParams), argTypes, argLoc, {});
 }
 
 nullable<SType> Context::invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const {
@@ -406,7 +405,7 @@ nullable<SType> Context::invokeFunction(const string& id, CodeLoc loc, vector<ST
 
 void Context::addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction fun) {
   CHECK(!state->builtInFunctions.count(id));
-  CHECK(!addFunction(FunctionType(id, returnType,
+  CHECK(!addFunction(id, FunctionType(returnType,
       transform(argTypes, [](const auto& p){ return FunctionType::Param(p); }), {})));
   state->builtInFunctions.insert(make_pair(id, BuiltInFunctionInfo{std::move(argTypes), std::move(fun)}));
 }
@@ -419,13 +418,12 @@ optional<FunctionType> Context::getBuiltinOperator(Operator op, vector<SType> ar
           if (argTypes[1]->getUnderlying() == ArithmeticType::INT) {
             auto ret = [&] {
               if (argTypes[0].dynamicCast<ReferenceType>())
-                return FunctionType(Operator::SUBSCRIPT,
+                return FunctionType(
                     ReferenceType::get(arrayType->underlying), {{argTypes[0]}, {ArithmeticType::INT}}, {});
               if (argTypes[0].dynamicCast<MutableReferenceType>())
-                return FunctionType(Operator::SUBSCRIPT,
+                return FunctionType(
                     MutableReferenceType::get(arrayType->underlying), {{argTypes[0]}, {ArithmeticType::INT}}, {});
-              return FunctionType(Operator::SUBSCRIPT,
-                  arrayType->underlying, {{argTypes[0]}, {ArithmeticType::INT}}, {});
+              return FunctionType(arrayType->underlying, {{argTypes[0]}, {ArithmeticType::INT}}, {});
             }();
             ret.subscriptOpWorkaround = false;
             return ret;
@@ -434,28 +432,23 @@ optional<FunctionType> Context::getBuiltinOperator(Operator op, vector<SType> ar
     case Operator::GET_ADDRESS:
       if (argTypes.size() == 1) {
         if (auto referenceType = argTypes[0].dynamicCast<ReferenceType>())
-          return FunctionType(Operator::GET_ADDRESS,
-              PointerType::get(referenceType->underlying), {argTypes[0]}, {});
+          return FunctionType(PointerType::get(referenceType->underlying), {argTypes[0]}, {});
         else if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
-          return FunctionType(Operator::GET_ADDRESS,
-              MutablePointerType::get(referenceType->underlying), {argTypes[0]}, {});
+          return FunctionType(MutablePointerType::get(referenceType->underlying), {argTypes[0]}, {});
       }
       break;
     case Operator::POINTER_DEREFERENCE:
       if (argTypes.size() == 1) {
         if (auto pointerType = argTypes[0]->getUnderlying().dynamicCast<PointerType>())
-          return FunctionType(Operator::POINTER_DEREFERENCE,
-              ReferenceType::get(pointerType->underlying), {argTypes[0]}, {});
+          return FunctionType(ReferenceType::get(pointerType->underlying), {argTypes[0]}, {});
         else if (auto pointerType = argTypes[0]->getUnderlying().dynamicCast<MutablePointerType>())
-          return FunctionType(Operator::POINTER_DEREFERENCE,
-              MutableReferenceType::get(pointerType->underlying), {argTypes[0]}, {});
+          return FunctionType(MutableReferenceType::get(pointerType->underlying), {argTypes[0]}, {});
       }
       break;
     case Operator::ASSIGNMENT:
       if (argTypes.size() == 2 && canConvert(argTypes[1], argTypes[0]->getUnderlying()))
         if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
-          return FunctionType(Operator::ASSIGNMENT,
-              ArithmeticType::VOID, {argTypes[0], referenceType->underlying}, {});
+          return FunctionType(ArithmeticType::VOID, {argTypes[0], referenceType->underlying}, {});
       break;
     default:
       break;
@@ -465,14 +458,6 @@ optional<FunctionType> Context::getBuiltinOperator(Operator op, vector<SType> ar
 
 vector<FunctionType> Context::getOperatorType(Operator op) const {
   return getFunctions(op);
-}
-
-FunctionId Context::getFunctionId(const FunctionName& name) const {
-  return name.visit(
-      [this](ConstructorId id) -> FunctionId { return getType(id.name).get(); },
-      [](const string& name) -> FunctionId { return name; },
-      [](Operator op) -> FunctionId { return op; }
-  );
 }
 
 bool Context::canConstructWith(SType type, vector<SType> argsRef) const {
@@ -486,8 +471,9 @@ bool Context::canConstructWith(SType type, vector<SType> argsRef) const {
     type = s->parent.get();
     templateParams = s->templateParams;
   }
-  for (auto f : getFunctions(type))
-    if (instantiateFunction(*this, f, CodeLoc(), templateParams, args, vector<CodeLoc>(args.size())))
+  for (auto& f : getFunctions(ConstructorTag{}))
+    if (f.retVal == type &&
+       instantiateFunction(*this, f, CodeLoc(), templateParams, args, vector<CodeLoc>(args.size())))
       return true;
   return false;
 }

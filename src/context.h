@@ -8,6 +8,7 @@
 struct IdentifierInfo;
 struct Type;
 struct FunctionType;
+struct FunctionInfo;
 struct Concept;
 class Context;
 using SContext = shared_ptr<Context>;
@@ -35,16 +36,16 @@ class Context : public owned_object<Context> {
   void addType(const string& name, SType);
   WithErrorLine<SType> getTypeFromString(IdentifierInfo) const;
   nullable<SType> getType(const string&) const;
-  [[nodiscard]] optional<string> addFunction(FunctionType);
-  WithError<vector<FunctionType>> getFunctionTemplate(IdentifierInfo) const;
-  WithErrorLine<FunctionType> instantiateFunctionTemplate(CodeLoc, FunctionType, IdentifierInfo,
+  [[nodiscard]] optional<string> addFunction(FunctionId, FunctionType);
+  [[nodiscard]] optional<string> addFunction(FunctionInfo);
+  WithError<vector<FunctionInfo> > getFunctionTemplate(IdentifierInfo) const;
+  WithErrorLine<FunctionType> instantiateFunctionTemplate(CodeLoc, FunctionType, vector<TemplateParameterInfo>,
       vector<SType> argTypes, vector<CodeLoc> argLoc) const;
   nullable<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
   using BuiltInFunction = function<WithError<SType>(const Context&, vector<SType>)>;
   void addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction);
   vector<FunctionType> getOperatorType(Operator) const;
   optional<FunctionType> getBuiltinOperator(Operator, vector<SType> argTypes) const;
-  FunctionId getFunctionId(const FunctionName& name) const;
   bool canConstructWith(SType, vector<SType> args) const;
   void checkNameConflict(CodeLoc loc, const string& name, const string& type) const;
   void checkNameConflictExcludingFunctions(CodeLoc loc, const string& name, const string& type) const;
@@ -93,5 +94,5 @@ class Context : public owned_object<Context> {
   vector<FunctionType> getFunctions(FunctionId) const;
   nullable<SType> getVariable(const string&) const;
   bool isGeneralization(const FunctionType& general, const FunctionType& specific, vector<FunctionType> existing) const;
-  vector<FunctionType> getAllFunctions() const;
+  vector<FunctionInfo> getAllFunctions() const;
 };

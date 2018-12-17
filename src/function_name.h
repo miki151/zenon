@@ -11,4 +11,10 @@ struct ConstructorId {
   }
 };
 using FunctionName = variant<string, Operator, ConstructorId>;
-using FunctionId = variant<string, Operator, SType>;
+
+struct ConstructorTag {
+  bool operator < (ConstructorTag) const {
+    return false;
+  }
+};
+using FunctionId = variant<string, Operator, ConstructorTag>;

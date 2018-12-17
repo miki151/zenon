@@ -94,16 +94,12 @@ void EnumType::handleSwitchStatement(SwitchStatement& statement, Context& contex
   }
 }
 
-FunctionType::FunctionType(FunctionId name, SType returnType, vector<Param> p, vector<SType> tpl)
-    : name(name), retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
+FunctionType::FunctionType(SType returnType, vector<Param> p, vector<SType> tpl)
+    : retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
 
 string FunctionType::toString() const {
-  string myName = name.visit(
-      [&](const string& s) { return s; },
-      [&](Operator op) { return "operator "s + getString(op); },
-      [&](SType type) { return type->getName(false); });
-  return retVal->getName() + " " + myName + joinTemplateParams(templateParams) + "(" +
+  return retVal->getName() + " " + joinTemplateParams(templateParams) + "(" +
       combine(transform(params, [](const Param& t) { return t.type->getName(); }), ", ") + ")" +
       (fromConcept ? " [from concept]" : "");
 }
@@ -452,19 +448,15 @@ SType StructType::replaceImpl(SType from, SType to) const {
 }
 
 void replaceInFunction(FunctionType& in, SType from, SType to) {
-  in.retVal = in.retVal->replace(from, to);
   if (in.parentType)
     in.parentType = in.parentType->replace(from, to);
+  in.retVal = in.retVal->replace(from, to);
   for (auto& param : in.params)
     param.type = param.type->replace(from, to);
   for (auto& param : in.templateParams)
     param = param->replace(from, to);
   for (auto& concept : in.requirements)
     concept = concept->replace(from, to);
-  in.name.visit(
-      [&](SType& type) { type = type->replace(from, to); },
-      [&](const auto&) {}
-  );
 }
 
 WithError<SType> Type::instantiate(const Context& context, vector<SType> templateArgs) const {
@@ -580,8 +572,8 @@ optional<string> Type::getMappingError(const Context&, TypeMapping&, SType argTy
     return getCantBindError(argType, get_this().get());
 }
 
-bool isNameAndArgsEqual(const FunctionType& f1, const FunctionType& f2) {
-  if (f1.name != f2.name || f1.params.size() != f2.params.size())
+static bool areParamsTypesEqual(const FunctionType& f1, const FunctionType& f2) {
+  if (f1.params.size() != f2.params.size())
     return false;
   for (int i = 0; i < f1.params.size(); ++i)
     if (f1.params[i].type != f2.params[i].type)
@@ -630,7 +622,7 @@ WithErrorLine<FunctionType> instantiateFunction(const Context& context, const Fu
     type.templateParams[i] = templateArgs[i];
   }
   for (auto& fun : existing)
-    if (isNameAndArgsEqual(input, fun))
+    if (areParamsTypesEqual(input, fun))
       // To avoid infinite recursion we don't check concept requirements twice for the same >>original<< function
       // (not instantation). If this causes issues then it needs to be revised.
       return type;

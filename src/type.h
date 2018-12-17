@@ -250,8 +250,7 @@ struct FunctionType {
     optional<string> name;
     SType type;
   };
-  FunctionType(FunctionId name, SType returnType, vector<Param> params, vector<SType> templateParams);
-  FunctionId name;
+  FunctionType(SType returnType, vector<Param> params, vector<SType> templateParams);
   SType retVal;
   vector<Param> params;
   vector<SType> templateParams;
@@ -261,6 +260,11 @@ struct FunctionType {
   bool fromConcept = false;
   bool subscriptOpWorkaround = true;
   string toString() const;
+};
+
+struct FunctionInfo {
+  FunctionId id;
+  FunctionType type;
 };
 
 struct Concept : public owned_object<Concept> {

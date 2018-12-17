@@ -153,18 +153,18 @@ void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.add(";");
 }
 
-static string getFunctionCallName(const FunctionType& function, bool methodCall) {
+static string getFunctionCallName(const FunctionInfo& functionInfo, bool methodCall) {
   string typePrefix;
-  auto functionTemplateParams = function.templateParams;
-  if (function.parentType) {
-    typePrefix = function.parentType->getCodegenName() + "::";
-    if (function.externalMethod)
-      if (auto structParent = function.parentType.get().dynamicCast<StructType>())
+  auto functionTemplateParams = functionInfo.type.templateParams;
+  if (functionInfo.type.parentType) {
+    typePrefix = functionInfo.type.parentType->getCodegenName() + "::";
+    if (functionInfo.type.externalMethod)
+      if (auto structParent = functionInfo.type.retVal.dynamicCast<StructType>())
         functionTemplateParams = getSubsequence(functionTemplateParams, (int) structParent->templateParams.size());
   }
   else if (!methodCall)
     typePrefix += "::";
-  return function.name.visit(
+  return functionInfo.id.visit(
       [&](const string& s) { return typePrefix + s + joinTemplateParamsCodegen(functionTemplateParams); },
       [&](Operator op) {
         if (op == Operator::SUBSCRIPT)
@@ -172,16 +172,16 @@ static string getFunctionCallName(const FunctionType& function, bool methodCall)
         else
           return "operator "s + getString(op);
       },
-      [&](SType type) { return type->getCodegenName(); }
+      [&](ConstructorTag) { return functionInfo.type.retVal->getCodegenName(); }
   );
 }
 
-static void genFunctionCall(Accu& accu, const FunctionType& functionType,
+static void genFunctionCall(Accu& accu, const FunctionInfo& functionInfo,
     vector<Expression*> arguments, optional<MethodCallType> callType) {
   string prefix;
   string suffix;
-  string id = getFunctionCallName(functionType, !!callType);
-  if (functionType.name.contains<SType>()) {
+  string id = getFunctionCallName(functionInfo, !!callType);
+  if (functionInfo.id.contains<ConstructorTag>()) {
     prefix = id + "{";
     suffix = "}";
   } else {
@@ -211,7 +211,7 @@ void FunctionCall::codegenDotOperator(Accu& accu, CodegenStage stage, Expression
   if (callType == MethodCallType::FUNCTION_AS_METHOD || callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
     vector<Expression*> args {leftSide};
     append(args, extractRefs(arguments));
-    genFunctionCall(accu, *functionType, args, callType);
+    genFunctionCall(accu, *functionInfo, args, callType);
   } else {
     accu.add("(");
     leftSide->codegen(accu, stage);
@@ -221,14 +221,14 @@ void FunctionCall::codegenDotOperator(Accu& accu, CodegenStage stage, Expression
 }
 
 void FunctionCall::codegen(Accu& accu, CodegenStage) const {
-  genFunctionCall(accu, *functionType, extractRefs(arguments), callType);
+  genFunctionCall(accu, *functionInfo, extractRefs(arguments), callType);
 }
 
 void FunctionCallNamedArgs::codegenDotOperator(Accu& accu, CodegenStage stage, Expression* leftSide) const {
   if (callType == MethodCallType::FUNCTION_AS_METHOD || callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
     vector<Expression*> args {leftSide};
     append(args, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
-    genFunctionCall(accu, *functionType, args, callType);
+    genFunctionCall(accu, *functionInfo, args, callType);
   } else {
     accu.add("(");
     leftSide->codegen(accu, stage);
@@ -238,7 +238,7 @@ void FunctionCallNamedArgs::codegenDotOperator(Accu& accu, CodegenStage stage, E
 }
 
 void FunctionCallNamedArgs::codegen(Accu& accu, CodegenStage stage) const {
-  genFunctionCall(accu, *functionType, transform(arguments, [](const auto& arg) { return arg.expr.get(); }), callType);
+  genFunctionCall(accu, *functionInfo, transform(arguments, [](const auto& arg) { return arg.expr.get(); }), callType);
 }
 
 static void considerTemplateParams(Accu& accu, const vector<TemplateParameter>& params) {
@@ -256,11 +256,11 @@ static void considerTemplateParams(Accu& accu, const vector<TemplateParameter>& 
   }
 }
 
-static string getFunctionSignatureName(const FunctionType& function) {
+static string getFunctionSignatureName(const FunctionInfo& function) {
   string typePrefix;
-  if (function.parentType)
-    typePrefix = function.parentType->getName() + "::";
-  return function.name.visit(
+  if (function.type.parentType)
+    typePrefix = function.type.parentType->getName() + "::";
+  return function.id.visit(
       [&](const string& s) { return s; },
       [&](Operator op) {
         if (op == Operator::SUBSCRIPT)
@@ -268,7 +268,7 @@ static string getFunctionSignatureName(const FunctionType& function) {
         else
           return "operator "s + getString(op);
       },
-      [&](SType type) { return type->getName(false); }
+      [&](ConstructorTag) { return function.type.retVal->getName(false); }
   );
 }
 
@@ -278,11 +278,11 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
     structName += "::";
   string retVal;
   if (!name.contains<ConstructorId>())
-    retVal = functionType->retVal->getCodegenName() + " ";
-  string ret = retVal + structName + getFunctionSignatureName(*functionType) + "(";
-  for (auto& param : functionType->params) {
+    retVal = functionInfo->type.retVal->getCodegenName() + " ";
+  string ret = retVal + structName + getFunctionSignatureName(*functionInfo) + "(";
+  for (auto& param : functionInfo->type.params) {
     string argText = param.type->getCodegenName() + " " + param.name.value_or("") + ", ";
-    if (functionType->name.contains<Operator>()) {
+    if (functionInfo->id.contains<Operator>()) {
       if (auto p = param.type.dynamicCast<ReferenceType>()) {
         auto name = param.name ? *param.name + "_ptr" : "";
         argText = "const " + p->underlying->getCodegenName() + "& " + name + ", ";
@@ -294,7 +294,7 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
     }
     ret.append(argText);
   }
-  if (!functionType->params.empty()) {
+  if (!functionInfo->type.params.empty()) {
     ret.pop_back();
     ret.pop_back();
   }
@@ -319,8 +319,8 @@ static void addInitializers(Accu& accu, const vector<FunctionDefinition::Initial
 
 void FunctionDefinition::handlePointerParamsInOperator(Accu& accu) const {
   vector<string> ptrInits;
-  for (auto& param : functionType->params)
-    if (param.name && functionType->name.contains<Operator>())
+  for (auto& param : functionInfo->type.params)
+    if (param.name && functionInfo->id.contains<Operator>())
       if (param.type.dynamicCast<ReferenceType>() || param.type.dynamicCast<MutableReferenceType>())
         ptrInits.push_back("auto " + *param.name + " = &" + *param.name + "_ptr;");
   if (!ptrInits.empty()) {
@@ -337,7 +337,8 @@ void FunctionDefinition::handlePointerParamsInOperator(Accu& accu) const {
 }
 
 void FunctionDefinition::handlePointerReturnInOperator(Accu& accu) const {
-  if (functionType->retVal.dynamicCast<ReferenceType>() || functionType->retVal.dynamicCast<MutableReferenceType>()) {
+  if (functionInfo->type.retVal.dynamicCast<ReferenceType>() ||
+      functionInfo->type.retVal.dynamicCast<MutableReferenceType>()) {
     accu.newLine("{");
     ++accu.indent;
     accu.newLine("auto getRef = [&]");
@@ -412,7 +413,7 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
     if (stage.isDefine && (!stage.isImport  || !templateInfo.params.empty())) {
       considerTemplateParams(accu, templateInfo.params);
       method->addSignature(accu, name + joinTemplateParams(type->templateParams));
-      if (method->functionType->name.contains<SType>())
+      if (method->functionInfo->id.contains<ConstructorTag>())
         addInitializers(accu, method->initializers);
       accu.newLine();
       method->body->codegen(accu, CodegenStage::define());
