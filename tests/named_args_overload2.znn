@@ -9,8 +9,8 @@ bool f(int a, int c) {
 }
 
 int main() {
-  bool b = f({a = 3, c = 3});
-  int x = f({a = 2, c = false});
+  bool b = f(.a = 3, .c = 3);
+  int x = f(.a = 2, .c = false);
   if (b) 
     return x;
   else

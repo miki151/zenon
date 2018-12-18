@@ -22,6 +22,6 @@ int main() {
   mutable x = 2;
   x.increment(3);
   mutable a = A(4);
-  a.increment({b = A(5)});
+  a.increment(.b = A(5));
   return x + a.v;
 }

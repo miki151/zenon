@@ -10,7 +10,7 @@ int f(int a, int b) {
 
 int main() {
   int x = 1;
-  if (1.f({b = 5}) == 2)
+  if (1.f(.b = 5) == 2)
     return 1;
   else
     return 0;

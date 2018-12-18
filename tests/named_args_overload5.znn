@@ -10,8 +10,8 @@ bool f(int* a, int c) {
 
 int main() {
   int x = 1;
-  if (x.f({c = 5}))
-    return x.f({b = false});
+  if (x.f(.c = 5))
+    return x.f(.b = false);
   else
     return 0;
 }

@@ -9,8 +9,8 @@ bool f(int a, int c) {
 }
 
 int main() {
-  if (1.f({c = 5}))
-    return 1.f({b = false});
+  if (1.f(.c = 5))
+    return 1.f(.b = false);
   else
     return 0;
 }

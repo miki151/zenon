@@ -7,5 +7,5 @@ int plus(int* i, int x) {
 int main() {
   int n = 5;
   const m = &n;
-  return m.plus({x = 5});
+  return m.plus(.x = 5);
 }

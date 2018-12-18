@@ -116,29 +116,7 @@ struct FunctionCall : Expression {
   IdentifierInfo identifier;
   optional<FunctionInfo> functionInfo;
   vector<unique_ptr<Expression>> arguments;
-  optional<MethodCallType> callType;
-};
-
-struct FunctionCallNamedArgs : Expression {
-  FunctionCallNamedArgs(CodeLoc, IdentifierInfo);
-  virtual SType getTypeImpl(Context&) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
-  virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
-  virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const override;
-  struct ArgMatching {
-    vector<SType> args;
-    vector<CodeLoc> codeLocs;
-    FunctionInfo function;
-  };
-  WithErrorLine<vector<ArgMatching>> matchArgs(const Context& functionContext, Context& callContext, bool skipFirst);
-  IdentifierInfo identifier;
-  struct Argument {
-    CodeLoc codeLoc;
-    string name;
-    unique_ptr<Expression> expr;
-  };
-  optional<FunctionInfo> functionInfo;
-  vector<Argument> arguments;
+  vector<optional<string>> argNames;
   optional<MethodCallType> callType;
 };
 

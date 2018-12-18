@@ -23,7 +23,7 @@ int main() {
   mutable str1 = "ddd";
   str1.clear();
   str1 = str1.concat("xxx");
-  if ("pok".concat({s2 = str1}) == "pokxxx")
-    increment({a = &a});
+  if ("pok".concat(.s2 = str1) == "pokxxx")
+    increment(.a = &a);
   return a;
 }

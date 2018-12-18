@@ -224,23 +224,6 @@ void FunctionCall::codegen(Accu& accu, CodegenStage) const {
   genFunctionCall(accu, *functionInfo, extractRefs(arguments), callType);
 }
 
-void FunctionCallNamedArgs::codegenDotOperator(Accu& accu, CodegenStage stage, Expression* leftSide) const {
-  if (callType == MethodCallType::FUNCTION_AS_METHOD || callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
-    vector<Expression*> args {leftSide};
-    append(args, transform(arguments, [](const auto& arg) { return arg.expr.get(); }));
-    genFunctionCall(accu, *functionInfo, args, callType);
-  } else {
-    accu.add("(");
-    leftSide->codegen(accu, stage);
-    accu.add(").");
-    codegen(accu, stage);
-  }
-}
-
-void FunctionCallNamedArgs::codegen(Accu& accu, CodegenStage stage) const {
-  genFunctionCall(accu, *functionInfo, transform(arguments, [](const auto& arg) { return arg.expr.get(); }), callType);
-}
-
 static void considerTemplateParams(Accu& accu, const vector<TemplateParameter>& params) {
   if (!params.empty()) {
     accu.add("template <");

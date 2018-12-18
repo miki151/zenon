@@ -4,6 +4,6 @@ void f(int a, string) {
 }
 
 int main() {
-  f({a = 3});
+  f(.a = 3);
   return 0;
 }

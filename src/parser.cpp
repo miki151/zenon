@@ -89,32 +89,19 @@ static IdentifierInfo parseIdentifier(Tokens& tokens, bool allowPointer) {
   fail();
 }
 
-unique_ptr<FunctionCallNamedArgs> parseFunctionCallWithNamedArguments(IdentifierInfo id, Tokens& tokens) {
-  auto ret = unique<FunctionCallNamedArgs>(tokens.peek().codeLoc, id);
-  tokens.eat(Keyword::OPEN_BRACKET);
-  tokens.eat(Keyword::OPEN_BLOCK);
-  while (tokens.peek() != Keyword::CLOSE_BLOCK) {
-    auto token = tokens.popNext();
-    token.codeLoc.check(token.contains<IdentifierToken>(), "function parameter expected");
-    tokens.eat(Operator::ASSIGNMENT);
-    ret->arguments.push_back({token.codeLoc, token.value, parseExpression(tokens)});
-    if (tokens.peek() == Keyword::COMMA)
-      tokens.popNext();
-  }
-  tokens.eat(Keyword::CLOSE_BLOCK);
-  tokens.eat(Keyword::CLOSE_BRACKET);
-  return ret;
-}
-
 unique_ptr<Expression> parseFunctionCall(IdentifierInfo id, Tokens& tokens) {
   auto ret = unique<FunctionCall>(tokens.peek().codeLoc, id);
   tokens.eat(Keyword::OPEN_BRACKET);
-  if (tokens.peek() == Keyword::OPEN_BLOCK) {
-    tokens.rewind();
-    return parseFunctionCallWithNamedArguments(id, tokens);
-  }
   while (tokens.peek() != Keyword::CLOSE_BRACKET) {
+    optional<string> argName;
+    if (tokens.eatMaybe(Operator::MEMBER_ACCESS)) {
+      auto idToken = tokens.popNext();
+      idToken.codeLoc.check(idToken.contains<IdentifierToken>(), "Expected function parameter name");
+      argName = idToken.value;
+      tokens.eat(Operator::ASSIGNMENT);
+    }
     ret->arguments.push_back(parseExpression(tokens));
+    ret->argNames.push_back(argName);
     if (tokens.peek() == Keyword::COMMA)
       tokens.popNext();
     else

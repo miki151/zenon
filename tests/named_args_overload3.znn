@@ -9,6 +9,6 @@ bool f(int a, int c) {
 }
 
 int main() {
-  bool b = f({a = 3, b = 3});
+  bool b = f(.a = 3, .b = 3);
   return 0;
 }

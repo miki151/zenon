@@ -806,127 +806,18 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
       tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
     }
   }
-  if (functionInfo)
+  if (functionInfo) {
+    for (int i = 0; i < argNames.size(); ++i) {
+      auto paramName = functionInfo->type.params[callType ? (i + 1) : i].name;
+      if (argNames[i] && paramName && argNames[i] != paramName) {
+        arguments[i]->codeLoc.error("Function argument " + quote(*argNames[i]) +
+            " doesn't match parameter " + quote(*paramName) + " of function " +
+            functionInfo->type.toString());
+      }
+    }
     return functionInfo->type.retVal;
-  else
+  } else
     error->execute();
-}
-
-FunctionCallNamedArgs::FunctionCallNamedArgs(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {}
-
-SType FunctionCallNamedArgs::getTypeImpl(Context& context) {
-  return getDotOperatorType(nullptr, context).get();
-}
-
-nullable<SType> FunctionCallNamedArgs::getDotOperatorType(Expression* left, Context& callContext) {
-  optional<ErrorLoc> error = ErrorLoc{codeLoc, "Function not found: " + identifier.toString()};
-  if (!functionInfo) {
-    optional<vector<ArgMatching>> matchings;
-    if (!left) {
-      matchArgs(callContext, callContext, false).unpack(matchings, error);
-      if (matchings)
-        for (auto& matching : *matchings) {
-          optional<FunctionType> fType;
-          callContext.instantiateFunctionTemplate(codeLoc, matching.function.type,
-              identifier.parts.back().templateArguments, matching.args, matching.codeLocs)
-              .unpack(fType, error);
-          if (fType) {
-            functionInfo = FunctionInfo {matching.function.id, *fType};
-            break;
-          }
-        }
-    } else {
-      auto leftType = left->getTypeImpl(callContext);
-      callType = MethodCallType::METHOD;
-      matchArgs(callContext, callContext, true).unpack(matchings, error);
-      if (matchings) {
-        auto tryMethodCall = [&] (MethodCallType thisCallType) {
-          for (auto& matching : *matchings) {
-            optional<FunctionType> fType;
-            auto res = callContext.instantiateFunctionTemplate(codeLoc, matching.function.type,
-                identifier.parts.back().templateArguments,
-                concat({leftType}, matching.args), concat({left->codeLoc}, matching.codeLocs));
-            if (res)
-              callType = thisCallType;
-            if (res && functionInfo)
-              codeLoc.error("Ambigous method call:\nCandidate: " + functionInfo->type.toString() + "\nCandidate: " + res->toString());
-            res.unpack(fType, error);
-            if (fType)
-              functionInfo = FunctionInfo {matching.function.id, *fType};
-          }
-        };
-        if (!leftType->getUnderlying().dynamicCast<PointerType>() &&
-            !leftType->getUnderlying().dynamicCast<MutablePointerType>())
-        tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
-        leftType = leftType.dynamicCast<MutableReferenceType>()
-            ? SType(MutablePointerType::get(leftType->getUnderlying()))
-            : SType(PointerType::get(leftType->getUnderlying()));
-        tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
-      }
-    }
-  }
-  if (functionInfo)
-    return functionInfo->type.retVal;
-  else
-    error->execute();
-}
-
-WithErrorLine<vector<FunctionCallNamedArgs::ArgMatching>> FunctionCallNamedArgs::matchArgs(const Context& functionContext, Context& callContext, bool skipFirst) {
-  auto functionOverloads = functionContext.getFunctionTemplate(identifier);
-  if (!functionOverloads)
-    return codeLoc.getError(functionOverloads.get_error());
-  ErrorLoc error = codeLoc.getError("Couldn't find function overload matching named arguments.");
-  vector<ArgMatching> ret;
-  for (auto& overload : *functionOverloads) {
-    set<string> toInitialize;
-    set<string> initialized;
-    map<string, int> paramIndex;
-    auto paramNames = transform(overload.type.params, [](const FunctionType::Param& p) { return p.name; });
-    int count = 0;
-    vector<string> notInitialized;
-    vector<SType> argTypes;
-    vector<CodeLoc> argLocs;
-    for (int i = (skipFirst ? 1 : 0); i < paramNames.size(); ++i) {
-      if (auto paramName = paramNames.at(i)) {
-        toInitialize.insert(*paramName);
-        paramIndex[*paramName] = count++;
-      } else {
-        error = codeLoc.getError("Can't call function that has an unnamed parameter this way");
-        goto nextOverload;
-      }
-    }
-    for (auto& elem : arguments) {
-      if (!toInitialize.count(elem.name)) {
-        error = elem.codeLoc.getError("No parameter named " + quote(elem.name)
-            + " in function " + quote(identifier.toString()));
-        goto nextOverload;
-      }
-      if (initialized.count(elem.name))
-        return elem.codeLoc.getError("Parameter " + quote(elem.name) + " listed more than once");
-      initialized.insert(elem.name);
-    }
-    for (auto& elem : toInitialize)
-      if (!initialized.count(elem))
-        notInitialized.push_back("" + quote(elem));
-    if (!notInitialized.empty()) {
-      error = codeLoc.getError("Function parameters: " + combine(notInitialized, ",")
-          + " were not initialized");
-      goto nextOverload;
-    }
-    sort(arguments.begin(), arguments.end(),
-        [&](const Argument& m1, const Argument& m2) { return paramIndex[m1.name] < paramIndex[m2.name]; });
-    for (auto& arg : arguments) {
-      argTypes.push_back(getType(callContext, arg.expr));
-      argLocs.push_back(arg.codeLoc);
-    }
-    ret.push_back(ArgMatching{argTypes, argLocs, overload});
-    nextOverload:
-    continue;
-  }
-  if (!ret.empty())
-    return ret;
-  else
-    return error;
 }
 
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
