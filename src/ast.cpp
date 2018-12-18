@@ -137,7 +137,7 @@ static WithErrorLine<FunctionType> handleOperatorOverloads(Context& context, Cod
     if (auto inst = instantiateFunction(context, fun, codeLoc, {}, types, argLocs, {}))
       overloads.push_back({op, *inst});
     else
-      errors.push_back("Candidate: " + fun.toString() + ": " + inst.get_error().error);
+      errors.push_back("Candidate: " + FunctionInfo{op, fun}.prettyString() + ": " + inst.get_error().error);
   filterOverloads(overloads, types);
   if (overloads.size() == 1) {
     //cout << "Chosen overload " << overloads[0].toString() << endl;
@@ -146,7 +146,7 @@ static WithErrorLine<FunctionType> handleOperatorOverloads(Context& context, Cod
       string error = "No overload found for operator: " + quote(getString(op)) + " with argument types: " +
           joinTypeList(types);
       for (auto& f : overloads)
-        error += "\nCandidate: " + f.type.toString();
+        error += "\nCandidate: " + f.prettyString();
       for (auto& f : errors)
         error += "\n" + f;
       return codeLoc.getError(error);
@@ -444,7 +444,7 @@ static WithErrorLine<FunctionInfo> getFunction(const Context& idContext, const C
           argTypes, argLoc)) {
         overloads.push_back({overload.id, *f});
       } else
-        errors = codeLoc.getError(errors.error + "\nCandidate: "s + overload.type.toString() + ": " + f.get_error().error);
+        errors = codeLoc.getError(errors.error + "\nCandidate: "s + overload.prettyString() + ": " + f.get_error().error);
   }
   if (overloads.empty())
     return errors;
@@ -454,7 +454,7 @@ static WithErrorLine<FunctionInfo> getFunction(const Context& idContext, const C
     return overloads[0];
   else
     return codeLoc.getError("Multiple function overloads found:\n" +
-        combine(transform(overloads, [](const auto& o) { return o.type.toString();}), "\n"));
+        combine(transform(overloads, [](const auto& o) { return o.prettyString();}), "\n"));
 }
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
@@ -793,8 +793,8 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
             callType = thisCallType;
         }
         if (res && functionInfo)
-          codeLoc.error("Ambigous method call:\nCandidate: " + functionInfo->type.toString() +
-              "\nCandidate: " + res->type.toString());
+          codeLoc.error("Ambigous method call:\nCandidate: " + functionInfo->prettyString() +
+              "\nCandidate: " + res->prettyString());
         res.unpack(functionInfo, error);
       };
       if (!leftType->getUnderlying().dynamicCast<PointerType>() &&
@@ -812,7 +812,7 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
       if (argNames[i] && paramName && argNames[i] != paramName) {
         arguments[i]->codeLoc.error("Function argument " + quote(*argNames[i]) +
             " doesn't match parameter " + quote(*paramName) + " of function " +
-            functionInfo->type.toString());
+            functionInfo->prettyString());
       }
     }
     return functionInfo->type.retVal;

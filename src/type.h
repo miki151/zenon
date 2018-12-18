@@ -259,12 +259,12 @@ struct FunctionType {
   bool externalMethod = false;
   bool fromConcept = false;
   bool subscriptOpWorkaround = true;
-  string toString() const;
 };
 
 struct FunctionInfo {
   FunctionId id;
   FunctionType type;
+  string prettyString() const;
 };
 
 struct Concept : public owned_object<Concept> {

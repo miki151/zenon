@@ -105,8 +105,8 @@ optional<string> Context::getMissingFunctions(const Concept& required, vector<Fu
             break;
           }
         if (!found)
-          return "Required function not implemented: " +
-              function.toString() + ", required by concept: " + quote(required.getName());
+          return "Required function not implemented: " + FunctionInfo{overloads.first, function}.prettyString() +
+              ", required by concept: " + quote(required.getName());
       }
   }
   return none;

@@ -98,10 +98,10 @@ FunctionType::FunctionType(SType returnType, vector<Param> p, vector<SType> tpl)
     : retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
 
-string FunctionType::toString() const {
-  return retVal->getName() + " " + joinTemplateParams(templateParams) + "(" +
-      combine(transform(params, [](const Param& t) { return t.type->getName(); }), ", ") + ")" +
-      (fromConcept ? " [from concept]" : "");
+string FunctionInfo::prettyString() const {
+  return type.retVal->getName() + " " + toString(id) + joinTemplateParams(type.templateParams) + "(" +
+      combine(transform(type.params, [](auto& t) { return t.type->getName() + (t.name ? " " + *t.name : ""s); }), ", ") + ")" +
+      (type.fromConcept ? " [from concept]" : "");
 }
 
 string Type::getCodegenName() const {
