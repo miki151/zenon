@@ -35,7 +35,7 @@ struct IdentifierInfo {
   };
   vector<variant<PointerType, ArraySize, Slice>> typeOperator;
   CodeLoc codeLoc;
-  string toString() const;
+  string prettyString() const;
   bool operator == (const IdentifierInfo&) const;
   //HASH_ALL(parts)
 };

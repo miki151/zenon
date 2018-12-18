@@ -594,9 +594,10 @@ unique_ptr<SwitchStatement> parseSwitchStatement(Tokens& tokens) {
         caseElem.type = identifier;
         tokens.eat(Keyword::CLOSE_BRACKET);
       } else {
-        identifier.codeLoc.check(identifier.parts.size() == 1 && identifier.parts.at(0).templateArguments.empty(),
-            "Identifier " + quote(identifier.toString()) + " is not a variable");
-        caseElem.id = identifier.toString();
+        if (auto s = identifier.asBasicIdentifier())
+          caseElem.id = *s;
+        else
+          identifier.codeLoc.error("Identifier " + quote(identifier.prettyString()) + " is not a variable");
       }
       caseElem.block = parseBlock(tokens);
       ret->caseElems.push_back(std::move(caseElem));

@@ -18,14 +18,14 @@ Constant::Constant(CodeLoc l, SCompileTimeValue v) : Expression(l), value(v) {
 }
 
 Variable::Variable(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {
-  INFO << "Parsed variable " << id.toString();
+  INFO << "Parsed variable " << id.prettyString();
 }
 
 Variable::Variable(CodeLoc l, string s) : Variable(l, IdentifierInfo(s, l)) {
 }
 
 FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(std::move(id)) {
-  INFO << "Function call " << id.toString();;
+  INFO << "Function call " << id.prettyString();;
 }
 
 FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id, unique_ptr<Expression> arg) : FunctionCall(l, id) {
@@ -36,7 +36,7 @@ VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, 
     : Statement(l), type(t), identifier(id), initExpr(std::move(ini)) {
   string type = "auto";
   if (t)
-    type = t->toString();
+    type = t->prettyString();
   INFO << "Declared variable " << quote(id) << " of type " << quote(type);
 }
 
@@ -61,7 +61,7 @@ SType Variable::getTypeImpl(Context& context) {
   }
   if (auto t = context.getTypeFromString(identifier))
     return t.get()->getType();
-  codeLoc.error(varError.value_or("Identifier not found: " + identifier.toString()));
+  codeLoc.error(varError.value_or("Identifier not found: " + identifier.prettyString()));
 }
 
 nullable<SType> Variable::eval(const Context& context) const {
@@ -435,7 +435,7 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept, b
 
 static WithErrorLine<FunctionInfo> getFunction(const Context& idContext, const Context& callContext,
     CodeLoc codeLoc, IdentifierInfo id, const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
-  ErrorLoc errors = codeLoc.getError("Couldn't find function " + id.toString() +
+  ErrorLoc errors = codeLoc.getError("Couldn't find function " + id.prettyString() +
       " matching arguments: (" + joinTypeList(argTypes) + ")");
   vector<FunctionInfo> overloads;
   if (auto templateType = idContext.getFunctionTemplate(id)) {

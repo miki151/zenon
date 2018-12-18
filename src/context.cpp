@@ -298,7 +298,7 @@ nullable<SType> Context::getVariable(const string& name) const {
 
 WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
   if (id.parts.size() != 1)
-    return id.codeLoc.getError("Bad type identifier: " + id.toString());
+    return id.codeLoc.getError("Bad type identifier: " + id.prettyString());
   auto name = id.parts.at(0).name;
   auto topType = getType(name);
   if (!topType)
@@ -371,7 +371,7 @@ WithError<vector<FunctionInfo>> Context::getFunctionTemplate(IdentifierInfo id) 
     if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0), id.codeLoc)))
       return (*type)->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
     else
-      return "Type not found: " + id.toString();
+      return "Type not found: " + id.prettyString();
   } else {
     string funName = id.parts.at(0).name;
     for (auto& fun : getFunctions(funName))

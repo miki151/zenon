@@ -23,7 +23,7 @@ optional<string> IdentifierInfo::asBasicIdentifier() const {
     return parts[0].name;
 }
 
-string IdentifierInfo::toString() const {
+string IdentifierInfo::prettyString() const {
   string ret;
   for (auto& part : parts) {
     if (!ret.empty())
@@ -66,7 +66,7 @@ IdentifierInfo::IdentifierInfo() {
 
 static string getTemplateArgString(const variant<shared_ptr<Expression>, IdentifierInfo>& arg) {
   return arg.visit(
-      [](const IdentifierInfo& id) { return id.toString(); },
+      [](const IdentifierInfo& id) { return id.prettyString(); },
       [](const shared_ptr<Expression>&) { return "expression"s; });
 }
 
