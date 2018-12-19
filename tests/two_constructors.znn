@@ -2,9 +2,11 @@
 
 struct X {
   int value;
-  X() : value(1) {}
-  X(int a) : value(a) {}
 };
+
+X() {
+  return X(1);
+}
 
 int main() {
   mutable x = X();

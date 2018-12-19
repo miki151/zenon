@@ -2,9 +2,11 @@ import "hidden.znn";
 
 
 struct Struct1 {
-  Struct1(int u) : x(u) {
-    hidden();
-  }
   int x;
 };
+
+Struct1(int u) {
+  hidden();
+  return Struct1::Struct1(u);
+}
 

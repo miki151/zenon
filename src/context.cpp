@@ -52,14 +52,6 @@ static string getFunctionIdName(const FunctionId& id) {
   );
 }
 
-static string getFunctionNameForError(const FunctionId& name, const FunctionType& function) {
-  string typePrefix;
-  if (function.parentType)
-    typePrefix = function.parentType->getName() + "::";
-  return function.retVal->getName() + " " + typePrefix + getFunctionIdName(name) + "(" +
-      combine(transform(function.params, [](const auto& t) { return t.type->getName(); }), ", ") + ")";
-}
-
 bool Context::areParamsEquivalent(const FunctionType& f1, const FunctionType& f2) const {
   auto checkFun = [this](const FunctionType& f1, const FunctionType& f2) {
     return !!instantiateFunction(*this, f1, CodeLoc(), {}, transform(f2.params, [](const auto& param) { return param.type; }),
@@ -162,7 +154,7 @@ void Context::State::print() const {
   for (auto& function : functions) {
     cout << "Function " << quote(getFunctionIdName(function.first)) << " overloads: \n";
     for (auto& overload : function.second)
-      cout << getFunctionNameForError(function.first, overload) << "\n";
+      cout << FunctionInfo{function.first, overload}.prettyString() << "\n";
   }
   for (auto& type : types)
     cout << "Type: " << type.second->getName() << "\n";
@@ -355,14 +347,33 @@ void Context::checkNameConflictExcludingFunctions(CodeLoc loc, const string& nam
 optional<string> Context::addFunction(FunctionId id, FunctionType f) {
   auto& overloads = state->functions[id];
   for (auto& fun : overloads)
-    if (areParamsEquivalent(fun, f) && (!id.contains<ConstructorTag>() || fun.retVal == f.retVal))
-      return "Can't overload " + quote(getFunctionNameForError(id, f)) + " with the same argument types."s;
+    if (areParamsEquivalent(fun, f) && (!id.contains<ConstructorTag>() || fun.retVal == f.retVal) &&
+        fun.generatedConstructor == f.generatedConstructor)
+      return "Can't overload " + FunctionInfo{id, f}.prettyString() + " with the same argument types."s;
   overloads.push_back(f);
   return none;
 }
 
 optional<string> Context::addFunction(FunctionInfo info) {
   return addFunction(std::move(info.id), std::move(info.type));
+}
+
+vector<FunctionInfo> Context::getConstructorsFor(const SType& type) const {
+  vector<FunctionInfo> ret;
+  //cout << "Looking for constructor " << type->getName() << endl;
+  for (auto& fun : getFunctions(ConstructorTag{})) {
+    //cout << "Matching constructor " << FunctionInfo{ConstructorTag{}, fun}.prettyString() << endl;
+    if (fun.retVal == type) {
+      //cout << "Match!" << endl;
+      ret.push_back(FunctionInfo{ConstructorTag{}, fun});
+    } else
+    if (auto structType = fun.retVal.dynamicCast<StructType>())
+      if (structType->parent.get() == type) {
+        //cout << "Match!" << endl;
+        ret.push_back(FunctionInfo{ConstructorTag{}, fun});
+      }
+  }
+  return ret;
 }
 
 WithError<vector<FunctionInfo>> Context::getFunctionTemplate(IdentifierInfo id) const {
@@ -374,12 +385,11 @@ WithError<vector<FunctionInfo>> Context::getFunctionTemplate(IdentifierInfo id) 
       return "Type not found: " + id.prettyString();
   } else {
     string funName = id.parts.at(0).name;
-    for (auto& fun : getFunctions(funName))
-      ret.push_back(FunctionInfo{FunctionId{funName}, fun});
     if (auto type = getType(funName))
-      for (auto& fun : getFunctions(ConstructorTag{}))
-        if (fun.retVal == type.get())
-          ret.push_back(FunctionInfo{ConstructorTag{}, fun});
+      ret = getConstructorsFor(type.get());
+    else
+      for (auto& fun : getFunctions(funName))
+        ret.push_back(FunctionInfo{FunctionId{funName}, fun});
   }
   return ret;
 }
@@ -460,20 +470,11 @@ vector<FunctionType> Context::getOperatorType(Operator op) const {
   return getFunctions(op);
 }
 
-bool Context::canConstructWith(SType type, vector<SType> argsRef) const {
-//  cout << "Trying to construct " << type->getName() << " with " << combine(transform(argsRef, [](const auto& t) { return t->getName(); }), ", ") << "\n";
-//  print();
-  auto args = transform(argsRef, [](const auto& arg) { return arg->getUnderlying();});
-  if (args.size() == 1 && args[0] == type)
-    return true;
-  vector<SType> templateParams;
-  if (auto s = type.dynamicCast<StructType>()) {
+bool Context::canDefaultInitialize(SType type) const {
+  if (auto s = type.dynamicCast<StructType>())
     type = s->parent.get();
-    templateParams = s->templateParams;
-  }
-  for (auto& f : getFunctions(ConstructorTag{}))
-    if (f.retVal == type &&
-       instantiateFunction(*this, f, CodeLoc(), templateParams, args, vector<CodeLoc>(args.size())))
+  for (auto& f : getConstructorsFor(type))
+    if (f.type.params.empty())
       return true;
   return false;
 }

@@ -679,8 +679,14 @@ Context& Concept::modContext() {
   return context;
 }
 
+/*static string to_string(void* ptr) {
+  char buf[30];
+  sprintf(buf, "%p", ptr);
+  return buf;
+}*/
+
 string joinTypeList(const vector<SType>& types) {
-  return combine(transform(types, [](const auto& type) { return type->getName(); }), ", ");
+  return combine(transform(types, [](const SType& type) { return type->getName(); }), ", ");
 }
 
 string joinTemplateParams(const vector<SType>& params) {

@@ -6,8 +6,7 @@ using std::shared_ptr;
 }
 
 template <T>
-extern struct shared_ptr {
-};
+extern struct shared_ptr;
 
 template <T>
 shared_ptr<T> copy(shared_ptr<T>* s) {

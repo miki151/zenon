@@ -7,9 +7,9 @@ public embed {
   };
 }
 
-extern struct input_file {
-  input_file(string);
-};
+extern struct input_file;
+
+extern input_file(string s);
 
 template <T>
 T read(input_file mutable* f) {

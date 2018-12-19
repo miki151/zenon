@@ -24,7 +24,7 @@ struct Type : public owned_object<Type> {
   virtual SType getType() const;
   virtual ~Type() {}
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const;
-  virtual Context& getStaticContext();
+  Context& getStaticContext();
   enum class SwitchArgument {
     VALUE,
     REFERENCE,
@@ -259,6 +259,7 @@ struct FunctionType {
   bool externalMethod = false;
   bool fromConcept = false;
   bool subscriptOpWorkaround = true;
+  bool generatedConstructor = false;
 };
 
 struct FunctionInfo {

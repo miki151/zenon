@@ -252,7 +252,6 @@ struct StructDefinition : Statement {
     CodeLoc codeLoc;
   };
   vector<Member> members;
-  vector<unique_ptr<FunctionDefinition>> methods;
   TemplateInfo templateInfo;
   nullable<shared_ptr<StructType>> type;
   virtual void addToContext(Context&, ImportCache&) override;

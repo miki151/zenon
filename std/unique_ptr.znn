@@ -6,7 +6,7 @@ using std::unique_ptr;
 
 
 template <T>
-extern struct unique_ptr {};
+extern struct unique_ptr;
 
 template <T>
 unique_ptr<T> make_unique(T t) {

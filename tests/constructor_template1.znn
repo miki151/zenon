@@ -2,9 +2,13 @@
 
 template <T>
 struct A {
-  A(T a) : a(a) {}
   T a;
 };
+
+template <T>
+A(T a) {
+  return A<T>::A(move(a));
+}
 
 int main() {
   const a = A(5);

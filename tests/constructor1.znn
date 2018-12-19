@@ -4,9 +4,11 @@
 struct A {
   int a;
   int b;
-  A(int x) : a(x), b(2 * x) {
-  }
 };
+
+A(int x) {
+  return A(x, 2 * x);
+}
 
 int main() {
   const a = A(2);

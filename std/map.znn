@@ -11,8 +11,7 @@ using std::pair;
 }
 
 template<Key, Value> requires comparable<Key>
-extern struct map {
-};
+extern struct map;
 
 template <Key, Value> requires comparable<Key>
 void insert(map<Key, Value> mutable* m, Key key, Value value) {

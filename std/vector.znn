@@ -13,18 +13,16 @@ using vector_mut_iterator = typename vector<T>::iterator;
 public import "std/concepts.znn";
 
 template <T>
-extern struct vector {
-  vector(vector<T>*);
-  vector();
-};
+extern struct vector;
 
 template <T>
-extern struct vector_iterator {
-};
+extern vector();
 
 template <T>
-extern struct vector_mut_iterator {
-};
+extern struct vector_iterator;
+
+template <T>
+extern struct vector_mut_iterator;
 
 template <T>
 vector_iterator<T> begin(vector<T>* v) {

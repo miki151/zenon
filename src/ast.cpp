@@ -104,8 +104,12 @@ static bool exactFirstArg(const vector<SType>& argTypes, const FunctionType& ove
   return !argTypes.empty() && !overload.params.empty() && isExactArg(argTypes[0], overload.params[0].type);
 }
 
-static bool nonConcept(const vector<SType>&, const FunctionType& f) {
-  return !f.fromConcept;
+static bool fromConcept(const vector<SType>&, const FunctionType& f) {
+  return f.fromConcept;
+}
+
+static bool userDefinedConstructor(const vector<SType>&, const FunctionType& f) {
+  return !f.generatedConstructor;
 }
 
 static void filterOverloads(vector<FunctionInfo>& overloads, const vector<SType>& argTypes) {
@@ -122,8 +126,9 @@ static void filterOverloads(vector<FunctionInfo>& overloads, const vector<SType>
   };
   filter(&exactArgs, "all args exact");
   filter(&exactFirstArg, "first arg exact");
-  // sometimes a function is both in the global context and in the concept, so filter those in concepts
-  filter(&nonConcept, "non concept");
+  // sometimes a function is both in the global context and in the concept, so prefer the one in the concept
+  filter(&fromConcept, "non concept");
+  filter(&userDefinedConstructor, "user defined constructor");
 }
 
 
@@ -294,7 +299,7 @@ void VariableDeclaration::check(Context& context) {
     initExpr->codeLoc.check(context.canConvert(exprType, realType.get()), "Can't initialize variable of type "
         + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
   } else
-    codeLoc.check(context.canConstructWith(realType.get(), {}), "Type " + quote(realType->getName()) + " requires initialization");
+    codeLoc.check(context.canDefaultInitialize(realType.get()), "Type " + quote(realType->getName()) + " requires initialization");
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
   context.addVariable(identifier, std::move(varType));
 }
@@ -429,18 +434,20 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept, b
     functionInfo = FunctionInfo{getFunctionId(name), FunctionType(returnType, params, templateTypes)};
     functionInfo->type.fromConcept = concept;
     functionInfo->type.requirements = requirements;
+    if (functionInfo->id.contains<ConstructorTag>() && external)
+      functionInfo->type.generatedConstructor = true;
   } else
     returnType1.get_error().execute();
 }
 
-static WithErrorLine<FunctionInfo> getFunction(const Context& idContext, const Context& callContext,
+static WithErrorLine<FunctionInfo> getFunction(const Context& context,
     CodeLoc codeLoc, IdentifierInfo id, const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
   ErrorLoc errors = codeLoc.getError("Couldn't find function " + id.prettyString() +
       " matching arguments: (" + joinTypeList(argTypes) + ")");
   vector<FunctionInfo> overloads;
-  if (auto templateType = idContext.getFunctionTemplate(id)) {
+  if (auto templateType = context.getFunctionTemplate(id)) {
     for (auto& overload : *templateType)
-      if (auto f = callContext.instantiateFunctionTemplate(codeLoc, overload.type, id.parts.back().templateArguments,
+      if (auto f = context.instantiateFunctionTemplate(codeLoc, overload.type, id.parts.back().templateArguments,
           argTypes, argLoc)) {
         overloads.push_back({overload.id, *f});
       } else
@@ -469,7 +476,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
       functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
       args.push_back(alternativeType);
     }
-  if (auto fun = getFunction(context, context, codeLoc, IdentifierInfo(funName, codeLoc), args,
+  if (auto fun = getFunction(context, codeLoc, IdentifierInfo(funName, codeLoc), args,
       vector<CodeLoc>(args.size(), codeLoc)))
     return unique_ptr<Expression>(std::move(functionCall));
   else
@@ -778,13 +785,12 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
       INFO << "Function argument " << argTypes.back()->getName();
     }
     if (!left)
-      getFunction(callContext, callContext, codeLoc, identifier, argTypes, argLocs)
-          .unpack(functionInfo, error);
+      getFunction(callContext, codeLoc, identifier, argTypes, argLocs).unpack(functionInfo, error);
     else {
       auto leftType = left->getTypeImpl(callContext);
       callType = MethodCallType::METHOD;
       auto tryMethodCall = [&](MethodCallType thisCallType) {
-        auto res = getFunction(callContext, callContext, codeLoc, identifier, concat({leftType}, argTypes),
+        auto res = getFunction(callContext, codeLoc, identifier, concat({leftType}, argTypes),
             concat({left->codeLoc}, argLocs));
         if (res) {
           if (res->type.externalMethod)
@@ -917,22 +923,6 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
     for (auto& param : type->templateParams)
       addTemplateParam(membersContext, param);
     type->requirements = applyConcept(membersContext, templateInfo.requirements);
-    bool hasConstructor = false;
-    for (auto& method : methods) {
-      if (method->name.contains<ConstructorId>()) {
-        // We have to fix the return type of the constructor otherwise it can't be looked up in the context
-        method->returnType.parts[0].templateArguments = transform(templateInfo.params,
-            [](const auto& p) { return TemplateParameterInfo(IdentifierInfo(p.name, p.codeLoc)); });
-        method->setFunctionType(membersContext);
-        method->codeLoc.check(method->functionInfo->type.templateParams.empty(), "Constructor can't have template parameters.");
-        method->functionInfo->type.templateParams = type->templateParams;
-        method->codeLoc.checkNoError(context.addFunction(*method->functionInfo));
-        if (cache.currentlyInImport() && templateInfo.params.empty())
-          method->body = nullptr;
-        hasConstructor = true;
-      } else
-        method->codeLoc.error("Only constructors and members can be defined inside struct body.");
-    }
     for (auto& member : members) {
       //INFO << "Struct member " << member.name << " " << member.type.toString() << " line " << member.codeLoc.line << " column " << member.codeLoc.column;
       type->members.push_back({member.name, membersContext.getTypeFromString(member.type).get()});
@@ -940,40 +930,18 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
     for (auto& member : members)
       if (auto error = type->members.back().type->getSizeError())
         member.codeLoc.error("Member " + quote(member.name) + " of type " + quote(type->getName()) + " " + *error);
-    if (!hasConstructor) {
+    if (!external) {
       vector<FunctionType::Param> constructorParams;
       for (auto& member : type->members)
         constructorParams.push_back({member.name, member.type});
-      CHECK(!context.addFunction(ConstructorTag{},
-          FunctionType(type.get(), std::move(constructorParams), type->templateParams)));
+      auto fun = FunctionType(type.get(), std::move(constructorParams), type->templateParams);
+      fun.generatedConstructor = true;
+      CHECK(!context.addFunction(ConstructorTag{}, fun));
+      fun.templateParams.clear();
+      fun.parentType = type.get();
+      CHECK(!type->getStaticContext().addFunction(name, fun));
     }
   }
-}
-
-static void checkConstructor(const StructType& type, const Context& context, FunctionDefinition& method) {
-  map<string, int> memberIndex;
-  int index =  0;
-  for (auto& member : type.members)
-    memberIndex[member.name] = index++;
-  index = -1;
-  for (auto& initializer : method.initializers) {
-    auto memberType = type.getTypeOfMember(initializer.paramName).get(initializer.codeLoc);
-    auto initContext = Context::withParent(context);
-    for (auto& p : method.functionInfo->type.params)
-      if (p.name)
-        initContext.addVariable(*p.name, p.type);
-    auto exprType = getType(initContext, initializer.expr);
-    initializer.codeLoc.check(context.canConstructWith(memberType->getUnderlying(), {exprType}),
-        "Can't assign to member " + quote(initializer.paramName) + " of type " + quote(memberType->getName()) +
-        " from expression of type " + quote(exprType->getName()));
-    int currentIndex = memberIndex.at(initializer.paramName);
-    initializer.codeLoc.check(currentIndex > index, "Can't initialize member " + quote(initializer.paramName) + " out of order");
-    index = currentIndex;
-    memberIndex.erase(initializer.paramName);
-  }
-  for (auto& nonInitialized : memberIndex)
-    method.codeLoc.check(context.canConstructWith(type.getTypeOfMember(nonInitialized.first).get_value(), {}),
-        "Member " + quote(nonInitialized.first) + " needs to be initialized");
 }
 
 void StructDefinition::check(Context& context) {
@@ -982,12 +950,6 @@ void StructDefinition::check(Context& context) {
   for (auto& param : type->templateParams)
     addTemplateParam(methodBodyContext, param);
   applyConcept(methodBodyContext, templateInfo.requirements);
-  for (int i = 0; i < methods.size(); ++i) {
-    if (methods[i]->functionInfo->id.contains<ConstructorTag>()) {
-      checkConstructor(*type, methodBodyContext, *methods[i]);
-      methods[i]->check(staticFunContext);
-    }
-  }
   type->updateInstantations();
   if (auto error = type->getSizeError())
     codeLoc.error("Type " + quote(type->getName()) + " " + *error);

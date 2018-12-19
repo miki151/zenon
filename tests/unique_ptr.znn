@@ -7,8 +7,7 @@ using std::unique_ptr;
 
 
 template <T>
-extern struct unique_ptr {
-};
+extern struct unique_ptr;
 
 template <T>
 T mutable* get(unique_ptr<T> mutable* ptr) {

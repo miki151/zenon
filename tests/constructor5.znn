@@ -1,0 +1,34 @@
+// 3
+
+
+template <T>
+struct A  {
+  int x;
+  string s;
+  T t;
+};
+
+template <T>
+concept default_const {
+  T getValue();
+};
+
+template<T> requires default_const<T>
+A(int x) {
+  return A<T>(x, "default", getValue());
+}
+
+template<T> requires default_const<T>
+A() {
+  return A<T>(-1);
+}
+
+bool getValue() {
+  return false;
+}
+
+int main() {
+  const a = A<bool>(4);
+  const b = A<bool>();
+  return a.x + b.x;
+}

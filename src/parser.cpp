@@ -309,6 +309,12 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
       tokens.eat(Keyword::CLOSE_SQUARE_BRACKET);
       ret = unique<FunctionDefinition>(type.codeLoc, type, Operator::SUBSCRIPT);
     }
+  } else if (token2 == Keyword::OPEN_BRACKET) {
+    if (auto typeName = type.asBasicIdentifier()) {
+      ret = unique<FunctionDefinition>(type.codeLoc, type, ConstructorId { *typeName });
+      tokens.rewind();
+    } else
+      type.codeLoc.error("Expected type name without template parameters");
   } else {
     token2.codeLoc.check(token2.contains<IdentifierToken>(), "Expected identifier, got: " + quote(token2.value));
     ret = unique<FunctionDefinition>(type.codeLoc, type, token2.value);
@@ -354,27 +360,6 @@ unique_ptr<FunctionDefinition> parseFunctionDefinition(IdentifierInfo type, Toke
   return ret;
 }
 
-unique_ptr<FunctionDefinition> parseConstructorDefinition(IdentifierInfo type, Tokens& tokens) {
-  auto ret = parseFunctionSignature(type, tokens);
-  ret->codeLoc.check(!ret->isVirtual, "Constructor can't be virtual");
-  if (tokens.eatMaybe(Keyword::COLON)) {
-    while (1) {
-      auto id = tokens.popNext();
-      id.codeLoc.check(id.contains<IdentifierToken>(), "Expected member name");
-      tokens.eat(Keyword::OPEN_BRACKET);
-      auto expr = parseExpression(tokens);
-      tokens.eat(Keyword::CLOSE_BRACKET);
-      ret->initializers.push_back(FunctionDefinition::Initializer{id.codeLoc, id.value, std::move(expr)});
-      if (tokens.peek() == Keyword::OPEN_BLOCK)
-        break;
-      tokens.eat(Keyword::COMMA);
-    }
-  }
-  ret->name = ConstructorId{*ret->name.getValueMaybe<string>()};
-  ret->body = parseBlock(tokens);
-  return ret;
-}
-
 static TemplateInfo parseTemplateInfo(Tokens& tokens) {
   tokens.eat(Keyword::TEMPLATE);
   tokens.eat(Operator::LESS_THAN);
@@ -412,37 +397,23 @@ unique_ptr<StructDefinition> parseStructDefinition(Tokens& tokens, bool external
   auto ret = unique<StructDefinition>(token2.codeLoc, token2.value);
   if (external)
     ret->external = true;
-  if (tokens.eatMaybe(Keyword::OPEN_BLOCK))
-    while (1) {
-      auto memberToken = tokens.peek();
-      if (memberToken == Keyword::CLOSE_BLOCK) {
-        tokens.popNext();
-        break;
-      }
-      TemplateInfo templateParams;
-      if (memberToken == Keyword::TEMPLATE)
-        templateParams = parseTemplateInfo(tokens);
-      auto typeIdent = parseIdentifier(tokens, true);
-      auto memberName = tokens.popNext();
-      if (memberName == Keyword::OPEN_BRACKET) { // constructor
-        tokens.rewind();
-        tokens.rewind();
-        if (external) {
-          ret->methods.push_back(parseFunctionSignature(typeIdent, tokens));
-          ret->methods.back()->name = ConstructorId{*ret->methods.back()->name.getValueMaybe<string>()};
-          tokens.eat(Keyword::SEMICOLON);
-        } else
-          ret->methods.push_back(parseConstructorDefinition(typeIdent, tokens));
-        ret->methods.back()->templateInfo = templateParams;
-      } else { // member
-        memberToken.codeLoc.check(templateParams.params.empty(), "Member variable can't have template parameters");
+  else {
+    if (tokens.eatMaybe(Keyword::OPEN_BLOCK))
+      while (1) {
+        auto memberToken = tokens.peek();
+        if (memberToken == Keyword::CLOSE_BLOCK) {
+          tokens.popNext();
+          break;
+        }
+        auto typeIdent = parseIdentifier(tokens, true);
+        auto memberName = tokens.popNext();
         memberName.codeLoc.check(memberName.contains<IdentifierToken>(), "Expected identifier");
         ret->members.push_back({typeIdent, memberName.value, memberToken.codeLoc});
         tokens.eat(Keyword::SEMICOLON);
       }
+    else {
+      ret->incomplete = true;
     }
-  else {
-    ret->incomplete = true;
   }
   tokens.eat(Keyword::SEMICOLON);
   return ret;
@@ -692,6 +663,9 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
         checkNameConflict(*name, "function");
       ret->templateInfo = templateInfo;
       ret->external = true;
+      if (ret->name.contains<ConstructorId>())
+        for (auto& elem : templateInfo.params)
+          ret->returnType.parts[0].templateArguments.push_back(IdentifierInfo(elem.name, elem.codeLoc));
       return ret;
     }
   } else
@@ -717,6 +691,10 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
     if (auto name = ret->name.getReferenceMaybe<string>())
       checkNameConflict(*name, "function");
     ret->templateInfo = templateInfo;
+    if (ret->name.contains<ConstructorId>()) {
+      for (auto& elem : templateInfo.params)
+        ret->returnType.parts[0].templateArguments.push_back(IdentifierInfo(elem.name, elem.codeLoc));
+    }
     return ret;
   }
 }

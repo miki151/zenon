@@ -46,7 +46,7 @@ class Context : public owned_object<Context> {
   void addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction);
   vector<FunctionType> getOperatorType(Operator) const;
   optional<FunctionType> getBuiltinOperator(Operator, vector<SType> argTypes) const;
-  bool canConstructWith(SType, vector<SType> args) const;
+  bool canDefaultInitialize(SType) const;
   void checkNameConflict(CodeLoc loc, const string& name, const string& type) const;
   void checkNameConflictExcludingFunctions(CodeLoc loc, const string& name, const string& type) const;
   void addConcept(const string& name, SConcept);
@@ -95,4 +95,5 @@ class Context : public owned_object<Context> {
   nullable<SType> getVariable(const string&) const;
   bool isGeneralization(const FunctionType& general, const FunctionType& specific, vector<FunctionType> existing) const;
   vector<FunctionInfo> getAllFunctions() const;
+  vector<FunctionInfo> getConstructorsFor(const SType&) const;
 };

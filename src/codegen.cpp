@@ -154,6 +154,8 @@ void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 static string getFunctionCallName(const FunctionInfo& functionInfo, bool methodCall) {
+  if (functionInfo.type.generatedConstructor && functionInfo.type.parentType)
+    return functionInfo.type.parentType->getCodegenName();
   string typePrefix;
   auto functionTemplateParams = functionInfo.type.templateParams;
   if (functionInfo.type.parentType) {
@@ -181,9 +183,13 @@ static void genFunctionCall(Accu& accu, const FunctionInfo& functionInfo,
   string prefix;
   string suffix;
   string id = getFunctionCallName(functionInfo, !!callType);
-  if (functionInfo.id.contains<ConstructorTag>()) {
+  if (functionInfo.type.generatedConstructor) {
     prefix = id + "{";
     suffix = "}";
+  } else
+  if (functionInfo.id.contains<ConstructorTag>()) {
+    prefix = "construct_" + id + "(";
+    suffix = ")";
   } else {
     prefix = id + "(";
     suffix = ")";
@@ -251,7 +257,7 @@ static string getFunctionSignatureName(const FunctionInfo& function) {
         else
           return "operator "s + getString(op);
       },
-      [&](ConstructorTag) { return function.type.retVal->getName(false); }
+      [&](ConstructorTag) { return "construct_" + function.type.retVal->getName(false); }
   );
 }
 
@@ -260,7 +266,7 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
   if (!structName.empty())
     structName += "::";
   string retVal;
-  if (!name.contains<ConstructorId>())
+  //if (!name.contains<ConstructorId>())
     retVal = functionInfo->type.retVal->getCodegenName() + " ";
   string ret = retVal + structName + getFunctionSignatureName(*functionInfo) + "(";
   for (auto& param : functionInfo->type.params) {
@@ -284,21 +290,6 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
   ret.append(")");
   accu.add(ret);
 };
-
-static void addInitializers(Accu& accu, const vector<FunctionDefinition::Initializer>& initializers) {
-  if (!initializers.empty())
-    accu.add(" : ");
-  bool addComma = false;
-  for (auto& elem : initializers) {
-    if (addComma)
-      accu.add(", ");
-    addComma = true;
-    accu.add(elem.paramName + "(");
-    elem.expr->codegen(accu, CodegenStage::define());
-    accu.add(")");
-  }
-  accu.add(" ");
-}
 
 void FunctionDefinition::handlePointerParamsInOperator(Accu& accu) const {
   vector<string> ptrInits;
@@ -381,27 +372,12 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
     } else
       accu.add(" {");
     ++accu.indent;
-    for (auto& method : methods) {
-      accu.newLine();
-      method->addSignature(accu, "");
-      accu.add(";");
-    }
     for (auto& member : type->members)
       accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
     --accu.indent;
     accu.newLine("};");
   }
   accu.newLine();
-  for (auto& method : methods)
-    if (stage.isDefine && (!stage.isImport  || !templateInfo.params.empty())) {
-      considerTemplateParams(accu, templateInfo.params);
-      method->addSignature(accu, name + joinTemplateParams(type->templateParams));
-      if (method->functionInfo->id.contains<ConstructorTag>())
-        addInitializers(accu, method->initializers);
-      accu.newLine();
-      method->body->codegen(accu, CodegenStage::define());
-      accu.newLine();
-    }
 }
 
 constexpr const char* variantEnumeratorPrefix = "Enum_";

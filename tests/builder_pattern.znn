@@ -5,8 +5,11 @@ import "std/print.znn";
 struct Builder {
   int a;
   string b;
-  Builder() : a(0), b("") {}
 };
+
+Builder() {
+  return Builder(0, "");
+}
 
 Builder setA(mutable Builder x, int a) {
   x.a = a;

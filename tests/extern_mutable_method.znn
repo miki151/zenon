@@ -8,10 +8,13 @@ using namespace std;
 }
 
 template <T>
-extern struct vector {
-  vector();
-  vector(int cnt, T);
-};
+extern struct vector;
+
+template <T>
+extern vector();
+
+template <T>
+extern vector(int cnt, T);
 
 template <T>
 void push_back(vector<T> mutable* v, T elem) {
