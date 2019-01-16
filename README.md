@@ -11,8 +11,7 @@ Zenon is a statically typed language that compiles to C++. The goal is to allow 
 * Compiles to C++
 * Extremely easy binding with C/C++.
 * Built-in variant/tagged union type
-* Named parameters in function calls
-* Syntax very similar to C++
+* Syntax similar to C++
 
 ### To be done
 * Faster compile times of the C++ output code than when writing the corresponding program in C++ thanks to transparently using the pimpl idiom and other tricks when generating code.
@@ -31,7 +30,7 @@ variant my_variant {
 };
 
 int example() {
-    auto var = my_variant::as_bool(true);
+    const var = my_variant::as_bool(true);
     switch (var) {
         case (bool as_bool) {
             if (as_bool)
@@ -67,7 +66,7 @@ nullable<T> null() {
 
 int example() {
     // 'T' is inferred from the function argument.
-    auto var = value(5);
+    mutable var = value(5);
     var = null<int>();
     switch (var) {
         case (int value) {
@@ -130,8 +129,8 @@ struct my_struct {
 
 int main() {
     int x = sum(3, 4);
-    x = x + sum({a = 32, b = -30});
-    auto my1 = my_struct({my_int = 5, my_bool = false});
+    x = x + sum(.a = 32, .b = -30);
+    auto my1 = my_struct(.my_int = 5, .my_bool = false);
     return x;
 }
 ```
@@ -158,21 +157,21 @@ int main() {
 ``` C++
 template <T>
 concept comparable {
-    bool operator < (T, T);
+    bool operator < (T*, T*);
 };
 
 template <T> requires comparable<T>
 T min(T value1, T value2) {
     // the only operations allowed on T in this context are those guaranteed by comparable<T>
     if (value1 < value2)
-        return value1;
+        return move(value1);
     else
-        return value2;
+        return move(value2);
 }
 
 int main() {
-  auto v = min(3, 5);
+  const v = min(3, 5);
   // calling min with a type that doesn't implement "comparable" results in a compile error one the spot
-  // auto c = min('a', 'b'); // compile error: char doesn't implement operator < required by "comparable"
+  // const c = min('a', 'b'); // compile error: char doesn't implement operator < required by "comparable"
 }
 ```
