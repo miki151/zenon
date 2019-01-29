@@ -1,0 +1,9 @@
+// no_compile
+
+template <abcdef xyz>
+void f() {
+}
+
+int main() {
+  return 0;
+}

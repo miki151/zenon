@@ -471,8 +471,9 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept, b
   vector<SType> templateTypes;
   for (auto& param : templateInfo.params) {
     if (param.type) {
-      auto type = contextWithTemplateParams.getType(*param.type).get();
-      templateTypes.push_back(CompileTimeValue::getTemplateValue(type, param.name));
+      auto type = contextWithTemplateParams.getType(*param.type);
+      param.codeLoc.check(!!type, "Type not found: " + quote(*param.type));
+      templateTypes.push_back(CompileTimeValue::getTemplateValue(type.get(), param.name));
       contextWithTemplateParams.addType(param.name, templateTypes.back());
     } else {
       contextWithTemplateParams.checkNameConflict(param.codeLoc, param.name, "template parameter");
