@@ -37,6 +37,7 @@ class Context : public owned_object<Context> {
   void addType(const string& name, SType);
   WithErrorLine<SType> getTypeFromString(IdentifierInfo) const;
   nullable<SType> getType(const string&) const;
+  vector<SType> getAllTypes() const;
   [[nodiscard]] optional<string> addImplicitFunction(FunctionId, FunctionType);
   [[nodiscard]] optional<string> addFunction(SFunctionInfo);
   WithError<IdentifierType> getIdentifierType(const IdentifierInfo&) const;

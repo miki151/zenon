@@ -448,4 +448,5 @@ struct ModuleInfo {
   bool builtIn;
 };
 
-extern vector<ModuleInfo> correctness(AST&, const vector<string>& importPaths, bool builtIn);
+extern vector<ModuleInfo> correctness(AST&, Context&, const vector<string>& importPaths, bool builtIn);
+extern Context createNewContext();

@@ -805,7 +805,7 @@ void FunctionDefinition::addToContext(Context& context, ImportCache& cache) {
     body = nullptr;
 }
 
-static Context createNewContext() {
+Context createNewContext() {
   static optional<Context> context;
   if (!context) {
     context.emplace();
@@ -866,11 +866,10 @@ static void addBuiltInImport(AST& ast) {
     ast.elems.push_back(std::move(elem));
 }
 
-vector<ModuleInfo> correctness(AST& ast, const vector<string>& importPaths, bool isBuiltInModule) {
+vector<ModuleInfo> correctness(AST& ast, Context& context, const vector<string>& importPaths, bool isBuiltInModule) {
   ImportCache cache(isBuiltInModule);
   if (!isBuiltInModule)
     addBuiltInImport(ast);
-  auto context = createNewContext();
   for (auto& elem : ast.elems) {
     if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
       import->setImportDirs(importPaths);

@@ -75,8 +75,9 @@ int main(int argc, char* argv[]) {
     INFO << "Parsing:\n\n" << program->value;
     auto tokens = lex(program->value, CodeLoc(path, 0, 0), "end of file");
     auto ast = parse(tokens);
-    auto imported = correctness(ast, {installDir}, builtInModule);
-    auto cppCode = codegen(ast, installDir + "/codegen_includes/all.h"s, !printCpp);
+    auto context = createNewContext();
+    auto imported = correctness(ast, context, {installDir}, builtInModule);
+    auto cppCode = codegen(ast, context, installDir + "/codegen_includes/all.h"s, !printCpp);
     if (printCpp) {
       cout << cppCode << endl;
       return 0;

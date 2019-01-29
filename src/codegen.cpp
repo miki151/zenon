@@ -325,13 +325,121 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
       addInstance(*instance.functionInfo, instance.body.get());
 }
 
-string codegen(const AST& ast, const string& codegenInclude, bool includeLineNumbers) {
+constexpr const char* variantEnumeratorPrefix = "Enum_";
+constexpr const char* variantUnionEntryPrefix = "Union_";
+constexpr const char* variantUnionElem = "unionElem";
+
+static void codegenStruct(set<shared_ptr<StructType>>& visited, Accu& accu, shared_ptr<StructType> type);
+
+static void codegenVariant(set<shared_ptr<StructType>>& visited, Accu& accu, shared_ptr<StructType> type) {
+  for (auto& elem : type->alternatives)
+    if (auto type = elem.type.dynamicCast<StructType>())
+      codegenStruct(visited, accu, type);
+  auto name = *type->getMangledName();
+  accu.add("struct " + name + " {");
+  ++accu.indent;
+  accu.newLine();
+  accu.add("enum {");
+  vector<string> typeNames;
+  for (auto& subtype : type->alternatives)
+    typeNames.push_back(subtype.name);
+  accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
+      + variantUnionElem + ";");
+  for (auto& alternative : type->alternatives) {
+    string signature = alternative.name + "(";
+    if (alternative.type != ArithmeticType::VOID)
+      signature += alternative.type->getCodegenName() + " const& elem";
+    signature += ")";
+    accu.newLine("static " + name + " " + signature + ";");
+  }
+  accu.newLine("union {");
+  ++accu.indent;
+  accu.newLine("bool dummy;");
+  for (auto& alternative : type->alternatives) {
+    if (alternative.type != ArithmeticType::VOID)
+      accu.newLine(alternative.type->getCodegenName() + " " + variantUnionEntryPrefix + alternative.name + ";");
+  }
+  --accu.indent;
+  accu.newLine("};");
+  auto visitBody = [&] {
+    ++accu.indent;
+    accu.newLine("switch (unionElem) {");
+    ++accu.indent;
+    for (auto& alternative : type->alternatives) {
+      if (alternative.type != ArithmeticType::VOID) {
+        accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
+        ++accu.indent;
+        accu.newLine("return std::forward<Visitor>(v)("s + variantUnionEntryPrefix + alternative.name + ");");
+        --accu.indent;
+      } else {
+        accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
+        ++accu.indent;
+        accu.newLine("return;");
+        --accu.indent;
+      }
+    }
+    --accu.indent;
+    accu.newLine("}");
+    --accu.indent;
+  };
+  accu.newLine("template <typename Visitor>");
+  accu.newLine("auto visit(Visitor&& v) const {");
+  visitBody();
+  accu.newLine("}");
+  accu.newLine("template <typename Visitor>");
+  accu.newLine("auto visit(Visitor&& v) {");
+  visitBody();
+  accu.newLine("}");
+  accu.newLine(name + "(const " + name + "& o) { VariantHelper<" + name + ">::copy(o, *this);  }");
+  accu.newLine("~" + name + "() { VariantHelper<" + name + ">::destroy(*this); }");
+  accu.newLine("private:" + name + "() {}");
+  --accu.indent;
+  accu.newLine("};");
+  accu.newLine();
+}
+
+static void codegenStruct(set<shared_ptr<StructType>>& visited, Accu& accu, shared_ptr<StructType> type) {
+  if (type->external)
+    return;
+  for (auto& instantation : concat({type}, type->instances))
+    if (auto name = instantation->getMangledName()) {
+      if (visited.count(instantation))
+        continue;
+      visited.insert(instantation);
+      if (!instantation->alternatives.empty()) {
+        codegenVariant(visited, accu, instantation);
+        continue;
+      }
+      for (auto& elem : instantation->members)
+        if (auto type = elem.type.dynamicCast<StructType>())
+          codegenStruct(visited, accu, type);
+      accu.add("struct " + *name);
+      /*if (incomplete) {
+        accu.add(";");
+        accu.newLine();
+        return;
+      } else*/
+        accu.add(" {");
+      ++accu.indent;
+      for (auto& member : instantation->members)
+        accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
+      --accu.indent;
+      accu.newLine("};");
+      accu.newLine();
+    }
+}
+
+string codegen(const AST& ast, const Context& context, const string& codegenInclude, bool includeLineNumbers) {
   Accu accu(includeLineNumbers);
   accu.add("#include \"" + codegenInclude + "\"");
   accu.newLine();
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::types());
   }
+  set<shared_ptr<StructType>> visitedStructs;
+  for (auto& type : context.getAllTypes())
+    if (auto structType = type.dynamicCast<StructType>())
+      codegenStruct(visitedStructs, accu, structType);
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::declare());
   }
@@ -348,97 +456,16 @@ void ExpressionStatement::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (external)
+  if (type->external || !incomplete || !stage.isTypes)
     return;
-  if (stage.isTypes)
-    for (auto& instantation : concat({type.get()}, type->instances))
-      if (auto name = instantation->getMangledName()) {
-        accu.add("struct " + *name);
-        if (incomplete) {
-          accu.add(";");
-          accu.newLine();
-          return;
-        } else
-          accu.add(" {");
-        ++accu.indent;
-        for (auto& member : instantation->members)
-          accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
-        --accu.indent;
-        accu.newLine("};");
-        accu.newLine();
-      }
+  for (auto& instantation : concat({type.get()}, type->instances))
+    if (auto name = instantation->getMangledName()) {
+      accu.add("struct " + *name + ";");
+      accu.newLine();
+    }
 }
 
-constexpr const char* variantEnumeratorPrefix = "Enum_";
-constexpr const char* variantUnionEntryPrefix = "Union_";
-constexpr const char* variantUnionElem = "unionElem";
-
 void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (stage.isTypes)
-    for (auto& instance : concat({type.get()}, type->instances))
-      if (auto name1 = instance->getMangledName()) {
-        auto& name = *name1;
-        accu.add("struct " + name + " {");
-        ++accu.indent;
-        accu.newLine();
-        accu.add("enum {");
-        vector<string> typeNames;
-        for (auto& subtype : instance->alternatives)
-          typeNames.push_back(subtype.name);
-        accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
-            + variantUnionElem + ";");
-        for (auto& alternative : instance->alternatives) {
-          string signature = alternative.name + "(";
-          if (alternative.type != ArithmeticType::VOID)
-            signature += alternative.type->getCodegenName() + " const& elem";
-          signature += ")";
-          accu.newLine("static " + name + " " + signature + ";");
-        }
-        accu.newLine("union {");
-        ++accu.indent;
-        accu.newLine("bool dummy;");
-        for (auto& alternative : instance->alternatives) {
-          if (alternative.type != ArithmeticType::VOID)
-            accu.newLine(alternative.type->getCodegenName() + " " + variantUnionEntryPrefix + alternative.name + ";");
-        }
-        --accu.indent;
-        accu.newLine("};");
-        auto visitBody = [&] {
-          ++accu.indent;
-          accu.newLine("switch (unionElem) {");
-          ++accu.indent;
-          for (auto& alternative : instance->alternatives) {
-            if (alternative.type != ArithmeticType::VOID) {
-              accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
-              ++accu.indent;
-              accu.newLine("return std::forward<Visitor>(v)("s + variantUnionEntryPrefix + alternative.name + ");");
-              --accu.indent;
-            } else {
-              accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
-              ++accu.indent;
-              accu.newLine("return;");
-              --accu.indent;
-            }
-          }
-          --accu.indent;
-          accu.newLine("}");
-          --accu.indent;
-        };
-        accu.newLine("template <typename Visitor>");
-        accu.newLine("auto visit(Visitor&& v) const {");
-        visitBody();
-        accu.newLine("}");
-        accu.newLine("template <typename Visitor>");
-        accu.newLine("auto visit(Visitor&& v) {");
-        visitBody();
-        accu.newLine("}");
-        accu.newLine(name + "(const " + name + "& o) { VariantHelper<" + name + ">::copy(o, *this);  }");
-        accu.newLine("~" + name + "() { VariantHelper<" + name + ">::destroy(*this); }");
-        accu.newLine("private:" + name + "() {}");
-        --accu.indent;
-        accu.newLine("};");
-        accu.newLine();
-      }
   if (stage.isDefine && (!stage.isImport || !templateInfo.params.empty()))
     for (auto& instance : concat({type.get()}, type->instances))
       if (auto name1 = instance->getMangledName())

@@ -1,0 +1,17 @@
+// 10
+
+template <T>
+struct S {
+  T elem;
+};
+
+struct X {
+};
+
+int f(S<X>) {
+  return 10;
+}
+
+int main() {
+  return f(S(X()));
+}

@@ -284,6 +284,14 @@ nullable<SType> Context::getType(const string& s) const {
   return nullptr;
 }
 
+vector<SType> Context::getAllTypes() const {
+  vector<SType> ret;
+  for (auto& state : getReversedStates())
+    for (auto& type : state->types)
+      ret.push_back(type.second);
+  return ret;
+}
+
 optional<string> Context::addImplicitFunction(FunctionId id, FunctionType type) {
   return addFunction(FunctionInfo::getImplicit(std::move(id), std::move(type)));
 }
