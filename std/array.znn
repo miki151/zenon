@@ -31,14 +31,14 @@ struct array_iterator {
 template <int Size, T>
 array_iterator<T> begin(T[Size]* array) {
   embed {
-    return array_iterator<T>{&(*array)[0]};
+    return {&(*array)[0]};
   }
 }
 
 template <int Size, T>
 array_iterator<T> end(T[Size]* array) {
   embed {
-    return array_iterator<T>{&(*array)[Size]};
+    return {&(*array)[array->size()]};
   }
 }
 
@@ -50,7 +50,7 @@ T* operator *(array_iterator<T>* it) {
 template <T>
 array_iterator<T> operator ++(array_iterator<T> mutable* it) {
   embed {
-    return array_iterator<T>{++it->elem};
+    return {++it->elem};
   }
 }
 
@@ -69,14 +69,14 @@ struct array_mut_iterator {
 template <int Size, T>
 array_mut_iterator<T> begin(T[Size] mutable* array) {
   embed {
-    return array_mut_iterator<T>{&(*array)[0]};
+    return {&(*array)[0]};
   }
 }
 
 template <int Size, T>
 array_mut_iterator<T> end(T[Size] mutable* array) {
   embed {
-    return array_mut_iterator<T>{&(*array)[Size]};
+    return {&(*array)[array->size()]};
   }
 }
 
@@ -88,7 +88,7 @@ T mutable* operator *(array_mut_iterator<T>* it) {
 template <T>
 array_mut_iterator<T> operator ++(array_mut_iterator<T> mutable* it) {
   embed {
-    return array_mut_iterator<T>{++it->elem};
+    return {++it->elem};
   }
 }
 

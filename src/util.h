@@ -199,3 +199,7 @@ vector<T> makeVec(T&& f, Args&&... args) {
   return ret;
 }
 
+template <typename T, typename U>
+unique_ptr<T> cast(unique_ptr<U> p) {
+  return unique_ptr<T>((T*)p.release());
+}

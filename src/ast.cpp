@@ -5,6 +5,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "code_loc.h"
+#include "identifier_type.h"
 
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
@@ -51,6 +52,10 @@ nullable<SType> Constant::eval(const Context&) const {
   return (SType) value;
 }
 
+unique_ptr<Expression> Constant::replace(SType from, SType to) const {
+  return unique<Constant>(codeLoc, value->replace(from, to).dynamicCast<CompileTimeValue>());
+}
+
 SType Variable::getTypeImpl(Context& context) {
   optional<string> varError;
   if (auto id = identifier.asBasicIdentifier()) {
@@ -69,6 +74,10 @@ nullable<SType> Variable::eval(const Context& context) const {
     return *res;
   else
     return nullptr;
+}
+
+unique_ptr<Expression> Variable::replace(SType from, SType to) const {
+  return unique<Variable>(codeLoc, identifier);
 }
 
 nullable<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
@@ -112,12 +121,12 @@ static bool userDefinedConstructor(const vector<SType>&, const FunctionType& f) 
   return !f.generatedConstructor;
 }
 
-static void filterOverloads(vector<FunctionInfo>& overloads, const vector<SType>& argTypes) {
+static void filterOverloads(vector<SFunctionInfo>& overloads, const vector<SType>& argTypes) {
   auto filter = [&] (auto fun, const char* method) {
     auto worse = overloads;
     overloads.clear();
     for (auto& overload : worse)
-      if (fun(argTypes, overload.type)) {
+      if (fun(argTypes, overload->type)) {
         overloads.push_back(overload);
         //cout << overload.toString() << " chosen by " << method << endl;
       }
@@ -132,26 +141,26 @@ static void filterOverloads(vector<FunctionInfo>& overloads, const vector<SType>
 }
 
 
-static WithErrorLine<FunctionType> handleOperatorOverloads(Context& context, CodeLoc codeLoc, Operator op,
+static WithErrorLine<SFunctionInfo> handleOperatorOverloads(Context& context, CodeLoc codeLoc, Operator op,
     vector<SType> types, vector<CodeLoc> argLocs) {
-  vector<FunctionInfo> overloads;
+  vector<SFunctionInfo> overloads;
   if (auto fun = context.getBuiltinOperator(op, types))
-    overloads.push_back(FunctionInfo{op, *fun});
+    overloads.push_back(fun.get());
   vector<string> errors;
   for (auto fun : context.getOperatorType(op))
     if (auto inst = instantiateFunction(context, fun, codeLoc, {}, types, argLocs, {}))
-      overloads.push_back({op, *inst});
+      overloads.push_back(inst.get());
     else
-      errors.push_back("Candidate: " + FunctionInfo{op, fun}.prettyString() + ": " + inst.get_error().error);
+      errors.push_back("Candidate: " + fun->prettyString() + ": " + inst.get_error().error);
   filterOverloads(overloads, types);
   if (overloads.size() == 1) {
     //cout << "Chosen overload " << overloads[0].toString() << endl;
-    return overloads[0].type;
+    return overloads[0];
   } else {
       string error = "No overload found for operator: " + quote(getString(op)) + " with argument types: " +
           joinTypeList(types);
       for (auto& f : overloads)
-        error += "\nCandidate: " + f.prettyString();
+        error += "\nCandidate: " + f->prettyString();
       for (auto& f : errors)
         error += "\n" + f;
       return codeLoc.getError(error);
@@ -193,7 +202,7 @@ SType BinaryExpression::getTypeImpl(Context& context) {
       FATAL << "This operator should have been rewritten";
       fail();
     case Operator::MEMBER_ACCESS: {
-      if (auto rightType = expr[1]->getDotOperatorType(&*expr[0], context)) {
+      if (auto rightType = expr[1]->getDotOperatorType(expr[0].get(), context)) {
         if (!left.dynamicCast<ReferenceType>() && !left.dynamicCast<MutableReferenceType>())
           rightType = rightType->getUnderlying();
         else if (left.dynamicCast<ReferenceType>() && rightType.get().dynamicCast<MutableReferenceType>())
@@ -207,8 +216,11 @@ SType BinaryExpression::getTypeImpl(Context& context) {
       if (auto fun = handleOperatorOverloads(context, codeLoc, op,
           transform(expr, [&](auto& e) { return e->getTypeImpl(context);}),
           transform(expr, [&](auto& e) { return e->codeLoc;}))) {
-        subscriptOpWorkaround = fun->subscriptOpWorkaround;
-        return fun->retVal;
+        functionInfo = *fun;
+        if (auto parent = functionInfo->parent)
+          if (parent->definition)
+            parent->definition->addInstance(context, functionInfo.get());
+        return functionInfo->type.retVal;
       } else
         fun.get_error().execute();
     }
@@ -223,6 +235,10 @@ nullable<SType> BinaryExpression::eval(const Context& context) const {
   return nullptr;
 }
 
+unique_ptr<Expression> BinaryExpression::replace(SType from, SType to) const {
+  return get(codeLoc, op, expr[0]->replace(from, to), expr[1]->replace(from, to));
+}
+
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
     : Expression(l), op(o), expr(std::move(e)) {}
 
@@ -230,9 +246,13 @@ SType UnaryExpression::getTypeImpl(Context& context) {
   nullable<SType> ret;
   auto right = getType(context, expr, op != Operator::GET_ADDRESS);
   ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName())};
-  if (auto fun = handleOperatorOverloads(context, codeLoc, op, {expr->getTypeImpl(context)}, {expr->codeLoc}))
-    return fun->retVal;
-  else
+  if (auto fun = handleOperatorOverloads(context, codeLoc, op, {expr->getTypeImpl(context)}, {expr->codeLoc})) {
+    functionInfo = *fun;
+    if (auto parent = functionInfo->parent)
+      if (parent->definition)
+        parent->definition->addInstance(context, functionInfo.get());
+    return functionInfo->type.retVal;
+  } else
     fun.get_error().execute();
 }
 
@@ -243,11 +263,22 @@ nullable<SType> UnaryExpression::eval(const Context& context) const {
     return nullptr;
 }
 
+unique_ptr<Expression> UnaryExpression::replace(SType from, SType to) const {
+  return unique<UnaryExpression>(codeLoc, op, expr->replace(from, to));
+}
+
 void StatementBlock::check(Context& context) {
   auto bodyContext = Context::withParent(context);
   for (auto& s : elems) {
     s->check(bodyContext);
   }
+}
+
+unique_ptr<Statement> StatementBlock::replace(SType from, SType to) const {
+  auto ret = unique<StatementBlock>(codeLoc);
+  for (auto& elem : elems)
+    ret->elems.push_back(elem->replace(from, to));
+  return ret;
 }
 
 void IfStatement::check(Context& context) {
@@ -274,12 +305,22 @@ void IfStatement::check(Context& context) {
   }
 }
 
+unique_ptr<Statement> IfStatement::replace(SType from, SType to) const {
+  return unique<IfStatement>(codeLoc,
+      declaration ? cast<VariableDeclaration>(declaration->replace(from, to)) : nullptr,
+      condition ? condition->replace(from, to) : nullptr,
+      ifTrue->replace(from, to),
+      ifFalse ? ifFalse->replace(from, to) : nullptr);
+}
+
 void VariableDeclaration::check(Context& context) {
   context.checkNameConflict(codeLoc, identifier, "Variable");
   auto inferType = [&] () -> SType {
+    if (realType)
+      return realType.get();
     if (type)
       return context.getTypeFromString(*type).get();
-    else if (initExpr)
+    if (initExpr)
       return getType(context, initExpr)->getUnderlying();
     else
       codeLoc.error("Initializing expression needed to infer variable type");
@@ -304,6 +345,13 @@ void VariableDeclaration::check(Context& context) {
   context.addVariable(identifier, std::move(varType));
 }
 
+unique_ptr<Statement> VariableDeclaration::replace(SType from, SType to) const {
+  auto ret = unique<VariableDeclaration>(codeLoc, none, identifier, initExpr ? initExpr->replace(from, to) : nullptr);
+  ret->isMutable = isMutable;
+  ret->realType = realType->replace(from, to);
+  return ret;
+}
+
 void ReturnStatement::check(Context& context) {
   if (!expr)
     codeLoc.check(context.getReturnType() && context.getReturnType() == ArithmeticType::VOID,
@@ -316,6 +364,10 @@ void ReturnStatement::check(Context& context) {
   }
 }
 
+unique_ptr<Statement> ReturnStatement::replace(SType from, SType to) const {
+  return unique<ReturnStatement>(codeLoc, expr->replace(from, to));
+}
+
 void Statement::addToContext(Context&) {}
 
 void Statement::addToContext(Context& context, ImportCache& cache) {
@@ -324,6 +376,10 @@ void Statement::addToContext(Context& context, ImportCache& cache) {
 
 bool Statement::hasReturnStatement(const Context&) const {
   return false;
+}
+
+unique_ptr<Statement> Statement::replace(SType from, SType to) const {
+  fail();
 }
 
 bool IfStatement::hasReturnStatement(const Context& context) const {
@@ -377,6 +433,15 @@ static SType convertPointerToReference(SType type) {
     return type;
 }
 
+static SType convertReferenceToPointer(SType type) {
+  if (auto p = type.dynamicCast<ReferenceType>())
+    return PointerType::get(p->underlying);
+  else if (auto p = type.dynamicCast<MutableReferenceType>())
+    return MutablePointerType::get(p->underlying);
+  else
+    return type;
+}
+
 static bool paramsAreGoodForOperator(const vector<FunctionType::Param>& params) {
   for (auto& p : params)
     if (p.type->getUnderlying().dynamicCast<StructType>())
@@ -393,6 +458,9 @@ static FunctionId getFunctionId(const FunctionName& name) {
 }
 
 void FunctionDefinition::setFunctionType(const Context& context, bool concept, bool builtInImport) {
+  for (int i = 0; i < parameters.size(); ++i)
+    if (!parameters[i].name)
+      parameters[i].name = "parameter" + to_string(i);
   if (auto s = name.getReferenceMaybe<string>())
     context.checkNameConflictExcludingFunctions(codeLoc, *s, "Function");
   else if (auto op = name.getValueMaybe<Operator>()) {
@@ -431,27 +499,32 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept, b
     }
     codeLoc.check(builtInImport || concept || !name.contains<Operator>() || paramsAreGoodForOperator(params),
         "Operator parameters must include at least one user-defined type");
-    functionInfo = FunctionInfo{getFunctionId(name), FunctionType(returnType, params, templateTypes)};
-    functionInfo->type.fromConcept = concept;
-    functionInfo->type.requirements = requirements;
-    if (functionInfo->id.contains<ConstructorTag>() && external)
-      functionInfo->type.generatedConstructor = true;
+    FunctionType functionType(returnType, params, templateTypes);
+    functionType.fromConcept = concept;
+    functionType.requirements = requirements;
+    auto id = getFunctionId(name);
+    if (id.contains<ConstructorTag>() && external)
+      functionType.generatedConstructor = true;
+    if (id.contains<Operator>() && external)
+      functionType.setBuiltin();
+    functionInfo = FunctionInfo::getDefined(id, std::move(functionType), this);
   } else
     returnType1.get_error().execute();
 }
 
-static WithErrorLine<FunctionInfo> getFunction(const Context& context,
-    CodeLoc codeLoc, IdentifierInfo id, const vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
+static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
+    CodeLoc codeLoc, IdentifierType id, vector<SType> templateArgs, const vector<SType>& argTypes,
+    const vector<CodeLoc>& argLoc) {
   ErrorLoc errors = codeLoc.getError("Couldn't find function " + id.prettyString() +
       " matching arguments: (" + joinTypeList(argTypes) + ")");
-  vector<FunctionInfo> overloads;
+  vector<SFunctionInfo> overloads;
   if (auto templateType = context.getFunctionTemplate(id)) {
     for (auto& overload : *templateType)
-      if (auto f = context.instantiateFunctionTemplate(codeLoc, overload.type, id.parts.back().templateArguments,
-          argTypes, argLoc)) {
-        overloads.push_back({overload.id, *f});
+      if (auto f = context.instantiateFunctionTemplate(codeLoc, overload, templateArgs, argTypes, argLoc)) {
+        overloads.push_back(f.get());
       } else
-        errors = codeLoc.getError(errors.error + "\nCandidate: "s + overload.prettyString() + ": " + f.get_error().error);
+        errors = codeLoc.getError(errors.error + "\nCandidate: "s + overload->prettyString() + ": " +
+            f.get_error().error);
   }
   if (overloads.empty())
     return errors;
@@ -461,7 +534,7 @@ static WithErrorLine<FunctionInfo> getFunction(const Context& context,
     return overloads[0];
   else
     return codeLoc.getError("Multiple function overloads found:\n" +
-        combine(transform(overloads, [](const auto& o) { return o.prettyString();}), "\n"));
+        combine(transform(overloads, [](const auto& o) { return o->prettyString();}), "\n"));
 }
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
@@ -476,27 +549,11 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
       functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
       args.push_back(alternativeType);
     }
-  if (auto fun = getFunction(context, codeLoc, IdentifierInfo(funName, codeLoc), args,
+  if (auto fun = getFunction(context, codeLoc, IdentifierType(funName), {}, args,
       vector<CodeLoc>(args.size(), codeLoc)))
     return unique_ptr<Expression>(std::move(functionCall));
   else
     return fun.get_error();
-}
-
-nullable<SType> FunctionCall::eval(const Context& context) const {
-  if (auto name = identifier.asBasicIdentifier()) {
-    vector<SType> args;
-    vector<CodeLoc> locs;
-    for (auto& e : arguments) {
-      locs.push_back(e->codeLoc);
-      if (auto res = e->eval(context))
-        args.push_back(res.get());
-      else
-        return res;
-    }
-    return context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs));
-  }
-  return nullptr;
 }
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCallExpr(Context& context,
@@ -533,15 +590,9 @@ void FunctionDefinition::generateVirtualDispatchBody(Context& bodyContext) {
   for (int i = 0; i < parameters.size(); ++i)
     parameters[i].isMutable = true;
   int virtualIndex = [&]() {
-    for (int i = 0; i < parameters.size(); ++i) {
-      if (!parameters[i].name) {
-        parameters[i].name = "virtualParam"s + to_string(i);
-        functionInfo->type.params[i].name = parameters[i].name;
-      }
-      if (parameters[i].isVirtual) {
+    for (int i = 0; i < parameters.size(); ++i)
+      if (parameters[i].isVirtual)
         return i;
-      }
-    }
     fail();
   }();
   auto& virtualParam = parameters[virtualIndex];
@@ -602,8 +653,6 @@ void FunctionDefinition::checkAndGenerateCopyFunction(const Context& context) {
     auto structType = type->removePointer().dynamicCast<StructType>();
     codeLoc.check(!!structType, "Can only generate copy function for user-defined types");
     body = unique<StatementBlock>(codeLoc);
-    if (!functionInfo->type.params[0].name)
-      parameters[0].name = functionInfo->type.params[0].name = "elem"s;
     if (structType->alternatives.empty()) {
       auto call = unique<FunctionCall>(codeLoc, returnType);
       for (auto elem : structType->members) {
@@ -642,6 +691,39 @@ void FunctionDefinition::checkAndGenerateCopyFunction(const Context& context) {
   }
 }
 
+void FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody) {
+  CHECK(!body);
+  auto templateParams = functionInfo->parent->type.templateParams;
+  for (int i = 0; i < functionInfo->type.templateParams.size(); ++i) {
+    StatementBlock* useBody = (i == 0) ? parentBody : body.get();
+    body = cast<StatementBlock>(
+        useBody->replace(templateParams[i], functionInfo->type.templateParams[i]));
+    for (int j = i + 1; j < templateParams.size(); ++j)
+      templateParams[j] = templateParams[j]->replace(templateParams[i], functionInfo->type.templateParams[i]);
+  }
+  CHECK(!!body);
+}
+
+void FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
+  if (callContext.isTemplated())
+    return;
+  auto callTopContext = callContext.getTopLevelStates();
+  if (instance != functionInfo.get()) {
+    if (body) {
+      CHECK(instance->parent == functionInfo);
+      for (auto& other : instances)
+        if (other.functionInfo == instance)
+          return;
+      instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, callTopContext});
+      if (!definitionContext.empty()) {
+        instances.back().generateBody(body.get());
+        checkBody(callTopContext, *instances.back().body, *instances.back().functionInfo);
+      }
+    }
+  } else
+    CHECK(instance->type.templateParams.empty());
+}
+
 static void addTemplateParam(Context& context, SType param) {
   if (auto valueType = param.dynamicCast<CompileTimeValue>()) {
     auto templateValue = valueType->value.getReferenceMaybe<CompileTimeValue::TemplateValue>();
@@ -651,7 +733,14 @@ static void addTemplateParam(Context& context, SType param) {
     context.addType(param->getName(), param);
 }
 
-void FunctionDefinition::check(Context& context) {
+static Context::ConstStates mergeStates(Context::ConstStates v1, const Context::ConstStates& v2) {
+  for (auto& elem : v2)
+    if (find(v1.begin(), v1.end(), elem) == v1.end())
+      v1.push_back(elem);
+  return v1;
+}
+
+void FunctionDefinition::generateDefaultBodies(Context& context) {
   Context bodyContext = Context::withParent(context);
   for (auto& param : functionInfo->type.templateParams)
     addTemplateParam(bodyContext, param);
@@ -660,25 +749,57 @@ void FunctionDefinition::check(Context& context) {
     generateVirtualDispatchBody(bodyContext);
   if (name == "copy"s)
     checkAndGenerateCopyFunction(bodyContext);
-  if (body) {
-    for (auto& p : parameters)
-      if (p.name) {
-        auto rawType = bodyContext.getTypeFromString(p.type).get();
-        bodyContext.addVariable(*p.name, p.isMutable
-            ? SType(MutableReferenceType::get(std::move(rawType)))
-            : SType(ReferenceType::get(std::move(rawType))));
-      }
-    auto retVal = bodyContext.getTypeFromString(returnType).get();
-    bodyContext.setReturnType(retVal);
-    if (retVal != ArithmeticType::VOID && body && !body->hasReturnStatement(context) && !name.contains<ConstructorId>())
-      codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
-    body->check(bodyContext);
+}
+
+void FunctionDefinition::checkBody(Context::ConstStates callContext, StatementBlock& myBody,
+    const FunctionInfo& instanceInfo) const {
+  auto bodyContext = Context::withStates(mergeStates(definitionContext, callContext));
+  bodyContext.setAsTopLevel();
+  for (auto& t : instanceInfo.type.templateParams)
+    if (!t->getMangledName()) {
+      bodyContext.setTemplated();
+      break;
+    }
+  for (int i = 0; i < instanceInfo.type.params.size(); ++i) {
+    auto& p = instanceInfo.type.params[i];
+    auto type = p.type;
+    if (name.contains<Operator>())
+      type = convertReferenceToPointer(type);
+    if (p.name) {
+      bodyContext.addVariable(*p.name, parameters[i].isMutable
+          ? SType(MutableReferenceType::get(type))
+          : SType(ReferenceType::get(type)));
+    }
   }
+  auto retVal = instanceInfo.type.retVal;
+  if (name.contains<Operator>())
+    retVal = convertReferenceToPointer(retVal);
+  bodyContext.setReturnType(retVal);
+  if (retVal != ArithmeticType::VOID && !myBody.hasReturnStatement(bodyContext) && !name.contains<ConstructorId>())
+    codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
+  myBody.check(bodyContext);
+}
+
+void FunctionDefinition::check(Context& context) {
+  generateDefaultBodies(context);
+  definitionContext = context.getAllStates();
+  if (body) {
+    Context paramsContext = Context::withParent(context);
+    for (auto& param : functionInfo->type.templateParams)
+      addTemplateParam(paramsContext, param);
+    applyConcept(paramsContext, templateInfo.requirements);
+    checkBody(paramsContext.getAllStates(), *body, *functionInfo);
+  }
+  for (int i = 0; i < instances.size(); ++i)
+    if (!instances[i].body) {
+      instances[i].generateBody(body.get());
+      checkBody(instances[i].callContext, *instances[i].body, *instances[i].functionInfo);
+    }
 }
 
 void FunctionDefinition::addToContext(Context& context, ImportCache& cache) {
   setFunctionType(context, false, cache.isCurrentlyBuiltIn());
-  codeLoc.checkNoError(context.addFunction(*functionInfo));
+  codeLoc.checkNoError(context.addFunction(functionInfo.get()));
   if (templateInfo.params.empty() && cache.currentlyInImport())
     // we are going to ignore the function body if we're in an import and it's not a template
     body = nullptr;
@@ -691,33 +812,33 @@ static Context createNewContext() {
     for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE, ArithmeticType::BOOL,
          ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
       context->addType(type->getName(), type);
-    CHECK(!context->addFunction(Operator::PLUS, FunctionType(ArithmeticType::STRING,
-        {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {})));
+    CHECK(!context->addImplicitFunction(Operator::PLUS, FunctionType(ArithmeticType::STRING,
+        {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {}).setBuiltin()));
     for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
       for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-        CHECK(!context->addFunction(op, FunctionType(type, {{type}}, {})));
+        CHECK(!context->addImplicitFunction(op, FunctionType(type, {{type}}, {}).setBuiltin()));
     for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
-      CHECK(!context->addFunction(op, FunctionType(MutableReferenceType::get(ArithmeticType::INT),
-          {{MutableReferenceType::get(ArithmeticType::INT)}}, {})));
+      CHECK(!context->addImplicitFunction(op, FunctionType(MutableReferenceType::get(ArithmeticType::INT),
+          {{MutableReferenceType::get(ArithmeticType::INT)}}, {}).setBuiltin()));
     for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
       for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
         if (type != ArithmeticType::DOUBLE || op != Operator::MODULO)
-          CHECK(!context->addFunction(op, FunctionType(type, {{type}, {type}}, {})));
+          CHECK(!context->addImplicitFunction(op, FunctionType(type, {{type}, {type}}, {}).setBuiltin()));
     for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
       for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-        CHECK(!context->addFunction(op, FunctionType(ArithmeticType::VOID,
-            {{MutableReferenceType::get(type)}, {type}}, {})));
+        CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
+            {{MutableReferenceType::get(type)}, {type}}, {}).setBuiltin()));
     for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
-      CHECK(!context->addFunction(op, FunctionType(ArithmeticType::BOOL,
-          {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {})));
-    CHECK(!context->addFunction(Operator::LOGICAL_NOT, FunctionType(ArithmeticType::BOOL,
-        {{ArithmeticType::BOOL}}, {})));
+      CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::BOOL,
+          {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {}).setBuiltin()));
+    CHECK(!context->addImplicitFunction(Operator::LOGICAL_NOT, FunctionType(ArithmeticType::BOOL,
+        {{ArithmeticType::BOOL}}, {}).setBuiltin()));
     for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
       for (auto type : {ArithmeticType::INT, ArithmeticType::STRING, ArithmeticType::DOUBLE})
-        CHECK(!context->addFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {})));
+        CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
     for (auto op : {Operator::EQUALS})
       for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
-        CHECK(!context->addFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {})));
+        CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
     context->addBuiltInFunction("enum_size", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
         [](const Context&, vector<SType> args) -> WithError<SType> {
           auto enumType = args[0].dynamicCast<EnumType>();
@@ -767,6 +888,10 @@ void ExpressionStatement::check(Context& context) {
   getType(context, expr);
 }
 
+unique_ptr<Statement> ExpressionStatement::replace(SType from, SType to) const {
+  return unique<ExpressionStatement>(expr->replace(from, to));
+}
+
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
@@ -776,6 +901,10 @@ SType FunctionCall::getTypeImpl(Context& context) {
 
 nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& callContext) {
   optional<ErrorLoc> error;
+  if (!templateArgs)
+    templateArgs = callContext.getTypeList(identifier.parts.back().templateArguments);
+  if (!identifierType)
+    identifierType = callContext.getIdentifierType(identifier).get(identifier.codeLoc);
   if (!functionInfo) {
     vector<SType> argTypes;
     vector<CodeLoc> argLocs;
@@ -785,22 +914,18 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
       INFO << "Function argument " << argTypes.back()->getName();
     }
     if (!left)
-      getFunction(callContext, codeLoc, identifier, argTypes, argLocs).unpack(functionInfo, error);
+      getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs).unpack(functionInfo, error);
     else {
       auto leftType = left->getTypeImpl(callContext);
       callType = MethodCallType::METHOD;
       auto tryMethodCall = [&](MethodCallType thisCallType) {
-        auto res = getFunction(callContext, codeLoc, identifier, concat({leftType}, argTypes),
+        auto res = getFunction(callContext, codeLoc, *identifierType, *templateArgs, concat({leftType}, argTypes),
             concat({left->codeLoc}, argLocs));
-        if (res) {
-          if (res->type.externalMethod)
-            callType = MethodCallType::METHOD;
-          else
+        if (res)
             callType = thisCallType;
-        }
         if (res && functionInfo)
           codeLoc.error("Ambigous method call:\nCandidate: " + functionInfo->prettyString() +
-              "\nCandidate: " + res->prettyString());
+              "\nCandidate: " + res.get()->prettyString());
         res.unpack(functionInfo, error);
       };
       if (!leftType->getUnderlying().dynamicCast<PointerType>() &&
@@ -821,15 +946,56 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
             functionInfo->prettyString());
       }
     }
+    if (auto parent = functionInfo->parent)
+      if (parent->definition)
+        parent->definition->addInstance(callContext, functionInfo.get());
     return functionInfo->type.retVal;
   } else
     error->execute();
+}
+
+nullable<SType> FunctionCall::eval(const Context& context) const {
+  if (auto name = identifier.asBasicIdentifier()) {
+    vector<SType> args;
+    vector<CodeLoc> locs;
+    for (auto& e : arguments) {
+      locs.push_back(e->codeLoc);
+      if (auto res = e->eval(context))
+        args.push_back(res.get());
+      else
+        return res;
+    }
+    return context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs));
+  }
+  return nullptr;
+}
+
+unique_ptr<Expression> FunctionCall::replace(SType from, SType to) const {
+  auto ret = unique<FunctionCall>(codeLoc, identifier);
+  for (auto& arg : arguments)
+    ret->arguments.push_back(arg->replace(from, to));
+  ret->templateArgs.emplace();
+  for (auto& arg : *templateArgs)
+    ret->templateArgs->push_back(arg->replace(from, to));
+  ret->argNames = argNames;
+  ret->identifierType = identifierType->replace(from, to);
+  return ret;
 }
 
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
 void SwitchStatement::check(Context& context) {
   getType(context, expr)->handleSwitchStatement(*this, context, expr->codeLoc, Type::SwitchArgument::VALUE);
+}
+
+unique_ptr<Statement> SwitchStatement::replace(SType from, SType to) const {
+  auto ret = unique<SwitchStatement>(codeLoc, expr->replace(from,to));
+  ret->targetType = targetType->replace(from, to);
+  if (defaultBlock)
+    ret->defaultBlock = cast<StatementBlock>(defaultBlock->replace(from, to));
+  for (auto& elem : caseElems)
+    ret->caseElems.push_back(elem.replace(from, to));
+  return ret;
 }
 
 bool SwitchStatement::hasReturnStatement(const Context& context) const {
@@ -899,7 +1065,7 @@ void VariantDefinition::addToContext(Context& context) {
       params.push_back(FunctionType::Param{subtypeInfo});
     auto constructor = FunctionType(type.get(), params, {});
     constructor.parentType = type.get();
-    CHECK(!type->staticContext.addFunction(subtype.name, constructor));
+    CHECK(!type->staticContext.addImplicitFunction(subtype.name, constructor));
   }
 }
 
@@ -936,11 +1102,13 @@ void StructDefinition::addToContext(Context& context, ImportCache& cache) {
         constructorParams.push_back({member.name, member.type});
       auto fun = FunctionType(type.get(), std::move(constructorParams), type->templateParams);
       fun.generatedConstructor = true;
-      CHECK(!context.addFunction(ConstructorTag{}, fun));
+      CHECK(!context.addImplicitFunction(ConstructorTag{}, fun));
       fun.templateParams.clear();
       fun.parentType = type.get();
-      CHECK(!type->getStaticContext().addFunction(name, fun));
-    }
+      CHECK(!type->getStaticContext().addImplicitFunction(ConstructorTag{}, fun));
+      type->getStaticContext().addType(name, type.get());
+    } else
+      type->external = true;
   }
 }
 
@@ -972,6 +1140,12 @@ SType MoveExpression::getTypeImpl(Context& context) {
   return type.get();
 }
 
+unique_ptr<Expression> MoveExpression::replace(SType from, SType to) const {
+  auto ret = unique<MoveExpression>(codeLoc, identifier);
+  ret->type = type->replace(from, to);
+  return ret;
+}
+
 
 EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {
 }
@@ -984,6 +1158,13 @@ Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
     return TopLevelAllowance::MUST;
   else
     return TopLevelAllowance::CAN;
+}
+
+unique_ptr<Statement> EmbedStatement::replace(SType from, SType to) const {
+  auto ret = unique<EmbedStatement>(codeLoc, value);
+  ret->replacements = replacements;
+  ret->replacements.push_back({from, to});
+  return ret;
 }
 
 ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<Statement> i, unique_ptr<Expression> c,
@@ -1000,6 +1181,14 @@ void ForLoopStatement::check(Context& context) {
   body->check(bodyContext);
 }
 
+unique_ptr<Statement> ForLoopStatement::replace(SType from, SType to) const {
+  return unique<ForLoopStatement>(codeLoc,
+      init->replace(from, to),
+      cond->replace(from, to),
+      iter->replace(from, to),
+      body->replace(from, to));
+}
+
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
   : Statement(l), cond(std::move(c)), body(std::move(b)) {}
 
@@ -1009,6 +1198,12 @@ void WhileLoopStatement::check(Context& context) {
       "Loop condition must be of type " + quote("bool"));
   bodyContext.setBreakAllowed();
   body->check(bodyContext);
+}
+
+unique_ptr<Statement> WhileLoopStatement::replace(SType from, SType to) const {
+  return unique<WhileLoopStatement>(codeLoc,
+      cond->replace(from, to),
+      body->replace(from, to));
 }
 
 ImportStatement::ImportStatement(CodeLoc l, string p, bool pub, bool isBuiltIn)
@@ -1112,6 +1307,12 @@ nullable<SType> EnumConstant::eval(const Context& context) const {
   fail();
 }
 
+unique_ptr<Expression> EnumConstant::replace(SType from, SType to) const {
+  auto ret = unique<EnumConstant>(codeLoc, enumName, enumElement);
+  ret->enumType = enumType->replace(from, to);
+  return ret;
+}
+
 ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
 
 }
@@ -1127,7 +1328,7 @@ void ConceptDefinition::addToContext(Context& context) {
     function->codeLoc.check(!function->isVirtual, "Virtual functions are not allowed here");
     function->setFunctionType(declarationsContext, true);
     function->check(declarationsContext);
-    function->codeLoc.checkNoError(concept->modContext().addFunction(*function->functionInfo));
+    function->codeLoc.checkNoError(concept->modContext().addFunction(function->functionInfo.get()));
   }
   context.addConcept(name, concept);
 }
@@ -1135,15 +1336,25 @@ void ConceptDefinition::addToContext(Context& context) {
 void ConceptDefinition::check(Context& context) {
 }
 
+CodegenStage CodegenStage::types() {
+  CodegenStage ret;
+  ret.isTypes = true;
+  ret.isDefine = false;
+  ret.isImport = false;
+  return ret;
+}
+
 CodegenStage CodegenStage::define() {
   CodegenStage ret;
   ret.isDefine = true;
+  ret.isTypes = false;
   ret.isImport = false;
   return ret;
 }
 
 CodegenStage CodegenStage::declare() {
   CodegenStage ret;
+  ret.isTypes = false;
   ret.isDefine = false;
   ret.isImport = false;
   return ret;
@@ -1185,12 +1396,32 @@ void RangedLoopStatement::check(Context& context) {
   body->check(bodyContext);
 }
 
+unique_ptr<Statement> RangedLoopStatement::replace(SType from, SType to) const {
+  auto ret = unique<RangedLoopStatement>(codeLoc,
+      cast<VariableDeclaration>(init->replace(from, to)),
+      container->replace(from, to),
+      body->replace(from, to));
+  ret->condition = condition->replace(from, to);
+  ret->increment = increment->replace(from, to);
+  ret->containerName = containerName;
+  ret->containerEnd = cast<VariableDeclaration>(containerEnd->replace(from, to));
+  return ret;
+}
+
 void BreakStatement::check(Context& context) {
   codeLoc.check(context.breakAllowed(), "Break statement outside of a loop");
 }
 
+unique_ptr<Statement> BreakStatement::replace(SType from, SType to) const {
+  return unique<BreakStatement>(codeLoc);
+}
+
 void ContinueStatement::check(Context& context) {
   codeLoc.check(context.breakAllowed(), "Continue statement outside of a loop");
+}
+
+unique_ptr<Statement> ContinueStatement::replace(SType from, SType to) const {
+  return unique<ContinueStatement>(codeLoc);
 }
 
 ArrayLiteral::ArrayLiteral(CodeLoc codeLoc) : Expression(codeLoc) {
@@ -1204,6 +1435,13 @@ SType ArrayLiteral::getTypeImpl(Context& context) {
         quote(ret->getName()) + " and " + quote(t->getName()));
   }
   return ArrayType::get(ret, CompileTimeValue::get((int)contents.size()));
+}
+
+unique_ptr<Expression> ArrayLiteral::replace(SType from, SType to) const {
+  auto ret = unique<ArrayLiteral>(codeLoc);
+  for (auto& elem : contents)
+    ret->contents.push_back(elem->replace(from, to));
+  return ret;
 }
 
 
@@ -1220,8 +1458,20 @@ SType getType(Context& context, unique_ptr<Expression>& expr, bool evaluateAtCom
 
 nullable<SType> SwitchStatement::CaseElem::getType(const Context& context) {
   return type.visit(
-      [&](const IdentifierInfo& id) -> nullable<SType> { return context.getTypeFromString(id).get(); },
+      [&](const IdentifierInfo& id) -> nullable<SType> { auto ret = context.getTypeFromString(id).get(); type = ret; return ret; },
       [](const SType& t) -> nullable<SType> { return t;},
       [](none_t) -> nullable<SType> { return nullptr; }
   );
+}
+
+SwitchStatement::CaseElem SwitchStatement::CaseElem::replace(SType from, SType to) const {
+  CaseElem ret;
+  ret.codeloc = codeloc;
+  ret.id = id;
+  ret.block = cast<StatementBlock>(block->replace(from, to));
+  if (auto t = type.getReferenceMaybe<SType>())
+    ret.type = (*t)->replace(from, to);
+  else
+    ret.type = type;
+  return ret;
 }

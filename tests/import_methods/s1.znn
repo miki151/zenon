@@ -1,7 +1,7 @@
 
 template<T>
 concept can_copy {
-  T(T*);
+  T copy(T*);
 };
 
 template<T>

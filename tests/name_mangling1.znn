@@ -1,0 +1,16 @@
+// 10
+
+import "std/vector.znn";
+
+template <T>
+struct S {
+  T elem;
+};
+
+int f(S<vector<int>>) {
+  return 10;
+}
+
+int main() {
+  return f(S(vector<int>()));
+}

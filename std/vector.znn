@@ -41,7 +41,7 @@ vector_iterator<T> end(vector<T>* v) {
 template <T>
 T* operator *(vector_iterator<T>* it) {
   embed {
-    return &*it;
+    return &**it;
   }
 }
 
@@ -77,7 +77,7 @@ vector_mut_iterator<T> end(vector<T> mutable* v) {
 template <T>
 T mutable* operator *(vector_mut_iterator<T>* it) {
   embed {
-    return &*it;
+    return &**it;
   }
 }
 
@@ -135,7 +135,7 @@ vector<T> as_vector(mutable T[Sz] array) {
   mutable vector<T> ret;
   for (mutable it : array)
     embed {
-    ret.push_back(std::move(*it));
+    ret.push_back(std::move(*it.elem));
     }
   return move(ret);
 }

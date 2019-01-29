@@ -16,6 +16,9 @@ struct ConstructorTag {
   bool operator < (ConstructorTag) const {
     return false;
   }
+  bool operator == (ConstructorTag) const {
+    return true;
+  }
 };
 using FunctionId = variant<string, Operator, ConstructorTag>;
 

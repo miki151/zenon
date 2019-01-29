@@ -62,6 +62,12 @@ class nullable {
   bool operator == (const T& o) const {
     return elem == o;
   }
+  bool operator == (const nullable<T>& o) const {
+    return elem == o.elem;
+  }
+  bool operator < (const nullable<T>& o) const {
+    return elem < o.elem;
+  }
   bool operator != (const T& o) const {
     return elem != o;
   }

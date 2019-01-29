@@ -70,14 +70,15 @@ void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
     expr[1]->codegenDotOperator(accu, stage, expr[0].get());
     return;
   }
-  if (op == Operator::SUBSCRIPT && subscriptOpWorkaround) {
-    accu.add("subscript_op(");
-    expr[0]->codegen(accu, stage);
-    accu.add(", ");
-    expr[1]->codegen(accu, stage);
-    accu.add(")");
-    return;
-  }
+  if (functionInfo && !functionInfo->type.builtinOperator)
+    if (auto opName = getCodegenName(op)) {
+      accu.add(opName + *functionInfo->getMangledName() + "("s);
+      expr[0]->codegen(accu, stage);
+      accu.add(", ");
+      expr[1]->codegen(accu, stage);
+      accu.add(")");
+      return;
+    }
   accu.add("(");
   expr[0]->codegen(accu, stage);
   accu.add(") ");
@@ -158,16 +159,12 @@ static string getFunctionCallName(const FunctionInfo& functionInfo, bool methodC
     return functionInfo.type.parentType->getCodegenName();
   string typePrefix;
   auto functionTemplateParams = functionInfo.type.templateParams;
-  if (functionInfo.type.parentType) {
+  if (functionInfo.type.parentType)
     typePrefix = functionInfo.type.parentType->getCodegenName() + "::";
-    if (functionInfo.type.externalMethod)
-      if (auto structParent = functionInfo.type.retVal.dynamicCast<StructType>())
-        functionTemplateParams = getSubsequence(functionTemplateParams, (int) structParent->templateParams.size());
-  }
   else if (!methodCall)
     typePrefix += "::";
   return functionInfo.id.visit(
-      [&](const string& s) { return typePrefix + s + joinTemplateParamsCodegen(functionTemplateParams); },
+      [&](const string& s) { return typePrefix + s + *functionInfo.getMangledName(); },
       [&](Operator op) {
         if (op == Operator::SUBSCRIPT)
           return "subscript_op"s;
@@ -230,48 +227,30 @@ void FunctionCall::codegen(Accu& accu, CodegenStage) const {
   genFunctionCall(accu, *functionInfo, extractRefs(arguments), callType);
 }
 
-static void considerTemplateParams(Accu& accu, const vector<TemplateParameter>& params) {
-  if (!params.empty()) {
-    accu.add("template <");
-    for (auto& param : params)
-      if (param.type)
-        accu.add(*param.type + " " + param.name + ", ");
-      else
-        accu.add("typename " + param.name + ", ");
-    accu.pop_back();
-    accu.pop_back();
-    accu.add(">");
-    accu.newLine();
-  }
-}
-
 static string getFunctionSignatureName(const FunctionInfo& function) {
   string typePrefix;
   if (function.type.parentType)
     typePrefix = function.type.parentType->getName() + "::";
   return function.id.visit(
-      [&](const string& s) { return s; },
+      [&](const string& s) { return s + *function.getMangledName(); },
       [&](Operator op) {
-        if (op == Operator::SUBSCRIPT)
-          return "subscript_op"s;
+        if (auto opName = getCodegenName(op))
+          return opName + *function.getMangledName();
         else
           return "operator "s + getString(op);
       },
-      [&](ConstructorTag) { return "construct_" + function.type.retVal->getName(false); }
+      [&](ConstructorTag) { return "construct_" + *function.type.retVal->getMangledName(); }
   );
 }
 
-void FunctionDefinition::addSignature(Accu& accu, string structName) const {
-  considerTemplateParams(accu, templateInfo.params);
-  if (!structName.empty())
-    structName += "::";
+static void addSignature(Accu& accu, const FunctionInfo& functionInfo) {
   string retVal;
   //if (!name.contains<ConstructorId>())
-    retVal = functionInfo->type.retVal->getCodegenName() + " ";
-  string ret = retVal + structName + getFunctionSignatureName(*functionInfo) + "(";
-  for (auto& param : functionInfo->type.params) {
+    retVal = functionInfo.type.retVal->getCodegenName() + " ";
+  string ret = retVal + getFunctionSignatureName(functionInfo) + "(";
+  for (auto& param : functionInfo.type.params) {
     string argText = param.type->getCodegenName() + " " + param.name.value_or("") + ", ";
-    if (functionInfo->id.contains<Operator>()) {
+    if (functionInfo.id.contains<Operator>()) {
       if (auto p = param.type.dynamicCast<ReferenceType>()) {
         auto name = param.name ? *param.name + "_ptr" : "";
         argText = "const " + p->underlying->getCodegenName() + "& " + name + ", ";
@@ -283,15 +262,15 @@ void FunctionDefinition::addSignature(Accu& accu, string structName) const {
     }
     ret.append(argText);
   }
-  if (!functionInfo->type.params.empty()) {
+  if (!functionInfo.type.params.empty()) {
     ret.pop_back();
     ret.pop_back();
   }
   ret.append(")");
   accu.add(ret);
-};
+}
 
-void FunctionDefinition::handlePointerParamsInOperator(Accu& accu) const {
+void FunctionDefinition::handlePointerParamsInOperator(Accu& accu, const StatementBlock* thisBody) const {
   vector<string> ptrInits;
   for (auto& param : functionInfo->type.params)
     if (param.name && functionInfo->id.contains<Operator>())
@@ -303,39 +282,47 @@ void FunctionDefinition::handlePointerParamsInOperator(Accu& accu) const {
     for (auto& elem : ptrInits)
       accu.newLine(elem);
     accu.newLine();
-    body->codegen(accu, CodegenStage::define());
+    thisBody->codegen(accu, CodegenStage::define());
     --accu.indent;
     accu.newLine("}");
   } else
-    body->codegen(accu, CodegenStage::define());
+    thisBody->codegen(accu, CodegenStage::define());
 }
 
-void FunctionDefinition::handlePointerReturnInOperator(Accu& accu) const {
+void FunctionDefinition::handlePointerReturnInOperator(Accu& accu, const StatementBlock* thisBody) const {
   if (functionInfo->type.retVal.dynamicCast<ReferenceType>() ||
       functionInfo->type.retVal.dynamicCast<MutableReferenceType>()) {
     accu.newLine("{");
     ++accu.indent;
     accu.newLine("auto getRef = [&]");
-    handlePointerParamsInOperator(accu);
+    handlePointerParamsInOperator(accu, thisBody);
     accu.add(";");
     accu.newLine("return *getRef();");
     --accu.indent;
     accu.newLine("}");
   } else
-    handlePointerParamsInOperator(accu);
+    handlePointerParamsInOperator(accu, thisBody);
 }
 
 void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (external)
+  if (external || stage.isTypes)
     return;
-  addSignature(accu, "");
-  if (body && stage.isDefine) {
-    accu.newLine("");
-    handlePointerReturnInOperator(accu);
-  } else {
-    accu.add(";");
-    accu.newLine("");
-  }
+  auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body) {
+    if (functionInfo.getMangledName()) {
+      addSignature(accu, functionInfo);
+      if (body && stage.isDefine) {
+        accu.newLine("");
+        handlePointerReturnInOperator(accu, body);
+      } else {
+        accu.add(";");
+        accu.newLine("");
+      }
+    }
+  };
+  addInstance(*functionInfo, body.get());
+  for (auto& instance : instances)
+    if (instance.functionInfo->getMangledName())
+      addInstance(*instance.functionInfo, instance.body.get());
 }
 
 string codegen(const AST& ast, const string& codegenInclude, bool includeLineNumbers) {
@@ -343,12 +330,13 @@ string codegen(const AST& ast, const string& codegenInclude, bool includeLineNum
   accu.add("#include \"" + codegenInclude + "\"");
   accu.newLine();
   for (auto& elem : ast.elems) {
+    elem->codegen(accu, CodegenStage::types());
+  }
+  for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::declare());
-    accu.newLine();
   }
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::define());
-    accu.newLine();
   }
   return accu.generate();
 }
@@ -362,22 +350,23 @@ void ExpressionStatement::codegen(Accu& accu, CodegenStage stage) const {
 void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (external)
     return;
-  if (!stage.isDefine) {
-    considerTemplateParams(accu, templateInfo.params);
-    accu.add("struct " + name);
-    if (incomplete) {
-      accu.add(";");
-      accu.newLine();
-      return;
-    } else
-      accu.add(" {");
-    ++accu.indent;
-    for (auto& member : type->members)
-      accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
-    --accu.indent;
-    accu.newLine("};");
-  }
-  accu.newLine();
+  if (stage.isTypes)
+    for (auto& instantation : concat({type.get()}, type->instances))
+      if (auto name = instantation->getMangledName()) {
+        accu.add("struct " + *name);
+        if (incomplete) {
+          accu.add(";");
+          accu.newLine();
+          return;
+        } else
+          accu.add(" {");
+        ++accu.indent;
+        for (auto& member : instantation->members)
+          accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
+        --accu.indent;
+        accu.newLine("};");
+        accu.newLine();
+      }
 }
 
 constexpr const char* variantEnumeratorPrefix = "Enum_";
@@ -385,90 +374,92 @@ constexpr const char* variantUnionEntryPrefix = "Union_";
 constexpr const char* variantUnionElem = "unionElem";
 
 void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (!stage.isDefine) {
-    considerTemplateParams(accu, templateInfo.params);
-    accu.add("struct " + name + " {");
-    ++accu.indent;
-    accu.newLine();
-    accu.add("enum {");
-    vector<string> typeNames;
-    for (auto& subtype : elements)
-      typeNames.push_back(subtype.name);
-    accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
-        + variantUnionElem + ";");
-    for (auto& alternative : type->alternatives) {
-      string signature = alternative.name + "(";
-      if (alternative.type != ArithmeticType::VOID)
-        signature += "const " + alternative.type->getCodegenName() + "& elem";
-      signature += ")";
-      string params = joinTemplateParams(type->templateParams);
-      accu.newLine("static " + name + params + " " + signature + ";");
-    }
-    accu.newLine("union {");
-    ++accu.indent;
-    accu.newLine("bool dummy;");
-    for (auto& alternative : type->alternatives) {
-      if (alternative.type != ArithmeticType::VOID)
-        accu.newLine(alternative.type->getCodegenName() + " " + variantUnionEntryPrefix + alternative.name + ";");
-    }
-    --accu.indent;
-    accu.newLine("};");
-    auto visitBody = [&] {
-      ++accu.indent;
-      accu.newLine("switch (unionElem) {");
-      ++accu.indent;
-      for (auto& alternative : type->alternatives) {
-        if (alternative.type != ArithmeticType::VOID) {
-          accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
-          ++accu.indent;
-          accu.newLine("return std::forward<Visitor>(v)("s + variantUnionEntryPrefix + alternative.name + ");");
-          --accu.indent;
-        } else {
-          accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
-          ++accu.indent;
-          accu.newLine("return;");
-          --accu.indent;
+  if (stage.isTypes)
+    for (auto& instance : concat({type.get()}, type->instances))
+      if (auto name1 = instance->getMangledName()) {
+        auto& name = *name1;
+        accu.add("struct " + name + " {");
+        ++accu.indent;
+        accu.newLine();
+        accu.add("enum {");
+        vector<string> typeNames;
+        for (auto& subtype : instance->alternatives)
+          typeNames.push_back(subtype.name);
+        accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
+            + variantUnionElem + ";");
+        for (auto& alternative : instance->alternatives) {
+          string signature = alternative.name + "(";
+          if (alternative.type != ArithmeticType::VOID)
+            signature += alternative.type->getCodegenName() + " const& elem";
+          signature += ")";
+          accu.newLine("static " + name + " " + signature + ";");
         }
+        accu.newLine("union {");
+        ++accu.indent;
+        accu.newLine("bool dummy;");
+        for (auto& alternative : instance->alternatives) {
+          if (alternative.type != ArithmeticType::VOID)
+            accu.newLine(alternative.type->getCodegenName() + " " + variantUnionEntryPrefix + alternative.name + ";");
+        }
+        --accu.indent;
+        accu.newLine("};");
+        auto visitBody = [&] {
+          ++accu.indent;
+          accu.newLine("switch (unionElem) {");
+          ++accu.indent;
+          for (auto& alternative : instance->alternatives) {
+            if (alternative.type != ArithmeticType::VOID) {
+              accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
+              ++accu.indent;
+              accu.newLine("return std::forward<Visitor>(v)("s + variantUnionEntryPrefix + alternative.name + ");");
+              --accu.indent;
+            } else {
+              accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
+              ++accu.indent;
+              accu.newLine("return;");
+              --accu.indent;
+            }
+          }
+          --accu.indent;
+          accu.newLine("}");
+          --accu.indent;
+        };
+        accu.newLine("template <typename Visitor>");
+        accu.newLine("auto visit(Visitor&& v) const {");
+        visitBody();
+        accu.newLine("}");
+        accu.newLine("template <typename Visitor>");
+        accu.newLine("auto visit(Visitor&& v) {");
+        visitBody();
+        accu.newLine("}");
+        accu.newLine(name + "(const " + name + "& o) { VariantHelper<" + name + ">::copy(o, *this);  }");
+        accu.newLine("~" + name + "() { VariantHelper<" + name + ">::destroy(*this); }");
+        accu.newLine("private:" + name + "() {}");
+        --accu.indent;
+        accu.newLine("};");
+        accu.newLine();
       }
-      --accu.indent;
-      accu.newLine("}");
-      --accu.indent;
-    };
-    accu.newLine("template <typename Visitor>");
-    accu.newLine("auto visit(Visitor&& v) const {");
-    visitBody();
-    accu.newLine("}");
-    accu.newLine("template <typename Visitor>");
-    accu.newLine("auto visit(Visitor&& v) {");
-    visitBody();
-    accu.newLine("}");
-    accu.newLine(name + "(const " + name + "& o) { VariantHelper<" + name + ">::copy(o, *this);  }");
-    accu.newLine("~" + name + "() { VariantHelper<" + name + ">::destroy(*this); }");
-    accu.newLine("private:" + name + "() {}");
-    --accu.indent;
-    accu.newLine("};");
-    accu.newLine();
-  }
   if (stage.isDefine && (!stage.isImport || !templateInfo.params.empty()))
-    for (auto& alternative : type->alternatives) {
-      string signature = alternative.name + "(";
-      if (alternative.type != ArithmeticType::VOID)
-        signature += "const " + alternative.type->getCodegenName() + "& elem";
-      signature += ")";
-      string params = joinTemplateParams(type->templateParams);
-      considerTemplateParams(accu, templateInfo.params);
-      accu.add(name + params + " " + name + params + "::" + signature + " {");
-      ++accu.indent;
-      accu.newLine(name + " ret;");
-      accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + alternative.name + ";");
-      if (!(alternative.type == ArithmeticType::VOID))
-        accu.newLine("new (&ret."s + variantUnionEntryPrefix + alternative.name + ") " +
-            alternative.type->getCodegenName() + "(elem);");
-      accu.newLine("return ret;");
-      --accu.indent;
-      accu.newLine("}");
-      accu.newLine("");
-    }
+    for (auto& instance : concat({type.get()}, type->instances))
+      if (auto name1 = instance->getMangledName())
+        for (auto& alternative : instance->alternatives) {
+          auto& name = *name1;
+          string signature = alternative.name + "(";
+          if (alternative.type != ArithmeticType::VOID)
+            signature += alternative.type->getCodegenName() + " const& elem";
+          signature += ")";
+          accu.add(name + " " + name + "::" + signature + " {");
+          ++accu.indent;
+          accu.newLine(name + " ret;");
+          accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + alternative.name + ";");
+          if (!(alternative.type == ArithmeticType::VOID))
+            accu.newLine("new (&ret."s + variantUnionEntryPrefix + alternative.name + ") " +
+                alternative.type->getCodegenName() + "(elem);");
+          accu.newLine("return ret;");
+          --accu.indent;
+          accu.newLine("}");
+          accu.newLine("");
+        }
 }
 
 constexpr const char* variantTmpRef = "variantTmpRef";
@@ -491,7 +482,7 @@ void SwitchStatement::codegenEnum(Accu& accu) const {
   accu.add(") {");
   ++accu.indent;
   for (auto& caseElem : caseElems) {
-    accu.newLine("case " + subtypesPrefix + caseElem.id + ": {");
+    accu.newLine("case " + *targetType->getMangledName() + "::" + caseElem.id + ": {");
     ++accu.indent;
     accu.newLine();
     caseElem.block->codegen(accu, CodegenStage::define());
@@ -519,7 +510,7 @@ void SwitchStatement::codegenVariant(Accu& accu) const {
   accu.newLine("switch ("s + variantTmpRef + "."s + variantUnionElem + ") {");
   ++accu.indent;
   for (auto& caseElem : caseElems) {
-    accu.newLine("case "s + subtypesPrefix + variantEnumeratorPrefix + caseElem.id + ": {");
+    accu.newLine("case "s + *targetType->getMangledName() + "::" + variantEnumeratorPrefix + caseElem.id + ": {");
     ++accu.indent;
     if (caseElem.varType == caseElem.VALUE)
       accu.newLine("auto&& "s + caseElem.id + " = " + variantTmpRef + "." + variantUnionEntryPrefix + caseElem.id + ";");
@@ -546,6 +537,13 @@ void SwitchStatement::codegenVariant(Accu& accu) const {
 
 void UnaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
+  if (functionInfo && !functionInfo->type.builtinOperator)
+    if (auto opName = getCodegenName(op)) {
+    accu.add(opName + *functionInfo->getMangledName() + "("s);
+    expr->codegen(accu, stage);
+    accu.add(")");
+    return;
+  }
   accu.add(getString(op));
   accu.add("(");
   expr->codegen(accu, CodegenStage::define());
@@ -554,9 +552,21 @@ void UnaryExpression::codegen(Accu& accu, CodegenStage stage) const {
 
 void EmbedStatement::codegen(Accu& accu, CodegenStage stage) const {
   if ((stage.isDefine && !isTopLevel) ||
-      (!stage.isImport && !stage.isDefine && isTopLevel) ||
-      (stage.isImport&& !stage.isDefine && isPublic))
+      (!stage.isImport && stage.isTypes && isTopLevel) ||
+      (stage.isImport&& stage.isTypes && isPublic)) {
+    if (!isTopLevel)
+      accu.newLine("{");
+    for (auto& r : replacements) {
+      if (r.from.dynamicCast<CompileTimeValue>())
+        accu.newLine("auto " + r.from->getCodegenName() + " = " + r.to->getCodegenName() + ";");
+      else
+        accu.newLine("using " + r.from->getCodegenName() + " = " + r.to->getCodegenName() + ";");
+    }
     accu.newLine(value);
+    if (!isTopLevel)
+      accu.newLine("}");
+  }
+  accu.newLine();
 }
 
 bool EmbedStatement::hasReturnStatement(const Context&) const {
@@ -620,12 +630,12 @@ void ImportStatement::codegen(Accu& accu, CodegenStage stage) const {
   if (ast)
     for (auto& elem : ast->elems) {
       elem->codegen(accu, stage.setImport());
-      accu.newLine("");
+      //accu.newLine("");
     }
 }
 
 void EnumDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (!stage.isDefine) {
+  if (stage.isTypes) {
     accu.add("enum class " + name + " {");
     ++accu.indent;
     for (auto& elem : elements)
@@ -636,7 +646,7 @@ void EnumDefinition::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void EnumConstant::codegen(Accu& accu, CodegenStage) const {
-  accu.add(enumName + "::" + enumElement);
+  accu.add(enumType->getCodegenName() + "::" + enumElement);
 }
 
 void ConceptDefinition::codegen(Accu&, CodegenStage) const {

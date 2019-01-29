@@ -321,3 +321,48 @@ nullable<SType> eval(Operator op, vector<SType> args1) {
     ret = CompileTimeValue::get(CompileTimeValue::TemplateValue{ret->getType(), "Template derived value"});
   return (SType) ret.get();
 }
+
+const char* getCodegenName(Operator op) {
+  switch (op) {
+    case Operator::PLUS:
+      return "op_plus";
+    case Operator::SUBSCRIPT:
+      return "op_subscript";
+    case Operator::MINUS:
+      return "op_minus";
+    case Operator::MULTIPLY:
+      return "op_multiply";
+    case Operator::DIVIDE:
+      return "op_divide";
+    case Operator::MODULO:
+      return "op_module";
+    case Operator::EQUALS:
+      return "op_equals";
+    case Operator::LESS_THAN:
+      return "op_less_than";
+    case Operator::MORE_THAN:
+      return "op_more_than";
+    case Operator::INCREMENT_BY:
+      return "op_increment_by";
+    case Operator::DECREMENT_BY:
+      return "op_increment_by";
+    case Operator::MULTIPLY_BY:
+      return "op_multiply_by";
+    case Operator::DIVIDE_BY:
+      return "op_divide_by";
+    case Operator::POINTER_DEREFERENCE:
+      return "op_pointer_deref";
+    case Operator::PLUS_UNARY:
+      return "op_plus_unary";
+    case Operator::INCREMENT:
+      return "op_increment";
+    case Operator::DECREMENT:
+      return "op_decrement";
+    case Operator::LOGICAL_NOT:
+      return "op_logical_not";
+    case Operator::MINUS_UNARY:
+      return "op_minus_unary";
+    default:
+      return nullptr;
+  }
+}

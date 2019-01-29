@@ -27,8 +27,32 @@ string ReferenceType::getName(bool withTemplateArguments) const {
   return underlying->getName(withTemplateArguments) + " const&";
 }
 
+optional<string> ReferenceType::getMangledName() const {
+  if (auto u = underlying->getMangledName())
+    return "R" + *u;
+  else {
+    return none;
+  }
+}
+
+string ReferenceType::getCodegenName() const {
+  return underlying->getCodegenName() + " const&";
+}
+
 string MutableReferenceType::getName(bool withTemplateArguments) const {
   return underlying->getName(withTemplateArguments) + "&";
+}
+
+optional<string> MutableReferenceType::getMangledName() const {
+  if (auto u = underlying->getMangledName())
+    return "MR" + *u;
+  else {
+    return none;
+  }
+}
+
+string MutableReferenceType::getCodegenName() const {
+  return underlying->getCodegenName() + "&";
 }
 
 string PointerType::getName(bool withTemplateArguments) const {
@@ -39,6 +63,14 @@ string PointerType::getCodegenName() const {
   return underlying->getCodegenName() + " const*";
 }
 
+optional<string> PointerType::getMangledName() const {
+  if (auto u = underlying->getMangledName())
+    return "P" + *u;
+  else {
+    return none;
+  }
+}
+
 string MutablePointerType::getName(bool withTemplateArguments) const {
   return underlying->getName(withTemplateArguments) + " mutable*";
 }
@@ -47,12 +79,33 @@ string MutablePointerType::getCodegenName() const {
   return underlying->getCodegenName() + "*";
 }
 
+optional<string> MutablePointerType::getMangledName() const {
+  if (auto u = underlying->getMangledName())
+    return "MP" + *u;
+  else {
+    return none;
+  }
+}
+
 string StructType::getName(bool withTemplateArguments) const {
   return name + (withTemplateArguments ? joinTemplateParams(templateParams) : "");
 }
 
 string StructType::getCodegenName() const {
-  return name + joinTemplateParamsCodegen(templateParams);
+  if (external)
+    return name + joinTemplateParamsCodegen(templateParams);
+  else
+    return *getMangledName();
+}
+
+optional<string> StructType::getMangledName() const {
+  string suf;
+  for (auto& param : templateParams)
+    if (auto name = param->getMangledName())
+      suf += *name;
+    else
+      return none;
+  return getName(false) + suf;
 }
 
 string TemplateParameterType::getName(bool withTemplateArguments) const {
@@ -63,14 +116,18 @@ bool TemplateParameterType::canReplaceBy(SType t) const {
   return !t.dynamicCast<CompileTimeValue>();
 }
 
+optional<string> TemplateParameterType::getMangledName() const {
+  return none;
+}
+
 string EnumType::getName(bool withTemplateArguments) const {
   return name;
 }
 
 void EnumType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc, SwitchArgument) const {
   statement.type = SwitchStatement::ENUM;
+  statement.targetType = (SType)get_this();
   unordered_set<string> handledElems;
-  statement.subtypesPrefix = name + "::";
   for (auto& caseElem : statement.caseElems) {
     caseElem.codeloc.check(caseElem.type.contains<none_t>(), "Expected enum element");
     caseElem.codeloc.check(contains(elements, caseElem.id), "Element " + quote(caseElem.id) +
@@ -95,7 +152,45 @@ void EnumType::handleSwitchStatement(SwitchStatement& statement, Context& contex
 }
 
 FunctionType::FunctionType(SType returnType, vector<Param> p, vector<SType> tpl)
-    : retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
+  : retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
+}
+
+FunctionType FunctionType::setBuiltin() {
+  builtinOperator = true;
+  return *this;
+}
+
+SFunctionInfo FunctionInfo::getDefined(FunctionId id, FunctionType type, FunctionDefinition* definition) {
+  auto args = make_tuple(id, type, definition);
+  static map<decltype(args), SFunctionInfo> generated;
+  if (!generated.count(args)) {
+    generated.insert(make_pair(args, shared<FunctionInfo>(Private{}, id, type, definition)));
+  }
+  return generated.at(args);
+}
+
+SFunctionInfo FunctionInfo::getImplicit(FunctionId id, FunctionType type) {
+  auto args = make_tuple(id, type);
+  static map<decltype(args), SFunctionInfo> generated;
+  if (!generated.count(args)) {
+    generated.insert(make_pair(args, shared<FunctionInfo>(Private{}, id, type, nullptr)));
+  }
+  return generated.at(args);
+}
+
+SFunctionInfo FunctionInfo::getInstance(FunctionId id, FunctionType type, SFunctionInfo parent) {
+  if (id == parent->id && type == parent->type)
+    return parent;
+  while (!!parent->parent)
+    parent = parent->parent.get();
+  auto args = make_tuple(id, type, parent);
+  static map<decltype(args), SFunctionInfo> generated;
+  if (!generated.count(args)) {
+    auto ret = shared<FunctionInfo>(Private{}, id, type, parent);
+    parent->instantiations.push_back(ret);
+    generated.insert(make_pair(args, std::move(ret)));
+  }
+  return generated.at(args);
 }
 
 string FunctionInfo::prettyString() const {
@@ -104,8 +199,35 @@ string FunctionInfo::prettyString() const {
       (type.fromConcept ? " [from concept]" : "");
 }
 
+optional<string> FunctionInfo::getMangledName() const {
+  string suf;
+  for (auto& arg : type.templateParams)
+    if (auto name = arg->getMangledName())
+      suf += *name;
+    else
+      return none;
+  return suf;
+}
+
+SFunctionInfo FunctionInfo::getParent() const {
+  if (parent)
+    return parent.get();
+  else
+    return get_this().get();
+}
+
+FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionType type, nullable<SFunctionInfo> parent)
+  : id(std::move(id)), type(std::move(type)), parent(std::move(parent)) {}
+
+FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionType type, FunctionDefinition* definition)
+  : id(std::move(id)), type(std::move(type)), definition(definition) {}
+
 string Type::getCodegenName() const {
   return getName();
+}
+
+optional<string> Type::getMangledName() const {
+  return getCodegenName();
 }
 
 SType Type::getUnderlying() const {
@@ -235,7 +357,7 @@ optional<string> StructType::getSizeError() const {
 }
 
 shared_ptr<StructType> StructType::get(string name) {
-  auto ret = shared<StructType>();
+  auto ret = shared<StructType>(Private{});
   ret->name = name;
   ret->parent = ret;
   return ret;
@@ -261,15 +383,7 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
     SwitchArgument argumentType) const {
   codeLoc.check(!alternatives.empty(), "Expected a variant or enum type");
   statement.type = SwitchStatement::VARIANT;
-  statement.subtypesPrefix = name;
-  if (!templateParams.empty()) {
-    statement.subtypesPrefix += "<";
-    for (auto& t : templateParams)
-      statement.subtypesPrefix += t->getCodegenName() + ",";
-    statement.subtypesPrefix.pop_back();
-    statement.subtypesPrefix += ">";
-  }
-  statement.subtypesPrefix += "::";
+  statement.targetType = (SType)get_this();
   unordered_set<string> handledTypes;
   auto getAlternativeType = [&] (const string& name) -> nullable<SType> {
     for (auto& alternative : alternatives)
@@ -345,7 +459,7 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
   auto self = get_this().get().dynamicCast<StructType>();
   if (templateParams == newTemplateParams)
     return self;
-  for (auto type : instantations) {
+  for (auto type : instances) {
     if (type->templateParams == newTemplateParams)
       return type;
   }
@@ -353,12 +467,13 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
   type->alternatives = alternatives;
   type->members = members;
   type->parent = self;
-  instantations.push_back(type);
+  type->external = external;
+  instances.push_back(type);
   return type;
 }
 
 void StructType::updateInstantations() {
-  for (auto type1 : copyOf(instantations)) {
+  for (auto type1 : copyOf(instances)) {
     auto type = type1.dynamicCast<StructType>();
     type->staticContext.deepCopyFrom(staticContext);
     type->alternatives = alternatives;
@@ -447,16 +562,21 @@ SType StructType::replaceImpl(SType from, SType to) const {
   return ret;
 }
 
-void replaceInFunction(FunctionType& in, SType from, SType to) {
-  if (in.parentType)
-    in.parentType = in.parentType->replace(from, to);
-  in.retVal = in.retVal->replace(from, to);
-  for (auto& param : in.params)
+FunctionType replaceInFunction(FunctionType type, SType from, SType to) {
+  if (type.parentType)
+    type.parentType = type.parentType->replace(from, to);
+  type.retVal = type.retVal->replace(from, to);
+  for (auto& param : type.params)
     param.type = param.type->replace(from, to);
-  for (auto& param : in.templateParams)
+  for (auto& param : type.templateParams)
     param = param->replace(from, to);
-  for (auto& concept : in.requirements)
+  for (auto& concept : type.requirements)
     concept = concept->replace(from, to);
+  return type;
+}
+
+SFunctionInfo replaceInFunction(const SFunctionInfo& fun, SType from, SType to) {
+  return FunctionInfo::getInstance(fun->id, replaceInFunction(fun->type, from, to), fun);
 }
 
 WithError<SType> Type::instantiate(const Context& context, vector<SType> templateArgs) const {
@@ -581,9 +701,9 @@ static bool areParamsTypesEqual(const FunctionType& f1, const FunctionType& f2) 
   return true;
 }
 
-WithErrorLine<FunctionType> instantiateFunction(const Context& context, const FunctionType& input, CodeLoc codeLoc,
+WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo& input, CodeLoc codeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing) {
-  FunctionType type = input;
+  FunctionType type = input->type;
   vector<SType> funParams = transform(type.params, [](const FunctionType::Param& p) { return p.type; });
   if (templateArgs.size() > type.templateParams.size())
     return codeLoc.getError("Too many template arguments.");
@@ -618,20 +738,20 @@ WithErrorLine<FunctionType> instantiateFunction(const Context& context, const Fu
     codeLoc.check(type.templateParams[i]->canReplaceBy(templateArgs[i]),
         "Can't substitute template parameter " + quote(type.templateParams[i]->getName())
             + " with " + quote(templateArgs[i]->getName()));
-    replaceInFunction(type, type.templateParams[i], templateArgs[i]);
+    type = replaceInFunction(type, type.templateParams[i], templateArgs[i]);
     type.templateParams[i] = templateArgs[i];
   }
   for (auto& fun : existing)
-    if (areParamsTypesEqual(input, fun))
+    if (areParamsTypesEqual(input->type, fun))
       // To avoid infinite recursion we don't check concept requirements twice for the same >>original<< function
       // (not instantation). If this causes issues then it needs to be revised.
-      return type;
-  existing.push_back(input);
+      return FunctionInfo::getInstance(input->id, type, input);
+  existing.push_back(input->type);
   //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
   for (auto& concept : type.requirements)
     if (auto error = context.getMissingFunctions(*concept, existing))
       return codeLoc.getError(*error);
-  return type;
+  return FunctionInfo::getInstance(input->id, type, input);
 }
 
 EnumType::EnumType(string n, vector<string> e) : name(n), elements(e) {}
@@ -724,6 +844,13 @@ string ArrayType::getCodegenName() const {
   return "std::array<" + underlying->getCodegenName() + "," + size->getCodegenName() + ">";
 }
 
+optional<string> ArrayType::getMangledName() const {
+  if (auto u = underlying->getMangledName())
+    if (auto sz = size->getMangledName())
+      return "A" + *u + *sz;
+  return none;
+}
+
 SType ArrayType::replaceImpl(SType from, SType to) const {
   return get(underlying->replace(from, to), size->replace(from, to).dynamicCast<CompileTimeValue>());
 }
@@ -803,7 +930,14 @@ SType CompileTimeValue::getType() const {
       [](const EnumValue& v)-> SType {  return v.type; },
       [](const ArrayValue& v)-> SType {  return ArrayType::get(v.type, CompileTimeValue::get((int) v.values.size())); },
       [](const TemplateValue& v)-> SType {  return v.type; }
-);
+  );
+}
+
+optional<string> CompileTimeValue::getMangledName() const {
+  if (value.contains<TemplateValue>())
+    return none;
+  else
+    return Type::getMangledName();
 }
 
 shared_ptr<CompileTimeValue> CompileTimeValue::getTemplateValue(SType type, string name) {
@@ -838,6 +972,12 @@ string SliceType::getName(bool withTemplateArguments) const {
 
 string SliceType::getCodegenName() const {
   return "slice_t<" + underlying->getCodegenName() + ">";
+}
+
+optional<string> SliceType::getMangledName() const {
+  if (auto u = underlying->getMangledName())
+    return "SL" + *u;
+  return none;
 }
 
 SType SliceType::replaceImpl(SType from, SType to) const {

@@ -8,13 +8,16 @@
 #include "identifier.h"
 #include "type.h"
 #include "import_cache.h"
+#include "identifier_type.h"
 
 struct Accu;
 
 struct CodegenStage {
+  static CodegenStage types();
   static CodegenStage define();
   static CodegenStage declare();
   CodegenStage setImport();
+  bool isTypes;
   bool isDefine;
   bool isImport;
 
@@ -37,6 +40,7 @@ struct Expression : Node {
   virtual nullable<SType> eval(const Context&) const;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext);
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const;
+  virtual unique_ptr<Expression> replace(SType from, SType to) const = 0;
 };
 
 struct Constant : Expression {
@@ -44,6 +48,7 @@ struct Constant : Expression {
   virtual SType getTypeImpl(Context&) override;
   virtual nullable<SType> eval(const Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
+  virtual unique_ptr<Expression> replace(SType from, SType to) const override;
   SCompileTimeValue value;
 };
 
@@ -52,7 +57,9 @@ struct EnumConstant : Expression {
   virtual SType getTypeImpl(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual nullable<SType> eval(const Context&) const override;
+  virtual unique_ptr<Expression> replace(SType from, SType to) const override;
   string enumName;
+  nullable<SType> enumType;
   string enumElement;
 };
 
@@ -61,6 +68,7 @@ struct Variable : Expression {
   Variable(CodeLoc, string);
   virtual SType getTypeImpl(Context&) override;
   virtual nullable<SType> eval(const Context&) const override;
+  virtual unique_ptr<Expression> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   IdentifierInfo identifier;
@@ -71,10 +79,11 @@ struct BinaryExpression : Expression {
   static unique_ptr<Expression> get(CodeLoc, Operator, vector<unique_ptr<Expression>>);
   virtual SType getTypeImpl(Context&) override;
   virtual nullable<SType> eval(const Context&) const override;
+  virtual unique_ptr<Expression> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   vector<unique_ptr<Expression>> expr;
-  bool subscriptOpWorkaround = true;
+  nullable<SFunctionInfo> functionInfo;
   struct Private {};
   BinaryExpression(Private, CodeLoc, Operator, vector<unique_ptr<Expression>>);
 };
@@ -83,14 +92,17 @@ struct UnaryExpression : Expression {
   UnaryExpression(CodeLoc, Operator, unique_ptr<Expression>);
   virtual SType getTypeImpl(Context&) override;
   virtual nullable<SType> eval(const Context&) const override;
+  virtual unique_ptr<Expression> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   Operator op;
   unique_ptr<Expression> expr;
+  nullable<SFunctionInfo> functionInfo;
 };
 
 struct MoveExpression : Expression {
   MoveExpression(CodeLoc, string);
   virtual SType getTypeImpl(Context&) override;
+  virtual unique_ptr<Expression> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   string identifier;
   nullable<SType> type;
@@ -99,6 +111,7 @@ struct MoveExpression : Expression {
 struct ArrayLiteral : Expression {
   ArrayLiteral(CodeLoc);
   virtual SType getTypeImpl(Context&) override;
+  virtual unique_ptr<Expression> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   vector<unique_ptr<Expression>> contents;
 };
@@ -113,8 +126,11 @@ struct FunctionCall : Expression {
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const override;
   virtual nullable<SType> eval(const Context&) const override;
+  virtual unique_ptr<Expression> replace(SType from, SType to) const override;
   IdentifierInfo identifier;
-  optional<FunctionInfo> functionInfo;
+  optional<IdentifierType> identifierType;
+  optional<vector<SType>> templateArgs;
+  nullable<SFunctionInfo> functionInfo;
   vector<unique_ptr<Expression>> arguments;
   vector<optional<string>> argNames;
   optional<MethodCallType> callType;
@@ -127,6 +143,7 @@ struct Statement : Node {
   virtual void check(Context&) = 0;
   virtual bool hasReturnStatement(const Context&) const;
   virtual void codegen(Accu&, CodegenStage) const = 0;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const;
   enum class TopLevelAllowance {
     CANT,
     CAN,
@@ -144,6 +161,7 @@ struct VariableDeclaration : Statement {
   bool isMutable = false;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
 };
 
 struct IfStatement : Statement {
@@ -158,6 +176,7 @@ struct IfStatement : Statement {
   virtual bool hasReturnStatement(const Context&) const override;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
 };
 
 struct StatementBlock : Statement {
@@ -166,6 +185,7 @@ struct StatementBlock : Statement {
   virtual bool hasReturnStatement(const Context&) const override;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
 };
 
 struct ReturnStatement : Statement {
@@ -174,18 +194,21 @@ struct ReturnStatement : Statement {
   unique_ptr<Expression> expr;
   virtual bool hasReturnStatement(const Context&) const override;
   virtual void check(Context&) override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
 struct BreakStatement : Statement {
   using Statement::Statement;
   virtual void check(Context&) override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
 struct ContinueStatement : Statement {
   using Statement::Statement;
   virtual void check(Context&) override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
@@ -193,6 +216,7 @@ struct ExpressionStatement : Statement {
   ExpressionStatement(unique_ptr<Expression>);
   unique_ptr<Expression> expr;
   virtual void check(Context&) override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
@@ -204,6 +228,7 @@ struct ForLoopStatement : Statement {
   unique_ptr<Expression> iter;
   unique_ptr<Statement> body;
   virtual void check(Context&) override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
@@ -218,6 +243,7 @@ struct RangedLoopStatement : Statement {
   optional<string> containerName;
   unique_ptr<VariableDeclaration> containerEnd;
   virtual void check(Context&) override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
@@ -226,6 +252,7 @@ struct WhileLoopStatement : Statement {
   unique_ptr<Expression> cond;
   unique_ptr<Statement> body;
   virtual void check(Context&) override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
@@ -309,13 +336,15 @@ struct SwitchStatement : Statement {
     string id;
     unique_ptr<StatementBlock> block;
     enum VarType { VALUE, POINTER, NONE } varType = NONE;
+    CaseElem replace(SType from, SType to) const;
   };
-  string subtypesPrefix;
+  nullable<SType> targetType;
   vector<CaseElem> caseElems;
   unique_ptr<StatementBlock> defaultBlock;
   unique_ptr<Expression> expr;
   enum { ENUM, VARIANT} type;
   virtual void check(Context&) override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual bool hasReturnStatement(const Context&) const override;
 
@@ -337,8 +366,16 @@ struct FunctionDefinition : Statement {
   };
   vector<Parameter> parameters;
   unique_ptr<StatementBlock> body;
+  struct InstanceInfo {
+    unique_ptr<StatementBlock> body;
+    SFunctionInfo functionInfo;
+    Context::ConstStates callContext;
+    void generateBody(StatementBlock* parentBody);
+  };
+  vector<InstanceInfo> instances;
   TemplateInfo templateInfo;
-  optional<FunctionInfo> functionInfo;
+  nullable<SFunctionInfo> functionInfo;
+  Context::ConstStates definitionContext;
   bool external = false;
   struct Initializer {
     CodeLoc codeLoc;
@@ -353,15 +390,17 @@ struct FunctionDefinition : Statement {
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   void setFunctionType(const Context&, bool concept = false, bool builtInImport = false);
-  void addSignature(Accu&, string structName) const;
-  void handlePointerParamsInOperator(Accu&) const;
-  void handlePointerReturnInOperator(Accu&) const;
+  void handlePointerParamsInOperator(Accu&, const StatementBlock*) const;
+  void handlePointerReturnInOperator(Accu&, const StatementBlock*) const;
   void generateVirtualDispatchBody(Context& bodyContext);
   WithErrorLine<unique_ptr<Expression>> getVirtualFunctionCallExpr(const Context&, const string& funName,
       const string& alternativeName, const SType& alternativeType, int virtualIndex);
   WithErrorLine<unique_ptr<Expression>> getVirtualOperatorCallExpr(Context&, Operator,
       const string& alternativeName, const SType& alternativeType, int virtualIndex);
   void checkAndGenerateCopyFunction(const Context&);
+  void addInstance(const Context& callContext, const SFunctionInfo&);
+  void generateDefaultBodies(Context&);
+  void checkBody(Context::ConstStates callContext, StatementBlock& myBody, const FunctionInfo& instanceInfo) const;
 };
 
 struct EmbedStatement : Statement {
@@ -369,9 +408,15 @@ struct EmbedStatement : Statement {
   string value;
   bool isPublic = false;
   bool isTopLevel = false;
+  struct ReplacementInfo {
+    SType from;
+    SType to;
+  };
+  vector<ReplacementInfo> replacements;
   virtual void check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override;
+  virtual unique_ptr<Statement> replace(SType from, SType to) const override;
   virtual bool hasReturnStatement(const Context&) const override;
 };
 

@@ -25,6 +25,13 @@ class expected {
       error = *elem.template getValueMaybe<Error>();
   }
 
+  void unpack(nullable<T>& value, Error& error) {
+    if (*this)
+      value = *elem.template getValueMaybe<T>();
+    else
+      error = *elem.template getValueMaybe<Error>();
+  }
+
   optional<const T&> get_reference_maybe() const {
     return elem.template getReferenceMaybe<T>();
   }

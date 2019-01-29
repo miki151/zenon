@@ -6,6 +6,9 @@
 struct Type;
 using SType = shared_ptr<Type>;
 
+struct FunctionInfo;
+using SFunctionInfo = shared_ptr<FunctionInfo>;
+
 struct CompileTimeValue;
 using SCompileTimeValue = shared_ptr<CompileTimeValue>;
 
@@ -52,3 +55,4 @@ extern bool canOverload(Operator, int numArgs);
 extern bool isUnary(Operator);
 extern bool isRightAssociative(Operator);
 extern nullable<SType> eval(Operator, vector<SType> args);
+extern const char* getCodegenName(Operator);
