@@ -95,7 +95,7 @@ class Context : public owned_object<Context> {
   void setAsTopLevel();
   static Context withStates(ConstStates);
 
-  vector<SType> getTypeList(const vector<TemplateParameterInfo>&) const;
+  WithErrorLine<vector<SType> > getTypeList(const vector<TemplateParameterInfo>&) const;
 
   private:
 

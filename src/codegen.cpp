@@ -313,10 +313,12 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
       if (body && stage.isDefine) {
         accu.newLine("");
         handlePointerReturnInOperator(accu, body);
+        accu.newLine("");
       } else {
         accu.add(";");
         accu.newLine("");
       }
+      accu.newLine("");
     }
   };
   addInstance(*functionInfo, body.get());
@@ -584,9 +586,10 @@ void EmbedStatement::codegen(Accu& accu, CodegenStage stage) const {
     if (!isTopLevel)
       accu.newLine("{");
     for (auto& r : replacements) {
-      if (r.from.dynamicCast<CompileTimeValue>())
-        accu.newLine("auto " + r.from->getCodegenName() + " = " + r.to->getCodegenName() + ";");
-      else
+      if (auto value = r.from.dynamicCast<CompileTimeValue>()) {
+        CHECK(value->value.contains<CompileTimeValue::TemplateValue>());
+        accu.newLine("constexpr auto " + r.from->getName() + " = " + r.to->getCodegenName() + ";");
+      } else
         accu.newLine("using " + r.from->getCodegenName() + " = " + r.to->getCodegenName() + ";");
     }
     accu.newLine(value);

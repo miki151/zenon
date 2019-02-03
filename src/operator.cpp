@@ -303,22 +303,25 @@ static SCompileTimeValue getExampleValue(SType type) {
 
 nullable<SType> eval(Operator op, vector<SType> args1) {
   vector<SCompileTimeValue> args;
-  for (auto& arg1 : args1)
+  for (auto& arg1 : args1) {
     if (auto arg = arg1.dynamicCast<CompileTimeValue>())
       args.push_back(arg);
     else
       return nullptr;
+  }
+  auto argsOrig = args;
   bool wasTemplate = false;
   for (auto& arg : args)
-    if (auto templateValue = arg->value.getReferenceMaybe<CompileTimeValue::TemplateValue>()) {
-      arg = getExampleValue(templateValue->type);
+    if (arg->value.getReferenceMaybe<CompileTimeValue::TemplateValue>() ||
+        arg->value.getReferenceMaybe<CompileTimeValue::TemplateExpression>()) {
       wasTemplate = true;
+      arg = getExampleValue(arg->getType());
     }
   auto ret = evalNonTemplate(op, args);
   if (!ret)
     return nullptr;
   if (wasTemplate)
-    ret = CompileTimeValue::get(CompileTimeValue::TemplateValue{ret->getType(), "Template derived value"});
+    ret = CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, argsOrig, ret->getType()});
   return (SType) ret.get();
 }
 
@@ -365,4 +368,11 @@ const char* getCodegenName(Operator op) {
     default:
       return nullptr;
   }
+}
+
+string getPrettyString(Operator op, vector<SCompileTimeValue> args) {
+  if (isUnary(op))
+    return getString(op) + args[0]->getName();
+  else
+    return args[0]->getName() + getString(op) + args[1]->getName();
 }

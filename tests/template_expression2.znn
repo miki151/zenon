@@ -1,0 +1,16 @@
+// 13
+
+template <int A>
+struct X {
+};
+
+template <int A, int B>
+int g() {
+  const y = A + B;
+  X<(A + B)> x = X<y>();
+  return y;
+}
+
+int main() {
+  return g<6, 7>();
+}

@@ -55,4 +55,5 @@ extern bool canOverload(Operator, int numArgs);
 extern bool isUnary(Operator);
 extern bool isRightAssociative(Operator);
 extern nullable<SType> eval(Operator, vector<SType> args);
+extern string getPrettyString(Operator, vector<SCompileTimeValue> args);
 extern const char* getCodegenName(Operator);

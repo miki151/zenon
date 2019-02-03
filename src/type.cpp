@@ -120,6 +120,8 @@ optional<string> TemplateParameterType::getMangledName() const {
   return none;
 }
 
+TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l) {}
+
 string EnumType::getName(bool withTemplateArguments) const {
   return name;
 }
@@ -487,8 +489,6 @@ void StructType::updateInstantations() {
     }
   }
 }
-
-TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l) {}
 
 SType Type::replace(SType from, SType to) const {
   auto self = get_this().get();
@@ -906,7 +906,8 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
       [](const EnumValue& t) { return t.type->getName() + "::" + t.type->elements[t.index]; },
       [](const ArrayValue& t) { return "{" + combine(transform(t.values,
            [](const auto& v) { return v->getName();}), ", ") + "}"; },
-      [](const TemplateValue& v) { return v.type->getName() + " " + v.name; }
+      [](const TemplateValue& v) { return v.name; },
+      [](const TemplateExpression& v) { return getPrettyString(v.op, v.args); }
   );
 }
 
@@ -916,7 +917,8 @@ string CompileTimeValue::getCodegenName() const {
       [](const string& v) { return "\"" + v +"\"_lstr"; },
       [](const ArrayValue& t) { return "make_array(" + combine(transform(t.values,
            [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
-      [](const TemplateValue& v) { return v.name; }
+      [](const TemplateValue&) -> string { fail(); },
+      [](const TemplateExpression&) -> string { fail(); }
   );
 }
 
@@ -929,15 +931,34 @@ SType CompileTimeValue::getType() const {
       [](const string&)-> SType {  return ArithmeticType::STRING; },
       [](const EnumValue& v)-> SType {  return v.type; },
       [](const ArrayValue& v)-> SType {  return ArrayType::get(v.type, CompileTimeValue::get((int) v.values.size())); },
-      [](const TemplateValue& v)-> SType {  return v.type; }
+      [](const TemplateValue& v)-> SType {  return v.type; },
+      [](const TemplateExpression& v)-> SType {  return v.type; }
   );
 }
 
+template <typename Num>
+static string mangleNumber(Num v) {
+  return v < 0 ? "M" + to_string(-v) : to_string(v);
+}
+
 optional<string> CompileTimeValue::getMangledName() const {
-  if (value.contains<TemplateValue>())
-    return none;
-  else
-    return Type::getMangledName();
+  return value.visit(
+      [this](const auto&) -> optional<string> { return getName(); },
+      [](int v) -> optional<string> { return mangleNumber(v); },
+      [](double v) -> optional<string> { return mangleNumber(v); },
+      [](const string& v) -> optional<string> { return "\"" + v +"\"_lstr"; },
+      [](const ArrayValue& t) -> optional<string> {
+          vector<string> names;
+          for (auto& elem : t.values)
+            if (auto name = elem->getMangledName())
+              names.push_back(*name);
+            else
+              return none;
+          return "Arr"s + combine(names, "");
+      },
+      [](const TemplateValue& v) -> optional<string> { return none; },
+      [](const TemplateExpression&) -> optional<string> { return none; }
+  );
 }
 
 shared_ptr<CompileTimeValue> CompileTimeValue::getTemplateValue(SType type, string name) {
@@ -961,9 +982,16 @@ bool CompileTimeValue::canReplaceBy(SType t) const {
 }
 
 SType CompileTimeValue::replaceImpl(SType from, SType to) const {
-  if (auto templateValue = value.getReferenceMaybe<TemplateValue>())
-    return CompileTimeValue::getTemplateValue(templateValue->type->replace(from, to), templateValue->name);
-  return get_this().get();
+  return value.visit(
+      [&](const TemplateValue& value) {
+        return CompileTimeValue::getTemplateValue(value.type->replace(from, to), value.name);
+      },
+      [&](const TemplateExpression& value) {
+        return ::eval(value.op, transform(value.args,
+            [&](const SType& t){ return t->replace(from, to); })).get();
+      },
+      [&](const auto&) { return get_this().get();}
+  );
 }
 
 string SliceType::getName(bool withTemplateArguments) const {

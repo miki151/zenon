@@ -842,8 +842,10 @@ Context createNewContext() {
         CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
     context->addBuiltInFunction("enum_size", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
         [](const Context&, vector<SType> args) -> WithError<SType> {
-          auto enumType = args[0].dynamicCast<EnumType>();
-          return (SType) CompileTimeValue::get((int) enumType->elements.size());
+          if (auto enumType = args[0].dynamicCast<EnumType>())
+            return (SType) CompileTimeValue::get((int) enumType->elements.size());
+          else
+            fail();
         });
     context->addBuiltInFunction("enum_strings", ArrayType::get(ArithmeticType::STRING, CompileTimeValue::get(0)),
             {SType(ArithmeticType::ENUM_TYPE)},
@@ -902,7 +904,7 @@ SType FunctionCall::getTypeImpl(Context& context) {
 nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& callContext) {
   optional<ErrorLoc> error;
   if (!templateArgs)
-    templateArgs = callContext.getTypeList(identifier.parts.back().templateArguments);
+    templateArgs = callContext.getTypeList(identifier.parts.back().templateArguments).get();
   if (!identifierType)
     identifierType = callContext.getIdentifierType(identifier).get(identifier.codeLoc);
   if (!functionInfo) {

@@ -255,13 +255,23 @@ void Context::addType(const string& name, SType t) {
   state->types.insert({name, t});
 }
 
-vector<SType> Context::getTypeList(const vector<TemplateParameterInfo>& ids) const {
+WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameterInfo>& ids) const {
   vector<SType> params;
-  for (auto& id : ids)
-    id.visit(
-        [&](const IdentifierInfo& id) { params.push_back(getTypeFromString(id).get()); },
-        [&](const shared_ptr<Expression>& expr) { params.push_back(expr->eval(*this).get()); }
+  for (auto& id : ids) {
+    auto type = id.visit(
+        [&](const IdentifierInfo& id) -> WithErrorLine<SType> { return getTypeFromString(id).get(); },
+        [&](const shared_ptr<Expression>& expr) -> WithErrorLine<SType> {
+            if (auto value = expr->eval(*this))
+              return value.get();
+            else
+              return expr->codeLoc.getError("Can't evaluate expression at compile-time");
+        }
     );
+    if (type)
+      params.push_back(*type);
+    else
+      return type.get_error();
+  }
   return params;
 }
 
@@ -327,7 +337,10 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
   auto topType = getType(name);
   if (!topType)
     return id.codeLoc.getError("Type not found: " + quote(name));
-  WithErrorLine<SType> ret = topType->instantiate(*this, getTypeList(id.parts.at(0).templateArguments))
+  auto templateArgs = getTypeList(id.parts.at(0).templateArguments);
+  if (!templateArgs)
+    return templateArgs.get_error();
+  WithErrorLine<SType> ret = topType->instantiate(*this, *templateArgs)
       .addCodeLoc(id.codeLoc);
   if (ret)
     for (auto& elem : id.typeOperator) {
@@ -394,9 +407,10 @@ vector<SFunctionInfo> Context::getConstructorsFor(const SType& type) const {
       ret.push_back(fun);
     } else
     if (auto structType = fun->type.retVal.dynamicCast<StructType>())
-      if (structType->parent.get() == type) {
-        ret.push_back(fun);
-      }
+      if (auto origStruct = type.dynamicCast<StructType>())
+        if (structType->parent.get() == origStruct->parent.get()) {
+          ret.push_back(fun);
+        }
   }
   return ret;
 }
@@ -414,6 +428,7 @@ WithError<IdentifierType> Context::getIdentifierType(const IdentifierInfo& id) c
   } else {
     string name = id.parts.at(0).name;
     if (auto type = getType(name))
+      // Should this also instantiate the type if there are template arguments?
       return IdentifierType(type.get());
     else
       return IdentifierType(name);

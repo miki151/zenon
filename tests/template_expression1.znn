@@ -1,0 +1,15 @@
+// 15
+
+template <int A>
+int f() {
+  return A;
+}
+
+template <int A, int B>
+int g() {
+  return f<(A + B)>();
+}
+
+int main() {
+  return g<5, 10>();
+}

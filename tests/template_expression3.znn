@@ -1,0 +1,21 @@
+// 4
+
+template <T, T A>
+struct X {
+};
+
+template <int A>
+int get(X<int, A>* x) {
+  return A;
+}
+
+template <int A>
+int g() {
+  const y = -A;
+  X<int, -A> x = X<int, y>();
+  return get(&x);
+}
+
+int main() {
+  return 10 + g<6>();
+}

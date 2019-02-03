@@ -121,6 +121,17 @@ struct MutablePointerType : public Type {
 
 struct EnumType;
 
+#define COMPARABLE(Type, ...)\
+auto asTuple() const {\
+  return std::forward_as_tuple(__VA_ARGS__);\
+}\
+bool operator == (const Type& o) const {\
+  return asTuple() == o.asTuple();\
+}\
+bool operator < (const Type& o) const {\
+  return asTuple() < o.asTuple();\
+}
+
 struct CompileTimeValue : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
@@ -132,44 +143,26 @@ struct CompileTimeValue : public Type {
   struct TemplateValue {
     SType type;
     string name;
-    auto asTuple() const {
-      return std::forward_as_tuple(name, type);
-    }
-    bool operator == (const TemplateValue& o) const {
-      return asTuple() == o.asTuple();
-    }
-    bool operator < (const TemplateValue& o) const {
-      return asTuple() < o.asTuple();
-    }
+    COMPARABLE(TemplateValue, type, name)
+  };
+  struct TemplateExpression {
+    Operator op;
+    vector<SCompileTimeValue> args;
+    SType type;
+    COMPARABLE(TemplateExpression, op, args, type)
   };
   struct EnumValue {
     shared_ptr<EnumType> type;
     int index;
-    auto asTuple() const {
-      return std::forward_as_tuple(type, index);
-    }
-    bool operator == (const EnumValue& o) const {
-      return asTuple() == o.asTuple();
-    }
-    bool operator < (const EnumValue& o) const {
-      return asTuple() < o.asTuple();
-    }
+    COMPARABLE(EnumValue, type, index)
   };
   struct ArrayValue {
     vector<SCompileTimeValue> values;
     SType type;
-    auto asTuple() const {
-      return std::forward_as_tuple(type, values);
-    }
-    bool operator == (const ArrayValue& o) const {
-      return asTuple() == o.asTuple();
-    }
-    bool operator < (const ArrayValue& o) const {
-      return asTuple() < o.asTuple();
-    }
+    COMPARABLE(ArrayValue, values, type)
   };
 
-  using Value = variant<int, bool, double, char, string, EnumValue, ArrayValue, TemplateValue>;
+  using Value = variant<int, bool, double, char, string, EnumValue, ArrayValue, TemplateValue, TemplateExpression>;
   static shared_ptr<CompileTimeValue> get(Value);
   static shared_ptr<CompileTimeValue> getTemplateValue(SType type, string name);
   Value value;
