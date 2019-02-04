@@ -312,8 +312,7 @@ nullable<SType> eval(Operator op, vector<SType> args1) {
   auto argsOrig = args;
   bool wasTemplate = false;
   for (auto& arg : args)
-    if (arg->value.getReferenceMaybe<CompileTimeValue::TemplateValue>() ||
-        arg->value.getReferenceMaybe<CompileTimeValue::TemplateExpression>()) {
+    if (!arg->getMangledName()) {
       wasTemplate = true;
       arg = getExampleValue(arg->getType());
     }

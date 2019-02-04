@@ -113,14 +113,29 @@ string TemplateParameterType::getName(bool withTemplateArguments) const {
 }
 
 bool TemplateParameterType::canReplaceBy(SType t) const {
-  return !t.dynamicCast<CompileTimeValue>();
+  return type == ArithmeticType::ANY_TYPE || t->getType() == type;
 }
 
 optional<string> TemplateParameterType::getMangledName() const {
   return none;
 }
 
-TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l) {}
+SType TemplateParameterType::getType() const {
+  return type;
+}
+
+bool TemplateParameterType::isBuiltinCopyable(const Context&) const {
+  if (type == ArithmeticType::ENUM_TYPE)
+    return true;
+  else
+    return false;
+}
+
+TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l), type(ArithmeticType::ANY_TYPE) {}
+
+TemplateParameterType::TemplateParameterType(SType type, string name, CodeLoc l)
+    : name(std::move(name)), declarationLoc(l), type(std::move(type)) {
+}
 
 string EnumType::getName(bool withTemplateArguments) const {
   return name;
@@ -594,6 +609,14 @@ void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc, Sw
   codeLoc.error("Can't switch on the value of type " + quote(getName()));
 }
 
+static string getCantSubstituteError(SType param, SType with) {
+  auto ret = "Can't substitute template parameter " + quote(param->getName()) + " ";
+  if (param->getType() != ArithmeticType::ANY_TYPE)
+    ret += "of type " + quote(param->getType()->getName()) + " ";
+  ret += "with type " + quote(with->getName());
+  return ret;
+}
+
 WithError<SType> StructType::instantiate(const Context& context, vector<SType> templateArgs) const {
   CHECK(parent == this) << "Struct instatiated a second time?";
   if (templateArgs.size() != templateParams.size())
@@ -601,8 +624,7 @@ WithError<SType> StructType::instantiate(const Context& context, vector<SType> t
   auto ret = get_this().get().dynamicCast<StructType>();
   for (int i = 0; i < templateParams.size(); ++i) {
     if (!ret->templateParams[i]->canReplaceBy(templateArgs[i]))
-      return "Can't substitute template parameter " + quote(templateParams[i]->getName())
-          + " with " + quote(templateArgs[i]->getName());
+      return getCantSubstituteError(templateParams[i], templateArgs[i]);
     ret = ret->replace(ret->templateParams[i], templateArgs[i]).dynamicCast<StructType>();
   }
   for (auto& concept : ret.dynamicCast<StructType>()->requirements)
@@ -736,8 +758,7 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
   }
   for (int i = 0; i < type.templateParams.size(); ++i) {
     codeLoc.check(type.templateParams[i]->canReplaceBy(templateArgs[i]),
-        "Can't substitute template parameter " + quote(type.templateParams[i]->getName())
-            + " with " + quote(templateArgs[i]->getName()));
+        getCantSubstituteError(type.templateParams[i], templateArgs[i]));
     type = replaceInFunction(type, type.templateParams[i], templateArgs[i]);
     type.templateParams[i] = templateArgs[i];
   }
@@ -907,7 +928,8 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
       [](const ArrayValue& t) { return "{" + combine(transform(t.values,
            [](const auto& v) { return v->getName();}), ", ") + "}"; },
       [](const TemplateValue& v) { return v.name; },
-      [](const TemplateExpression& v) { return getPrettyString(v.op, v.args); }
+      [](const TemplateExpression& v) { return getPrettyString(v.op, v.args); },
+      [](const TemplateFunctionCall& v) { return "[function call]"; }
   );
 }
 
@@ -918,7 +940,8 @@ string CompileTimeValue::getCodegenName() const {
       [](const ArrayValue& t) { return "make_array(" + combine(transform(t.values,
            [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
       [](const TemplateValue&) -> string { fail(); },
-      [](const TemplateExpression&) -> string { fail(); }
+      [](const TemplateExpression&) -> string { fail(); },
+      [](const TemplateFunctionCall&) -> string { fail(); }
   );
 }
 
@@ -932,7 +955,8 @@ SType CompileTimeValue::getType() const {
       [](const EnumValue& v)-> SType {  return v.type; },
       [](const ArrayValue& v)-> SType {  return ArrayType::get(v.type, CompileTimeValue::get((int) v.values.size())); },
       [](const TemplateValue& v)-> SType {  return v.type; },
-      [](const TemplateExpression& v)-> SType {  return v.type; }
+      [](const TemplateExpression& v)-> SType {  return v.type; },
+      [](const TemplateFunctionCall& v)-> SType {  return v.retVal; }
   );
 }
 
@@ -957,7 +981,8 @@ optional<string> CompileTimeValue::getMangledName() const {
           return "Arr"s + combine(names, "");
       },
       [](const TemplateValue& v) -> optional<string> { return none; },
-      [](const TemplateExpression&) -> optional<string> { return none; }
+      [](const TemplateExpression&) -> optional<string> { return none; },
+      [](const TemplateFunctionCall&) -> optional<string> { return none; }
   );
 }
 
@@ -989,6 +1014,10 @@ SType CompileTimeValue::replaceImpl(SType from, SType to) const {
       [&](const TemplateExpression& value) {
         return ::eval(value.op, transform(value.args,
             [&](const SType& t){ return t->replace(from, to); })).get();
+      },
+      [&](const TemplateFunctionCall& value) {
+        return value.functionInfo.invokeFunction(value.name, value.loc, transform(value.args,
+            [&](const SType& t){ return t->replace(from, to); }), value.argLoc).get();
       },
       [&](const auto&) { return get_this().get();}
   );

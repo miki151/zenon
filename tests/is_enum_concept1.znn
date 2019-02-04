@@ -1,0 +1,19 @@
+// 3
+
+template <E> requires is_enum<E>
+int f(E e1) {
+  embed {
+    return int(e1);
+  }
+}
+
+enum E1 {
+  A,
+  B,
+  C
+};
+
+int main() {
+  const e = E1::B;
+  return f<E1>(E1::A) + f(e) + f(E1::C);
+}

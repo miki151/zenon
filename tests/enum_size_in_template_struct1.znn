@@ -1,0 +1,30 @@
+// 5
+
+template <Key> requires is_enum<Key>
+struct S {
+  int[enum_size(Key)] values;
+};
+
+template <Key> requires is_enum<Key>
+S() {
+  const v = 0;
+  return S<Key>(array_repeat<(enum_size(Key))>(&v));
+}
+
+enum E1 {
+  A,
+  B,
+  C,
+  D
+};
+
+int get(S<E1>* m) {
+  return m->values[0];
+}
+
+int main() {
+  mutable m = S<E1>();
+  m.values[1] = 3;
+  m.values[0] = 2;
+  return m.values[1] + get(&m);
+}

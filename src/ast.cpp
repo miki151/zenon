@@ -409,10 +409,14 @@ static vector<SConcept> applyConcept(Context& from, const vector<IdentifierInfo>
           "Wrong number of template arguments to concept " + quote(requirement.parts[0].toString()));
       vector<SType> translatedParams;
       for (int i = 0; i < requirementArgs.size(); ++i) {
-        if (auto arg = requirementArgs[i].getReferenceMaybe<IdentifierInfo>())
-          translatedParams.push_back(from.getTypeFromString(
-              IdentifierInfo(arg->parts[0], arg->codeLoc)).get());
-        else
+        if (auto arg = requirementArgs[i].getReferenceMaybe<IdentifierInfo>()) {
+          auto origParam = from.getTypeFromString(IdentifierInfo(arg->parts[0], arg->codeLoc)).get();
+          if (auto templateParam = origParam.dynamicCast<TemplateParameterType>())
+            // Support is_enum concept
+            if (concept->getParams()[i]->getType() != ArithmeticType::ANY_TYPE)
+              templateParam->type = concept->getParams()[i]->getType();
+          translatedParams.push_back(std::move(origParam));
+        } else
           requirement.codeLoc.error("Expected a type argument");
       }
       auto translated = concept->translate(translatedParams);
@@ -806,6 +810,13 @@ void FunctionDefinition::addToContext(Context& context, ImportCache& cache) {
     body = nullptr;
 }
 
+static void addIsEnumConcept(Context& context) {
+  auto name = "is_enum";
+  shared_ptr<Concept> concept = shared<Concept>(name);
+  concept->modParams().push_back(shared<TemplateParameterType>(ArithmeticType::ENUM_TYPE, "T", CodeLoc()));
+  context.addConcept(name, concept);
+}
+
 Context createNewContext() {
   static optional<Context> context;
   if (!context) {
@@ -840,8 +851,9 @@ Context createNewContext() {
     for (auto op : {Operator::EQUALS})
       for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
         CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
+    addIsEnumConcept(*context);
     context->addBuiltInFunction("enum_size", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
-        [](const Context&, vector<SType> args) -> WithError<SType> {
+        [](vector<SType> args) -> WithError<SType> {
           if (auto enumType = args[0].dynamicCast<EnumType>())
             return (SType) CompileTimeValue::get((int) enumType->elements.size());
           else
@@ -849,7 +861,7 @@ Context createNewContext() {
         });
     context->addBuiltInFunction("enum_strings", ArrayType::get(ArithmeticType::STRING, CompileTimeValue::get(0)),
             {SType(ArithmeticType::ENUM_TYPE)},
-        [](const Context&, vector<SType> args) -> WithError<SType> {
+        [](vector<SType> args) -> WithError<SType> {
           auto enumType = args[0].dynamicCast<EnumType>();
           vector<SCompileTimeValue> values;
           for (auto& elem : enumType->elements)

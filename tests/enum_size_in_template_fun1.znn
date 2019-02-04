@@ -1,0 +1,17 @@
+// 8
+
+template <E> requires is_enum<E>
+int f() {
+  return enum_size(E);
+}
+
+enum E1 {
+  A,
+  B,
+  C,
+  D
+};
+
+int main() {
+  return f<E1>() + enum_size(E1);
+}

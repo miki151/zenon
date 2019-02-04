@@ -45,7 +45,7 @@ class Context : public owned_object<Context> {
   WithErrorLine<SFunctionInfo> instantiateFunctionTemplate(CodeLoc, SFunctionInfo, vector<SType>,
       vector<SType> argTypes, vector<CodeLoc> argLoc) const;
   nullable<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
-  using BuiltInFunction = function<WithError<SType>(const Context&, vector<SType>)>;
+  using BuiltInFunction = function<WithError<SType>(vector<SType>)>;
   void addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction);
   vector<SFunctionInfo> getOperatorType(Operator) const;
   nullable<SFunctionInfo> getBuiltinOperator(Operator, vector<SType> argTypes) const;
@@ -65,7 +65,9 @@ class Context : public owned_object<Context> {
 
   struct BuiltInFunctionInfo {
     vector<SType> argTypes;
+    SType returnType;
     BuiltInFunction fun;
+    nullable<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
   };
 
   struct State : public owned_object<State> {

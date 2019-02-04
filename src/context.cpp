@@ -451,17 +451,25 @@ WithErrorLine<SFunctionInfo> Context::instantiateFunctionTemplate(CodeLoc codeLo
   return instantiateFunction(*this, templateType, codeLoc, templateParams, argTypes, argLoc, {});
 }
 
+nullable<SType> Context::BuiltInFunctionInfo::invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const {
+  if (argTypes.size() != args.size())
+    loc.error("Expected " + to_string(argTypes.size()) + " arguments to built-in function " + quote(id));
+  for (int i = 0; i < args.size(); ++i)
+    if (argTypes[i] != args[i]->getType())
+      argLoc[i].error("Expected argument of type " + quote(argTypes[i]->getName()) + ", got "
+          + quote(args[i]->getName()) + " of type " + quote(args[i]->getType()->getName()));
+  for (auto t : args)
+    if (!t->getMangledName()) {
+      return (SType) CompileTimeValue::get(
+          CompileTimeValue::TemplateFunctionCall{id, args,  returnType, loc, argLoc, *this});
+    }
+  return fun(args).addCodeLoc(loc).get();
+}
+
 nullable<SType> Context::invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const {
   for (auto& state : getReversedStates())
-    if (auto f = getReferenceMaybe(state->builtInFunctions, id)) {
-      if (f->argTypes.size() != args.size())
-        loc.error("Expected " + to_string(f->argTypes.size()) + " arguments to built-in function " + quote(id));
-      for (int i = 0; i < args.size(); ++i)
-        if (f->argTypes[i] != args[i]->getType())
-          argLoc[i].error("Expected argument of type " + quote(f->argTypes[i]->getName()) + ", got "
-              + quote(args[i]->getName()) + " of type " + quote(args[i]->getType()->getName()));
-      return f->fun(*this, args).addCodeLoc(loc).get();
-    }
+    if (auto f = getReferenceMaybe(state->builtInFunctions, id))
+      return f->invokeFunction(id, loc, args, argLoc);
   return nullptr;
 }
 
@@ -469,7 +477,7 @@ void Context::addBuiltInFunction(const string& id, SType returnType, vector<STyp
   CHECK(!state->builtInFunctions.count(id));
   CHECK(!addImplicitFunction(id, FunctionType(returnType,
       transform(argTypes, [](const auto& p){ return FunctionType::Param(p); }), {})));
-  state->builtInFunctions.insert(make_pair(id, BuiltInFunctionInfo{std::move(argTypes), std::move(fun)}));
+  state->builtInFunctions.insert(make_pair(id, BuiltInFunctionInfo{std::move(argTypes), returnType, std::move(fun)}));
 }
 
 nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> argTypes) const {

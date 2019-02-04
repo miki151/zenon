@@ -151,6 +151,15 @@ struct CompileTimeValue : public Type {
     SType type;
     COMPARABLE(TemplateExpression, op, args, type)
   };
+  struct TemplateFunctionCall {
+    string name;
+    vector<SType> args;
+    SType retVal;
+    CodeLoc loc;
+    vector<CodeLoc> argLoc;
+    Context::BuiltInFunctionInfo functionInfo;
+    COMPARABLE(TemplateFunctionCall, name, args)
+  };
   struct EnumValue {
     shared_ptr<EnumType> type;
     int index;
@@ -162,7 +171,7 @@ struct CompileTimeValue : public Type {
     COMPARABLE(ArrayValue, values, type)
   };
 
-  using Value = variant<int, bool, double, char, string, EnumValue, ArrayValue, TemplateValue, TemplateExpression>;
+  using Value = variant<int, bool, double, char, string, EnumValue, ArrayValue, TemplateValue, TemplateExpression, TemplateFunctionCall>;
   static shared_ptr<CompileTimeValue> get(Value);
   static shared_ptr<CompileTimeValue> getTemplateValue(SType type, string name);
   Value value;
@@ -174,9 +183,13 @@ struct TemplateParameterType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual bool canReplaceBy(SType) const override;
   virtual optional<string> getMangledName() const override;
+  virtual SType getType() const override;
+  virtual bool isBuiltinCopyable(const Context&) const override;
   TemplateParameterType(string name, CodeLoc);
+  TemplateParameterType(SType type, string name, CodeLoc);
   string name;
   CodeLoc declarationLoc;
+  SType type;
 };
 
 struct StructType : public Type {
@@ -257,15 +270,7 @@ struct FunctionType {
     Param(SType type);
     optional<string> name;
     SType type;
-    auto asTuple() const {
-      return std::forward_as_tuple(name, type);
-    }
-    bool operator < (const Param& o) const {
-      return asTuple() < o.asTuple();
-    }
-    bool operator == (const Param& o) const {
-      return asTuple() == o.asTuple();
-    }
+    COMPARABLE(FunctionType::Param, name, type)
   };
   FunctionType(SType returnType, vector<Param> params, vector<SType> templateParams);
   FunctionType setBuiltin();
@@ -277,16 +282,7 @@ struct FunctionType {
   bool fromConcept = false;
   bool builtinOperator = false;
   bool generatedConstructor = false;
-
-  auto asTuple() const {
-    return std::forward_as_tuple(retVal, params, templateParams, parentType);
-  }
-  bool operator < (const FunctionType& o) const {
-    return asTuple() < o.asTuple();
-  }
-  bool operator == (const FunctionType& o) const {
-    return asTuple() == o.asTuple();
-  }
+  COMPARABLE(FunctionType, retVal, params, templateParams, parentType)
 };
 
 struct FunctionInfo : public owned_object<FunctionInfo> {

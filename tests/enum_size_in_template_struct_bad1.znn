@@ -1,0 +1,14 @@
+// no_compile
+
+template <Key> requires is_enum<Key>
+struct S {
+  int[enum_size(Key)] values;
+};
+
+int get(S<int>* m) {
+  return 0;
+}
+
+int main() {
+  return 0;
+}
