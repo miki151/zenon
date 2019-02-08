@@ -1,0 +1,32 @@
+// 15
+
+template <T>
+struct S {
+  T x;
+};
+
+template <T>
+concept GetFun {
+  T get();
+};
+
+template <T> requires GetFun<T>
+S() {
+  return S<T>::S(get());
+}
+
+template <T> requires GetFun<T>
+T get_value() {
+  const S<T> s;
+  return move(s).x;
+}
+
+int get() {
+  return 5;
+}
+
+int main() {
+  const S<int> s1;
+  const s2 = S<int>();
+  return get_value<int>() + s1.x + s2.x;
+}

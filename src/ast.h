@@ -121,19 +121,23 @@ enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_
 struct FunctionCall : Expression {
   FunctionCall(CodeLoc, IdentifierInfo);
   FunctionCall(CodeLoc, IdentifierInfo, unique_ptr<Expression> arg);
+  static unique_ptr<FunctionCall> constructor(CodeLoc, SType type);
   virtual SType getTypeImpl(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual nullable<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const override;
   virtual nullable<SType> eval(const Context&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to) const override;
-  IdentifierInfo identifier;
+  optional<IdentifierInfo> identifier;
   optional<IdentifierType> identifierType;
   optional<vector<SType>> templateArgs;
   nullable<SFunctionInfo> functionInfo;
   vector<unique_ptr<Expression>> arguments;
   vector<optional<string>> argNames;
   optional<MethodCallType> callType;
+
+  struct Private {};
+  FunctionCall(CodeLoc, Private);
 };
 
 struct Statement : Node {

@@ -1,0 +1,14 @@
+// 1
+
+struct S {
+  int x;
+};
+
+S() {
+  return S::S(1);
+}
+
+int main() {
+  const S s;
+  return s.x;
+}

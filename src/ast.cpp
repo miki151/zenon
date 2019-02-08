@@ -31,6 +31,18 @@ FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identi
 
 FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id, unique_ptr<Expression> arg) : FunctionCall(l, id) {
   arguments.push_back(std::move(arg));
+ }
+
+unique_ptr<FunctionCall> FunctionCall::constructor(CodeLoc l, SType type) {
+  auto ret = unique<FunctionCall>(l, Private{});
+  vector<SType> templateArgs;
+  if (auto structType = type.dynamicCast<StructType>()) {
+    templateArgs = structType->templateParams;
+    type = structType->parent.get();
+  }
+  ret->templateArgs = std::move(templateArgs);
+  ret->identifierType = IdentifierType(type);
+  return ret;
 }
 
 VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, string id, unique_ptr<Expression> ini)
@@ -329,18 +341,19 @@ void VariableDeclaration::check(Context& context) {
   codeLoc.check(realType != ArithmeticType::VOID,
       "Can't declare variable of type " + quote(ArithmeticType::VOID->getName()));
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
-  if (initExpr) {
-    auto exprType = getType(context, initExpr);
-    if (!isMutable)
-      if (auto value = initExpr->eval(context))
-        context.addType(identifier, value.get());
-    initExpr->codeLoc.check((!exprType.dynamicCast<ReferenceType>() && !exprType.dynamicCast<MutableReferenceType>()) ||
-        exprType->getUnderlying()->isBuiltinCopyable(context),
-        "Type " + quote(exprType->getUnderlying()->getName()) + " cannot be copied");
-    initExpr->codeLoc.check(context.canConvert(exprType, realType.get()), "Can't initialize variable of type "
-        + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
-  } else
+  if (!initExpr) {
     codeLoc.check(context.canDefaultInitialize(realType.get()), "Type " + quote(realType->getName()) + " requires initialization");
+    initExpr = FunctionCall::constructor(codeLoc, realType.get());
+  }
+  auto exprType = getType(context, initExpr);
+  if (!isMutable)
+    if (auto value = initExpr->eval(context))
+      context.addType(identifier, value.get());
+  initExpr->codeLoc.check((!exprType.dynamicCast<ReferenceType>() && !exprType.dynamicCast<MutableReferenceType>()) ||
+      exprType->getUnderlying()->isBuiltinCopyable(context),
+      "Type " + quote(exprType->getUnderlying()->getName()) + " cannot be copied");
+  initExpr->codeLoc.check(context.canConvert(exprType, realType.get()), "Can't initialize variable of type "
+      + quote(realType.get()->getName()) + " with value of type " + quote(exprType->getName()));
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
   context.addVariable(identifier, std::move(varType));
 }
@@ -916,9 +929,9 @@ SType FunctionCall::getTypeImpl(Context& context) {
 nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& callContext) {
   optional<ErrorLoc> error;
   if (!templateArgs)
-    templateArgs = callContext.getTypeList(identifier.parts.back().templateArguments).get();
+    templateArgs = callContext.getTypeList(identifier->parts.back().templateArguments).get();
   if (!identifierType)
-    identifierType = callContext.getIdentifierType(identifier).get(identifier.codeLoc);
+    identifierType = callContext.getIdentifierType(*identifier).get(identifier->codeLoc);
   if (!functionInfo) {
     vector<SType> argTypes;
     vector<CodeLoc> argLocs;
@@ -969,23 +982,25 @@ nullable<SType> FunctionCall::getDotOperatorType(Expression* left, Context& call
 }
 
 nullable<SType> FunctionCall::eval(const Context& context) const {
-  if (auto name = identifier.asBasicIdentifier()) {
-    vector<SType> args;
-    vector<CodeLoc> locs;
-    for (auto& e : arguments) {
-      locs.push_back(e->codeLoc);
-      if (auto res = e->eval(context))
-        args.push_back(res.get());
-      else
-        return res;
+  if (identifier)
+    if (auto name = identifier->asBasicIdentifier()) {
+      vector<SType> args;
+      vector<CodeLoc> locs;
+      for (auto& e : arguments) {
+        locs.push_back(e->codeLoc);
+        if (auto res = e->eval(context))
+          args.push_back(res.get());
+        else
+          return res;
+      }
+      return context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs));
     }
-    return context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs));
-  }
   return nullptr;
 }
 
 unique_ptr<Expression> FunctionCall::replace(SType from, SType to) const {
-  auto ret = unique<FunctionCall>(codeLoc, identifier);
+  auto ret = unique<FunctionCall>(codeLoc, Private{});
+  ret->identifier = identifier;
   for (auto& arg : arguments)
     ret->arguments.push_back(arg->replace(from, to));
   ret->templateArgs.emplace();
@@ -995,6 +1010,8 @@ unique_ptr<Expression> FunctionCall::replace(SType from, SType to) const {
   ret->identifierType = identifierType->replace(from, to);
   return ret;
 }
+
+FunctionCall::FunctionCall(CodeLoc l, Private) : Expression(l) {}
 
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
