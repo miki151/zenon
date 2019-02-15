@@ -1,4 +1,4 @@
-// 15
+// 10
 
 template <T>
 struct S {
@@ -17,7 +17,7 @@ S() {
 
 template <T> requires GetFun<T>
 T get_value() {
-  const S<T> s;
+  const S<T> s = S<T>();
   return move(s).x;
 }
 
@@ -26,7 +26,6 @@ int get() {
 }
 
 int main() {
-  const S<int> s1;
   const s2 = S<int>();
-  return get_value<int>() + s1.x + s2.x;
+  return get_value<int>() + s2.x;
 }

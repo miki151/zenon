@@ -341,10 +341,7 @@ void VariableDeclaration::check(Context& context) {
   codeLoc.check(realType != ArithmeticType::VOID,
       "Can't declare variable of type " + quote(ArithmeticType::VOID->getName()));
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
-  if (!initExpr) {
-    codeLoc.check(context.canDefaultInitialize(realType.get()), "Type " + quote(realType->getName()) + " requires initialization");
-    initExpr = FunctionCall::constructor(codeLoc, realType.get());
-  }
+  codeLoc.check(!!initExpr, "Variable requires initialization");
   auto exprType = getType(context, initExpr);
   if (!isMutable)
     if (auto value = initExpr->eval(context))
