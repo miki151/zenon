@@ -311,7 +311,7 @@ unique_ptr<FunctionDefinition> parseFunctionSignature(IdentifierInfo type, Token
     }
   } else if (token2 == Keyword::OPEN_BRACKET) {
     if (auto typeName = type.asBasicIdentifier()) {
-      ret = unique<FunctionDefinition>(type.codeLoc, type, ConstructorId { *typeName });
+      ret = unique<FunctionDefinition>(type.codeLoc, type, ConstructorTag { });
       tokens.rewind();
     } else
       type.codeLoc.error("Expected type name without template parameters");
@@ -439,7 +439,7 @@ unique_ptr<ConceptDefinition> parseConceptDefinition(Tokens& tokens) {
     }
     ret->functions.push_back(parseFunctionSignature(typeId, tokens));
     if (constructor)
-      ret->functions.back()->name = ConstructorId{*ret->functions.back()->name.getValueMaybe<string>()};
+      ret->functions.back()->name = ConstructorTag{};
     tokens.eat(Keyword::SEMICOLON);
   }
   tokens.eat(Keyword::SEMICOLON);
@@ -663,7 +663,7 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
         checkNameConflict(*name, "function");
       ret->templateInfo = templateInfo;
       ret->external = true;
-      if (ret->name.contains<ConstructorId>())
+      if (ret->name.contains<ConstructorTag>())
         for (auto& elem : templateInfo.params)
           ret->returnType.parts[0].templateArguments.push_back(IdentifierInfo(elem.name, elem.codeLoc));
       return ret;
@@ -691,7 +691,7 @@ unique_ptr<Statement> parseTemplateDefinition(Tokens& tokens) {
     if (auto name = ret->name.getReferenceMaybe<string>())
       checkNameConflict(*name, "function");
     ret->templateInfo = templateInfo;
-    if (ret->name.contains<ConstructorId>()) {
+    if (ret->name.contains<ConstructorTag>()) {
       for (auto& elem : templateInfo.params)
         ret->returnType.parts[0].templateArguments.push_back(IdentifierInfo(elem.name, elem.codeLoc));
     }

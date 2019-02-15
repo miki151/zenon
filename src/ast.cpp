@@ -53,7 +53,7 @@ VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, 
   INFO << "Declared variable " << quote(id) << " of type " << quote(type);
 }
 
-FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionName name)
+FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionId name)
   : Statement(l), returnType(std::move(r)), name(name) {}
 
 SType Constant::getTypeImpl(Context&) {
@@ -466,14 +466,6 @@ static bool paramsAreGoodForOperator(const vector<FunctionType::Param>& params) 
   return false;
 }
 
-static FunctionId getFunctionId(const FunctionName& name) {
-  return name.visit(
-      [&](const string& s) -> FunctionId { return s; },
-      [&](Operator op) -> FunctionId { return op; },
-      [&](ConstructorId) -> FunctionId { return ConstructorTag{}; }
-  );
-}
-
 void FunctionDefinition::setFunctionType(const Context& context, bool concept, bool builtInImport) {
   for (int i = 0; i < parameters.size(); ++i)
     if (!parameters[i].name)
@@ -520,12 +512,11 @@ void FunctionDefinition::setFunctionType(const Context& context, bool concept, b
     FunctionType functionType(returnType, params, templateTypes);
     functionType.fromConcept = concept;
     functionType.requirements = requirements;
-    auto id = getFunctionId(name);
-    if (id.contains<ConstructorTag>() && external)
+    if (name.contains<ConstructorTag>() && external)
       functionType.generatedConstructor = true;
-    if (id.contains<Operator>() && external)
+    if (name.contains<Operator>() && external)
       functionType.setBuiltin();
-    functionInfo = FunctionInfo::getDefined(id, std::move(functionType), this);
+    functionInfo = FunctionInfo::getDefined(name, std::move(functionType), this);
   } else
     returnType1.get_error().execute();
 }
@@ -793,7 +784,7 @@ void FunctionDefinition::checkBody(Context::ConstStates callContext, StatementBl
   if (name.contains<Operator>())
     retVal = convertReferenceToPointer(retVal);
   bodyContext.setReturnType(retVal);
-  if (retVal != ArithmeticType::VOID && !myBody.hasReturnStatement(bodyContext) && !name.contains<ConstructorId>())
+  if (retVal != ArithmeticType::VOID && !myBody.hasReturnStatement(bodyContext) && !name.contains<ConstructorTag>())
     codeLoc.error("Not all paths lead to a return statement in a function returning non-void");
   myBody.check(bodyContext);
 }
