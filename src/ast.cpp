@@ -920,7 +920,7 @@ Context createNewContext() {
       for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
         CHECK(!context->addImplicitFunction(op, FunctionType(type, {{type}}, {}).setBuiltin()));
     for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
-      CHECK(!context->addImplicitFunction(op, FunctionType(MutableReferenceType::get(ArithmeticType::INT),
+      CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
           {{MutableReferenceType::get(ArithmeticType::INT)}}, {}).setBuiltin()));
     for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
       for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
@@ -995,6 +995,10 @@ optional<ErrorLoc> ExpressionStatement::check(Context& context) {
   auto res = getType(context, expr);
   if (!res)
     return res.get_error();
+  if (!canDiscard && res.get() != ArithmeticType::VOID)
+    return codeLoc.getError("Expression result of type " + quote(res->get()->getName()) + " discarded");
+  if (canDiscard && res.get() == ArithmeticType::VOID)
+    return codeLoc.getError("Void expression result unnecessarily marked as discarded");
   return none;
 }
 

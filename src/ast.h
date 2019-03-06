@@ -222,6 +222,7 @@ struct ExpressionStatement : Statement {
   NODISCARD virtual optional<ErrorLoc> check(Context&) override;
   virtual unique_ptr<Statement> replace(SType from, SType to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
+  bool canDiscard = false;
 };
 
 struct ForLoopStatement : Statement {

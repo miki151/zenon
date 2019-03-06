@@ -3,7 +3,7 @@
 template <T>
 T get(T a) {
   if (false) {
-    move(a);
+    discard move(a);
   }
   return move(a);
 }

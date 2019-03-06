@@ -1,0 +1,12 @@
+// no_compile
+
+struct A {};
+
+A f() {
+  return A();
+}
+
+int main() {
+  f();
+  return 0;
+}

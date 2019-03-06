@@ -2,7 +2,8 @@
 
 int main() {
   mutable i = 1;
-  const j = ++i;
+  ++i;
+  const j = i;
   return j;
 }
 

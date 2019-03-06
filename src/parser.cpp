@@ -803,6 +803,12 @@ unique_ptr<Statement> parseStatement(Tokens& tokens, bool topLevel) {
             return parseVariableDeclaration(tokens);
           case Keyword::MOVE:
             return parseExpressionAndSemicolon();
+          case Keyword::DISCARD: {
+            tokens.popNext();
+            auto ret = parseExpressionAndSemicolon();
+            ret->canDiscard = true;
+            return ret;
+          }
           default:
             token.codeLoc.error("Unexpected keyword: " + quote(token.value));
             return {};

@@ -39,6 +39,6 @@ int getValue(V<bool, int mutable*, string, char> mutable* w) {
 int main() {
   mutable a = 5;
   mutable v = V<bool, int mutable*, string, char>::a2(&a);
-  getValue(&v);
+  discard getValue(&v);
   return a;
 }
