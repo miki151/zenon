@@ -798,7 +798,7 @@ void FunctionDefinition::addInstance(const Context& callContext, const SFunction
       instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, callTopContext});
       if (!definitionContext.empty()) {
         instances.back().generateBody(body.get());
-        checkBody(callTopContext, *instances.back().body, *instances.back().functionInfo);
+        CHECK(!checkBody(callTopContext, *instances.back().body, *instances.back().functionInfo));
       }
     }
   } else
