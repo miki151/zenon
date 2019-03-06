@@ -50,8 +50,8 @@ class Context : public owned_object<Context> {
   vector<SFunctionInfo> getOperatorType(Operator) const;
   nullable<SFunctionInfo> getBuiltinOperator(Operator, vector<SType> argTypes) const;
   bool canDefaultInitialize(SType) const;
-  void checkNameConflict(CodeLoc loc, const string& name, const string& type) const;
-  void checkNameConflictExcludingFunctions(CodeLoc loc, const string& name, const string& type) const;
+  NODISCARD optional<string> checkNameConflict(const string& name, const string& type) const;
+  NODISCARD optional<string> checkNameConflictExcludingFunctions(const string& name, const string& type) const;
   void addConcept(const string& name, SConcept);
   nullable<SConcept> getConcept(const string& name) const;
   void print() const;

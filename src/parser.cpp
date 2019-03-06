@@ -142,7 +142,7 @@ unique_ptr<Expression> parseStringLiteral(CodeLoc initialLoc, string literal) {
               std::regex_replace(it->str(), std::regex("\\\\([\\{\\}])"), "$1"))), loc);
         } else if (index == 1) {
           loc = loc.plus(0, 2);
-          auto tokens = lex(it->str().substr(1, it->str().size() - 2), loc, "end of expression");
+          auto tokens = lex(it->str().substr(1, it->str().size() - 2), loc, "end of expression").get();
           auto call = BinaryExpression::get(loc, Operator::MEMBER_ACCESS, parseExpression(tokens),
               unique<FunctionCall>(loc, IdentifierInfo("to_string", loc)));
           addElem(std::move(call), loc);

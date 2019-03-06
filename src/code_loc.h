@@ -10,7 +10,6 @@ struct CodeLoc {
   CodeLoc();
   [[noreturn]] void error(const string&) const;
   void check(bool, const string&) const;
-  void checkNoError(optional<string> error) const;
   ErrorLoc getError(string) const;
   CodeLoc plus(int numLines, int numColumns);
 
@@ -22,7 +21,6 @@ struct CodeLoc {
 struct ErrorLoc {
   CodeLoc loc;
   string error;
-  [[noreturn]] void execute() const;
 };
 
 template <typename T>
@@ -30,10 +28,7 @@ class [[nodiscard]] WithErrorLine : public expected<T, ErrorLoc> {
   public:
   using expected<T, ErrorLoc>::expected;
   [[nodiscard]] T get() const {
-    if (!(*this))
-      this->get_error().execute();
-    else
-      return **this;
+    return **this;
   }
   void unpack(optional<T>& value, optional<ErrorLoc>& error) {
     if (*this) {
@@ -67,12 +62,5 @@ class [[nodiscard]] WithError : public expected<T, string> {
       return **this;
     else
       return WithErrorLine<T>(ErrorLoc{loc, this->get_error()});
-  }
-
-  [[nodiscard]] T get(CodeLoc loc) const {
-    if (!(*this))
-      loc.error(this->get_error());
-    else
-      return **this;
   }
 };

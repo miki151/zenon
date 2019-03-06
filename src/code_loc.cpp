@@ -15,19 +15,10 @@ void CodeLoc::check(bool b, const string& e) const {
     error(e);
 }
 
-void CodeLoc::checkNoError(optional<string> e) const {
-  if (e)
-    error(*e);
-}
-
 ErrorLoc CodeLoc::getError(string s) const {
   return ErrorLoc{*this, s};
 }
 
 CodeLoc CodeLoc::plus(int numLines, int numColumns) {
   return CodeLoc(file, line + numLines, column + numColumns);
-}
-
-void ErrorLoc::execute() const {
-  loc.error(error);
 }

@@ -376,17 +376,22 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
   return ret;
 }
 
-void Context::checkNameConflict(CodeLoc loc, const string& name, const string& type) const {
+optional<string> Context::checkNameConflict(const string& name, const string& type) const {
+  if (auto err = checkNameConflictExcludingFunctions(name, type))
+    return err;
   auto desc = type + " " + quote(name);
-  loc.check(!getType(name), desc + " conflicts with an existing type");
-  loc.check(!getVariable(name), desc + " conflicts with an existing variable or function");
-  loc.check(getFunctions(name).empty(), desc + " conflicts with existing function");
+  if (!getFunctions(name).empty())
+    return desc + " conflicts with existing function";
+  return none;
 }
 
-void Context::checkNameConflictExcludingFunctions(CodeLoc loc, const string& name, const string& type) const {
+optional<string> Context::checkNameConflictExcludingFunctions(const string& name, const string& type) const {
   auto desc = type + " " + quote(name);
-  loc.check(!getType(name), desc + " conflicts with an existing type");
-  loc.check(!getVariable(name), desc + " conflicts with an existing variable or function");
+  if (getType(name))
+    return desc + " conflicts with an existing type";
+  if (getVariable(name))
+    return desc + " conflicts with an existing variable or function";
+  return none;
 }
 
 optional<string> Context::addFunction(SFunctionInfo info) {
@@ -453,15 +458,17 @@ WithErrorLine<SFunctionInfo> Context::instantiateFunctionTemplate(CodeLoc codeLo
 
 nullable<SType> Context::BuiltInFunctionInfo::invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const {
   if (argTypes.size() != args.size())
-    loc.error("Expected " + to_string(argTypes.size()) + " arguments to built-in function " + quote(id));
+    return nullptr;
+    //loc.error("Expected " + to_string(argTypes.size()) + " arguments to built-in function " + quote(id));
   for (int i = 0; i < args.size(); ++i)
     if (argTypes[i] != args[i]->getType())
-      argLoc[i].error("Expected argument of type " + quote(argTypes[i]->getName()) + ", got "
-          + quote(args[i]->getName()) + " of type " + quote(args[i]->getType()->getName()));
+      return nullptr;
+      /*argLoc[i].error("Expected argument of type " + quote(argTypes[i]->getName()) + ", got "
+          + quote(args[i]->getName()) + " of type " + quote(args[i]->getType()->getName()));*/
   for (auto t : args)
     if (!t->getMangledName()) {
-      return (SType) CompileTimeValue::get(
-          CompileTimeValue::TemplateFunctionCall{id, args,  returnType, loc, argLoc, *this});
+      return SType(CompileTimeValue::get(
+          CompileTimeValue::TemplateFunctionCall{id, args,  returnType, loc, argLoc, *this}));
     }
   return fun(args).addCodeLoc(loc).get();
 }

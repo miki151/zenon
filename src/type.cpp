@@ -141,31 +141,38 @@ string EnumType::getName(bool withTemplateArguments) const {
   return name;
 }
 
-void EnumType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc, SwitchArgument) const {
+optional<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
   statement.type = SwitchStatement::ENUM;
   statement.targetType = (SType)get_this();
   unordered_set<string> handledElems;
   for (auto& caseElem : statement.caseElems) {
-    caseElem.codeloc.check(caseElem.type.contains<none_t>(), "Expected enum element");
-    caseElem.codeloc.check(contains(elements, caseElem.id), "Element " + quote(caseElem.id) +
-        " not present in enum" + quote(name));
-    caseElem.codeloc.check(!handledElems.count(caseElem.id), "Enum element " + quote(caseElem.id)
-        + " handled more than once in switch statement");
+    if (!caseElem.type.contains<none_t>())
+      return caseElem.codeloc.getError("Expected enum element");
+    if (!contains(elements, caseElem.id))
+      return caseElem.codeloc.getError("Element " + quote(caseElem.id) + " not present in enum" + quote(name));
+    if (handledElems.count(caseElem.id))
+      return caseElem.codeloc.getError("Enum element " + quote(caseElem.id)
+          + " handled more than once in switch statement");
     handledElems.insert(caseElem.id);
-    caseElem.block->check(context);
+    if (auto err = caseElem.block->check(context))
+      return err;
   }
   if (!statement.defaultBlock) {
     vector<string> unhandled;
     for (auto& elem : elements)
       if (!handledElems.count(elem))
         unhandled.push_back(quote(elem));
-    codeLoc.check(unhandled.empty(), quote(name) + " elements " + combine(unhandled, ", ")
-        + " not handled in switch statement");
+    if (!unhandled.empty())
+      return statement.codeLoc.getError(quote(name) + " elements " + combine(unhandled, ", ")
+          + " not handled in switch statement");
   } else {
-    statement.defaultBlock->codeLoc.check(handledElems.size() < elements.size(),
-        "Default switch statement unnecessary when all enum elements are handled");
-    statement.defaultBlock->check(context);
+    if (handledElems.size() == elements.size())
+      return statement.defaultBlock->codeLoc.getError(
+          "Default switch statement unnecessary when all enum elements are handled");
+    if (auto err = statement.defaultBlock->check(context))
+      return err;
   }
+  return none;
 }
 
 FunctionType::FunctionType(SType returnType, vector<Param> p, vector<SType> tpl)
@@ -380,25 +387,26 @@ shared_ptr<StructType> StructType::get(string name) {
   return ret;
 }
 
-void ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc, SwitchArgument) const {
-  underlying->handleSwitchStatement(statement, context, codeLoc, SwitchArgument::REFERENCE);
+optional<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
+  return underlying->handleSwitchStatement(statement, context, SwitchArgument::REFERENCE);
 }
 
 SType ReferenceType::removePointer() const {
   return underlying->removePointer();
 }
 
-void MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, CodeLoc codeLoc, SwitchArgument) const {
-  underlying->handleSwitchStatement(statement, context, codeLoc, SwitchArgument::MUTABLE_REFERENCE);
+optional<ErrorLoc> MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
+  return underlying->handleSwitchStatement(statement, context, SwitchArgument::MUTABLE_REFERENCE);
 }
 
 SType MutableReferenceType::removePointer() const {
   return underlying->removePointer();
 }
 
-void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext, CodeLoc codeLoc,
+optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext,
     SwitchArgument argumentType) const {
-  codeLoc.check(!alternatives.empty(), "Expected a variant or enum type");
+  if (alternatives.empty())
+    return statement.codeLoc.getError("Can't switch on a struct type");
   statement.type = SwitchStatement::VARIANT;
   statement.targetType = (SType)get_this();
   unordered_set<string> handledTypes;
@@ -410,42 +418,54 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
   };
   vector<Context::MovedVarsSnapshot> allMovedVars;
   for (auto& caseElem : statement.caseElems) {
-    caseElem.codeloc.check(!!getAlternativeType(caseElem.id), "Element " + quote(caseElem.id) +
-        " not present in variant " + quote(getName()));
-    caseElem.codeloc.check(!handledTypes.count(caseElem.id), "Variant element " + quote(caseElem.id)
+    if (!getAlternativeType(caseElem.id))
+      return caseElem.codeloc.getError("Element " + quote(caseElem.id) +
+          " not present in variant " + quote(getName()));
+    if (handledTypes.count(caseElem.id))
+      return caseElem.codeloc.getError("Variant element " + quote(caseElem.id)
         + " handled more than once in switch statement");
     handledTypes.insert(caseElem.id);
     auto caseBodyContext = Context::withParent(outsideContext);
     auto realType = getAlternativeType(caseElem.id).get();
     if (realType != ArithmeticType::VOID)
       caseElem.varType = caseElem.VALUE;
-    if (auto caseType = caseElem.getType(outsideContext)) {
-      caseElem.codeloc.check(caseType == realType || caseType->removePointer() == realType,
-          "Can't handle variant element " + quote(caseElem.id) + " of type " + quote(realType->getName()) +
-          " as type " + quote(caseType->getName()));
+    auto caseTypeTmp = caseElem.getType(outsideContext);
+    if (!caseTypeTmp)
+      return caseTypeTmp.get_error();
+    if (auto caseType = caseTypeTmp.get()) {
+      if (caseType != realType && caseType->removePointer() != realType)
+        return caseElem.codeloc.getError(
+            "Can't handle variant element " + quote(caseElem.id) + " of type " +
+            quote(realType->getName()) + " as type " + quote(caseType->getName()));
       if (caseType == MutablePointerType::get(realType)) {
         caseElem.varType = caseElem.POINTER;
-        caseElem.codeloc.check(argumentType == SwitchArgument::MUTABLE_REFERENCE,
-            "Can only bind element to mutable pointer when switch argument is a mutable reference");
-        caseElem.codeloc.check(realType != ArithmeticType::VOID, "Can't bind void element to pointer");
+        if (argumentType != SwitchArgument::MUTABLE_REFERENCE)
+          return caseElem.codeloc.getError(
+              "Can only bind element to mutable pointer when switch argument is a mutable reference");
+        if (realType == ArithmeticType::VOID)
+          return caseElem.codeloc.getError("Can't bind void element to pointer");
         caseBodyContext.addVariable(caseElem.id, MutableReferenceType::get(MutablePointerType::get(realType)));
       } else
       if (caseType == PointerType::get(realType)) {
         caseElem.varType = caseElem.POINTER;
-        caseElem.codeloc.check(argumentType != SwitchArgument::VALUE,
-            "Can only bind element to pointer when switch argument is a reference");
-        caseElem.codeloc.check(realType != ArithmeticType::VOID, "Can't bind void element to pointer");
+        if (argumentType == SwitchArgument::VALUE)
+          return caseElem.codeloc.getError(
+              "Can only bind element to pointer when switch argument is a reference");
+        if (realType == ArithmeticType::VOID)
+          return caseElem.codeloc.getError("Can't bind void element to pointer");
         caseBodyContext.addVariable(caseElem.id, MutableReferenceType::get(PointerType::get(realType)));
       }
     }
     if (caseElem.varType == caseElem.VALUE) {
-      caseElem.codeloc.check(argumentType == SwitchArgument::VALUE || realType->isBuiltinCopyable(outsideContext),
-          "Type " + quote(realType->getName()) + " is not implicitly copyable. "
-          "Try binding to a pointer or move from the variable that you are switching on");
+      if (argumentType != SwitchArgument::VALUE && !realType->isBuiltinCopyable(outsideContext))
+        return caseElem.codeloc.getError(
+            "Type " + quote(realType->getName()) + " is not implicitly copyable. "
+            "Try binding to a pointer or move from the variable that you are switching on");
       caseBodyContext.addVariable(caseElem.id, ReferenceType::get(realType));
     }
     auto movedBeforeTrueSegment = outsideContext.getMovedVarsSnapshot();
-    caseElem.block->check(caseBodyContext);
+    if (auto err = caseElem.block->check(caseBodyContext))
+      return err;
     allMovedVars.push_back(outsideContext.getMovedVarsSnapshot());
     outsideContext.setMovedVars(std::move(movedBeforeTrueSegment));
   }
@@ -456,13 +476,17 @@ void StructType::handleSwitchStatement(SwitchStatement& statement, Context& outs
     for (auto& alternative : alternatives)
       if (!handledTypes.count(alternative.name))
         unhandled.push_back(quote(alternative.name));
-    codeLoc.check(unhandled.empty(), quote(name) + " subtypes " + combine(unhandled, ", ")
+    if (!unhandled.empty())
+      return statement.codeLoc.getError(quote(name) + " subtypes " + combine(unhandled, ", ")
         + " not handled in switch statement");
   } else {
-    statement.defaultBlock->codeLoc.check(handledTypes.size() < alternatives.size(),
-        "Default switch statement unnecessary when all variant cases are handled");
-    statement.defaultBlock->check(outsideContext);
+    if (handledTypes.size() == alternatives.size())
+      return statement.defaultBlock->codeLoc.getError(
+          "Default switch statement unnecessary when all variant cases are handled");
+    if (auto err = statement.defaultBlock->check(outsideContext))
+      return err;
   }
+  return none;
 }
 
 WithError<SType> StructType::getTypeOfMember(const string& name) const {
@@ -605,8 +629,8 @@ Context& Type::getStaticContext() {
   return staticContext;
 }
 
-void Type::handleSwitchStatement(SwitchStatement&, Context&, CodeLoc codeLoc, SwitchArgument) const {
-  codeLoc.error("Can't switch on the value of type " + quote(getName()));
+optional<ErrorLoc> Type::handleSwitchStatement(SwitchStatement& s, Context&, SwitchArgument) const {
+  return s.codeLoc.getError("Can't switch on the value of type " + quote(getName()));
 }
 
 static string getCantSubstituteError(SType param, SType with) {
@@ -757,8 +781,8 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
     }
   }
   for (int i = 0; i < type.templateParams.size(); ++i) {
-    codeLoc.check(type.templateParams[i]->canReplaceBy(templateArgs[i]),
-        getCantSubstituteError(type.templateParams[i], templateArgs[i]));
+    if (!type.templateParams[i]->canReplaceBy(templateArgs[i]))
+      return codeLoc.getError(getCantSubstituteError(type.templateParams[i], templateArgs[i]));
     type = replaceInFunction(type, type.templateParams[i], templateArgs[i]);
     type.templateParams[i] = templateArgs[i];
   }

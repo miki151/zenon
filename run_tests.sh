@@ -46,21 +46,21 @@ function run_test() {
 #echo -n "Running $I Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then
     echo -e "$I: $RED No expected value specified$NC"
-    continue
+    return
   fi
   compile $I $EXPECTED $BINARY_TMP
   if [ "$?" != "0" ]; then
-    continue
+    return
   fi
   if [ "$EXPECTED" = "no_compile" ]; then
 #    echo -e "$GREEN Success$NC"
-    continue
+    return
   fi
   $BINARY_TMP
   RESULT=$?
   if [ "$RESULT" != "$EXPECTED" ]; then
     echo -e "$I: $RED Expected $EXPECTED, got $RESULT$NC"
-    continue
+    return
   fi
 #echo -e "$GREEN Success$NC"
 }

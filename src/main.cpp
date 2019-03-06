@@ -8,6 +8,7 @@
 #include "codegen.h"
 #include "reader.h"
 #include "ProgramOptions.h"
+#include "lsp.h"
 
 auto installDir = INSTALL_DIR;
 
@@ -42,12 +43,24 @@ void initLogging(ofstream& logFile) {
   ErrorLog.addOutput(DebugOutput::toStream(std::cerr));
 }
 
+template <typename T>
+T getOrCompileError(const WithErrorLine<T>& value) {
+  if (value)
+    return *value;
+  else
+    value.get_error().loc.error(value.get_error().error);
+}
+
 int main(int argc, char* argv[]) {
   po::parser flags = getCommandLineFlags();
   if (!flags.parseArgs(argc, argv))
     return -1;
   if (flags["help"].was_set() || argc == 1) {
     std::cout << flags << endl;
+    return 0;
+  }
+  if (flags["lsp"].was_set()) {
+    startLsp();
     return 0;
   }
   auto gccCmd = flags["cpp"].get().string;
@@ -73,10 +86,10 @@ int main(int argc, char* argv[]) {
     if (!program)
       ERROR << program.get_error();
     INFO << "Parsing:\n\n" << program->value;
-    auto tokens = lex(program->value, CodeLoc(path, 0, 0), "end of file");
+    auto tokens = getOrCompileError(lex(program->value, CodeLoc(path, 0, 0), "end of file"));
     auto ast = parse(tokens);
     auto context = createNewContext();
-    auto imported = correctness(ast, context, {installDir}, builtInModule);
+    auto imported = getOrCompileError(correctness(ast, context, {installDir}, builtInModule));
     auto cppCode = codegen(ast, context, installDir + "/codegen_includes/all.h"s, !printCpp);
     if (printCpp) {
       cout << cppCode << endl;

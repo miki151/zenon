@@ -32,7 +32,7 @@ struct Type : public owned_object<Type> {
     REFERENCE,
     MUTABLE_REFERENCE
   };
-  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, SwitchArgument) const;
+  virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const;
   virtual bool isBuiltinCopyable(const Context&) const;
   virtual SType removePointer() const;
   virtual optional<string> getSizeError() const;
@@ -67,7 +67,7 @@ struct ReferenceType : public Type {
   virtual bool canAssign(SType from) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to) const override;
-  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, SwitchArgument) const override;
+  virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual SType removePointer() const override;
 
   static shared_ptr<ReferenceType> get(SType);
@@ -83,7 +83,7 @@ struct MutableReferenceType : public Type {
   virtual bool canAssign(SType from) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to) const override;
-  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, SwitchArgument) const override;
+  virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual SType removePointer() const override;
 
   static shared_ptr<MutableReferenceType> get(SType);
@@ -199,7 +199,7 @@ struct StructType : public Type {
   virtual SType replaceImpl(SType from, SType to) const override;
   virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
-  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, SwitchArgument) const override;
+  virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual optional<string> getSizeError() const override;
   WithError<SType> getTypeOfMember(const string&) const;
   static shared_ptr<StructType> get(string name);
@@ -227,7 +227,7 @@ struct EnumType : public Type {
   EnumType(string name, vector<string> elements);
 
   virtual string getName(bool withTemplateArguments = true) const override;
-  virtual void handleSwitchStatement(SwitchStatement&, Context&, CodeLoc, SwitchArgument) const override;
+  virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
   virtual SType getType() const override;
 

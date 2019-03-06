@@ -38,7 +38,7 @@ static string getOperators() {
   return ret;
 }
 
-Tokens lex(const string& input, CodeLoc initialPos, const string& eofTokenValue) {
+WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string& eofTokenValue) {
   string idLetterFirst = "a-zA-Z";
   string idLetter = idLetterFirst + "0-9_";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
@@ -98,9 +98,8 @@ Tokens lex(const string& input, CodeLoc initialPos, const string& eofTokenValue)
         auto codeLoc = initialPos.plus(lines[tokenPos], columns[tokenPos]);
         auto token = v[index].second(matched);
         if (embedBlock) {
-          if (embedBlock->numBrackets == 0) {
-            codeLoc.check(token == Token(Keyword::OPEN_BLOCK), "Expected " + quote("{") + " after " + quote("embed"));
-          }
+          if (embedBlock->numBrackets == 0 && !(token == Token(Keyword::OPEN_BLOCK)))
+            return codeLoc.getError("Expected " + quote("{") + " after " + quote("embed"));
           if (token == Token(Keyword::OPEN_BLOCK)) {
             if (embedBlock->numBrackets > 0)
               embedBlock->value.append(skipped + matched);
@@ -124,9 +123,8 @@ Tokens lex(const string& input, CodeLoc initialPos, const string& eofTokenValue)
           embedBlock = EmbedBlock { "", 0, codeLoc };
           break;
         }
-        if (!all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); })) {
-          codeLoc.error("Unrecognized token: " + quote(skipped));
-        }
+        if (!all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); }))
+          return codeLoc.getError("Unrecognized token: " + quote(skipped));
         if (auto token = v[index].second(matched)) {
           ret.push_back(*token);
           ret.back().codeLoc = codeLoc;
@@ -142,3 +140,4 @@ Tokens lex(const string& input, CodeLoc initialPos, const string& eofTokenValue)
   ret.push_back(eof);
   return Tokens(ret);
 }
+

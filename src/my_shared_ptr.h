@@ -56,6 +56,10 @@ class nullable {
     elem = std::move(t);
     return *this;
   }
+  nullable& operator = (std::nullptr_t) {
+    elem = none;
+    return *this;
+  }
   explicit operator bool () const {
     return !!elem;
   }
