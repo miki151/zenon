@@ -1,0 +1,21 @@
+// no_compile
+
+template <T>
+struct X {
+  T elem;
+};
+
+template <T>
+X<T> g() {
+  embed {
+  }
+}
+
+template <T>
+void f() {
+  const x = g<void>();
+}
+
+int main() {
+  return 0;
+}

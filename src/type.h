@@ -20,12 +20,12 @@ struct Type : public owned_object<Type> {
   virtual SType getUnderlying() const;
   virtual bool canAssign(SType from) const;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const;
-  SType replace(SType from, SType to) const;
+  SType replace(SType from, SType to, ErrorBuffer&) const;
   virtual bool canReplaceBy(SType) const;
-  virtual SType replaceImpl(SType from, SType to) const;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const;
   virtual SType getType() const;
   virtual ~Type() {}
-  virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const;
+  virtual WithErrorLine<SType> instantiate(const Context&, vector<SType> templateArgs, CodeLoc) const;
   Context& getStaticContext();
   enum class SwitchArgument {
     VALUE,
@@ -66,7 +66,7 @@ struct ReferenceType : public Type {
   virtual SType getUnderlying() const override;
   virtual bool canAssign(SType from) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
-  virtual SType replaceImpl(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual SType removePointer() const override;
 
@@ -82,7 +82,7 @@ struct MutableReferenceType : public Type {
   virtual SType getUnderlying() const override;
   virtual bool canAssign(SType from) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
-  virtual SType replaceImpl(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual SType removePointer() const override;
 
@@ -95,7 +95,7 @@ struct PointerType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
   virtual optional<string> getMangledName() const override;
-  virtual SType replaceImpl(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
   virtual SType removePointer() const override;
@@ -109,7 +109,7 @@ struct MutablePointerType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
   virtual optional<string> getMangledName() const override;
-  virtual SType replaceImpl(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
   virtual SType removePointer() const override;
@@ -137,7 +137,7 @@ struct CompileTimeValue : public Type {
   virtual string getCodegenName() const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual bool canReplaceBy(SType) const override;
-  virtual SType replaceImpl(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual SType getType() const override;
   virtual optional<string> getMangledName() const override;
   struct TemplateValue {
@@ -196,8 +196,8 @@ struct StructType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
   virtual optional<string> getMangledName() const override;
-  virtual SType replaceImpl(SType from, SType to) const override;
-  virtual WithError<SType> instantiate(const Context&, vector<SType> templateArgs) const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
+  virtual WithErrorLine<SType> instantiate(const Context&, vector<SType> templateArgs, CodeLoc) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual optional<string> getSizeError() const override;
@@ -239,7 +239,7 @@ struct ArrayType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
   virtual optional<string> getMangledName() const override;
-  virtual SType replaceImpl(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   static shared_ptr<ArrayType> get(SType, SCompileTimeValue size);
   virtual bool isBuiltinCopyable(const Context&) const override;
@@ -253,7 +253,7 @@ struct SliceType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
   virtual optional<string> getMangledName() const override;
-  virtual SType replaceImpl(SType from, SType to) const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   static shared_ptr<SliceType> get(SType);
   virtual bool isBuiltinCopyable(const Context&) const override;
@@ -305,8 +305,8 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
 struct Concept : public owned_object<Concept> {
   Concept(const string& name);
   string getName() const;
-  SConcept translate(vector<SType> params) const;
-  SConcept replace(SType from, SType to) const;
+  SConcept translate(vector<SType> params, ErrorBuffer&) const;
+  SConcept replace(SType from, SType to, ErrorBuffer&) const;
   const vector<SType>& getParams() const;
   const Context& getContext() const;
   vector<SType>& modParams();
@@ -324,8 +324,8 @@ class Context;
 struct IdentifierInfo;
 extern WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo&, CodeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing = {});
-extern FunctionType replaceInFunction(FunctionType, SType from, SType to);
-extern SFunctionInfo replaceInFunction(const SFunctionInfo&, SType from, SType to);
+extern FunctionType replaceInFunction(FunctionType, SType from, SType to, ErrorBuffer&);
+extern SFunctionInfo replaceInFunction(const SFunctionInfo&, SType from, SType to, ErrorBuffer&);
 extern string joinTemplateParams(const vector<SType>&);
 extern string joinTypeList(const vector<SType>&);
 extern string joinTemplateParamsCodegen(const vector<SType>&);

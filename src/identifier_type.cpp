@@ -9,11 +9,11 @@ IdentifierType::IdentifierType(SType type) {
   parts.push_back({std::move(type)});
 }
 
-IdentifierType IdentifierType::replace(SType from, SType to) const {
+IdentifierType IdentifierType::replace(SType from, SType to, ErrorBuffer& errors) const {
   IdentifierType ret;
   for (auto& part : parts)
     ret.parts.push_back(part.name.visit(
-        [&](const SType& type) -> Part { return Part { type->replace(from, to) }; },
+        [&](const SType& type) -> Part { return Part { type->replace(from, to, errors) }; },
         [&](const string& name) -> Part { return Part { name }; }
     ));
   return ret;

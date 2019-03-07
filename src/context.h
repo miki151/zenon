@@ -31,7 +31,7 @@ class Context : public owned_object<Context> {
   WithError<SType> getTypeOfVariable(const string&) const;
   optional<string> setVariableAsMoved(const string&);
   void addVariable(const string& ident, SType);
-  void replace(SType from, SType to);
+  void replace(SType from, SType to, ErrorBuffer&);
   nullable<SType> getReturnType() const;
   void setReturnType(SType);
   void addType(const string& name, SType);

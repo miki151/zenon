@@ -64,8 +64,8 @@ nullable<SType> Constant::eval(const Context&) const {
   return (SType) value;
 }
 
-unique_ptr<Expression> Constant::replace(SType from, SType to) const {
-  return unique<Constant>(codeLoc, value->replace(from, to).dynamicCast<CompileTimeValue>());
+unique_ptr<Expression> Constant::replace(SType from, SType to, ErrorBuffer& errors) const {
+  return unique<Constant>(codeLoc, value->replace(from, to, errors).dynamicCast<CompileTimeValue>());
 }
 
 WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
@@ -88,7 +88,7 @@ nullable<SType> Variable::eval(const Context& context) const {
     return nullptr;
 }
 
-unique_ptr<Expression> Variable::replace(SType from, SType to) const {
+unique_ptr<Expression> Variable::replace(SType from, SType to, ErrorBuffer& errors) const {
   return unique<Variable>(codeLoc, identifier);
 }
 
@@ -263,8 +263,8 @@ nullable<SType> BinaryExpression::eval(const Context& context) const {
   return nullptr;
 }
 
-unique_ptr<Expression> BinaryExpression::replace(SType from, SType to) const {
-  return get(codeLoc, op, expr[0]->replace(from, to), expr[1]->replace(from, to));
+unique_ptr<Expression> BinaryExpression::replace(SType from, SType to, ErrorBuffer& errors) const {
+  return get(codeLoc, op, expr[0]->replace(from, to, errors), expr[1]->replace(from, to, errors));
 }
 
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
@@ -296,8 +296,8 @@ nullable<SType> UnaryExpression::eval(const Context& context) const {
     return nullptr;
 }
 
-unique_ptr<Expression> UnaryExpression::replace(SType from, SType to) const {
-  return unique<UnaryExpression>(codeLoc, op, expr->replace(from, to));
+unique_ptr<Expression> UnaryExpression::replace(SType from, SType to, ErrorBuffer& errors) const {
+  return unique<UnaryExpression>(codeLoc, op, expr->replace(from, to, errors));
 }
 
 optional<ErrorLoc> StatementBlock::check(Context& context) {
@@ -308,10 +308,10 @@ optional<ErrorLoc> StatementBlock::check(Context& context) {
   return none;
 }
 
-unique_ptr<Statement> StatementBlock::replace(SType from, SType to) const {
+unique_ptr<Statement> StatementBlock::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto ret = unique<StatementBlock>(codeLoc);
   for (auto& elem : elems)
-    ret->elems.push_back(elem->replace(from, to));
+    ret->elems.push_back(elem->replace(from, to, errors));
   return ret;
 }
 
@@ -346,12 +346,12 @@ optional<ErrorLoc> IfStatement::check(Context& context) {
   return none;
 }
 
-unique_ptr<Statement> IfStatement::replace(SType from, SType to) const {
+unique_ptr<Statement> IfStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
   return unique<IfStatement>(codeLoc,
-      declaration ? cast<VariableDeclaration>(declaration->replace(from, to)) : nullptr,
-      condition ? condition->replace(from, to) : nullptr,
-      ifTrue->replace(from, to),
-      ifFalse ? ifFalse->replace(from, to) : nullptr);
+      declaration ? cast<VariableDeclaration>(declaration->replace(from, to, errors)) : nullptr,
+      condition ? condition->replace(from, to, errors) : nullptr,
+      ifTrue->replace(from, to, errors),
+      ifFalse ? ifFalse->replace(from, to, errors) : nullptr);
 }
 
 optional<ErrorLoc> VariableDeclaration::check(Context& context) {
@@ -398,10 +398,11 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context) {
   return none;
 }
 
-unique_ptr<Statement> VariableDeclaration::replace(SType from, SType to) const {
-  auto ret = unique<VariableDeclaration>(codeLoc, none, identifier, initExpr ? initExpr->replace(from, to) : nullptr);
+unique_ptr<Statement> VariableDeclaration::replace(SType from, SType to, ErrorBuffer& errors) const {
+  auto ret = unique<VariableDeclaration>(codeLoc, none, identifier,
+      initExpr ? initExpr->replace(from, to, errors) : nullptr);
   ret->isMutable = isMutable;
-  ret->realType = realType->replace(from, to);
+  ret->realType = realType->replace(from, to, errors);
   return ret;
 }
 
@@ -420,8 +421,8 @@ optional<ErrorLoc> ReturnStatement::check(Context& context) {
   return none;
 }
 
-unique_ptr<Statement> ReturnStatement::replace(SType from, SType to) const {
-  return unique<ReturnStatement>(codeLoc, expr->replace(from, to));
+unique_ptr<Statement> ReturnStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
+  return unique<ReturnStatement>(codeLoc, expr->replace(from, to, errors));
 }
 
 optional<ErrorLoc> Statement::addToContext(Context&) {
@@ -436,7 +437,7 @@ bool Statement::hasReturnStatement(const Context&) const {
   return false;
 }
 
-unique_ptr<Statement> Statement::replace(SType from, SType to) const {
+unique_ptr<Statement> Statement::replace(SType from, SType to, ErrorBuffer& errors) const {
   fail();
 }
 
@@ -478,7 +479,10 @@ NODISCARD static WithErrorLine<vector<SConcept>> applyConcept(Context& from, con
         } else
           return requirement.codeLoc.getError("Expected a type argument");
       }
-      auto translated = concept->translate(translatedParams);
+      ErrorBuffer errors;
+      auto translated = concept->translate(translatedParams, errors);
+      if (!errors.empty())
+        return errors[0];
       from.merge(translated->getContext());
       ret.push_back(translated);
     } else
@@ -777,10 +781,12 @@ void FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody) 
   auto templateParams = functionInfo->parent->type.templateParams;
   for (int i = 0; i < functionInfo->type.templateParams.size(); ++i) {
     StatementBlock* useBody = (i == 0) ? parentBody : body.get();
+    ErrorBuffer errors;
     body = cast<StatementBlock>(
-        useBody->replace(templateParams[i], functionInfo->type.templateParams[i]));
+        useBody->replace(templateParams[i], functionInfo->type.templateParams[i], errors));
     for (int j = i + 1; j < templateParams.size(); ++j)
-      templateParams[j] = templateParams[j]->replace(templateParams[i], functionInfo->type.templateParams[i]);
+      templateParams[j] = templateParams[j]->replace(templateParams[i], functionInfo->type.templateParams[i], errors);
+    CHECK(errors.empty());
   }
   CHECK(!!body);
 }
@@ -1002,8 +1008,8 @@ optional<ErrorLoc> ExpressionStatement::check(Context& context) {
   return none;
 }
 
-unique_ptr<Statement> ExpressionStatement::replace(SType from, SType to) const {
-  return unique<ExpressionStatement>(expr->replace(from, to));
+unique_ptr<Statement> ExpressionStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
+  return unique<ExpressionStatement>(expr->replace(from, to, errors));
 }
 
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
@@ -1101,16 +1107,16 @@ nullable<SType> FunctionCall::eval(const Context& context) const {
   return nullptr;
 }
 
-unique_ptr<Expression> FunctionCall::replace(SType from, SType to) const {
+unique_ptr<Expression> FunctionCall::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto ret = unique<FunctionCall>(codeLoc, Private{});
   ret->identifier = identifier;
   for (auto& arg : arguments)
-    ret->arguments.push_back(arg->replace(from, to));
+    ret->arguments.push_back(arg->replace(from, to, errors));
   ret->templateArgs.emplace();
   for (auto& arg : *templateArgs)
-    ret->templateArgs->push_back(arg->replace(from, to));
+    ret->templateArgs->push_back(arg->replace(from, to, errors));
   ret->argNames = argNames;
-  ret->identifierType = identifierType->replace(from, to);
+  ret->identifierType = identifierType->replace(from, to, errors);
   return ret;
 }
 
@@ -1125,13 +1131,13 @@ optional<ErrorLoc> SwitchStatement::check(Context& context) {
     return t.get_error();
 }
 
-unique_ptr<Statement> SwitchStatement::replace(SType from, SType to) const {
-  auto ret = unique<SwitchStatement>(codeLoc, expr->replace(from,to));
-  ret->targetType = targetType->replace(from, to);
+unique_ptr<Statement> SwitchStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
+  auto ret = unique<SwitchStatement>(codeLoc, expr->replace(from, to, errors));
+  ret->targetType = targetType->replace(from, to, errors);
   if (defaultBlock)
-    ret->defaultBlock = cast<StatementBlock>(defaultBlock->replace(from, to));
+    ret->defaultBlock = cast<StatementBlock>(defaultBlock->replace(from, to, errors));
   for (auto& elem : caseElems)
-    ret->caseElems.push_back(elem.replace(from, to));
+    ret->caseElems.push_back(elem.replace(from, to, errors));
   return ret;
 }
 
@@ -1300,9 +1306,9 @@ WithErrorLine<SType> MoveExpression::getTypeImpl(Context& context) {
   return type.get();
 }
 
-unique_ptr<Expression> MoveExpression::replace(SType from, SType to) const {
+unique_ptr<Expression> MoveExpression::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto ret = unique<MoveExpression>(codeLoc, identifier);
-  ret->type = type->replace(from, to);
+  ret->type = type->replace(from, to, errors);
   return ret;
 }
 
@@ -1321,7 +1327,7 @@ Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
     return TopLevelAllowance::CAN;
 }
 
-unique_ptr<Statement> EmbedStatement::replace(SType from, SType to) const {
+unique_ptr<Statement> EmbedStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto ret = unique<EmbedStatement>(codeLoc, value);
   ret->replacements = replacements;
   ret->replacements.push_back({from, to});
@@ -1348,12 +1354,12 @@ optional<ErrorLoc> ForLoopStatement::check(Context& context) {
   return body->check(bodyContext);
 }
 
-unique_ptr<Statement> ForLoopStatement::replace(SType from, SType to) const {
+unique_ptr<Statement> ForLoopStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
   return unique<ForLoopStatement>(codeLoc,
-      init->replace(from, to),
-      cond->replace(from, to),
-      iter->replace(from, to),
-      body->replace(from, to));
+      init->replace(from, to, errors),
+      cond->replace(from, to, errors),
+      iter->replace(from, to, errors),
+      body->replace(from, to, errors));
 }
 
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
@@ -1370,10 +1376,10 @@ optional<ErrorLoc> WhileLoopStatement::check(Context& context) {
   return body->check(bodyContext);
 }
 
-unique_ptr<Statement> WhileLoopStatement::replace(SType from, SType to) const {
+unique_ptr<Statement> WhileLoopStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
   return unique<WhileLoopStatement>(codeLoc,
-      cond->replace(from, to),
-      body->replace(from, to));
+      cond->replace(from, to, errors),
+      body->replace(from, to, errors));
 }
 
 ImportStatement::ImportStatement(CodeLoc l, string p, bool pub, bool isBuiltIn)
@@ -1399,9 +1405,12 @@ optional<ErrorLoc> ImportStatement::processImport(Context& context, ImportCache&
   if (!cache.contains(path)) {
     INFO << "Parsing import " << path;
     cache.pushCurrentImport(path, isBuiltIn);
-    if (auto tokens = lex(content, CodeLoc(path, 0, 0), "end of file"))
-      ast = unique<AST>(parse(*tokens));
-    else
+    if (auto tokens = lex(content, CodeLoc(path, 0, 0), "end of file")) {
+      if (auto parsed = parse(std::move(*tokens)))
+        ast = unique<AST>(std::move(*parsed));
+      else
+        return parsed.get_error();
+    } else
       return tokens.get_error();
     if (!isBuiltIn && !cache.isCurrentlyBuiltIn())
       addBuiltInImport(*ast);
@@ -1489,9 +1498,9 @@ nullable<SType> EnumConstant::eval(const Context& context) const {
   fail();
 }
 
-unique_ptr<Expression> EnumConstant::replace(SType from, SType to) const {
+unique_ptr<Expression> EnumConstant::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto ret = unique<EnumConstant>(codeLoc, enumName, enumElement);
-  ret->enumType = enumType->replace(from, to);
+  ret->enumType = enumType->replace(from, to, errors);
   return ret;
 }
 
@@ -1593,15 +1602,15 @@ optional<ErrorLoc> RangedLoopStatement::check(Context& context) {
   return body->check(bodyContext);
 }
 
-unique_ptr<Statement> RangedLoopStatement::replace(SType from, SType to) const {
+unique_ptr<Statement> RangedLoopStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto ret = unique<RangedLoopStatement>(codeLoc,
-      cast<VariableDeclaration>(init->replace(from, to)),
-      container->replace(from, to),
-      body->replace(from, to));
-  ret->condition = condition->replace(from, to);
-  ret->increment = increment->replace(from, to);
+      cast<VariableDeclaration>(init->replace(from, to, errors)),
+      container->replace(from, to, errors),
+      body->replace(from, to, errors));
+  ret->condition = condition->replace(from, to, errors);
+  ret->increment = increment->replace(from, to, errors);
   ret->containerName = containerName;
-  ret->containerEnd = cast<VariableDeclaration>(containerEnd->replace(from, to));
+  ret->containerEnd = cast<VariableDeclaration>(containerEnd->replace(from, to, errors));
   return ret;
 }
 
@@ -1611,7 +1620,7 @@ optional<ErrorLoc> BreakStatement::check(Context& context) {
   return none;
 }
 
-unique_ptr<Statement> BreakStatement::replace(SType from, SType to) const {
+unique_ptr<Statement> BreakStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
   return unique<BreakStatement>(codeLoc);
 }
 
@@ -1621,7 +1630,7 @@ optional<ErrorLoc> ContinueStatement::check(Context& context) {
   return none;
 }
 
-unique_ptr<Statement> ContinueStatement::replace(SType from, SType to) const {
+unique_ptr<Statement> ContinueStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
   return unique<ContinueStatement>(codeLoc);
 }
 
@@ -1645,10 +1654,10 @@ WithErrorLine<SType> ArrayLiteral::getTypeImpl(Context& context) {
   return SType(ArrayType::get(ret, CompileTimeValue::get((int)contents.size())));
 }
 
-unique_ptr<Expression> ArrayLiteral::replace(SType from, SType to) const {
+unique_ptr<Expression> ArrayLiteral::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto ret = unique<ArrayLiteral>(codeLoc);
   for (auto& elem : contents)
-    ret->contents.push_back(elem->replace(from, to));
+    ret->contents.push_back(elem->replace(from, to, errors));
   return ret;
 }
 
@@ -1680,13 +1689,13 @@ WithErrorLine<nullable<SType>> SwitchStatement::CaseElem::getType(const Context&
   );
 }
 
-SwitchStatement::CaseElem SwitchStatement::CaseElem::replace(SType from, SType to) const {
+SwitchStatement::CaseElem SwitchStatement::CaseElem::replace(SType from, SType to, ErrorBuffer& errors) const {
   CaseElem ret;
   ret.codeloc = codeloc;
   ret.id = id;
-  ret.block = cast<StatementBlock>(block->replace(from, to));
+  ret.block = cast<StatementBlock>(block->replace(from, to, errors));
   if (auto t = type.getReferenceMaybe<SType>())
-    ret.type = (*t)->replace(from, to);
+    ret.type = (*t)->replace(from, to, errors);
   else
     ret.type = type;
   return ret;

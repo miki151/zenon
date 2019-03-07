@@ -519,30 +519,32 @@ void StructType::updateInstantations() {
     type->staticContext.deepCopyFrom(staticContext);
     type->alternatives = alternatives;
     type->members = members;
+    ErrorBuffer errors;
     for (int i = 0; i < templateParams.size(); ++i) {
-      type->staticContext.replace(templateParams[i], type->templateParams[i]);
+      type->staticContext.replace(templateParams[i], type->templateParams[i], errors);
       for (auto& alternative : type->alternatives)
-        alternative.type = alternative.type->replace(templateParams[i], type->templateParams[i]);
+        alternative.type = alternative.type->replace(templateParams[i], type->templateParams[i], errors);
       for (auto& member : type->members)
-        member.type = member.type->replace(templateParams[i], type->templateParams[i]);
+        member.type = member.type->replace(templateParams[i], type->templateParams[i], errors);
     }
+    CHECK(errors.empty());
   }
 }
 
-SType Type::replace(SType from, SType to) const {
+SType Type::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto self = get_this().get();
   if (from == self) {
     CHECK(canReplaceBy(to));
     return to;
   } else
-    return replaceImpl(from, to);
+    return replaceImpl(from, to, errors);
 }
 
 bool Type::canReplaceBy(SType) const {
   return false;
 }
 
-SType Type::replaceImpl(SType, SType) const {
+SType Type::replaceImpl(SType, SType, ErrorBuffer&) const {
   return get_this().get();
 }
 
@@ -550,32 +552,33 @@ SType Type::getType() const {
   return ArithmeticType::ANY_TYPE;
 }
 
-SType ReferenceType::replaceImpl(SType from, SType to) const {
-  return ReferenceType::get(underlying->replace(from, to));
+SType ReferenceType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  return ReferenceType::get(underlying->replace(from, to, errors));
 }
 
-SType MutableReferenceType::replaceImpl(SType from, SType to) const {
-  return MutableReferenceType::get(underlying->replace(from, to));
+SType MutableReferenceType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  return MutableReferenceType::get(underlying->replace(from, to, errors));
 }
 
-SType PointerType::replaceImpl(SType from, SType to) const {
-  return PointerType::get(underlying->replace(from, to));
+SType PointerType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  return PointerType::get(underlying->replace(from, to, errors));
 }
 
-SType MutablePointerType::replaceImpl(SType from, SType to) const {
-  return MutablePointerType::get(underlying->replace(from, to));
+SType MutablePointerType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  return MutablePointerType::get(underlying->replace(from, to, errors));
 }
 
-static void checkNonVoidMember (const SType& type, const SType& to) {
+static void checkNonVoidMember(const SType& type, const SType& to, ErrorBuffer& errors) {
   if (auto param = type.dynamicCast<TemplateParameterType>())
-    param->declarationLoc.check(to != ArithmeticType::VOID,
-        "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
+    if (to == ArithmeticType::VOID)
+      errors.push_back(param->declarationLoc.getError(
+          "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName())));
 }
 
-SType StructType::replaceImpl(SType from, SType to) const {
+SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   vector<SType> newTemplateParams;
   for (auto& param : templateParams)
-    newTemplateParams.push_back(param->replace(from, to));
+    newTemplateParams.push_back(param->replace(from, to, errors));
   auto ret = parent->getInstance(newTemplateParams);
   // This is how we check if instantiate gave us a new type to fill
   if (ret->templateParams != newTemplateParams) {
@@ -584,45 +587,45 @@ SType StructType::replaceImpl(SType from, SType to) const {
     ret->staticContext.deepCopyFrom(staticContext);
     ret->alternatives = alternatives;
     for (auto& alternative : ret->alternatives) {
-      checkNonVoidMember(alternative.type, to);
-      alternative.type = alternative.type->replace(from, to);
+      checkNonVoidMember(alternative.type, to, errors);
+      alternative.type = alternative.type->replace(from, to, errors);
     }
     ret->members = members;
     for (auto& members : ret->members) {
-      checkNonVoidMember(members.type, to);
-      members.type = members.type->replace(from, to);
+      checkNonVoidMember(members.type, to, errors);
+      members.type = members.type->replace(from, to, errors);
     }
     ret->requirements = requirements;
     for (auto& concept : ret->requirements)
-      concept = concept->replace(from, to);
-    ret->staticContext.replace(from, to);
+      concept = concept->replace(from, to, errors);
+    ret->staticContext.replace(from, to, errors);
   } else
     INFO << "Found instantiated: " << ret->getName();
   return ret;
 }
 
-FunctionType replaceInFunction(FunctionType type, SType from, SType to) {
+FunctionType replaceInFunction(FunctionType type, SType from, SType to, ErrorBuffer& errors) {
   if (type.parentType)
-    type.parentType = type.parentType->replace(from, to);
-  type.retVal = type.retVal->replace(from, to);
+    type.parentType = type.parentType->replace(from, to, errors);
+  type.retVal = type.retVal->replace(from, to, errors);
   for (auto& param : type.params)
-    param.type = param.type->replace(from, to);
+    param.type = param.type->replace(from, to, errors);
   for (auto& param : type.templateParams)
-    param = param->replace(from, to);
+    param = param->replace(from, to, errors);
   for (auto& concept : type.requirements)
-    concept = concept->replace(from, to);
+    concept = concept->replace(from, to, errors);
   return type;
 }
 
-SFunctionInfo replaceInFunction(const SFunctionInfo& fun, SType from, SType to) {
-  return FunctionInfo::getInstance(fun->id, replaceInFunction(fun->type, from, to), fun);
+SFunctionInfo replaceInFunction(const SFunctionInfo& fun, SType from, SType to, ErrorBuffer& errors) {
+  return FunctionInfo::getInstance(fun->id, replaceInFunction(fun->type, from, to, errors), fun);
 }
 
-WithError<SType> Type::instantiate(const Context& context, vector<SType> templateArgs) const {
+WithErrorLine<SType> Type::instantiate(const Context& context, vector<SType> templateArgs, CodeLoc loc) const {
   if (templateArgs.empty())
     return get_this().get();
   else
-    return "Type " + quote(getName()) + " is not a template";
+    return loc.getError("Type " + quote(getName()) + " is not a template");
 }
 
 Context& Type::getStaticContext() {
@@ -641,19 +644,22 @@ static string getCantSubstituteError(SType param, SType with) {
   return ret;
 }
 
-WithError<SType> StructType::instantiate(const Context& context, vector<SType> templateArgs) const {
+WithErrorLine<SType> StructType::instantiate(const Context& context, vector<SType> templateArgs, CodeLoc loc) const {
   CHECK(parent == this) << "Struct instatiated a second time?";
   if (templateArgs.size() != templateParams.size())
-    return "Wrong number of template parameters for type " + getName();
+    return loc.getError("Wrong number of template parameters for type " + getName());
   auto ret = get_this().get().dynamicCast<StructType>();
   for (int i = 0; i < templateParams.size(); ++i) {
     if (!ret->templateParams[i]->canReplaceBy(templateArgs[i]))
-      return getCantSubstituteError(templateParams[i], templateArgs[i]);
-    ret = ret->replace(ret->templateParams[i], templateArgs[i]).dynamicCast<StructType>();
+      return loc.getError(getCantSubstituteError(templateParams[i], templateArgs[i]));
+    ErrorBuffer errors;
+    ret = ret->replace(ret->templateParams[i], templateArgs[i], errors).dynamicCast<StructType>();
+    if (!errors.empty())
+      return errors[0];
   }
   for (auto& concept : ret.dynamicCast<StructType>()->requirements)
     if (auto error = context.getMissingFunctions(*concept, {}))
-      return *error;
+      return loc.getError(*error);
   return (SType) ret;
 }
 
@@ -783,7 +789,10 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
   for (int i = 0; i < type.templateParams.size(); ++i) {
     if (!type.templateParams[i]->canReplaceBy(templateArgs[i]))
       return codeLoc.getError(getCantSubstituteError(type.templateParams[i], templateArgs[i]));
-    type = replaceInFunction(type, type.templateParams[i], templateArgs[i]);
+    ErrorBuffer errors;
+    type = replaceInFunction(type, type.templateParams[i], templateArgs[i], errors);
+    if (!errors.empty())
+      return errors[0];
     type.templateParams[i] = templateArgs[i];
   }
   for (auto& fun : existing)
@@ -808,23 +817,23 @@ string Concept::getName() const {
   return name + joinTemplateParams(params);
 }
 
-SConcept Concept::translate(vector<SType> newParams) const {
+SConcept Concept::translate(vector<SType> newParams, ErrorBuffer& errors) const {
   auto ret = shared<Concept>(name);
   ret->context.deepCopyFrom(context);
   ret->params = newParams;
   CHECK(params.size() == newParams.size());
   for (int i = 0; i < params.size(); ++i)
-    ret->context.replace(params[i], newParams[i]);
+    ret->context.replace(params[i], newParams[i], errors);
   return ret;
 }
 
-SConcept Concept::replace(SType from, SType to) const {
+SConcept Concept::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto ret = shared<Concept>(name);
   ret->context.deepCopyFrom(context);
   ret->params = params;
   for (auto& param : ret->params)
-    param = param->replace(from, to);
-  ret->context.replace(from, to);
+    param = param->replace(from, to, errors);
+  ret->context.replace(from, to, errors);
   return ret;
 }
 
@@ -896,8 +905,8 @@ optional<string> ArrayType::getMangledName() const {
   return none;
 }
 
-SType ArrayType::replaceImpl(SType from, SType to) const {
-  return get(underlying->replace(from, to), size->replace(from, to).dynamicCast<CompileTimeValue>());
+SType ArrayType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  return get(underlying->replace(from, to, errors), size->replace(from, to, errors).dynamicCast<CompileTimeValue>());
 }
 
 shared_ptr<ArrayType> ArrayType::get(SType type, SCompileTimeValue size) {
@@ -1030,18 +1039,18 @@ bool CompileTimeValue::canReplaceBy(SType t) const {
   return false;
 }
 
-SType CompileTimeValue::replaceImpl(SType from, SType to) const {
+SType CompileTimeValue::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   return value.visit(
       [&](const TemplateValue& value) {
-        return CompileTimeValue::getTemplateValue(value.type->replace(from, to), value.name);
+        return CompileTimeValue::getTemplateValue(value.type->replace(from, to, errors), value.name);
       },
       [&](const TemplateExpression& value) {
         return ::eval(value.op, transform(value.args,
-            [&](const SType& t){ return t->replace(from, to); })).get();
+            [&](const SType& t){ return t->replace(from, to, errors); })).get();
       },
       [&](const TemplateFunctionCall& value) {
         return value.functionInfo.invokeFunction(value.name, value.loc, transform(value.args,
-            [&](const SType& t){ return t->replace(from, to); }), value.argLoc).get();
+            [&](const SType& t){ return t->replace(from, to, errors); }), value.argLoc).get();
       },
       [&](const auto&) { return get_this().get();}
   );
@@ -1061,8 +1070,8 @@ optional<string> SliceType::getMangledName() const {
   return none;
 }
 
-SType SliceType::replaceImpl(SType from, SType to) const {
-  return get(underlying->replace(from, to));
+SType SliceType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  return get(underlying->replace(from, to, errors));
 }
 
 optional<string> SliceType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {

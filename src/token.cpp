@@ -130,20 +130,11 @@ void Tokens::rewind(Tokens::Bookmark b){
   index = b;
 }
 
-void Tokens::error(const string& e) const {
-  auto& lastToken = empty() ? data[index - 1] : data[index];
-  lastToken.codeLoc.error(e);
-}
-
-void Tokens::check(bool b, const string& e) const {
-  if (!b)
-    error(e);
-}
-
-Token Tokens::eat(Token t) {
+WithErrorLine<Token> Tokens::eat(Token t) {
   auto expected = "Expected "s + quote(getString(t));
   auto token = peek();
-  check(token == t, expected + ", got " + quote(token.value));
+  if (!(token == t))
+    return peek().codeLoc.getError(expected + ", got " + quote(token.value));
   return popNext();
 }
 

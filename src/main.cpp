@@ -43,12 +43,17 @@ void initLogging(ofstream& logFile) {
   ErrorLog.addOutput(DebugOutput::toStream(std::cerr));
 }
 
+[[noreturn]] static void exitWithError(CodeLoc loc, const string& e) {
+  ErrorLog.get() << loc.file << ": " << "Line " << loc.line + 1 << ", column " << loc.column + 1 << ": " << e;
+  exit(-1);
+}
+
 template <typename T>
-T getOrCompileError(const WithErrorLine<T>& value) {
+T getOrCompileError(WithErrorLine<T> value) {
   if (value)
-    return *value;
+    return std::move(*value);
   else
-    value.get_error().loc.error(value.get_error().error);
+    exitWithError(value.get_error().loc, value.get_error().error);
 }
 
 int main(int argc, char* argv[]) {
@@ -84,10 +89,10 @@ int main(int argc, char* argv[]) {
     finished.insert(path);
     auto program = readFromFile(path.c_str());
     if (!program)
-      ERROR << program.get_error();
+      ErrorLog.get() << program.get_error();
     INFO << "Parsing:\n\n" << program->value;
     auto tokens = getOrCompileError(lex(program->value, CodeLoc(path, 0, 0), "end of file"));
-    auto ast = parse(tokens);
+    auto ast = getOrCompileError(parse(tokens));
     auto context = createNewContext();
     auto imported = getOrCompileError(correctness(ast, context, {installDir}, builtInModule));
     auto cppCode = codegen(ast, context, installDir + "/codegen_includes/all.h"s, !printCpp);

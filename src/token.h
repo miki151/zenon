@@ -104,9 +104,7 @@ class Tokens {
   using Bookmark = int;
   Bookmark getBookmark() const;
   void rewind(Bookmark);
-  void error(const string&) const;
-  void check(bool, const string&) const;
-  Token eat(Token);
+  NODISCARD WithErrorLine<Token> eat(Token);
   optional<Token> eatMaybe(Token);
 
   private:

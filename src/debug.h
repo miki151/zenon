@@ -22,7 +22,6 @@ using std::chrono::milliseconds;
 
 #define FATAL FatalLog.get() << "FATAL " << __FILE__ << ":" << __LINE__ << " "
 #define INFO InfoLog.get() << __FILE__ << ":" <<  __LINE__ << " "
-#define ERROR ErrorLog.get()// << __FILE__ << ":" <<  __LINE__ << " "
 #define CHECK(exp) if (!(exp)) FATAL << ": " << #exp << " is false. "
 #define CHECK_SYNTAX(exp) if (!(exp)) ERROR << ": " << #exp << " is false. "
 //#define CHECKEQ(exp, exp2) if ((exp) != (exp2)) FATAL << __FILE__ << ":" << __LINE__ << ": " << #exp << " = " << #exp2 << " is false. " << exp << " " << exp2

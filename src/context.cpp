@@ -211,17 +211,17 @@ void Context::setBreakAllowed() {
   state->breakAllowed = true;
 }
 
-void Context::replace(SType from, SType to) {
+void Context::replace(SType from, SType to, ErrorBuffer& errors) {
   for (auto& varName : state->varsList) {
     auto& var = state->vars.at(varName);
-    var = var->replace(from, to);
+    var = var->replace(from, to, errors);
   }
   for (auto& function : state->functions) {
     for (auto& overload : function.second)
-      overload = replaceInFunction(overload, from, to);
+      overload = replaceInFunction(overload, from, to, errors);
   }
   for (auto& type : state->types)
-    type.second = type.second->replace(from, to);
+    type.second = type.second->replace(from, to, errors);
 }
 
 const Context::State& Context::getTopState() const {
@@ -340,8 +340,7 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
   auto templateArgs = getTypeList(id.parts.at(0).templateArguments);
   if (!templateArgs)
     return templateArgs.get_error();
-  WithErrorLine<SType> ret = topType->instantiate(*this, *templateArgs)
-      .addCodeLoc(id.codeLoc);
+  WithErrorLine<SType> ret = topType->instantiate(*this, *templateArgs, id.codeLoc);
   if (ret)
     for (auto& elem : id.typeOperator) {
       elem.visit(

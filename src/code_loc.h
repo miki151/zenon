@@ -8,8 +8,6 @@ struct ErrorLoc;
 struct CodeLoc {
   CodeLoc(string file, int l, int c);
   CodeLoc();
-  [[noreturn]] void error(const string&) const;
-  void check(bool, const string&) const;
   ErrorLoc getError(string) const;
   CodeLoc plus(int numLines, int numColumns);
 
@@ -27,7 +25,10 @@ template <typename T>
 class [[nodiscard]] WithErrorLine : public expected<T, ErrorLoc> {
   public:
   using expected<T, ErrorLoc>::expected;
-  [[nodiscard]] T get() const {
+  [[nodiscard]] T& get() {
+    return **this;
+  }
+  [[nodiscard]] const T& get() const {
     return **this;
   }
   void unpack(optional<T>& value, optional<ErrorLoc>& error) {
@@ -64,3 +65,5 @@ class [[nodiscard]] WithError : public expected<T, string> {
       return WithErrorLine<T>(ErrorLoc{loc, this->get_error()});
   }
 };
+
+using ErrorBuffer = vector<ErrorLoc>;

@@ -4,4 +4,4 @@
 
 struct AST;
 
-extern AST parse(Tokens);
+extern WithErrorLine<AST> parse(Tokens);
