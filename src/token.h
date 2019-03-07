@@ -106,6 +106,7 @@ class Tokens {
   void rewind(Bookmark);
   NODISCARD WithErrorLine<Token> eat(Token);
   optional<Token> eatMaybe(Token);
+  int getSize() const;
 
   private:
   std::vector<Token> data;

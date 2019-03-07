@@ -1,3 +1,3 @@
 #pragma once
 
-extern void startLsp();
+extern void startLsp(const char* installDir);

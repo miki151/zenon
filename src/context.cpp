@@ -259,7 +259,7 @@ WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameter
   vector<SType> params;
   for (auto& id : ids) {
     auto type = id.visit(
-        [&](const IdentifierInfo& id) -> WithErrorLine<SType> { return getTypeFromString(id).get(); },
+        [&](const IdentifierInfo& id) -> WithErrorLine<SType> { return getTypeFromString(id); },
         [&](const shared_ptr<Expression>& expr) -> WithErrorLine<SType> {
             if (auto value = expr->eval(*this))
               return value.get();

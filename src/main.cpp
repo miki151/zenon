@@ -15,6 +15,7 @@ auto installDir = INSTALL_DIR;
 static po::parser getCommandLineFlags() {
   po::parser flags;
   flags["help"].abbreviation('h').description("Print help");
+  flags["lsp"].description("Start language server");
   flags["o"].type(po::string).description("Binary output path.");
   flags["cpp"].type(po::string).fallback("g++").description("C++ compiler path (default: g++).");
   flags["c"].description("Do not link binary.");
@@ -65,7 +66,7 @@ int main(int argc, char* argv[]) {
     return 0;
   }
   if (flags["lsp"].was_set()) {
-    startLsp();
+    startLsp(installDir);
     return 0;
   }
   auto gccCmd = flags["cpp"].get().string;

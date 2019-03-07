@@ -147,6 +147,10 @@ optional<Token> Tokens::eatMaybe(Token t) {
     return none;
 }
 
+int Tokens::getSize() const {
+  return data.size();
+}
+
 string process(Token t, string matched) {
   return t.visit(
       [&](StringToken) {
