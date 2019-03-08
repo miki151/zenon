@@ -1213,9 +1213,11 @@ optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
       return subtype.codeLoc.getError("Duplicate variant alternative: " + quote(subtype.name));
     subtypeNames.insert(subtype.name);
     vector<FunctionType::Param> params;
-    auto subtypeInfo = membersContext.getTypeFromString(subtype.type).get();
-    if (subtypeInfo != ArithmeticType::VOID)
-      params.push_back(FunctionType::Param{subtypeInfo});
+    if (auto subtypeInfo = membersContext.getTypeFromString(subtype.type)) {
+      if (*subtypeInfo != ArithmeticType::VOID)
+        params.push_back(FunctionType::Param{*subtypeInfo});
+    } else
+      return subtypeInfo.get_error();
     auto constructor = FunctionType(type.get(), params, {});
     constructor.parentType = type.get();
     CHECK(!type->staticContext.addImplicitFunction(subtype.name, constructor));
