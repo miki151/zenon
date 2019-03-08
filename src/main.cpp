@@ -19,6 +19,7 @@ static po::parser getCommandLineFlags() {
   flags["o"].type(po::string).description("Binary output path.");
   flags["cpp"].type(po::string).fallback("g++").description("C++ compiler path (default: g++).");
   flags["c"].description("Do not link binary.");
+  flags["l"].type(po::string).description("Linking flags.");
   flags[""].type(po::string).description("Path to the input program.");
   return flags;
 }
@@ -31,8 +32,8 @@ static int compileCpp(string command, const string& program, const string& outpu
   return pclose(p) / 256;
 }
 
-static int linkObjs(const string& cmd, const vector<string>& objs, const string& output) {
-  auto command = cmd + " " + combine(objs, " ") + " -o " + output;
+static int linkObjs(const string& cmd, const vector<string>& objs, const string& output, const vector<string>& flags) {
+  auto command = cmd + " " + combine(objs, " ") + " -o " + output + " " + combine(flags, " ");
   return system(command.data());
 }
 
@@ -65,6 +66,8 @@ int main(int argc, char* argv[]) {
     std::cout << flags << endl;
     return 0;
   }
+  ofstream logFile("log.out");
+  initLogging(logFile);
   if (flags["lsp"].was_set()) {
     startLsp(installDir);
     return 0;
@@ -72,8 +75,9 @@ int main(int argc, char* argv[]) {
   auto gccCmd = flags["cpp"].get().string;
   bool fullCompile = !flags["c"].was_set();
   bool printCpp = !flags["o"].was_set();
-  ofstream logFile("log.out");
-  initLogging(logFile);
+  vector<string> linkFlags;
+  for (int i = 0; i < flags["l"].count(); ++i)
+    linkFlags.push_back("-l" + flags["l"].get(i).string);
   vector<ModuleInfo> toCompile;
   set<string> finished;
   for (auto pathElem : flags[""])
@@ -117,7 +121,7 @@ int main(int argc, char* argv[]) {
       objFiles.push_back(objFile);
   }
   if (!objFiles.empty())
-    if (linkObjs(gccCmd, objFiles, flags["o"].get().string) != 0) {
+    if (linkObjs(gccCmd, objFiles, flags["o"].get().string, linkFlags) != 0) {
       cerr << "Linking failed" << endl;
       return 2;
     }
