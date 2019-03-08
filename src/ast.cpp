@@ -1471,7 +1471,7 @@ optional<ErrorLoc> EnumDefinition::addToContext(Context& s) {
   for (auto& e : elements)
     if (occurences.count(e))
       return codeLoc.getError("Duplicate enum element: " + quote(e));
-  s.addType(name, shared<EnumType>(name, elements));
+  s.addType(name, shared<EnumType>(name, elements, external));
   return none;
 }
 

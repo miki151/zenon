@@ -331,12 +331,9 @@ constexpr const char* variantEnumeratorPrefix = "Enum_";
 constexpr const char* variantUnionEntryPrefix = "Union_";
 constexpr const char* variantUnionElem = "unionElem";
 
-static void codegenStruct(set<shared_ptr<StructType>>& visited, Accu& accu, shared_ptr<StructType> type);
-
-static void codegenVariant(set<shared_ptr<StructType>>& visited, Accu& accu, shared_ptr<StructType> type) {
+static void codegenVariant(set<const Type*>& visited, Accu& accu, const StructType* type) {
   for (auto& elem : type->alternatives)
-    if (auto type = elem.type.dynamicCast<StructType>())
-      codegenStruct(visited, accu, type);
+    elem.type->codegenDefinition(visited, accu);
   auto name = *type->getMangledName();
   accu.add("struct " + name + " {");
   ++accu.indent;
@@ -400,35 +397,58 @@ static void codegenVariant(set<shared_ptr<StructType>>& visited, Accu& accu, sha
   accu.newLine();
 }
 
-static void codegenStruct(set<shared_ptr<StructType>>& visited, Accu& accu, shared_ptr<StructType> type) {
-  if (type->external)
+
+void Type::codegenDefinitionImpl(set<const Type*>&, Accu&) const {
+}
+
+void Type::codegenDefinition(set<const Type*>& visited, Accu& accu) const {
+  if (!visited.count(this)) {
+    visited.insert(this);
+    codegenDefinitionImpl(visited, accu);
+  }
+}
+
+void ArrayType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const {
+  underlying->codegenDefinition(visited, accu);
+}
+
+void EnumType::codegenDefinitionImpl(set<const Type*>&, Accu& accu) const {
+  if (!external) {
+    accu.add("enum class " + name + " {");
+    ++accu.indent;
+    for (auto& elem : elements)
+      accu.newLine(elem + ",");
+    --accu.indent;
+    accu.newLine("};");
+  }
+}
+
+void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const {
+  if (external)
     return;
-  for (auto& instantation : concat({type}, type->instances))
-    if (auto name = instantation->getMangledName()) {
-      if (visited.count(instantation))
-        continue;
-      visited.insert(instantation);
-      if (!instantation->alternatives.empty()) {
-        codegenVariant(visited, accu, instantation);
-        continue;
-      }
-      for (auto& elem : instantation->members)
-        if (auto type = elem.type.dynamicCast<StructType>())
-          codegenStruct(visited, accu, type);
-      accu.add("struct " + *name);
-      /*if (incomplete) {
-        accu.add(";");
-        accu.newLine();
-        return;
-      } else*/
-        accu.add(" {");
-      ++accu.indent;
-      for (auto& member : instantation->members)
-        accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
-      --accu.indent;
-      accu.newLine("};");
-      accu.newLine();
+  for (auto& instance : instances)
+    instance->codegenDefinition(visited, accu);
+  if (auto name = getMangledName()) {
+    if (!alternatives.empty()) {
+      codegenVariant(visited, accu, this);
+      return;
     }
+    for (auto& elem : members)
+      elem.type->codegenDefinition(visited, accu);
+    accu.add("struct " + *name);
+    /*if (incomplete) {
+      accu.add(";");
+      accu.newLine();
+      return;
+    } else*/
+      accu.add(" {");
+    ++accu.indent;
+    for (auto& member : members)
+      accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
+    --accu.indent;
+    accu.newLine("};");
+    accu.newLine();
+  }
 }
 
 string codegen(const AST& ast, const Context& context, const string& codegenInclude, bool includeLineNumbers) {
@@ -438,10 +458,9 @@ string codegen(const AST& ast, const Context& context, const string& codegenIncl
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::types());
   }
-  set<shared_ptr<StructType>> visitedStructs;
+  set<const Type*> visitedTypes;
   for (auto& type : context.getAllTypes())
-    if (auto structType = type.dynamicCast<StructType>())
-      codegenStruct(visitedStructs, accu, structType);
+    type->codegenDefinition(visitedTypes, accu);
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::declare());
   }
@@ -458,7 +477,7 @@ void ExpressionStatement::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (type->external || !incomplete || !stage.isTypes)
+  if (type->external || !stage.isTypes)
     return;
   for (auto& instantation : concat({type.get()}, type->instances))
     if (auto name = instantation->getMangledName()) {
@@ -670,17 +689,6 @@ void ImportStatement::codegen(Accu& accu, CodegenStage stage) const {
       elem->codegen(accu, stage.setImport());
       //accu.newLine("");
     }
-}
-
-void EnumDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (stage.isTypes && !external) {
-    accu.add("enum class " + name + " {");
-    ++accu.indent;
-    for (auto& elem : elements)
-      accu.newLine(elem + ",");
-    --accu.indent;
-    accu.newLine("};");
-  }
 }
 
 void EnumConstant::codegen(Accu& accu, CodegenStage) const {

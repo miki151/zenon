@@ -12,6 +12,7 @@ struct TypeMapping;
 struct FunctionType;
 struct SwitchStatement;
 struct FunctionDefinition;
+struct Accu;
 
 struct Type : public owned_object<Type> {
   virtual string getName(bool withTemplateArguments = true) const = 0;
@@ -24,6 +25,7 @@ struct Type : public owned_object<Type> {
   virtual bool canReplaceBy(SType) const;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const;
   virtual SType getType() const;
+  void codegenDefinition(set<const Type*>& visited, Accu&) const;
   virtual ~Type() {}
   virtual WithErrorLine<SType> instantiate(const Context&, vector<SType> templateArgs, CodeLoc) const;
   Context& getStaticContext();
@@ -37,6 +39,9 @@ struct Type : public owned_object<Type> {
   virtual SType removePointer() const;
   virtual optional<string> getSizeError() const;
   Context staticContext;
+
+  protected:
+  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const;
 };
 
 struct ArithmeticType : public Type {
@@ -201,6 +206,7 @@ struct StructType : public Type {
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual optional<string> getSizeError() const override;
+  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
   WithError<SType> getTypeOfMember(const string&) const;
   static shared_ptr<StructType> get(string name);
   string name;
@@ -224,15 +230,17 @@ struct StructType : public Type {
 };
 
 struct EnumType : public Type {
-  EnumType(string name, vector<string> elements);
+  EnumType(string name, vector<string> elements, bool external);
 
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
   virtual SType getType() const override;
+  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
 
   string name;
   vector<string> elements;
+  bool external = false;
 };
 
 struct ArrayType : public Type {
@@ -244,6 +252,7 @@ struct ArrayType : public Type {
   static shared_ptr<ArrayType> get(SType, SCompileTimeValue size);
   virtual bool isBuiltinCopyable(const Context&) const override;
   virtual optional<string> getSizeError() const override;
+  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
   ArrayType(SType, SCompileTimeValue size);
   SCompileTimeValue size;
   SType underlying;

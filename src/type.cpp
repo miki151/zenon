@@ -808,7 +808,7 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
   return FunctionInfo::getInstance(input->id, type, input);
 }
 
-EnumType::EnumType(string n, vector<string> e) : name(n), elements(e) {}
+EnumType::EnumType(string n, vector<string> e, bool external) : name(n), elements(e), external(external) {}
 
 Concept::Concept(const string& name) : name(name) {
 }

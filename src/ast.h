@@ -341,7 +341,6 @@ struct EnumDefinition : Statement {
   bool external;
   NODISCARD virtual optional<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual optional<ErrorLoc> check(Context&) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 };
 
