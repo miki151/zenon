@@ -665,7 +665,7 @@ void ImportStatement::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void EnumDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (stage.isTypes) {
+  if (stage.isTypes && !external) {
     accu.add("enum class " + name + " {");
     ++accu.indent;
     for (auto& elem : elements)

@@ -334,7 +334,7 @@ struct EnumDefinition : Statement {
   EnumDefinition(CodeLoc, string name);
   string name;
   vector<string> elements;
-  vector<unique_ptr<FunctionDefinition>> methods;
+  bool external;
   NODISCARD virtual optional<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual optional<ErrorLoc> check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;

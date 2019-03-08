@@ -465,27 +465,25 @@ WithErrorLine<unique_ptr<StructDefinition>> parseStructDefinition(Tokens& tokens
   auto ret = unique<StructDefinition>(token2.codeLoc, token2.value);
   if (external)
     ret->external = true;
-  else {
-    if (tokens.eatMaybe(Keyword::OPEN_BLOCK))
-      while (1) {
-        auto memberToken = tokens.peek();
-        if (memberToken == Keyword::CLOSE_BLOCK) {
-          tokens.popNext();
-          break;
-        }
-        auto typeIdent = parseIdentifier(tokens, true);
-        if (!typeIdent)
-          return typeIdent.get_error();
-        auto memberName = tokens.popNext();
-        if (!memberName.contains<IdentifierToken>())
-          return memberName.codeLoc.getError("Expected identifier");
-        ret->members.push_back({*typeIdent, memberName.value, memberToken.codeLoc});
-        if (auto t = tokens.eat(Keyword::SEMICOLON); !t)
-          return t.get_error();
+  if (tokens.eatMaybe(Keyword::OPEN_BLOCK))
+    while (1) {
+      auto memberToken = tokens.peek();
+      if (memberToken == Keyword::CLOSE_BLOCK) {
+        tokens.popNext();
+        break;
       }
-    else
-      ret->incomplete = true;
-  }
+      auto typeIdent = parseIdentifier(tokens, true);
+      if (!typeIdent)
+        return typeIdent.get_error();
+      auto memberName = tokens.popNext();
+      if (!memberName.contains<IdentifierToken>())
+        return memberName.codeLoc.getError("Expected identifier");
+      ret->members.push_back({*typeIdent, memberName.value, memberToken.codeLoc});
+      if (auto t = tokens.eat(Keyword::SEMICOLON); !t)
+        return t.get_error();
+    }
+  else if (!external)
+    ret->incomplete = true;
   if (auto t = tokens.eat(Keyword::SEMICOLON); !t)
     return t.get_error();
   return std::move(ret);
@@ -912,13 +910,14 @@ WithErrorLine<unique_ptr<Statement>> parseImportStatement(Tokens& tokens, bool i
   return cast<Statement>(unique<ImportStatement>(codeLoc, path->value, isPublic, false));
 }
 
-WithErrorLine<unique_ptr<Statement>> parseEnumStatement(Tokens& tokens) {
+WithErrorLine<unique_ptr<Statement>> parseEnumStatement(Tokens& tokens, bool external) {
   if (auto t = tokens.eat(Keyword::ENUM); !t)
     return t.get_error();
   auto name = tokens.popNext();
   if (!name.contains<IdentifierToken>())
     return name.codeLoc.getError("Expected enum name, got: " + quote(name.value));
   auto ret = unique<EnumDefinition>(tokens.peek().codeLoc, name.value);
+  ret->external = external;
   if (auto t = tokens.eat(Keyword::OPEN_BLOCK); !t)
     return t.get_error();
   while (1) {
@@ -990,6 +989,8 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             tokens.popNext();
             if (tokens.peek() == Keyword::STRUCT)
               return cast<Statement>(parseStructDefinition(tokens, true));
+            if (tokens.peek() == Keyword::ENUM)
+              return cast<Statement>(parseEnumStatement(tokens, true));
             if (tokens.peek() == Keyword::CONST)
               return cast<Statement>(parseExternalConstant(tokens));
             else {
@@ -1011,7 +1012,7 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
           case Keyword::SWITCH:
             return cast<Statement>(parseSwitchStatement(tokens));
           case Keyword::ENUM:
-            return parseEnumStatement(tokens);
+            return parseEnumStatement(tokens, false);
           case Keyword::FOR:
             return parseForLoopStatement(tokens);
           case Keyword::WHILE:
