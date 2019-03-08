@@ -1477,12 +1477,14 @@ EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(
 }
 
 WithErrorLine<SType> EnumConstant::getTypeImpl(Context& context) {
-  auto type = context.getTypeFromString(IdentifierInfo(enumName, codeLoc)).get();
-  if (auto enumType = type.dynamicCast<EnumType>()) {
+  auto type = context.getTypeFromString(IdentifierInfo(enumName, codeLoc));
+  if (!type)
+    return type.get_error();
+  if (auto enumType = type->dynamicCast<EnumType>()) {
     if (!contains(enumType->elements, enumElement))
       return codeLoc.getError(quote(enumElement) + " is not an element of enum " + quote(enumName));
   } else
-    return codeLoc.getError(quote(type->getName()) + " is not an enum type");
+    return codeLoc.getError(quote(type.get()->getName()) + " is not an enum type");
   return type;
 }
 
@@ -1699,4 +1701,22 @@ SwitchStatement::CaseElem SwitchStatement::CaseElem::replace(SType from, SType t
   else
     ret.type = type;
   return ret;
+}
+
+ExternConstantDeclaration::ExternConstantDeclaration(CodeLoc l, IdentifierInfo type, string identifier)
+  : Statement(l), type(type), identifier(identifier) {
+}
+
+optional<ErrorLoc> ExternConstantDeclaration::check(Context& context) {
+  if (auto err = context.checkNameConflict(identifier, "Variable"))
+    return codeLoc.getError(*err);
+  if (auto t = context.getTypeFromString(type))
+    realType = *t;
+  else
+    return t.get_error();
+  if (realType == ArithmeticType::VOID)
+    return codeLoc.getError("Can't declare constant of type " + quote(ArithmeticType::VOID->getName()));
+  INFO << "Adding extern constant " << identifier << " of type " << realType.get()->getName();
+  context.addVariable(identifier, ReferenceType::get(realType.get()));
+  return none;
 }

@@ -105,6 +105,14 @@ class Tokens {
   Bookmark getBookmark() const;
   void rewind(Bookmark);
   NODISCARD WithErrorLine<Token> eat(Token);
+  template <typename TokenType>
+  NODISCARD WithErrorLine<Token> eat(string error) {
+    auto t = popNext();
+    if (!t.contains<TokenType>())
+      return t.codeLoc.getError(error);
+    else
+      return std::move(t);
+  }
   optional<Token> eatMaybe(Token);
   int getSize() const;
 

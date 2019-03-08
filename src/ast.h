@@ -146,7 +146,7 @@ struct Statement : Node {
   NODISCARD virtual optional<ErrorLoc> addToContext(Context&, ImportCache&);
   NODISCARD virtual optional<ErrorLoc> check(Context&) = 0;
   NODISCARD virtual bool hasReturnStatement(const Context&) const;
-  virtual void codegen(Accu&, CodegenStage) const = 0;
+  virtual void codegen(Accu&, CodegenStage) const {};
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const;
   enum class TopLevelAllowance {
     CANT,
@@ -166,6 +166,15 @@ struct VariableDeclaration : Statement {
   NODISCARD virtual optional<ErrorLoc> check(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
+};
+
+struct ExternConstantDeclaration : Statement {
+  ExternConstantDeclaration(CodeLoc, IdentifierInfo type, string identifier);
+  IdentifierInfo type;
+  nullable<SType> realType;
+  string identifier;
+  NODISCARD virtual optional<ErrorLoc> check(Context&) override;
+  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 };
 
 struct IfStatement : Statement {

@@ -945,6 +945,19 @@ static WithErrorLine<unique_ptr<T>> cast(WithErrorLine<unique_ptr<U>> elem) {
   return cast<T>(std::move(*elem));
 }
 
+WithErrorLine<unique_ptr<ExternConstantDeclaration>> parseExternalConstant(Tokens& tokens) {
+  CHECK(!!tokens.eat(Keyword::CONST));
+  auto id1 = parseIdentifier(tokens, true);
+  if (!id1)
+    return id1.get_error();
+  auto name = tokens.eat<IdentifierToken>("Expected identifier");
+  if (!name)
+    return name.get_error();
+  if (auto t = tokens.eat(Keyword::SEMICOLON); !t)
+    return t.get_error();
+  return unique<ExternConstantDeclaration>(name->codeLoc, *id1, name->value);
+}
+
 WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLevel) {
   auto parseExpressionAndSemicolon = [&] () -> WithErrorLine<unique_ptr<ExpressionStatement>> {
     auto ret = parseExpression(tokens);
@@ -977,6 +990,8 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             tokens.popNext();
             if (tokens.peek() == Keyword::STRUCT)
               return cast<Statement>(parseStructDefinition(tokens, true));
+            if (tokens.peek() == Keyword::CONST)
+              return cast<Statement>(parseExternalConstant(tokens));
             else {
               if (auto id = parseIdentifier(tokens, true)) {
                 if (auto ret = parseFunctionSignature(*id, tokens)) {
