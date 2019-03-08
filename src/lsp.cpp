@@ -132,8 +132,10 @@ string getHeader(const string& id) {
   "}";
 }
 
-const auto diagnosticsPrefix = "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/publishDiagnostics\",\"params\":{\"diagnostics\":[";
-const auto diagnosticsSuffix = "],\"uri\":\"file:///home/michal/zenon/input.znn\"  }}";
+string diagnosticsToJson(const string& path, const string& messages) {
+  return "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/publishDiagnostics\",\"params\":{\"diagnostics\":["
+      + messages + "],\"uri\":\"file://" + path + "\"  }}";
+}
 
 string toJson(const CodeLoc& l) {
   return "{\"character\":" + to_string(l.column) + ",\"line\":" + to_string(l.line) + "}";
@@ -181,7 +183,7 @@ static string deEscape(string contents) {
 void printDiagnostics(const char* installDir, const string& text, const string& path) {
   cerr << "Compiling ["  << text << "]" << endl;
   auto tokens = lex(text, CodeLoc(path, 0, 0), "end of file");
-  string res = diagnosticsPrefix;
+  string res;
   bool wasAdded = false;
   auto add = [&](string msg, CodeLoc begin) {
     auto end = begin;
@@ -210,8 +212,7 @@ void printDiagnostics(const char* installDir, const string& text, const string& 
       }
     }
   }
-  res += diagnosticsSuffix;
-  output(res);
+  output(diagnosticsToJson(path, res));
 }
 
 void startLsp(const char* installDir) {
@@ -229,8 +230,10 @@ void startLsp(const char* installDir) {
     auto method = findValue(input, "method");
     if (method == "textDocument/didOpen"s || method == "textDocument/didChange"s) {
       auto path = *findValue(input, "uri");
+      CHECK(path.substr(0, 7) == "file://");
+      path = path.substr(7);
       cerr << "Opened " << path << endl;
-      printDiagnostics(installDir, deEscape(*findValue(input, "text")), "file.znn");
+      printDiagnostics(installDir, deEscape(*findValue(input, "text")), path);
     }
   }
 }
