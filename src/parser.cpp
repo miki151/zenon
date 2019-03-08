@@ -1094,6 +1094,8 @@ WithErrorLine<unique_ptr<Statement>> parseNonTopLevelStatement(Tokens& tokens) {
   auto ret = parseStatement(tokens, false);
   if (!ret)
     return ret.get_error();
+  if (!*ret)
+    return tokens.peek().codeLoc.getError("Unexpected end of file");
   if (ret.get()->allowTopLevel() == Statement::TopLevelAllowance::MUST)
     return ret.get()->codeLoc.getError("Statement only allowed in the top level of the program");
   return ret;
