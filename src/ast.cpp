@@ -1259,6 +1259,10 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context, ImportCache&
       if (auto error = type->members.back().type->getSizeError())
         return member.codeLoc.getError("Member " + quote(member.name) + " of type " +
             quote(type->getName()) + " " + *error);
+    for (int i = 0; i < members.size(); ++i)
+      for (int j = i + 1; j < members.size(); ++j)
+        if (members[i].name == members[j].name)
+          return members[j].codeLoc.getError("Duplicate member: " + quote(members[j].name));
     if (!external) {
       vector<FunctionType::Param> constructorParams;
       for (auto& member : type->members)

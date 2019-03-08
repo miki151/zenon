@@ -1,0 +1,10 @@
+// no_compile
+
+struct S {
+  int elem;
+  int elem;
+};
+
+int main() {
+  return 0;
+}
