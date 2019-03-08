@@ -1,0 +1,16 @@
+// 35
+
+int main() {
+  mutable int sum = 0;
+  for (mutable i = 0; i < 100; ++i) {
+    if (i == 7)
+      break;
+    for (mutable j = 0; j < 100; ++j) {
+      if (j == 5)
+        break;
+      ++sum;
+    }
+  }
+  return sum;
+}
+

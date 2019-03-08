@@ -1,0 +1,20 @@
+// 7
+
+enum E {
+  ELEM1
+};
+
+int main() {
+  mutable int sum = 7;
+  const e = E::ELEM1;
+  for (mutable i = 0; i < 100; ++i) {
+    switch (e) {
+      default {
+        break;
+      }
+    }
+    ++sum;
+  }
+  return sum;
+}
+

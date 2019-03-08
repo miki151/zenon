@@ -57,8 +57,8 @@ class Context : public owned_object<Context> {
   void print() const;
   vector<SType> getConversions(SType) const;
   bool canConvert(SType from, SType to) const;
-  bool breakAllowed() const;
-  void setBreakAllowed();
+  optional<int> getLoopId() const;
+  int setIsInLoop();
   bool areParamsEquivalent(const SFunctionInfo&, const SFunctionInfo&) const;
   bool isTemplated() const;
   void setTemplated();
@@ -79,7 +79,7 @@ class Context : public owned_object<Context> {
     nullable<SType> returnType;
     map<string, shared_ptr<Concept>> concepts;
     map<string, BuiltInFunctionInfo> builtInFunctions;
-    bool breakAllowed = false;
+    optional<int> loopId;
     bool isBuiltInModule = false;
     bool templated = false;
     void merge(const State&);

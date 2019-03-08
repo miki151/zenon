@@ -213,6 +213,7 @@ struct ReturnStatement : Statement {
 
 struct BreakStatement : Statement {
   using Statement::Statement;
+  int loopId = 0;
   NODISCARD virtual optional<ErrorLoc> check(Context&) override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -241,6 +242,7 @@ struct ForLoopStatement : Statement {
   unique_ptr<Expression> cond;
   unique_ptr<Expression> iter;
   unique_ptr<Statement> body;
+  int loopId = 0;
   NODISCARD virtual optional<ErrorLoc> check(Context&) override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -256,6 +258,7 @@ struct RangedLoopStatement : Statement {
   unique_ptr<Statement> body;
   optional<string> containerName;
   unique_ptr<VariableDeclaration> containerEnd;
+  int loopId = 0;
   NODISCARD virtual optional<ErrorLoc> check(Context&) override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -265,6 +268,7 @@ struct WhileLoopStatement : Statement {
   WhileLoopStatement(CodeLoc l, unique_ptr<Expression> cond, unique_ptr<Statement> body);
   unique_ptr<Expression> cond;
   unique_ptr<Statement> body;
+  int loopId = 0;
   NODISCARD virtual optional<ErrorLoc> check(Context&) override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;

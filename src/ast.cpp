@@ -1350,7 +1350,7 @@ optional<ErrorLoc> ForLoopStatement::check(Context& context) {
   auto res = getType(bodyContext, iter);
   if (!res)
     return res.get_error();
-  bodyContext.setBreakAllowed();
+  loopId = bodyContext.setIsInLoop();
   return body->check(bodyContext);
 }
 
@@ -1372,7 +1372,7 @@ optional<ErrorLoc> WhileLoopStatement::check(Context& context) {
     return condType.get_error();
   if (*condType != ArithmeticType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
-  bodyContext.setBreakAllowed();
+  loopId = bodyContext.setIsInLoop();
   return body->check(bodyContext);
 }
 
@@ -1600,7 +1600,7 @@ optional<ErrorLoc> RangedLoopStatement::check(Context& context) {
   auto incType = getType(bodyContext, increment);
   if (!incType)
     return incType.get_error();
-  bodyContext.setBreakAllowed();
+  loopId = bodyContext.setIsInLoop();
   return body->check(bodyContext);
 }
 
@@ -1617,9 +1617,11 @@ unique_ptr<Statement> RangedLoopStatement::replace(SType from, SType to, ErrorBu
 }
 
 optional<ErrorLoc> BreakStatement::check(Context& context) {
-  if (!context.breakAllowed())
+  if (auto id = context.getLoopId()) {
+    loopId = *id;
+    return none;
+  } else
     return codeLoc.getError("Break statement outside of a loop");
-  return none;
 }
 
 unique_ptr<Statement> BreakStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
@@ -1627,7 +1629,7 @@ unique_ptr<Statement> BreakStatement::replace(SType from, SType to, ErrorBuffer&
 }
 
 optional<ErrorLoc> ContinueStatement::check(Context& context) {
-  if (!context.breakAllowed())
+  if (!context.getLoopId())
     return codeLoc.getError("Continue statement outside of a loop");
   return none;
 }

@@ -200,15 +200,18 @@ bool Context::canConvert(SType from, SType to) const {
   return contains(getConversions(from), to);
 }
 
-bool Context::breakAllowed() const {
+optional<int> Context::getLoopId() const {
   for (auto state : getReversedStates())
-    if (state->breakAllowed)
-      return true;
-  return false;
+    if (auto id = state->loopId)
+      return id;
+  return none;
 }
 
-void Context::setBreakAllowed() {
-  state->breakAllowed = true;
+int Context::setIsInLoop() {
+  static int loopCount = 0;
+  ++loopCount;
+  state->loopId = loopCount;
+  return loopCount;
 }
 
 void Context::replace(SType from, SType to, ErrorBuffer& errors) {

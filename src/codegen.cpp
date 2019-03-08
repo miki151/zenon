@@ -603,6 +603,10 @@ bool EmbedStatement::hasReturnStatement(const Context&) const {
   return true;
 }
 
+static string getLoopBreakLabel(int loopId) {
+  return "break_loop_" + to_string(loopId);
+}
+
 void ForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   accu.add("for (");
@@ -615,6 +619,7 @@ void ForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.newLine();
   body->codegen(accu, CodegenStage::define());
   --accu.indent;
+  accu.newLine(getLoopBreakLabel(loopId) + ":;");
   accu.newLine();
 }
 
@@ -641,6 +646,8 @@ void RangedLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   --accu.indent;
   --accu.indent;
   accu.newLine("}");
+  accu.newLine(getLoopBreakLabel(loopId) + ":;");
+  accu.newLine();
 }
 
 void WhileLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
@@ -652,6 +659,7 @@ void WhileLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.newLine();
   body->codegen(accu, CodegenStage::define());
   --accu.indent;
+  accu.newLine(getLoopBreakLabel(loopId) + ":;");
   accu.newLine();
 }
 
@@ -683,7 +691,7 @@ void ConceptDefinition::codegen(Accu&, CodegenStage) const {
 }
 
 void BreakStatement::codegen(Accu& accu, CodegenStage) const {
-  accu.add("break;");
+  accu.add("goto " + getLoopBreakLabel(loopId) + ";");
 }
 
 void ContinueStatement::codegen(Accu& accu, CodegenStage) const {

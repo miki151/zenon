@@ -186,7 +186,6 @@ void printDiagnostics(const char* installDir, const string& text, const string& 
   auto add = [&](string msg, CodeLoc begin) {
     auto end = begin;
     end.column = begin.column + 5;
-    end.line = begin.line + 1;
     if (wasAdded)
       res += ",";
     wasAdded = true;
