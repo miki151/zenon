@@ -15,18 +15,36 @@ void output(const string& s) {
 }
 
 optional<string> findValue(const string& s, const string& key) {
+  cerr << "Searching for [" << key << "]" << endl;
   auto ind = s.find("\"" + key + "\"");
   if (ind == string::npos)
     return none;
-  ind += key.size() + 4;
-  auto end = ind;
-  while (1) {
-    end = s.find("\"", end + 1);
-    assert(end != string::npos);
-    if (s[end - 1] != '\\')
-      break;
+  ind += key.size() + 3;
+  bool withQuotes = false;
+  if (s[ind] == '\"') {
+    ++ind;
+    withQuotes = true;
   }
-  return s.substr(ind, end - ind);
+  auto end = ind;
+  if (withQuotes)
+    while (1) {
+      cerr << "With quotes " << end << endl;
+      end = s.find("\"", end + 1);
+      CHECK(end != string::npos);
+      if (s[end - 1] != '\\')
+        break;
+    }
+  else {
+    cerr << "No quotes " << end << endl;
+    end = s.find(",", ind + 1);
+    if (end == string::npos)
+      end = s.find("}", ind + 1);
+    CHECK(end != string::npos);
+  }
+  cerr << ind << " " << end << endl;
+  auto ret = s.substr(ind, end - ind);
+  cerr << "Value [" + key + "] = [" + ret + "]" << endl;
+  return ret;
 }
 
 string readData(int cnt) {
