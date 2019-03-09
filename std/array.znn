@@ -8,12 +8,19 @@ T[Size] copy(T[Size]* array) {
   }
 }
 
+public embed {
+template <typename T, unsigned long Size>
+std::array<T, Size> copy(std::array<T, Size> const* array) {
+  return *array;
+}
+}
+
 template <int Size, T> requires can_copy<T>
 T[Size] array_repeat(T* elem) {
   embed {
     std::array<T, Size> a;
     for (int i = 0; i < Size; ++i)
-      a[i] = *elem;
+      a[i] = copy(elem);
     return a;
   }
 }
