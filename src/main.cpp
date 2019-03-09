@@ -108,8 +108,10 @@ int main(int argc, char* argv[]) {
       logFile << cppCode;
     if (fullCompile)
       for (auto& import : imported)
-        if (!finished.count(import.path))
+        if (!finished.count(import.path)) {
           toCompile.push_back(import);
+          finished.insert(import.path);
+        }
     auto objFile = fullCompile
         ? buildDir + "/"s + to_string(std::hash<string>()(cppCode)) + ".znn.o"
         : flags["o"].get().string;
