@@ -1,7 +1,7 @@
 import "hidden.znn";
 
 
-public struct Struct1 {
+export struct Struct1 {
   int x;
 };
 

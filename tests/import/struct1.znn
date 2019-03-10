@@ -1,11 +1,11 @@
-public import "print.znn";
+export import "print.znn";
 
 
-public struct Struct1 {
+export struct Struct1 {
   int x;
   bool b;
 };
 
-public int get(Struct1* s) {
+export int get(Struct1* s) {
   return getInt((*s).x);
 }

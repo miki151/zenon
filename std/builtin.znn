@@ -1,26 +1,26 @@
 
-public import "std/slice.znn";
-public import "std/array.znn";
-public import "std/concepts.znn";
-public import "std/string.znn";
+export import "std/slice.znn";
+export import "std/array.znn";
+export import "std/concepts.znn";
+export import "std/string.znn";
 
-public template <T>
+export template <T>
 T* copy(T** p) {
   return *p;
 }
 
-public bool copy(bool* b) {
+export bool copy(bool* b) {
   return *b;
 }
 
-public int copy(int* b) {
+export int copy(int* b) {
   return *b;
 }
 
-public char copy(char* b) {
+export char copy(char* b) {
   return *b;
 }
 
-public double copy(double* b) {
+export double copy(double* b) {
   return *b;
 }

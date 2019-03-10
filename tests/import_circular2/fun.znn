@@ -1,6 +1,6 @@
 
-public import "main.znn";
+export import "main.znn";
 
-public int f() {
+export int f() {
   return g();
 }

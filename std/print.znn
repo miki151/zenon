@@ -1,10 +1,10 @@
-public import "concepts.znn";
+export import "concepts.znn";
 
-public embed{
+export embed{
 #include <cstdio>
 }
 
-public string to_string(int* i) {
+export string to_string(int* i) {
   embed {
     char buf[12];
     snprintf(buf, 12, "%d", *i);
@@ -12,7 +12,7 @@ public string to_string(int* i) {
   }
 }
 
-public string to_string(double* i) {
+export string to_string(double* i) {
   embed {
     char buf[20];
     snprintf(buf, 20, "%f", *i);
@@ -20,23 +20,23 @@ public string to_string(double* i) {
   }
 }
 
-public string to_string(string* s) {
+export string to_string(string* s) {
   return *s;
 }
 
-public string to_string(bool* b) {
+export string to_string(bool* b) {
   if (*b)
     return "true";
   else
     return "false";
 }
 
-public template <T>
+export template <T>
 concept can_print {
   string to_string(T*);
 };
 
-public void print(string s) {
+export void print(string s) {
   embed {
     printf("%s\n", s.data());
   }

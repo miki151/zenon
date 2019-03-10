@@ -1089,7 +1089,7 @@ WithErrorLine<unique_ptr<Statement>> parseNonTopLevelStatement(Tokens& tokens) {
 }
 
 WithErrorLine<unique_ptr<Statement>> parseTopLevelStatement(Tokens& tokens) {
-  bool isExported = !!tokens.eatMaybe(Keyword::PUBLIC);
+  bool isExported = !!tokens.eatMaybe(Keyword::EXPORT);
   auto statement = parseStatement(tokens, true);
   if (!statement)
     return statement.get_error();

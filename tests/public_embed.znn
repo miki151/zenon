@@ -1,11 +1,11 @@
 // no_compile
 
-public embed {
+export embed {
 #include <iostream>
 }
 
 int f() {
-  public embed {
+  export embed {
     int x = 1;
     return x;
   }

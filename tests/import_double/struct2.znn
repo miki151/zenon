@@ -1,4 +1,4 @@
-public import "print.znn";
+export import "print.znn";
 
 struct Struct2 {
   X u;

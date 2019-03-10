@@ -1,4 +1,4 @@
 
-public struct S2 {
+export struct S2 {
   bool b;
 };

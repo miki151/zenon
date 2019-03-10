@@ -1,6 +1,6 @@
 import "fun2.znn";
 
-public struct S1 {
+export struct S1 {
   S2 s;
   int a;
 };

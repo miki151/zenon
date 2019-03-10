@@ -1,4 +1,4 @@
 
 
-public void hidden() {
+export void hidden() {
 }

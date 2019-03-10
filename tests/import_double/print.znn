@@ -3,12 +3,12 @@ embed {
   constexpr int g = 5;
 }
 
-public int getInt(int x) {
+export int getInt(int x) {
   embed {
     return g + x;
   }
 }
 
-public struct X {
+export struct X {
   int a;
 };

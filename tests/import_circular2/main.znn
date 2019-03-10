@@ -2,7 +2,7 @@
 
 import "fun.znn";
 
-public int g() {
+export int g() {
   return 1;
 }
 

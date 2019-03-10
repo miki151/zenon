@@ -46,7 +46,7 @@ enum class Keyword {
   FOR,
   WHILE,
   IMPORT,
-  PUBLIC,
+  EXPORT,
   CONST,
   ENUM,
   OPERATOR,

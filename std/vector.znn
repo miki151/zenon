@@ -1,5 +1,5 @@
 
-public embed {
+export embed {
 
 #include <vector>
 using std::vector;
@@ -10,63 +10,63 @@ template <typename T>
 using vector_mut_iterator = typename vector<T>::iterator;
 }
 
-public import "std/concepts.znn";
+export import "std/concepts.znn";
 
-public template <T>
+export template <T>
 extern struct vector;
 
-public template <T>
+export template <T>
 extern vector();
 
-public template <T>
+export template <T>
 extern struct vector_iterator;
 
-public template <T>
+export template <T>
 extern struct vector_mut_iterator;
 
-public template <T>
+export template <T>
 vector_iterator<T> begin(vector<T>* v) {
   embed {
     return v->begin();
   }
 }
 
-public template <T>
+export template <T>
 vector_iterator<T> end(vector<T>* v) {
   embed {
     return v->end();
   }
 }
 
-public template <T>
+export template <T>
 T* operator *(vector_iterator<T>* it) {
   embed {
     return &**it;
   }
 }
 
-public template <T>
+export template <T>
 vector_iterator<T> operator ++(vector_iterator<T> mutable* it) {
   embed {
     return ++(*it);
   }
 }
 
-public template <T>
+export template <T>
 bool operator == (vector_iterator<T>* it1, vector_iterator<T>* it2) {
   embed {
     return *it1 == *it2;
   }
 }
 
-public template <T>
+export template <T>
 vector_mut_iterator<T> begin(vector<T> mutable* v) {
   embed {
     return v->begin();
   }
 }
 
-public template <T>
+export template <T>
 vector_mut_iterator<T> end(vector<T> mutable* v) {
   embed {
     return v->end();
@@ -74,63 +74,63 @@ vector_mut_iterator<T> end(vector<T> mutable* v) {
 }
 
 
-public template <T>
+export template <T>
 T mutable* operator *(vector_mut_iterator<T>* it) {
   embed {
     return &**it;
   }
 }
 
-public template <T>
+export template <T>
 vector_mut_iterator<T> operator ++(vector_mut_iterator<T> mutable* it) {
   embed {
     return ++(*it);
   }
 }
 
-public template <T>
+export template <T>
 bool operator == (vector_mut_iterator<T>* it1, vector_mut_iterator<T>* it2) {
   embed {
     return *it1 == *it2;
   }
 }
 
-public template <T>
+export template <T>
 void push_back(vector<T> mutable* v, T elem) {
   embed {
     v->push_back(std::move(elem));
   }
 }
 
-public template <T>
+export template <T>
 T* operator [](vector<T>* v, int index) {
   embed {
     return &v->at(index);
   }
 }
 
-public template <T>
+export template <T>
 T mutable* operator [](vector<T> mutable* v, int index) {
   embed {
     return &v->at(index);
   }
 }
 
-public template <T>
+export template <T>
 int size(vector<T>* v) {
   embed {
     return v->size();
   }
 }
 
-public template <T> requires comparable<T>
+export template <T> requires comparable<T>
 void sort(vector<T> mutable* v) {
   embed {
     std::sort(v->begin(), v->end());
   }
 }
 
-public template <T, int Sz>
+export template <T, int Sz>
 vector<T> as_vector(mutable T[Sz] array) {
   mutable vector<T> ret;
   for (mutable it : array)
@@ -140,7 +140,7 @@ vector<T> as_vector(mutable T[Sz] array) {
   return move(ret);
 }
 
-public template <T>
+export template <T>
 T[] slice(vector<T>* v) {
   embed {
     return slice_t<T>{&v->front(), &v->back() + 1};

@@ -20,7 +20,7 @@ static const unordered_map<string, Keyword> keywords {
   {"for", Keyword::FOR},
   {"while", Keyword::WHILE},
   {"import", Keyword::IMPORT},
-  {"public", Keyword::PUBLIC},
+  {"export", Keyword::EXPORT},
   {"const", Keyword::CONST},
   {"enum", Keyword::ENUM},
   {"operator", Keyword::OPERATOR},

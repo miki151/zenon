@@ -1,4 +1,4 @@
 
-public int getNum2() {
+export int getNum2() {
   return 1;
 }

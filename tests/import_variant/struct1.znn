@@ -1,6 +1,6 @@
-public import "struct2.znn";
+export import "struct2.znn";
 
-public variant V1 {
+export variant V1 {
   int x;
   bool b;
 };

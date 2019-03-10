@@ -3,13 +3,13 @@ embed {
   constexpr int g = 5;
 }
 
-public int getInt(int x) {
+export int getInt(int x) {
   embed {
     return g + x;
   }
 }
 
-public template <T>
+export template <T>
 T getSecond(T t, T u, T v) {
   embed {
     return u;

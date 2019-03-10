@@ -1,21 +1,21 @@
 
-public import "std/concepts.znn";
+export import "std/concepts.znn";
 
-public template <T, int Size> requires can_copy<T>
+export template <T, int Size> requires can_copy<T>
 T[Size] copy(T[Size]* array) {
   embed {
     return *array;
   }
 }
 
-public embed {
+export embed {
 template <typename T, unsigned long Size>
 std::array<T, Size> copy(std::array<T, Size> const* array) {
   return *array;
 }
 }
 
-public template <int Size, T> requires can_copy<T>
+export template <int Size, T> requires can_copy<T>
 T[Size] array_repeat(T* elem) {
   embed {
     std::array<T, Size> a;
@@ -25,81 +25,81 @@ T[Size] array_repeat(T* elem) {
   }
 }
 
-public template <int Size, T>
+export template <int Size, T>
 int size(T[Size]* array) {
   return Size;
 }
 
-public template <T>
+export template <T>
 struct array_iterator {
   T* elem;
 };
 
-public template <int Size, T>
+export template <int Size, T>
 array_iterator<T> begin(T[Size]* array) {
   embed {
     return {&(*array)[0]};
   }
 }
 
-public template <int Size, T>
+export template <int Size, T>
 array_iterator<T> end(T[Size]* array) {
   embed {
     return {&(*array)[array->size()]};
   }
 }
 
-public template <T>
+export template <T>
 T* operator *(array_iterator<T>* it) {
   return it->elem;
 }
 
-public template <T>
+export template <T>
 array_iterator<T> operator ++(array_iterator<T> mutable* it) {
   embed {
     return {++it->elem};
   }
 }
 
-public template <T>
+export template <T>
 bool operator == (array_iterator<T>* it1, array_iterator<T>* it2) {
   embed {
     return it1->elem == it2->elem;
   }
 }
 
-public template <T>
+export template <T>
 struct array_mut_iterator {
   T mutable* elem;
 };
 
-public template <int Size, T>
+export template <int Size, T>
 array_mut_iterator<T> begin(T[Size] mutable* array) {
   embed {
     return {&(*array)[0]};
   }
 }
 
-public template <int Size, T>
+export template <int Size, T>
 array_mut_iterator<T> end(T[Size] mutable* array) {
   embed {
     return {&(*array)[array->size()]};
   }
 }
 
-public template <T>
+export template <T>
 T mutable* operator *(array_mut_iterator<T>* it) {
   return it->elem;
 }
 
-public template <T>
+export template <T>
 array_mut_iterator<T> operator ++(array_mut_iterator<T> mutable* it) {
   embed {
     return {++it->elem};
   }
 }
 
-public template <T>
+export template <T>
 bool operator == (array_mut_iterator<T>* it1, array_mut_iterator<T>* it2) {
   embed {
     return it1->elem == it2->elem;

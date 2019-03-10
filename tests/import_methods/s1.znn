@@ -1,15 +1,15 @@
 
-public template<T>
+export template<T>
 struct X {
   T v;
 };
 
-public template<T>
+export template<T>
 T* get(X<T>* x) {
   return &(*x).v;
 }
 
-public template<T> requires can_copy<T>
+export template<T> requires can_copy<T>
 void set(X<T> mutable* x, mutable T t) {
   (*x).v = move(t);
 }

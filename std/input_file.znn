@@ -1,5 +1,5 @@
 
-public embed {
+export embed {
   #include <fstream>
   struct input_file {
     input_file(lite_str<> path) : f(path.data()) {}
@@ -7,11 +7,11 @@ public embed {
   };
 }
 
-public extern struct input_file;
+export extern struct input_file;
 
-public extern input_file(string s);
+export extern input_file(string s);
 
-public template <T>
+export template <T>
 T read(input_file mutable* f) {
   embed {
     T t;
@@ -20,7 +20,7 @@ T read(input_file mutable* f) {
   }
 }
 
-public bool operator! (input_file* f) {
+export bool operator! (input_file* f) {
   embed { return !f->f.good(); }
 }
 

@@ -1,11 +1,11 @@
 
-public import "std/concepts.znn";
+export import "std/concepts.znn";
 
-public embed {
+export embed {
 #include <cmath>
 }
 
-public template <T> requires ordered<T>
+export template <T> requires ordered<T>
 T min(mutable T a, mutable T b) {
   if (a < b)
     return move(a);
@@ -13,7 +13,7 @@ T min(mutable T a, mutable T b) {
     return move(b);
 }
 
-public template <T> requires ordered<T>
+export template <T> requires ordered<T>
 T max(mutable T a, mutable T b) {
   if (a < b)
     return move(b);
@@ -21,17 +21,17 @@ T max(mutable T a, mutable T b) {
     return move(a);
 }
 
-public int as_int(double a) {
+export int as_int(double a) {
   embed {
     return (int) a;
   }
 }
 
-public double as_double(int a) {
+export double as_double(int a) {
   embed {
     return (double) a;
   }
 }
 
-public extern double sqrt(double value);
+export extern double sqrt(double value);
 

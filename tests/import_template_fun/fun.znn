@@ -1,10 +1,10 @@
 import "fun2.znn";
 
-public int getNum() {
+export int getNum() {
   return getNum2() - 1;
 }
 
-public template<T>
+export template<T>
 T* get(T* t1, T* t2, int a) {
   if (a == 0)
     return t1;

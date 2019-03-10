@@ -1,16 +1,16 @@
 
-public template <T>
+export template <T>
 concept can_copy {
   T copy(T*);
 };
 
-public template <T>
+export template <T>
 concept ordered {
   bool operator < (T*, T*);
   bool operator > (T*, T*);
 };
 
-public template <T>
+export template <T>
 concept comparable {
   bool operator == (T*, T*);
 };

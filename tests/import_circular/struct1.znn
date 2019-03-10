@@ -1,10 +1,10 @@
 import "main.znn";
 
-public int fun2() {
+export int fun2() {
   return 2 + fun1(false);
 }
 
-public struct Struct1 {
+export struct Struct1 {
   bool b;
 };
 

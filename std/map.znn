@@ -1,9 +1,9 @@
 
-public import "std/nullable.znn";
-public import "std/vector.znn";
-public import "std/concepts.znn";
+export import "std/nullable.znn";
+export import "std/vector.znn";
+export import "std/concepts.znn";
 
-public embed {
+export embed {
 #include <map>
 template<typename Key, typename Value>
 using map = std::map<Key,Value>;

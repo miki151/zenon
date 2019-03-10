@@ -1,5 +1,5 @@
 
-public embed {
+export embed {
 template <typename T>
 struct slice_t {
   T const* begin;
@@ -7,47 +7,47 @@ struct slice_t {
 };
 }
 
-public template <T>
+export template <T>
 int size(T[]* s) {
   embed {
     return s->end - s->begin;
   }
 }
 
-public template <T>
+export template <T>
 T* operator[](T[]* s, int index) {
   embed {
     return &s->begin[index];
   }
 }
 
-public template <T>
+export template <T>
 struct slice_iterator {
   T* elem;
 };
 
-public template <T>
+export template <T>
 slice_iterator<T> begin(T[]* v) {
   embed {
   return {v->begin};
   }
 }
 
-public template <T>
+export template <T>
 slice_iterator<T> end(T[]* v) {
   embed {
   return {v->end};
   }
 }
 
-public template <T>
+export template <T>
 T* operator *(slice_iterator<T>* it) {
   embed {
   return it->elem;
   }
 }
 
-public template <T>
+export template <T>
 slice_iterator<T> operator ++(slice_iterator<T> mutable* it) {
   embed {
     ++it->elem;
@@ -55,14 +55,14 @@ slice_iterator<T> operator ++(slice_iterator<T> mutable* it) {
   }
 }
 
-public template <T>
+export template <T>
 bool operator == (slice_iterator<T>* it1, slice_iterator<T>* it2) {
   embed {
     return it1->elem == it2->elem;
   }
 }
 
-public template <T, int N>
+export template <T, int N>
 T[] slice(T[N]* array) {
   embed {
     return slice_t<T>{&array->front(), &array->back() + 1};
