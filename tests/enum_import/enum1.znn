@@ -1,6 +1,6 @@
 
 
-enum E1 {
+public enum E1 {
   V1,
   V2,
   V3

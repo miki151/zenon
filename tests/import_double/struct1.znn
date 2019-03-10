@@ -1,12 +1,12 @@
 public import "print.znn";
 
 
-struct Struct1 {
+public struct Struct1 {
   X x;
   bool b;
 };
 
-int get(Struct1* s) {
+public int get(Struct1* s) {
   return getInt((*s).x.a);
 }
 

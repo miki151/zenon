@@ -207,7 +207,7 @@ void printDiagnostics(const char* installDir, const string& text, const string& 
     } else {
       cerr << "Parsed " << ast->elems.size() << " top level statements" << endl;
       auto context = createNewContext();
-      auto imported = correctness(*ast, context, {installDir}, false);
+      auto imported = correctness(fs::canonical(path), *ast, context, {installDir}, false);
       if (!imported) {
         cerr << "Type error" << endl;
         add(imported.get_error().error, imported.get_error().loc);

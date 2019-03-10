@@ -1,4 +1,4 @@
 
-int getNum2() {
+public int getNum2() {
   return 1;
 }

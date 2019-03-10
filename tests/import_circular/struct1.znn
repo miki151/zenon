@@ -1,10 +1,10 @@
 import "main.znn";
 
-int fun2() {
+public int fun2() {
   return 2 + fun1(false);
 }
 
-struct Struct1 {
+public struct Struct1 {
   bool b;
 };
 

@@ -22,6 +22,10 @@ Context Context::withParent(vector<const Context*> parents) {
 }
 
 void Context::merge(const Context& context) {
+  /*for (auto& t : context.getAllTypes()) {
+    auto other = getType(t->getName(false));
+    CHECK(!other || other.get() == t) << other->getName();
+  }*/
   for (auto& s : context.parentStates)
     if (!contains(parentStates, s) && state != s)
       parentStates.push_back(s);

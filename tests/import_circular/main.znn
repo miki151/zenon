@@ -1,7 +1,7 @@
 // 5
 import "struct1.znn";
 
-int fun1(bool b) {
+public int fun1(bool b) {
   if (b)
     return fun2();
   else

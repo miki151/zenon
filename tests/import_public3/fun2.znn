@@ -1,4 +1,4 @@
 
-struct S2 {
+public struct S2 {
   bool b;
 };

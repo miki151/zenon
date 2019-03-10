@@ -1,12 +1,12 @@
 import "hidden.znn";
 
 
-struct Struct1 {
+public struct Struct1 {
   int x;
 };
 
 Struct1(int u) {
   hidden();
-  return Struct1::Struct1(u);
+  return Struct1::Struct1(u + 1);
 }
 

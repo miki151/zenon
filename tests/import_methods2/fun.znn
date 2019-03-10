@@ -1,5 +1,5 @@
 
 
-int fun(int x) {
+public int fun(int x) {
   return x + 1;
 }

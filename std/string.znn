@@ -1,28 +1,28 @@
 
 
-int size(string* s) {
+public int size(string* s) {
   embed {
     return s->size();
   }
 }
 
-bool empty(string* s) {
+public bool empty(string* s) {
   return s->size() == 0;
 }
 
-string substring(string* s, int start, int length) {
+public string substring(string* s, int start, int length) {
   embed {
     return s->substring(start, length);
   }
 }
 
-char operator [](string* s, int index) {
+public char operator [](string* s, int index) {
   embed {
     return (*s)[index];
   }
 }
 
-string copy(string* s) {
+public string copy(string* s) {
   return *s;
 }
 

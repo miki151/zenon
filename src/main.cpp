@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
     auto tokens = getOrCompileError(lex(program->value, CodeLoc(path, 0, 0), "end of file"));
     auto ast = getOrCompileError(parse(tokens));
     auto context = createNewContext();
-    auto imported = getOrCompileError(correctness(ast, context, {installDir}, builtInModule));
+    auto imported = getOrCompileError(correctness(path, ast, context, {installDir}, builtInModule));
     auto cppCode = codegen(ast, context, installDir + "/codegen_includes/all.h"s, !printCpp);
     if (printCpp) {
       cout << cppCode << endl;

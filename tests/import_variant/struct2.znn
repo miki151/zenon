@@ -1,11 +1,11 @@
 
-template<T, U>
+public template<T, U>
 variant V2 {
   T t;
   U u;
 };
 
-template <T, U, X>
+public template <T, U, X>
 X get(V2<T, U>* v, T t, U u, mutable X x) {
   return move(x);
 }

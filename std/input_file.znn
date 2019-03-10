@@ -7,11 +7,11 @@ public embed {
   };
 }
 
-extern struct input_file;
+public extern struct input_file;
 
-extern input_file(string s);
+public extern input_file(string s);
 
-template <T>
+public template <T>
 T read(input_file mutable* f) {
   embed {
     T t;
@@ -20,7 +20,7 @@ T read(input_file mutable* f) {
   }
 }
 
-bool operator! (input_file* f) {
+public bool operator! (input_file* f) {
   embed { return !f->f.good(); }
 }
 

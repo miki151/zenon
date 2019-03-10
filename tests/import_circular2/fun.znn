@@ -1,0 +1,6 @@
+
+public import "main.znn";
+
+public int f() {
+  return g();
+}

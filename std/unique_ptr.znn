@@ -5,17 +5,17 @@ using std::unique_ptr;
 }
 
 
-template <T>
+public template <T>
 extern struct unique_ptr;
 
-template <T>
+public template <T>
 unique_ptr<T> make_unique(T t) {
   embed {
     return std::make_unique<T>(std::move(t));
   }
 }
 
-template <T>
+public template <T>
 T mutable* operator * (unique_ptr<T>* ptr) {
   embed {
     return ptr->get();

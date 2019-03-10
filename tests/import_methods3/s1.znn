@@ -1,21 +1,20 @@
 
-public import "std/concepts.znn";
 
-struct X {
+public struct X {
   int v;
 };
 
-template<T> requires can_copy<T>
+public template<T> requires can_copy<T>
 int get(X* x, T u) {
   return x->v;
 }
 
-template <T>
+public template <T>
 struct Y {
   T v;
 };
 
-template<T, U> requires can_copy<T>
+public template<T, U> requires can_copy<T>
 T get(Y<T>* x, U u) {
   return x->v.copy();
 }

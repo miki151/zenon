@@ -4,23 +4,23 @@ public import "std/array.znn";
 public import "std/concepts.znn";
 public import "std/string.znn";
 
-template <T>
+public template <T>
 T* copy(T** p) {
   return *p;
 }
 
-bool copy(bool* b) {
+public bool copy(bool* b) {
   return *b;
 }
 
-int copy(int* b) {
+public int copy(int* b) {
   return *b;
 }
 
-char copy(char* b) {
+public char copy(char* b) {
   return *b;
 }
 
-double copy(double* b) {
+public double copy(double* b) {
   return *b;
 }

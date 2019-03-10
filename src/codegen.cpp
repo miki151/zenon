@@ -310,7 +310,7 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body) {
     if (functionInfo.getMangledName()) {
       addSignature(accu, functionInfo);
-      if (body && stage.isDefine) {
+      if (body && stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
         accu.newLine("");
         handlePointerReturnInOperator(accu, body);
         accu.newLine("");
@@ -424,7 +424,7 @@ void EnumType::codegenDefinitionImpl(set<const Type*>&, Accu& accu) const {
 }
 
 void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const {
-  if (external)
+  if (external || incomplete)
     return;
   for (auto& instance : instances)
     instance->codegenDefinition(visited, accu);
@@ -601,7 +601,7 @@ void UnaryExpression::codegen(Accu& accu, CodegenStage stage) const {
 void EmbedStatement::codegen(Accu& accu, CodegenStage stage) const {
   if ((stage.isDefine && !isTopLevel) ||
       (!stage.isImport && stage.isTypes && isTopLevel) ||
-      (stage.isImport&& stage.isTypes && isPublic)) {
+      (stage.isImport&& stage.isTypes && exported)) {
     if (!isTopLevel)
       accu.newLine("{");
     for (auto& r : replacements) {
@@ -685,10 +685,11 @@ void WhileLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
 void ImportStatement::codegen(Accu& accu, CodegenStage stage) const {
   // ast can be null if import was already generated or is secondary and not public
   if (ast)
-    for (auto& elem : ast->elems) {
-      elem->codegen(accu, stage.setImport());
-      //accu.newLine("");
-    }
+    for (auto& elem : ast->elems)
+      if (elem->exported) {
+        elem->codegen(accu, stage.setImport());
+        //accu.newLine("");
+      }
 }
 
 void EnumConstant::codegen(Accu& accu, CodegenStage) const {

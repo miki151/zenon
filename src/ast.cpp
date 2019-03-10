@@ -300,7 +300,7 @@ unique_ptr<Expression> UnaryExpression::replace(SType from, SType to, ErrorBuffe
   return unique<UnaryExpression>(codeLoc, op, expr->replace(from, to, errors));
 }
 
-optional<ErrorLoc> StatementBlock::check(Context& context) {
+optional<ErrorLoc> StatementBlock::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   for (auto& s : elems)
     if (auto err = s->check(bodyContext))
@@ -315,7 +315,7 @@ unique_ptr<Statement> StatementBlock::replace(SType from, SType to, ErrorBuffer&
   return ret;
 }
 
-optional<ErrorLoc> IfStatement::check(Context& context) {
+optional<ErrorLoc> IfStatement::check(Context& context, bool) {
   auto ifContext = Context::withParent(context);
   if (declaration)
     if (auto err = declaration->check(ifContext))
@@ -354,7 +354,7 @@ unique_ptr<Statement> IfStatement::replace(SType from, SType to, ErrorBuffer& er
       ifFalse ? ifFalse->replace(from, to, errors) : nullptr);
 }
 
-optional<ErrorLoc> VariableDeclaration::check(Context& context) {
+optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   if (auto err = context.checkNameConflict(identifier, "Variable"))
     return codeLoc.getError(*err);
   if (!realType) {
@@ -406,7 +406,7 @@ unique_ptr<Statement> VariableDeclaration::replace(SType from, SType to, ErrorBu
   return ret;
 }
 
-optional<ErrorLoc> ReturnStatement::check(Context& context) {
+optional<ErrorLoc> ReturnStatement::check(Context& context, bool) {
   if (!expr && context.getReturnType() != ArithmeticType::VOID)
     return codeLoc.getError("Expected an expression in return statement in a function returning non-void");
   else {
@@ -867,16 +867,16 @@ optional<ErrorLoc> FunctionDefinition::checkBody(Context::ConstStates callContex
   if (name.contains<Operator>())
     retVal = convertReferenceToPointer(retVal);
   bodyContext.setReturnType(retVal);
-  if (retVal != ArithmeticType::VOID && !myBody.hasReturnStatement(bodyContext) && !name.contains<ConstructorId>())
+  if (retVal != ArithmeticType::VOID && !myBody.hasReturnStatement(bodyContext))
     return codeLoc.getError("Not all paths lead to a return statement in a function returning non-void");
   return myBody.check(bodyContext);
 }
 
-optional<ErrorLoc> FunctionDefinition::check(Context& context) {
+optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport) {
   if (auto err = generateDefaultBodies(context))
     return err;
   definitionContext = context.getAllStates();
-  if (body) {
+  if (body && (!templateInfo.params.empty() || notInImport)) {
     Context paramsContext = Context::withParent(context);
     for (auto& param : functionInfo->type.templateParams)
       addTemplateParam(paramsContext, param);
@@ -885,13 +885,13 @@ optional<ErrorLoc> FunctionDefinition::check(Context& context) {
       return res.get_error();
     if (auto err = checkBody(paramsContext.getAllStates(), *body, *functionInfo))
       return err;
+    for (int i = 0; i < instances.size(); ++i)
+      if (!instances[i].body) {
+        instances[i].generateBody(body.get());
+        if (auto err = checkBody(instances[i].callContext, *instances[i].body, *instances[i].functionInfo))
+          return err;
+      }
   }
-  for (int i = 0; i < instances.size(); ++i)
-    if (!instances[i].body) {
-      instances[i].generateBody(body.get());
-      if (auto err = checkBody(instances[i].callContext, *instances[i].body, *instances[i].functionInfo))
-        return err;
-    }
   return none;
 }
 
@@ -900,9 +900,6 @@ optional<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCach
     return err;
   if (auto err = context.addFunction(functionInfo.get()))
     return codeLoc.getError(*err);
-  if (templateInfo.params.empty() && cache.currentlyInImport())
-    // we are going to ignore the function body if we're in an import and it's not a template
-    body = nullptr;
   return none;
 }
 
@@ -971,25 +968,49 @@ Context createNewContext() {
 static void addBuiltInImport(AST& ast) {
   auto tmpVec = std::move(ast.elems);
   ast.elems = makeVec<unique_ptr<Statement>>(
-      unique<ImportStatement>(CodeLoc{}, "std/builtin.znn", true, true)
+      unique<ImportStatement>(CodeLoc{}, "std/builtin.znn", true)
   );
+  for (auto& elem : ast.elems)
+    elem->exported = true;
   for (auto& elem : tmpVec)
     ast.elems.push_back(std::move(elem));
 }
 
-WithErrorLine<vector<ModuleInfo>> correctness(AST& ast, Context& context, const vector<string>& importPaths,
-    bool isBuiltInModule) {
-  ImportCache cache(isBuiltInModule);
-  if (!isBuiltInModule)
+static optional<ErrorLoc> addExportedContext(ImportCache& cache, AST& ast, const string& path,
+    bool isBuiltIn, const vector<string>& importDirs) {
+  INFO << "Parsing import " << path;
+  cache.pushCurrentImport(path, isBuiltIn);
+  if (!isBuiltIn && !cache.isCurrentlyBuiltIn())
     addBuiltInImport(ast);
+  Context importContext = createNewContext();
   for (auto& elem : ast.elems) {
     if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
-      import->setImportDirs(importPaths);
-    if (auto err = elem->addToContext(context, cache))
-      return *err;
+      import->setImportDirs(importDirs);
+    if (elem->exported)
+      if (auto err = elem->addToContext(importContext, cache))
+        return *err;
   }
+  for (auto& elem : ast.elems)
+    if (elem->exported)
+      if (auto err = elem->check(importContext))
+        return *err;
+  cache.popCurrentImport(isBuiltIn);
+  cache.insert(path, std::move(importContext), isBuiltIn || cache.isCurrentlyBuiltIn());
+  return none;
+}
+
+WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST& ast, Context& context,
+    const vector<string>& importPaths, bool isBuiltInModule) {
+  ImportCache cache(isBuiltInModule);
+  if (auto err = addExportedContext(cache, ast, path, isBuiltInModule, importPaths))
+    return *err;
+  context.merge(cache.getContext(path));
+  for (auto& elem : ast.elems)
+    if (!elem->exported)
+      if (auto err = elem->addToContext(context, cache))
+        return *err;
   for (auto& elem : ast.elems) {
-    if (auto err = elem->check(context))
+    if (auto err = elem->check(context, true))
       return *err;
   }
   return cache.getAllImports();
@@ -997,7 +1018,7 @@ WithErrorLine<vector<ModuleInfo>> correctness(AST& ast, Context& context, const 
 
 ExpressionStatement::ExpressionStatement(unique_ptr<Expression> e) : Statement(e->codeLoc), expr(std::move(e)) {}
 
-optional<ErrorLoc> ExpressionStatement::check(Context& context) {
+optional<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
   auto res = getType(context, expr);
   if (!res)
     return res.get_error();
@@ -1124,7 +1145,7 @@ FunctionCall::FunctionCall(CodeLoc l, Private) : Expression(l) {}
 
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
-optional<ErrorLoc> SwitchStatement::check(Context& context) {
+optional<ErrorLoc> SwitchStatement::check(Context& context, bool) {
   if (auto t = getType(context, expr))
     return t.get()->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
   else
@@ -1212,6 +1233,10 @@ optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
     if (subtypeNames.count(subtype.name))
       return subtype.codeLoc.getError("Duplicate variant alternative: " + quote(subtype.name));
     subtypeNames.insert(subtype.name);
+    if (auto t = membersContext.getTypeFromString(subtype.type))
+      type->alternatives.push_back({subtype.name, *t});
+    else
+      return t.get_error();
     vector<FunctionType::Param> params;
     if (auto subtypeInfo = membersContext.getTypeFromString(subtype.type)) {
       if (*subtypeInfo != ArithmeticType::VOID)
@@ -1225,13 +1250,11 @@ optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
   return none;
 }
 
-optional<ErrorLoc> VariantDefinition::check(Context& context) {
+optional<ErrorLoc> VariantDefinition::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   for (auto& param : type->templateParams)
     bodyContext.addType(param->getName(), param);
   CHECK(!!applyConcept(bodyContext, templateInfo.requirements));
-  for (auto& subtype : elements)
-    type->alternatives.push_back({subtype.name, bodyContext.getTypeFromString(subtype.type).get()});
   type->updateInstantations();
   return none;
 }
@@ -1282,15 +1305,16 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context, ImportCache&
   return none;
 }
 
-optional<ErrorLoc> StructDefinition::check(Context& context) {
+optional<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
   auto methodBodyContext = Context::withParent(context);
   auto staticFunContext = Context::withParent({&context, &type->staticContext});
   for (auto& param : type->templateParams)
     addTemplateParam(methodBodyContext, param);
   CHECK(!!applyConcept(methodBodyContext, templateInfo.requirements));
   type->updateInstantations();
-  if (auto error = type->getSizeError())
-    return codeLoc.getError("Type " + quote(type->getName()) + " " + *error);
+  if (!incomplete || notInImport)
+    if (auto error = type->getSizeError())
+      return codeLoc.getError("Type " + quote(type->getName()) + " " + *error);
   return none;
 }
 
@@ -1322,15 +1346,12 @@ unique_ptr<Expression> MoveExpression::replace(SType from, SType to, ErrorBuffer
 EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {
 }
 
-optional<ErrorLoc> EmbedStatement::check(Context&) {
+optional<ErrorLoc> EmbedStatement::check(Context&, bool) {
   return none;
 }
 
 Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
-  if (isPublic)
-    return TopLevelAllowance::MUST;
-  else
-    return TopLevelAllowance::CAN;
+  return TopLevelAllowance::CAN;
 }
 
 unique_ptr<Statement> EmbedStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
@@ -1344,7 +1365,7 @@ ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<Statement> i, unique_pt
                                    unique_ptr<Expression> it, unique_ptr<Statement> b)
   : Statement(l), init(std::move(i)), cond(std::move(c)), iter(std::move(it)), body(std::move(b)) {}
 
-optional<ErrorLoc> ForLoopStatement::check(Context& context) {
+optional<ErrorLoc> ForLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   if (auto err = init->check(bodyContext))
     return *err;
@@ -1371,7 +1392,7 @@ unique_ptr<Statement> ForLoopStatement::replace(SType from, SType to, ErrorBuffe
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
   : Statement(l), cond(std::move(c)), body(std::move(b)) {}
 
-optional<ErrorLoc> WhileLoopStatement::check(Context& context) {
+optional<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   auto condType = getType(bodyContext, cond);
   if (!condType)
@@ -1388,15 +1409,15 @@ unique_ptr<Statement> WhileLoopStatement::replace(SType from, SType to, ErrorBuf
       body->replace(from, to, errors));
 }
 
-ImportStatement::ImportStatement(CodeLoc l, string p, bool pub, bool isBuiltIn)
-    : Statement(l), path(p), isPublic(pub), isBuiltIn(isBuiltIn) {
+ImportStatement::ImportStatement(CodeLoc l, string p, bool isBuiltIn)
+    : Statement(l), path(p), isBuiltIn(isBuiltIn) {
 }
 
 void ImportStatement::setImportDirs(const vector<string>& p) {
   importDirs = p;
 }
 
-optional<ErrorLoc> ImportStatement::check(Context&) {
+optional<ErrorLoc> ImportStatement::check(Context&, bool) {
   return none;
 }
 
@@ -1404,13 +1425,8 @@ optional<ErrorLoc> ImportStatement::processImport(Context& context, ImportCache&
     const string& path) {
   if (cache.isCurrentlyImported(path))
     return codeLoc.getError("Public import cycle: " + combine(cache.getCurrentImports(), ", "));
-  if ((!isPublic && cache.currentlyInImport())) {
-    INFO << "Skipping non public import " << path;
-    return none;
-  }
   if (!cache.contains(path)) {
     INFO << "Parsing import " << path;
-    cache.pushCurrentImport(path, isBuiltIn);
     if (auto tokens = lex(content, CodeLoc(path, 0, 0), "end of file")) {
       if (auto parsed = parse(std::move(*tokens)))
         ast = unique<AST>(std::move(*parsed));
@@ -1418,20 +1434,8 @@ optional<ErrorLoc> ImportStatement::processImport(Context& context, ImportCache&
         return parsed.get_error();
     } else
       return tokens.get_error();
-    if (!isBuiltIn && !cache.isCurrentlyBuiltIn())
-      addBuiltInImport(*ast);
-    Context importContext = createNewContext();
-    for (auto& elem : ast->elems) {
-      if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
-        import->setImportDirs(importDirs);
-      if (auto err = elem->addToContext(importContext, cache))
-        return err;
-    }
-    for (auto& elem : ast->elems)
-      if (auto err = elem->check(importContext))
-        return err;
-    cache.popCurrentImport(isBuiltIn);
-    cache.insert(path, std::move(importContext), isBuiltIn || cache.isCurrentlyBuiltIn());
+    if (auto err = addExportedContext(cache, *ast, path, isBuiltIn, importDirs))
+      return *err;
   } else
     INFO << "Import " << path << " already cached";
   context.merge(cache.getContext(path));
@@ -1475,7 +1479,7 @@ optional<ErrorLoc> EnumDefinition::addToContext(Context& s) {
   return none;
 }
 
-optional<ErrorLoc> EnumDefinition::check(Context& s) {
+optional<ErrorLoc> EnumDefinition::check(Context& s, bool) {
   return none;
 }
 
@@ -1536,7 +1540,7 @@ optional<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
   return none;
 }
 
-optional<ErrorLoc> ConceptDefinition::check(Context& context) {
+optional<ErrorLoc> ConceptDefinition::check(Context& context, bool) {
   return none;
 }
 
@@ -1573,7 +1577,7 @@ RangedLoopStatement::RangedLoopStatement(CodeLoc l, unique_ptr<VariableDeclarati
     unique_ptr<Expression> container, unique_ptr<Statement> body)
     : Statement(l), init(std::move(init)), container(std::move(container)), body(std::move(body)) {}
 
-optional<ErrorLoc> RangedLoopStatement::check(Context& context) {
+optional<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   auto containerTypeTmp = getType(context, container);
   if (!containerTypeTmp)
@@ -1622,7 +1626,7 @@ unique_ptr<Statement> RangedLoopStatement::replace(SType from, SType to, ErrorBu
   return ret;
 }
 
-optional<ErrorLoc> BreakStatement::check(Context& context) {
+optional<ErrorLoc> BreakStatement::check(Context& context, bool) {
   if (auto id = context.getLoopId()) {
     loopId = *id;
     return none;
@@ -1634,7 +1638,7 @@ unique_ptr<Statement> BreakStatement::replace(SType from, SType to, ErrorBuffer&
   return unique<BreakStatement>(codeLoc);
 }
 
-optional<ErrorLoc> ContinueStatement::check(Context& context) {
+optional<ErrorLoc> ContinueStatement::check(Context& context, bool) {
   if (!context.getLoopId())
     return codeLoc.getError("Continue statement outside of a loop");
   return none;
@@ -1715,7 +1719,7 @@ ExternConstantDeclaration::ExternConstantDeclaration(CodeLoc l, IdentifierInfo t
   : Statement(l), type(type), identifier(identifier) {
 }
 
-optional<ErrorLoc> ExternConstantDeclaration::check(Context& context) {
+optional<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
   if (auto err = context.checkNameConflict(identifier, "Variable"))
     return codeLoc.getError(*err);
   if (auto t = context.getTypeFromString(type))

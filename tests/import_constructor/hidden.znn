@@ -1,4 +1,4 @@
 
 
-void hidden() {
+public void hidden() {
 }

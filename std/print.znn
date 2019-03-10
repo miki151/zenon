@@ -4,7 +4,7 @@ public embed{
 #include <cstdio>
 }
 
-string to_string(int* i) {
+public string to_string(int* i) {
   embed {
     char buf[12];
     snprintf(buf, 12, "%d", *i);
@@ -12,7 +12,7 @@ string to_string(int* i) {
   }
 }
 
-string to_string(double* i) {
+public string to_string(double* i) {
   embed {
     char buf[20];
     snprintf(buf, 20, "%f", *i);
@@ -20,23 +20,23 @@ string to_string(double* i) {
   }
 }
 
-string to_string(string* s) {
+public string to_string(string* s) {
   return *s;
 }
 
-string to_string(bool* b) {
+public string to_string(bool* b) {
   if (*b)
     return "true";
   else
     return "false";
 }
 
-template <T>
+public template <T>
 concept can_print {
   string to_string(T*);
 };
 
-void print(string s) {
+public void print(string s) {
   embed {
     printf("%s\n", s.data());
   }

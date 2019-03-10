@@ -1,20 +1,15 @@
 
-template<T>
-concept can_copy {
-  T copy(T*);
-};
-
-template<T>
+public template<T>
 struct X {
   T v;
 };
 
-template<T>
+public template<T>
 T* get(X<T>* x) {
   return &(*x).v;
 }
 
-template<T> requires can_copy<T>
+public template<T> requires can_copy<T>
 void set(X<T> mutable* x, mutable T t) {
   (*x).v = move(t);
 }

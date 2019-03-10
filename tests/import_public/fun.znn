@@ -1,6 +1,6 @@
 import "fun2.znn";
 
-int getNum() {
+public int getNum() {
   return getNum2() - 1;
 }
 

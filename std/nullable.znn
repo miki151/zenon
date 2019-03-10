@@ -1,11 +1,11 @@
 
-template <T>
+public template <T>
 variant nullable {
   T value;
   void null;
 };
 
-template <T>
+public template <T>
 bool ok(nullable<T>* v) {
   switch (*v) {
     case (T* value) {
@@ -17,7 +17,7 @@ bool ok(nullable<T>* v) {
   }
 }
 
-template <T>
+public template <T>
 bool operator !(nullable<T>* v) {
   switch (*v) {
     case (T* value) {
@@ -29,7 +29,7 @@ bool operator !(nullable<T>* v) {
   }
 }
 
-template <T>
+public template <T>
 T* operator *(nullable<T>* v) {
   switch (*v) {
     case (T* value) {
@@ -44,12 +44,12 @@ T* operator *(nullable<T>* v) {
   }
 }
 
-template <T>
+public template <T>
 nullable<T> value(mutable T v) {
   return nullable<T>::value(move(v));
 }
 
-template <T>
+public template <T>
 nullable<T> null() {
   return nullable<T>::null();
 }

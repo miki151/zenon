@@ -5,7 +5,7 @@ public embed {
 #include <cmath>
 }
 
-template <T> requires ordered<T>
+public template <T> requires ordered<T>
 T min(mutable T a, mutable T b) {
   if (a < b)
     return move(a);
@@ -13,7 +13,7 @@ T min(mutable T a, mutable T b) {
     return move(b);
 }
 
-template <T> requires ordered<T>
+public template <T> requires ordered<T>
 T max(mutable T a, mutable T b) {
   if (a < b)
     return move(b);
@@ -21,17 +21,17 @@ T max(mutable T a, mutable T b) {
     return move(a);
 }
 
-int as_int(double a) {
+public int as_int(double a) {
   embed {
     return (int) a;
   }
 }
 
-double as_double(int a) {
+public double as_double(int a) {
   embed {
     return (double) a;
   }
 }
 
-extern double sqrt(double value);
+public extern double sqrt(double value);
 

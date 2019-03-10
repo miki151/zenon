@@ -6,6 +6,7 @@
 
 WithErrorLine<unique_ptr<Expression>> parseExpression(Tokens&, int minPrecedence = 0);
 WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens&);
+WithErrorLine<unique_ptr<Statement>> parseTopLevelStatement(Tokens&);
 
 template <typename T>
 static shared_ptr<T> getSharedPtr(unique_ptr<T> p) {
@@ -898,7 +899,7 @@ WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
   }
 }
 
-WithErrorLine<unique_ptr<Statement>> parseImportStatement(Tokens& tokens, bool isPublic) {
+WithErrorLine<unique_ptr<Statement>> parseImportStatement(Tokens& tokens) {
   auto codeLoc = tokens.peek().codeLoc;
   if (auto t = tokens.eat(Keyword::IMPORT); !t)
     return t.get_error();
@@ -907,7 +908,7 @@ WithErrorLine<unique_ptr<Statement>> parseImportStatement(Tokens& tokens, bool i
     return path.get_error();
   if (auto t = tokens.eat(Keyword::SEMICOLON); !t)
     return t.get_error();
-  return cast<Statement>(unique<ImportStatement>(codeLoc, path->value, isPublic, false));
+  return cast<Statement>(unique<ImportStatement>(codeLoc, path->value, false));
 }
 
 WithErrorLine<unique_ptr<Statement>> parseEnumStatement(Tokens& tokens, bool external) {
@@ -1017,22 +1018,8 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             return parseForLoopStatement(tokens);
           case Keyword::WHILE:
             return cast<Statement>(parseWhileLoopStatement(tokens));
-          case Keyword::PUBLIC: {
-            tokens.popNext();
-            auto next = tokens.peek();
-            if (next == Keyword::IMPORT)
-              return parseImportStatement(tokens, true);
-            if (next.contains<EmbedToken>()) {
-              auto ret = unique<EmbedStatement>(next.codeLoc, next.value);
-              ret->isPublic = true;
-              ret->isTopLevel = true;
-              tokens.popNext();
-              return cast<Statement>(std::move(ret));
-            } else
-              return next.codeLoc.getError("Unexpected definition after " + quote("public") + " keyword: " + quote(next.value));
-          }
           case Keyword::IMPORT:
-            return parseImportStatement(tokens, false);
+            return parseImportStatement(tokens);
           case Keyword::OPEN_BRACKET:
             return cast<Statement>(parseExpressionAndSemicolon());
           case Keyword::MUTABLE:
@@ -1102,12 +1089,16 @@ WithErrorLine<unique_ptr<Statement>> parseNonTopLevelStatement(Tokens& tokens) {
 }
 
 WithErrorLine<unique_ptr<Statement>> parseTopLevelStatement(Tokens& tokens) {
+  bool isExported = !!tokens.eatMaybe(Keyword::PUBLIC);
   auto statement = parseStatement(tokens, true);
   if (!statement)
     return statement.get_error();
-  if (*statement && statement.get()->allowTopLevel() == Statement::TopLevelAllowance::CANT)
-    return statement.get()->codeLoc.getError(
-        "Statement not allowed in the top level of the program");
+  if (*statement) {
+    if (statement.get()->allowTopLevel() == Statement::TopLevelAllowance::CANT)
+      return statement.get()->codeLoc.getError(
+          "Statement not allowed in the top level of the program");
+    statement->get()->exported = isExported;
+  }
   return statement;
 }
 
