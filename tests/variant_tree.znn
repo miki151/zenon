@@ -23,7 +23,7 @@ variant Node {
 
 template <T>
 Node<T> withChildren(mutable Node<T> a, mutable Node<T>b) {
-  mutable vector<Node<T>> children;
+  mutable children = vector<Node<T>>();
   children.push_back(move(a));
   children.push_back(move(b));
   return Node<T>::nonLeaf(NonLeaf(move(children)));

@@ -373,9 +373,9 @@ struct SwitchStatement : Statement {
 };
 
 struct FunctionDefinition : Statement {
-  FunctionDefinition(CodeLoc, IdentifierInfo returnType, FunctionName);
+  FunctionDefinition(CodeLoc, IdentifierInfo returnType, FunctionId);
   IdentifierInfo returnType;
-  FunctionName name;
+  FunctionId name;
   struct Parameter {
     CodeLoc codeLoc;
     IdentifierInfo type;

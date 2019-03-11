@@ -132,7 +132,7 @@ void sort(vector<T> mutable* v) {
 
 export template <T, int Sz>
 vector<T> as_vector(mutable T[Sz] array) {
-  mutable vector<T> ret;
+  mutable ret = vector<T>();
   for (mutable it : array)
     embed {
     ret.push_back(std::move(*it.elem));

@@ -1,4 +1,4 @@
-// 1
+// no_compile
 
 struct S {
   int x;
@@ -9,6 +9,6 @@ S() {
 }
 
 int main() {
-  const s = S();
-  return s.x;
+  const S s;
+  return 0;
 }

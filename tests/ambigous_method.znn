@@ -14,7 +14,7 @@ int f(X x, int c) {
 }
 
 int main() {
-  X x;
+  const x = X();
   x.copy().f(3);
   return 0;
 }

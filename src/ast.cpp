@@ -54,7 +54,7 @@ VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, 
   INFO << "Declared variable " << quote(id) << " of type " << quote(type);
 }
 
-FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionName name)
+FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionId name)
   : Statement(l), returnType(std::move(r)), name(name) {}
 
 WithErrorLine<SType> Constant::getTypeImpl(Context&) {
@@ -380,11 +380,8 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   if (context.isIncomplete(realType.get().get()))
     return codeLoc.getError("Variable has incomplete type " + quote(realType->getName()));
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
-  if (!initExpr) {
-    if (!context.canDefaultInitialize(realType.get()))
-      return codeLoc.getError("Type " + quote(realType->getName()) + " requires initialization");
-    initExpr = FunctionCall::constructor(codeLoc, realType.get());
-  }
+  if (!initExpr)
+    return codeLoc.getError("Variable requires initialization");
   auto exprType = getType(context, initExpr);
   if (!exprType)
     return exprType.get_error();
@@ -521,14 +518,6 @@ static bool paramsAreGoodForOperator(const vector<FunctionType::Param>& params) 
   return false;
 }
 
-static FunctionId getFunctionId(const FunctionName& name) {
-  return name.visit(
-      [&](const string& s) -> FunctionId { return s; },
-      [&](Operator op) -> FunctionId { return op; },
-      [&](ConstructorId) -> FunctionId { return ConstructorTag{}; }
-  );
-}
-
 optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, bool concept, bool builtInImport) {
   for (int i = 0; i < parameters.size(); ++i)
     if (!parameters[i].name)
@@ -587,12 +576,11 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     FunctionType functionType(returnType, params, templateTypes);
     functionType.fromConcept = concept;
     functionType.requirements = *requirements;
-    auto id = getFunctionId(name);
-    if (id.contains<ConstructorTag>() && external)
+    if (name.contains<ConstructorTag>() && external)
       functionType.generatedConstructor = true;
-    if (id.contains<Operator>() && external)
+    if (name.contains<Operator>() && external)
       functionType.setBuiltin();
-    functionInfo = FunctionInfo::getDefined(id, std::move(functionType), this);
+    functionInfo = FunctionInfo::getDefined(name, std::move(functionType), this);
     return none;
   } else
     return returnType1.get_error();

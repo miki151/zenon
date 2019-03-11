@@ -6,7 +6,7 @@ int main() {
   /* pwoewpfk
      ewpfokwef
      ewpfok */
-  mutable vector<int> v;
+  mutable v = vector<int>();
   /* ppokwef */
   const x = &v;
   x->push_back(5);

@@ -47,7 +47,7 @@ int operator [](virtual Shape<T>* s, int index) {
 }
 
 int main() {
-  mutable vector<Shape<Circle<bool>>> v;
+  mutable v = vector<Shape<Circle<bool>>>();
   v.push_back(Shape<Circle<bool>>::triangle(Triangle(1, 5, 5)));
   v.push_back(Shape<Circle<bool>>::rectangle(Rectangle(2, 4)));
   v.push_back(Shape<Circle<bool>>::circle(Circle<bool>(3)));
