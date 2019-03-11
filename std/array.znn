@@ -16,11 +16,11 @@ std::array<T, Size> copy(std::array<T, Size> const* array) {
 }
 
 export template <int Size, T> requires can_copy<T>
-T[Size] array_repeat(T* elem) {
+T[Size] array_repeat(T elem) {
   embed {
     std::array<T, Size> a;
     for (int i = 0; i < Size; ++i)
-      a[i] = copy(elem);
+      a[i] = copy(&elem);
     return a;
   }
 }

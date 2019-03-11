@@ -7,8 +7,7 @@ struct S {
 
 template <Key> requires is_enum<Key>
 S() {
-  const v = 0;
-  return S<Key>(array_repeat<(enum_size(Key))>(&v));
+  return S<Key>(array_repeat<(enum_size(Key))>(0));
 }
 
 enum E1 {

@@ -1,0 +1,15 @@
+// 3
+
+struct X {
+  int a;
+};
+
+struct Y {
+  X x1;
+  X x2;
+};
+
+int main() {
+  const y = Y(X(1), X(2));
+  return y.x1.a + y.x2.a;
+}

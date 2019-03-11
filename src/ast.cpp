@@ -108,7 +108,7 @@ WithErrorLine<SType> Variable::getDotOperatorType(Expression* left, Context& cal
       } else
         return leftType;
     }
-  return codeLoc.getError("Bad use of comma operator");
+  return codeLoc.getError("Bad use of dot operator");
 }
 
 static bool isExactArg(SType arg, SType param) {
@@ -799,8 +799,9 @@ void FunctionDefinition::addInstance(const Context& callContext, const SFunction
       instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, callTopContext});
       if (!definitionContext.empty()) {
         instances.back().generateBody(body.get());
-        CHECK(!checkBody(callContext.typeRegistry, callTopContext, *instances.back().body,
-            *instances.back().functionInfo));
+        auto res = checkBody(callContext.typeRegistry, callTopContext, *instances.back().body,
+            *instances.back().functionInfo);
+        CHECK(!res) << res->loc.file << " " << res->loc.line << " " << res->error;
       }
     }
   } else

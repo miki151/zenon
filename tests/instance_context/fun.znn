@@ -1,0 +1,14 @@
+
+export template <T>
+concept C1 {
+  void g(T);
+};
+
+export template <T> requires C1<T>
+void f(T*) {
+}
+
+export template <T> requires C1<T>
+void f(T t) {
+  f(&t);
+}

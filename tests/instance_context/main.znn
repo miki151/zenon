@@ -1,0 +1,15 @@
+// 3
+
+import "fun.znn";
+
+struct X {
+  int a;
+};
+
+void g(X) {}
+void g(X*) {}
+
+int main() {
+  f(X(1));
+  return 0;
+}
