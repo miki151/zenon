@@ -224,15 +224,18 @@ void startLsp(const char* installDir) {
   ofstream out("/home/michal/lsp.out");
   cerr.rdbuf(out.rdbuf());
   cerr << "Starting log" << endl;
-  auto welcome = readInput();
-  auto id = *findValue(welcome, "id");
-  output(getHeader(id));
-  cerr << "Awaiting initialized" << endl;
-  assert(findValue(readInput(), "method") == "initialized"s);
-  cerr << "Got initialized" << endl;
   while (1) {
     auto input = readInput();
     auto method = findValue(input, "method");
+    if (method)
+      cerr << "Got method: " << *method << endl;
+    if (method == "initialize"s) {
+      auto id = *findValue(input, "id");
+      output(getHeader(id));
+    } else
+    if (method == "initialized"s) {
+      cerr << "Initialized!" << endl;
+    } else
     if (method == "textDocument/didOpen"s || method == "textDocument/didChange"s) {
       auto path = *findValue(input, "uri");
       CHECK(path.substr(0, 7) == "file://");
