@@ -143,7 +143,7 @@ struct FunctionCall : Expression {
 struct Statement : Node {
   using Node::Node;
   NODISCARD virtual optional<ErrorLoc> addToContext(Context&);
-  NODISCARD virtual optional<ErrorLoc> addToContext(Context&, ImportCache&);
+  NODISCARD virtual optional<ErrorLoc> addToContext(Context&, ImportCache&, const Context& primaryContext);
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool topLevelNotInImport = false) { return none; }
   NODISCARD virtual bool hasReturnStatement(const Context&) const;
   virtual void codegen(Accu&, CodegenStage) const {}
@@ -300,7 +300,7 @@ struct StructDefinition : Statement {
   vector<Member> members;
   TemplateInfo templateInfo;
   nullable<shared_ptr<StructType>> type;
-  NODISCARD virtual optional<ErrorLoc> addToContext(Context&, ImportCache&) override;
+  NODISCARD virtual optional<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool = false) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
@@ -405,7 +405,7 @@ struct FunctionDefinition : Statement {
   bool isDefault = false;
   vector<Initializer> initializers;
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool = false) override;
-  NODISCARD virtual optional<ErrorLoc> addToContext(Context&, ImportCache&) override;
+  NODISCARD virtual optional<ErrorLoc> addToContext(Context&, ImportCache&, const Context& primaryContext) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   NODISCARD optional<ErrorLoc> setFunctionType(const Context&, bool concept = false, bool builtInImport = false);
@@ -419,8 +419,9 @@ struct FunctionDefinition : Statement {
   NODISCARD optional<ErrorLoc> checkAndGenerateCopyFunction(const Context&);
   void addInstance(const Context& callContext, const SFunctionInfo&);
   NODISCARD optional<ErrorLoc> generateDefaultBodies(Context&);
-  NODISCARD optional<ErrorLoc> checkBody(Context::ConstStates callContext, StatementBlock& myBody,
+  NODISCARD optional<ErrorLoc> checkBody(TypeRegistry*, Context::ConstStates callContext, StatementBlock& myBody,
       const FunctionInfo& instanceInfo) const;
+  NODISCARD optional<ErrorLoc> checkForIncompleteTypes(const Context&);
 };
 
 struct EmbedStatement : Statement {
@@ -448,13 +449,14 @@ struct ImportStatement : Statement {
   unique_ptr<AST> ast;
   const bool isBuiltIn;
   void setImportDirs(const vector<string>& importDirs);
-  virtual optional<ErrorLoc> addToContext(Context&, ImportCache& cache) override;
+  virtual optional<ErrorLoc> addToContext(Context&, ImportCache& cache, const Context& primaryContext) override;
   virtual optional<ErrorLoc> check(Context&, bool = false) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
 
   private:
-  NODISCARD optional<ErrorLoc> processImport(Context&, ImportCache&, const string& content, const string& path);
+  NODISCARD optional<ErrorLoc> processImport(const Context& primaryContext, Context&, ImportCache&, const string& content,
+      const string& path);
 };
 
 struct AST {
@@ -466,6 +468,6 @@ struct ModuleInfo {
   bool builtIn;
 };
 
-extern WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST&, Context&,
+extern WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST&, Context& context, const Context& primary,
     const vector<string>& importPaths, bool builtIn);
-extern Context createNewContext();
+extern Context createPrimaryContext(TypeRegistry*);

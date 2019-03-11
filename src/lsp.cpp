@@ -8,6 +8,7 @@
 #include "ast.h"
 #include "lexer.h"
 #include "parser.h"
+#include "type_registry.h"
 
 void output(const string& s) {
   cout << "Content-Length: " << s.size() << "\r\n\r\n" << s << std::flush;
@@ -206,8 +207,10 @@ void printDiagnostics(const char* installDir, const string& text, const string& 
       add(ast.get_error().error, ast.get_error().loc);
     } else {
       cerr << "Parsed " << ast->elems.size() << " top level statements" << endl;
-      auto context = createNewContext();
-      auto imported = correctness(fs::canonical(path), *ast, context, {installDir}, false);
+      TypeRegistry typeRegistry;
+      auto primaryContext = createPrimaryContext(&typeRegistry);
+      auto context = Context::withParent(primaryContext);
+      auto imported = correctness(fs::canonical(path), *ast, context, primaryContext, {installDir}, false);
       if (!imported) {
         cerr << "Type error" << endl;
         add(imported.get_error().error, imported.get_error().loc);

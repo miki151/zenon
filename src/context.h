@@ -15,13 +15,14 @@ using SContext = shared_ptr<Context>;
 using SConcept = shared_ptr<Concept>;
 using SConstContext = shared_ptr<const Context>;
 class IdentifierType;
+class TypeRegistry;
 
 class Context : public owned_object<Context> {
   public:
   static Context withParent(const Context&);
   static Context withParent(vector<const Context*>);
   void merge(const Context&);
-  Context();
+  Context(TypeRegistry*);
   Context(const Context&) = delete;
   Context(Context&&) = default;
   void operator = (const Context&) = delete;
@@ -34,9 +35,11 @@ class Context : public owned_object<Context> {
   void replace(SType from, SType to, ErrorBuffer&);
   nullable<SType> getReturnType() const;
   void setReturnType(SType);
-  void addType(const string& name, SType);
+  void addType(const string& name, SType, bool incomplete = false);
   WithErrorLine<SType> getTypeFromString(IdentifierInfo) const;
   nullable<SType> getType(const string&) const;
+  bool isIncomplete(const Type*) const;
+  void setIncomplete(const Type*, bool);
   vector<SType> getAllTypes() const;
   [[nodiscard]] optional<string> addImplicitFunction(FunctionId, FunctionType);
   [[nodiscard]] optional<string> addFunction(SFunctionInfo);
@@ -75,6 +78,7 @@ class Context : public owned_object<Context> {
     vector<string> varsList;
     mutable set<string> movedVars;
     map<string, SType> types;
+    map<const Type*, bool> incompleteTypes;
     map<FunctionId, vector<SFunctionInfo>> functions;
     nullable<SType> returnType;
     map<string, shared_ptr<Concept>> concepts;
@@ -95,16 +99,17 @@ class Context : public owned_object<Context> {
   ConstStates getAllStates() const;
   ConstStates getTopLevelStates() const;
   void setAsTopLevel();
-  static Context withStates(ConstStates);
+  static Context withStates(TypeRegistry*, ConstStates);
 
   WithErrorLine<vector<SType> > getTypeList(const vector<TemplateParameterInfo>&) const;
+
+  TypeRegistry* const typeRegistry;
 
   private:
 
   ConstStates parentStates;
   ConstStates topLevelStates;
   shared_ptr<State> state;
-
 
   vector<shared_ptr<const State>> getReversedStates() const;
   const State& getTopState() const;

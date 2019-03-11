@@ -15,6 +15,7 @@ struct FunctionDefinition;
 struct Accu;
 
 struct Type : public owned_object<Type> {
+  Type();
   virtual string getName(bool withTemplateArguments = true) const = 0;
   virtual string getCodegenName() const;
   virtual optional<string> getMangledName() const;
@@ -208,7 +209,6 @@ struct StructType : public Type {
   virtual optional<string> getSizeError() const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
   WithError<SType> getTypeOfMember(const string&) const;
-  static shared_ptr<StructType> get(string name);
   string name;
   shared_ptr<StructType> getInstance(vector<SType> templateParams);
   vector<SType> templateParams;
@@ -221,17 +221,15 @@ struct StructType : public Type {
   };
   vector<Variable> members;
   vector<Variable> alternatives;
-  bool incomplete = false;
   bool external = false;
+  optional<CodeLoc> definition;
   void updateInstantations();
   SType getInstantiated(vector<SType> templateParams);
   struct Private {};
-  StructType(Private) {}
+  StructType(string name, Private);
 };
 
 struct EnumType : public Type {
-  EnumType(string name, vector<string> elements, bool external);
-
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
@@ -241,6 +239,9 @@ struct EnumType : public Type {
   string name;
   vector<string> elements;
   bool external = false;
+  optional<CodeLoc> definition;
+  struct Private {};
+  EnumType(string name, Private);
 };
 
 struct ArrayType : public Type {
@@ -312,7 +313,7 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
 };
 
 struct Concept : public owned_object<Concept> {
-  Concept(const string& name);
+  Concept(const string& name, Context emptyContext);
   string getName() const;
   SConcept translate(vector<SType> params, ErrorBuffer&) const;
   SConcept replace(SType from, SType to, ErrorBuffer&) const;
@@ -323,8 +324,8 @@ struct Concept : public owned_object<Concept> {
 
   private:
   vector<SType> params;
-  Context context;
   string name;
+  Context context;
 };
 
 struct Expression;

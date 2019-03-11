@@ -1,0 +1,9 @@
+// no_compile
+
+import "struct1.znn";
+import "struct2.znn";
+
+
+int main() {
+  return 0;
+}

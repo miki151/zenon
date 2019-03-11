@@ -6,6 +6,7 @@
 #include "parser.h"
 #include "code_loc.h"
 #include "identifier_type.h"
+#include "type_registry.h"
 
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
@@ -97,6 +98,8 @@ WithErrorLine<SType> Variable::getDotOperatorType(Expression* left, Context& cal
     if (auto id = identifier.asBasicIdentifier()) {
       if (auto leftType = left->getTypeImpl(callContext)) {
         if (auto structType = leftType.get()->getUnderlying().dynamicCast<StructType>()) {
+          if (callContext.isIncomplete(structType.get()))
+            return codeLoc.getError(structType->getName() + " is incomplete in this context");
           if (auto member = structType->getTypeOfMember(*id))
             return SType(MutableReferenceType::get(*member));
           else
@@ -373,7 +376,9 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
       return codeLoc.getError("Initializing expression needed to infer variable type");
   }
   if (realType == ArithmeticType::VOID)
-    return codeLoc.getError("Can't declare variable of type " + quote(ArithmeticType::VOID->getName()));
+    return codeLoc.getError("Can't declare variable of type " + quote(realType->getName()));
+  if (context.isIncomplete(realType.get().get()))
+    return codeLoc.getError("Variable has incomplete type " + quote(realType->getName()));
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (!initExpr) {
     if (!context.canDefaultInitialize(realType.get()))
@@ -429,7 +434,7 @@ optional<ErrorLoc> Statement::addToContext(Context&) {
   return none;
 }
 
-optional<ErrorLoc> Statement::addToContext(Context& context, ImportCache& cache) {
+optional<ErrorLoc> Statement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
   return addToContext(context);
 }
 
@@ -544,6 +549,8 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
       auto type = contextWithTemplateParams.getType(*param.type);
       if (!type)
         return param.codeLoc.getError("Type not found: " + quote(*param.type));
+      if (contextWithTemplateParams.isIncomplete(type.get().get()))
+        return param.codeLoc.getError("Type is incomplete: " + quote(*param.type));
       templateTypes.push_back(CompileTimeValue::getTemplateValue(type.get(), param.name));
       contextWithTemplateParams.addType(param.name, templateTypes.back());
     } else {
@@ -804,7 +811,8 @@ void FunctionDefinition::addInstance(const Context& callContext, const SFunction
       instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, callTopContext});
       if (!definitionContext.empty()) {
         instances.back().generateBody(body.get());
-        CHECK(!checkBody(callTopContext, *instances.back().body, *instances.back().functionInfo));
+        CHECK(!checkBody(callContext.typeRegistry, callTopContext, *instances.back().body,
+            *instances.back().functionInfo));
       }
     }
   } else
@@ -843,9 +851,9 @@ optional<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
   return none;
 }
 
-optional<ErrorLoc> FunctionDefinition::checkBody(Context::ConstStates callContext, StatementBlock& myBody,
-    const FunctionInfo& instanceInfo) const {
-  auto bodyContext = Context::withStates(mergeStates(definitionContext, callContext));
+optional<ErrorLoc> FunctionDefinition::checkBody(TypeRegistry* typeRegistry, Context::ConstStates callContext,
+    StatementBlock& myBody,  const FunctionInfo& instanceInfo) const {
+  auto bodyContext = Context::withStates(typeRegistry, mergeStates(definitionContext, callContext));
   bodyContext.setAsTopLevel();
   for (auto& t : instanceInfo.type.templateParams)
     if (!t->getMangledName()) {
@@ -872,6 +880,17 @@ optional<ErrorLoc> FunctionDefinition::checkBody(Context::ConstStates callContex
   return myBody.check(bodyContext);
 }
 
+optional<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& context) {
+  for (int i = 0; i < functionInfo->type.params.size(); ++i) {
+    auto paramType = functionInfo->type.params[i].type;
+    if (context.isIncomplete(paramType.get()))
+      return parameters[i].codeLoc.getError("Type " + quote(paramType->getName()) + " is incomplete in this context");
+  }
+  if (context.isIncomplete(functionInfo->type.retVal.get()))
+    return returnType.codeLoc.getError("Type " + quote(functionInfo->type.retVal->getName()) + " is incomplete in this context");
+  return none;
+}
+
 optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport) {
   if (auto err = generateDefaultBodies(context))
     return err;
@@ -883,19 +902,22 @@ optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport)
     auto res = applyConcept(paramsContext, templateInfo.requirements);
     if (!res)
       return res.get_error();
-    if (auto err = checkBody(paramsContext.getAllStates(), *body, *functionInfo))
+    if (auto err = checkForIncompleteTypes(paramsContext))
+      return err;
+    if (auto err = checkBody(context.typeRegistry, paramsContext.getAllStates(), *body, *functionInfo))
       return err;
     for (int i = 0; i < instances.size(); ++i)
       if (!instances[i].body) {
         instances[i].generateBody(body.get());
-        if (auto err = checkBody(instances[i].callContext, *instances[i].body, *instances[i].functionInfo))
+        if (auto err = checkBody(context.typeRegistry, instances[i].callContext, *instances[i].body,
+            *instances[i].functionInfo))
           return err;
       }
   }
   return none;
 }
 
-optional<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCache& cache) {
+optional<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
   if (auto err = setFunctionType(context, false, cache.isCurrentlyBuiltIn()))
     return err;
   if (auto err = context.addFunction(functionInfo.get()))
@@ -905,64 +927,61 @@ optional<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCach
 
 static void addIsEnumConcept(Context& context) {
   auto name = "is_enum";
-  shared_ptr<Concept> concept = shared<Concept>(name);
+  shared_ptr<Concept> concept = shared<Concept>(name, Context(context.typeRegistry));
   concept->modParams().push_back(shared<TemplateParameterType>(ArithmeticType::ENUM_TYPE, "T", CodeLoc()));
   context.addConcept(name, concept);
 }
 
-Context createNewContext() {
-  static optional<Context> context;
-  if (!context) {
-    context.emplace();
-    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE, ArithmeticType::BOOL,
-         ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
-      context->addType(type->getName(), type);
-    CHECK(!context->addImplicitFunction(Operator::PLUS, FunctionType(ArithmeticType::STRING,
-        {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {}).setBuiltin()));
-    for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
-      for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-        CHECK(!context->addImplicitFunction(op, FunctionType(type, {{type}}, {}).setBuiltin()));
-    for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
-      CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
-          {{MutableReferenceType::get(ArithmeticType::INT)}}, {}).setBuiltin()));
-    for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
-      for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-        if (type != ArithmeticType::DOUBLE || op != Operator::MODULO)
-          CHECK(!context->addImplicitFunction(op, FunctionType(type, {{type}, {type}}, {}).setBuiltin()));
-    for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
-      for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-        CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
-            {{MutableReferenceType::get(type)}, {type}}, {}).setBuiltin()));
-    for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
-      CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::BOOL,
-          {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {}).setBuiltin()));
-    CHECK(!context->addImplicitFunction(Operator::LOGICAL_NOT, FunctionType(ArithmeticType::BOOL,
-        {{ArithmeticType::BOOL}}, {}).setBuiltin()));
-    for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
-      for (auto type : {ArithmeticType::INT, ArithmeticType::STRING, ArithmeticType::DOUBLE})
-        CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
-    for (auto op : {Operator::EQUALS})
-      for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
-        CHECK(!context->addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
-    addIsEnumConcept(*context);
-    context->addBuiltInFunction("enum_size", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
-        [](vector<SType> args) -> WithError<SType> {
-          if (auto enumType = args[0].dynamicCast<EnumType>())
-            return (SType) CompileTimeValue::get((int) enumType->elements.size());
-          else
-            fail();
-        });
-    context->addBuiltInFunction("enum_strings", ArrayType::get(ArithmeticType::STRING, CompileTimeValue::get(0)),
-            {SType(ArithmeticType::ENUM_TYPE)},
-        [](vector<SType> args) -> WithError<SType> {
-          auto enumType = args[0].dynamicCast<EnumType>();
-          vector<SCompileTimeValue> values;
-          for (auto& elem : enumType->elements)
-            values.push_back(CompileTimeValue::get(elem));
-          return (SType) CompileTimeValue::get(CompileTimeValue::ArrayValue{values, ArithmeticType::STRING});
-        });
-  }
-  return Context::withParent(*context);
+Context createPrimaryContext(TypeRegistry* typeRegistry) {
+  Context context(typeRegistry);
+  for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE, ArithmeticType::BOOL,
+       ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
+    context.addType(type->getName(), type);
+  CHECK(!context.addImplicitFunction(Operator::PLUS, FunctionType(ArithmeticType::STRING,
+      {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {}).setBuiltin()));
+  for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
+    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
+      CHECK(!context.addImplicitFunction(op, FunctionType(type, {{type}}, {}).setBuiltin()));
+  for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
+    CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
+        {{MutableReferenceType::get(ArithmeticType::INT)}}, {}).setBuiltin()));
+  for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
+    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
+      if (type != ArithmeticType::DOUBLE || op != Operator::MODULO)
+        CHECK(!context.addImplicitFunction(op, FunctionType(type, {{type}, {type}}, {}).setBuiltin()));
+  for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
+    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
+      CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
+          {{MutableReferenceType::get(type)}, {type}}, {}).setBuiltin()));
+  for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
+    CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL,
+        {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {}).setBuiltin()));
+  CHECK(!context.addImplicitFunction(Operator::LOGICAL_NOT, FunctionType(ArithmeticType::BOOL,
+      {{ArithmeticType::BOOL}}, {}).setBuiltin()));
+  for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
+    for (auto type : {ArithmeticType::INT, ArithmeticType::STRING, ArithmeticType::DOUBLE})
+      CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
+  for (auto op : {Operator::EQUALS})
+    for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
+      CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
+  addIsEnumConcept(context);
+  context.addBuiltInFunction("enum_size", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
+      [](vector<SType> args) -> WithError<SType> {
+        if (auto enumType = args[0].dynamicCast<EnumType>())
+          return (SType) CompileTimeValue::get((int) enumType->elements.size());
+        else
+          fail();
+      });
+  context.addBuiltInFunction("enum_strings", ArrayType::get(ArithmeticType::STRING, CompileTimeValue::get(0)),
+          {SType(ArithmeticType::ENUM_TYPE)},
+      [](vector<SType> args) -> WithError<SType> {
+        auto enumType = args[0].dynamicCast<EnumType>();
+        vector<SCompileTimeValue> values;
+        for (auto& elem : enumType->elements)
+          values.push_back(CompileTimeValue::get(elem));
+        return (SType) CompileTimeValue::get(CompileTimeValue::ArrayValue{values, ArithmeticType::STRING});
+      });
+  return context;
 }
 
 static void addBuiltInImport(AST& ast) {
@@ -976,18 +995,18 @@ static void addBuiltInImport(AST& ast) {
     ast.elems.push_back(std::move(elem));
 }
 
-static optional<ErrorLoc> addExportedContext(ImportCache& cache, AST& ast, const string& path,
-    bool isBuiltIn, const vector<string>& importDirs) {
+static optional<ErrorLoc> addExportedContext(const Context& primaryContext, ImportCache& cache, AST& ast,
+    const string& path, bool isBuiltIn, const vector<string>& importDirs) {
   INFO << "Parsing import " << path;
   cache.pushCurrentImport(path, isBuiltIn);
   if (!isBuiltIn && !cache.isCurrentlyBuiltIn())
     addBuiltInImport(ast);
-  Context importContext = createNewContext();
+  auto importContext = Context::withParent(primaryContext);
   for (auto& elem : ast.elems) {
     if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
       import->setImportDirs(importDirs);
     if (elem->exported)
-      if (auto err = elem->addToContext(importContext, cache))
+      if (auto err = elem->addToContext(importContext, cache, primaryContext))
         return *err;
   }
   for (auto& elem : ast.elems)
@@ -999,15 +1018,15 @@ static optional<ErrorLoc> addExportedContext(ImportCache& cache, AST& ast, const
   return none;
 }
 
-WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST& ast, Context& context,
+WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST& ast, Context& context, const Context& primaryContext,
     const vector<string>& importPaths, bool isBuiltInModule) {
   ImportCache cache(isBuiltInModule);
-  if (auto err = addExportedContext(cache, ast, path, isBuiltInModule, importPaths))
+  if (auto err = addExportedContext(primaryContext, cache, ast, path, isBuiltInModule, importPaths))
     return *err;
   context.merge(cache.getContext(path));
   for (auto& elem : ast.elems)
     if (!elem->exported)
-      if (auto err = elem->addToContext(context, cache))
+      if (auto err = elem->addToContext(context, cache, primaryContext))
         return *err;
   for (auto& elem : ast.elems) {
     if (auto err = elem->check(context, true))
@@ -1095,6 +1114,8 @@ WithErrorLine<SType> FunctionCall::getDotOperatorType(Expression* left, Context&
     }
   }
   if (functionInfo) {
+    if (callContext.isIncomplete(functionInfo->type.retVal.get()))
+      return codeLoc.getError("Calling a function whose return type " + quote(functionInfo->type.retVal->getName()) + " is incomplete");
     for (int i = 0; i < argNames.size(); ++i) {
       auto paramName = functionInfo->type.params[callType ? (i + 1) : i].name;
       if (argNames[i] && paramName && argNames[i] != paramName) {
@@ -1175,28 +1196,18 @@ VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n
 }
 
 static WithErrorLine<shared_ptr<StructType>> getNewOrIncompleteStruct(Context& context, string name, CodeLoc codeLoc,
-    const TemplateInfo& templateInfo) {
+    const TemplateInfo& templateInfo, bool incomplete) {
   if (auto existing = context.getType(name)) {
-    if (auto asStruct = existing.get().dynamicCast<StructType>()) {
-      auto returnType = asStruct;
-      if (!returnType->incomplete) {
-        // if it's not an incomplete type then this triggers a conflict error
-        if (auto err = context.checkNameConflict(name, "Type"))
-          return codeLoc.getError(*err);
-        fail();
-      }
-      returnType->incomplete = false;
-      return returnType;
-    } else {
-      if (auto err = context.checkNameConflict(name, "Type"))
-        return codeLoc.getError(*err);
-      fail();
-    }
+    auto asStruct = existing.get().dynamicCast<StructType>();
+    if (!context.isIncomplete(existing.get().get()) || !asStruct)
+      // if it's not an incomplete struct type then this returns a conflict error
+      return codeLoc.getError(*context.checkNameConflict(name, "Type"));
+    return asStruct;
   } else {
     if (auto err = context.checkNameConflict(name, "Type"))
       return codeLoc.getError(*err);
     auto paramsContext = Context::withParent(context);
-    auto returnType = StructType::get(name);
+    auto returnType = context.typeRegistry->getStruct(name);
     for (auto& param : templateInfo.params) {
       if (param.type) {
         if (auto type = paramsContext.getType(*param.type)) {
@@ -1209,16 +1220,28 @@ static WithErrorLine<shared_ptr<StructType>> getNewOrIncompleteStruct(Context& c
         paramsContext.addType(param.name, returnType->templateParams.back());
       }
     }
-    context.addType(name, returnType);
+    context.addType(name, returnType, incomplete);
     return returnType;
   }
 }
 
+static optional<string> getRedefinitionError(const string& typeName, const optional<CodeLoc>& definition) {
+  if (definition)
+    return "Type " + quote(typeName) + " has already been defined at " +
+        definition->file + ", line " + to_string(definition->line);
+  else
+    return none;
+}
+
 optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
-  auto res = getNewOrIncompleteStruct(context, name, codeLoc, templateInfo);
+  auto res = getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, false);
   if (!res)
     return res.get_error();
   type = *res;
+  context.setIncomplete(type.get().get(), false);
+  if (auto err = getRedefinitionError(type->getName(), type->definition))
+    return codeLoc.getError(*err);
+  type->definition = codeLoc;
   auto membersContext = Context::withParent(context);
   if (templateInfo.params.size() != type->templateParams.size())
     return codeLoc.getError("Number of template parameters differs from forward declaration");
@@ -1259,15 +1282,19 @@ optional<ErrorLoc> VariantDefinition::check(Context& context, bool) {
   return none;
 }
 
-optional<ErrorLoc> StructDefinition::addToContext(Context& context, ImportCache& cache) {
-  if (auto typeTmp = getNewOrIncompleteStruct(context, name, codeLoc, templateInfo))
+optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
+  if (auto typeTmp = getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, incomplete))
     type = *typeTmp;
   else
     return typeTmp.get_error();
-  type->incomplete = incomplete;
   if (!incomplete) {
+    if (auto err = getRedefinitionError(type->getName(), type->definition))
+      return codeLoc.getError(*err);
+    type->definition = codeLoc;
+    context.setIncomplete(type.get().get(), false);
     if (templateInfo.params.size() != type->templateParams.size())
-      return codeLoc.getError("Number of template parameters differs from forward declaration");
+      return codeLoc.getError("Number of template parameters of type " + quote(type->getName()) +
+          " differs from forward declaration.");
     auto membersContext = Context::withParent(context);
     for (auto& param : type->templateParams)
       addTemplateParam(membersContext, param);
@@ -1307,7 +1334,6 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context, ImportCache&
 
 optional<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
   auto methodBodyContext = Context::withParent(context);
-  auto staticFunContext = Context::withParent({&context, &type->staticContext});
   for (auto& param : type->templateParams)
     addTemplateParam(methodBodyContext, param);
   CHECK(!!applyConcept(methodBodyContext, templateInfo.requirements));
@@ -1421,7 +1447,7 @@ optional<ErrorLoc> ImportStatement::check(Context&, bool) {
   return none;
 }
 
-optional<ErrorLoc> ImportStatement::processImport(Context& context, ImportCache& cache, const string& content,
+optional<ErrorLoc> ImportStatement::processImport(const Context& primaryContext, Context& context, ImportCache& cache, const string& content,
     const string& path) {
   if (cache.isCurrentlyImported(path))
     return codeLoc.getError("Public import cycle: " + combine(cache.getCurrentImports(), ", "));
@@ -1434,7 +1460,7 @@ optional<ErrorLoc> ImportStatement::processImport(Context& context, ImportCache&
         return parsed.get_error();
     } else
       return tokens.get_error();
-    if (auto err = addExportedContext(cache, *ast, path, isBuiltIn, importDirs))
+    if (auto err = addExportedContext(primaryContext, cache, *ast, path, isBuiltIn, importDirs))
       return *err;
   } else
     INFO << "Import " << path << " already cached";
@@ -1442,7 +1468,7 @@ optional<ErrorLoc> ImportStatement::processImport(Context& context, ImportCache&
   return none;
 }
 
-optional<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& cache) {
+optional<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
   INFO << "Resolving import " << path << " from " << codeLoc.file;
   for (auto importDir : concat({getParentPath(codeLoc.file)}, importDirs)) {
     INFO << "Trying directory " << importDir;
@@ -1450,7 +1476,7 @@ optional<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& 
     if (auto content = readFromFile(importPath.c_str())) {
       importPath = fs::canonical(importPath);
       INFO << "Imported file " << importPath;
-      if (auto err = processImport(context, cache, content->value, importPath))
+      if (auto err = processImport(primaryContext, context, cache, content->value, importPath))
         return err;
       return none;
     }
@@ -1471,15 +1497,21 @@ EnumDefinition::EnumDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
 optional<ErrorLoc> EnumDefinition::addToContext(Context& s) {
   if (elements.empty())
     return codeLoc.getError("Enum requires at least one element");
+  auto type = s.typeRegistry->getEnum(name);
+  if (auto err = getRedefinitionError(type->getName(), type->definition))
+    return codeLoc.getError(*err);
+  type->definition = codeLoc;
+  type->elements = elements;
+  type->external = external;
   unordered_set<string> occurences;
   for (auto& e : elements)
     if (occurences.count(e))
       return codeLoc.getError("Duplicate enum element: " + quote(e));
-  s.addType(name, shared<EnumType>(name, elements, external));
+  s.addType(name, std::move(type));
   return none;
 }
 
-optional<ErrorLoc> EnumDefinition::check(Context& s, bool) {
+optional<ErrorLoc> EnumDefinition::check(Context&, bool) {
   return none;
 }
 
@@ -1520,7 +1552,7 @@ ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), nam
 }
 
 optional<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
-  shared_ptr<Concept> concept = shared<Concept>(name);
+  shared_ptr<Concept> concept = shared<Concept>(name, Context(context.typeRegistry));
   auto declarationsContext = Context::withParent(context);
   for (auto& param : templateInfo.params) {
     concept->modParams().push_back(shared<TemplateParameterType>(param.name, param.codeLoc));

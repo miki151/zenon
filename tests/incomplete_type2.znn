@@ -1,0 +1,10 @@
+// no_compile
+
+struct S;
+
+void g(S) {
+}
+
+int main() {
+  return 0;
+}

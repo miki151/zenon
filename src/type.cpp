@@ -149,7 +149,7 @@ optional<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, C
     if (!caseElem.type.contains<none_t>())
       return caseElem.codeloc.getError("Expected enum element");
     if (!contains(elements, caseElem.id))
-      return caseElem.codeloc.getError("Element " + quote(caseElem.id) + " not present in enum" + quote(name));
+      return caseElem.codeloc.getError("Element " + quote(caseElem.id) + " not present in enum " + quote(name));
     if (handledElems.count(caseElem.id))
       return caseElem.codeloc.getError("Enum element " + quote(caseElem.id)
           + " handled more than once in switch statement");
@@ -245,6 +245,9 @@ FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionType ty
 
 FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionType type, FunctionDefinition* definition)
   : id(std::move(id)), type(std::move(type)), definition(definition) {}
+
+Type::Type() : staticContext(nullptr) {
+}
 
 string Type::getCodegenName() const {
   return getName();
@@ -362,8 +365,6 @@ static optional<string> checkMembers(set<SType> &visited, const SType& t) {
   if (auto s = t.dynamicCast<StructType>()) {
     if (visited.count(t))
       return "has infinite size"s;
-    if (s->incomplete)
-      return "has an incomplete type"s;
     visited.insert(t);
     for (auto& member : s->members)
       if (auto res = checkMembers(visited, member.type))
@@ -378,13 +379,6 @@ static optional<string> checkMembers(set<SType> &visited, const SType& t) {
 optional<string> StructType::getSizeError() const {
   set<SType> visited;
   return checkMembers(visited, get_this().get());
-}
-
-shared_ptr<StructType> StructType::get(string name) {
-  auto ret = shared<StructType>(Private{});
-  ret->name = name;
-  ret->parent = ret;
-  return ret;
 }
 
 optional<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
@@ -504,7 +498,7 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
     if (type->templateParams == newTemplateParams)
       return type;
   }
-  auto type = StructType::get(name);
+  auto type = shared<StructType>(name, Private{});
   type->alternatives = alternatives;
   type->members = members;
   type->parent = self;
@@ -529,6 +523,9 @@ void StructType::updateInstantations() {
     }
     CHECK(errors.empty());
   }
+}
+
+StructType::StructType(string name, StructType::Private) : name(std::move(name)) {
 }
 
 SType Type::replace(SType from, SType to, ErrorBuffer& errors) const {
@@ -808,9 +805,9 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
   return FunctionInfo::getInstance(input->id, type, input);
 }
 
-EnumType::EnumType(string n, vector<string> e, bool external) : name(n), elements(e), external(external) {}
+EnumType::EnumType(string n, Private) : name(std::move(n)) {}
 
-Concept::Concept(const string& name) : name(name) {
+Concept::Concept(const string& name, Context context) : name(name), context(std::move(context)) {
 }
 
 string Concept::getName() const {
@@ -818,7 +815,7 @@ string Concept::getName() const {
 }
 
 SConcept Concept::translate(vector<SType> newParams, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name);
+  auto ret = shared<Concept>(name, Context(context.typeRegistry));
   ret->context.deepCopyFrom(context);
   ret->params = newParams;
   CHECK(params.size() == newParams.size());
@@ -828,7 +825,7 @@ SConcept Concept::translate(vector<SType> newParams, ErrorBuffer& errors) const 
 }
 
 SConcept Concept::replace(SType from, SType to, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name);
+  auto ret = shared<Concept>(name, Context(context.typeRegistry));
   ret->context.deepCopyFrom(context);
   ret->params = params;
   for (auto& param : ret->params)

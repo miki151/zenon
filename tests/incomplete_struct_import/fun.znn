@@ -1,0 +1,9 @@
+
+export struct S;
+
+struct S {
+};
+
+export S getS() {
+  return S();
+}

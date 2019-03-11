@@ -424,7 +424,7 @@ void EnumType::codegenDefinitionImpl(set<const Type*>&, Accu& accu) const {
 }
 
 void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const {
-  if (external || incomplete)
+  if (external)
     return;
   for (auto& instance : instances)
     instance->codegenDefinition(visited, accu);
@@ -460,7 +460,8 @@ string codegen(const AST& ast, const Context& context, const string& codegenIncl
   }
   set<const Type*> visitedTypes;
   for (auto& type : context.getAllTypes())
-    type->codegenDefinition(visitedTypes, accu);
+    if (!context.isIncomplete(type.get()))
+      type->codegenDefinition(visitedTypes, accu);
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::declare());
   }

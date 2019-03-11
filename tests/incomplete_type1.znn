@@ -1,0 +1,12 @@
+// no_compile
+
+struct S;
+
+S g() {
+  embed {
+  }
+}
+
+int main() {
+  return 0;
+}

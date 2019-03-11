@@ -4,7 +4,7 @@
 #include "identifier_type.h"
 
 Context Context::withParent(const Context& c) {
-  Context ret;
+  Context ret(c.typeRegistry);
   ret.parentStates = c.parentStates;
   ret.parentStates.push_back(c.state);
   ret.topLevelStates = c.topLevelStates;
@@ -12,7 +12,7 @@ Context Context::withParent(const Context& c) {
 }
 
 Context Context::withParent(vector<const Context*> parents) {
-  Context ret;
+  Context ret(parents[0]->typeRegistry);
   for (auto context : parents) {
     append(ret.parentStates, context->parentStates);
     append(ret.topLevelStates, context->topLevelStates);
@@ -33,7 +33,7 @@ void Context::merge(const Context& context) {
     parentStates.push_back(context.state);
 }
 
-Context::Context() : state(shared<State>()) {
+Context::Context(TypeRegistry* t) : typeRegistry(t), state(shared<State>()) {
 }
 
 void Context::State::merge(const Context::State& o) {
@@ -140,8 +140,8 @@ void Context::setAsTopLevel() {
   topLevelStates = parentStates;
 }
 
-Context Context::withStates(ConstStates states) {
-  Context ret;
+Context Context::withStates(TypeRegistry* t, ConstStates states) {
+  Context ret(t);
   ret.parentStates = std::move(states);
   return ret;
 }
@@ -181,7 +181,8 @@ void Context::State::print() const {
       cout << overload->prettyString() << "\n";
   }
   for (auto& type : types)
-    cout << "Type: " << type.second->getName() << "\n";
+    cout << "Type: " << (incompleteTypes.at(type.second.get()) ? "(incomplete) " : "") <<
+        type.second->getName() << "\n";
 }
 
 void Context::print() const {
@@ -257,9 +258,10 @@ void Context::setReturnType(SType t) {
   state->returnType = t;
 }
 
-void Context::addType(const string& name, SType t) {
+void Context::addType(const string& name, SType t, bool incomplete) {
   CHECK(!getType(name));
   state->types.insert({name, t});
+  state->incompleteTypes.insert({t.get(), incomplete});
 }
 
 WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameterInfo>& ids) const {
@@ -299,6 +301,22 @@ nullable<SType> Context::getType(const string& s) const {
     if (state->types.count(s))
       return state->types.at(s);
   return nullptr;
+}
+
+bool Context::isIncomplete(const Type* t) const {
+  bool was = false;
+  for (auto& state : getReversedStates())
+    if (auto v = getValueMaybe(state->incompleteTypes, t)) {
+      if (!*v)
+        return false;
+      else
+        was = true;
+    }
+  return was;
+}
+
+void Context::setIncomplete(const Type* t, bool s) {
+  state->incompleteTypes[t] = s;
 }
 
 vector<SType> Context::getAllTypes() const {

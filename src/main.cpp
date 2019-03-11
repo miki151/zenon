@@ -9,6 +9,7 @@
 #include "reader.h"
 #include "ProgramOptions.h"
 #include "lsp.h"
+#include "type_registry.h"
 
 auto installDir = INSTALL_DIR;
 
@@ -98,8 +99,10 @@ int main(int argc, char* argv[]) {
     INFO << "Parsing:\n\n" << program->value;
     auto tokens = getOrCompileError(lex(program->value, CodeLoc(path, 0, 0), "end of file"));
     auto ast = getOrCompileError(parse(tokens));
-    auto context = createNewContext();
-    auto imported = getOrCompileError(correctness(path, ast, context, {installDir}, builtInModule));
+    TypeRegistry typeRegistry;
+    auto primaryContext = createPrimaryContext(&typeRegistry);
+    auto context = Context::withParent(primaryContext);
+    auto imported = getOrCompileError(correctness(path, ast, context, primaryContext, {installDir}, builtInModule));
     auto cppCode = codegen(ast, context, installDir + "/codegen_includes/all.h"s, !printCpp);
     if (printCpp) {
       cout << cppCode << endl;
