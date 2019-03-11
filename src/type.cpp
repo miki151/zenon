@@ -361,23 +361,24 @@ bool MutableReferenceType::canAssign(SType from) const {
   return underlying == from->getUnderlying();
 }
 
-static optional<string> checkMembers(set<SType> &visited, const SType& t) {
+static optional<string> checkMembers(set<const Type*> &visited, const SType& t) {
   if (auto s = t.dynamicCast<StructType>()) {
-    if (visited.count(t))
+    if (visited.count(t.get()))
       return "has infinite size"s;
-    visited.insert(t);
+    visited.insert(t.get());
     for (auto& member : s->members)
       if (auto res = checkMembers(visited, member.type))
         return res;
     for (auto& member : s->alternatives)
       if (auto res = checkMembers(visited, member.type))
         return res;
+    visited.erase(t.get());
   }
   return none;
 }
 
 optional<string> StructType::getSizeError() const {
-  set<SType> visited;
+  set<const Type*> visited;
   return checkMembers(visited, get_this().get());
 }
 
