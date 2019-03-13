@@ -4,6 +4,8 @@ export struct range {
   int finish;
 };
 
+export range copy(range*) = default;
+
 export struct range_iterator {
   int elem;
 };
@@ -16,3 +18,8 @@ export int end(range* r) {
   return r->finish;
 }
 
+import "math.znn";
+
+export bool overlaps(range* r1, range* r2) {
+  return max(r1->start, r2->start) < min(r1->finish, r2->finish);
+}
