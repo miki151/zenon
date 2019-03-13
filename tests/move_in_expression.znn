@@ -1,0 +1,18 @@
+// no_compile
+
+struct S {
+  int x;
+};
+
+int get(S* s, int x) {
+  return x + s->x;
+}
+
+int get(S s) {
+  return s.x;
+}
+
+int main() {
+  const s = S(1);
+  return get(&s, get(move(s)));
+}
