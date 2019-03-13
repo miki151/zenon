@@ -352,7 +352,7 @@ struct SwitchStatement : Statement {
     // returns null if there is no type in the element or error if there was an error getting the type
     WithErrorLine<nullable<SType>> getType(const Context&);
     variant<none_t, IdentifierInfo, SType> type = none;
-    string id;
+    vector<string> ids;
     unique_ptr<StatementBlock> block;
     enum VarType { VALUE, POINTER, NONE } varType = NONE;
     CaseElem replace(SType from, SType to, ErrorBuffer&) const;

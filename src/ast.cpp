@@ -409,9 +409,10 @@ unique_ptr<Statement> VariableDeclaration::replace(SType from, SType to, ErrorBu
 }
 
 optional<ErrorLoc> ReturnStatement::check(Context& context, bool) {
-  if (!expr && context.getReturnType() != ArithmeticType::VOID)
-    return codeLoc.getError("Expected an expression in return statement in a function returning non-void");
-  else {
+  if (!expr) {
+    if (context.getReturnType() != ArithmeticType::VOID)
+      return codeLoc.getError("Expected an expression in return statement in a function returning non-void");
+  } else {
     auto returnType = getType(context, expr);
     if (!returnType)
       return returnType.get_error();
@@ -712,7 +713,7 @@ optional<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& body
         SwitchStatement::CaseElem {
           codeLoc,
           alternativeType,
-          alternative.name,
+          {alternative.name},
           std::move(block)
         });
   }
@@ -760,7 +761,7 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
             SwitchStatement::CaseElem {
               codeLoc,
               SType(alternative.type != ArithmeticType::VOID ? PointerType::get(alternative.type) : alternative.type),
-              alternative.name,
+              {alternative.name},
               std::move(block)
             }
         );
@@ -1727,7 +1728,7 @@ WithErrorLine<nullable<SType>> SwitchStatement::CaseElem::getType(const Context&
 SwitchStatement::CaseElem SwitchStatement::CaseElem::replace(SType from, SType to, ErrorBuffer& errors) const {
   CaseElem ret;
   ret.codeloc = codeloc;
-  ret.id = id;
+  ret.ids = ids;
   ret.block = cast<StatementBlock>(block->replace(from, to, errors));
   if (auto t = type.getReferenceMaybe<SType>())
     ret.type = (*t)->replace(from, to, errors);

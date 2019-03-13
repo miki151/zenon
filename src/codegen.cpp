@@ -531,7 +531,9 @@ void SwitchStatement::codegenEnum(Accu& accu) const {
   accu.add(") {");
   ++accu.indent;
   for (auto& caseElem : caseElems) {
-    accu.newLine("case " + *targetType->getMangledName() + "::" + caseElem.id + ": {");
+    for (auto& id : caseElem.ids)
+      accu.newLine("case " + *targetType->getMangledName() + "::" + id + ":");
+    accu.newLine("{");
     ++accu.indent;
     accu.newLine();
     caseElem.block->codegen(accu, CodegenStage::define());
@@ -559,12 +561,13 @@ void SwitchStatement::codegenVariant(Accu& accu) const {
   accu.newLine("switch ("s + variantTmpRef + "."s + variantUnionElem + ") {");
   ++accu.indent;
   for (auto& caseElem : caseElems) {
-    accu.newLine("case "s + *targetType->getMangledName() + "::" + variantEnumeratorPrefix + caseElem.id + ": {");
+    auto caseId = *getOnlyElement(caseElem.ids);
+    accu.newLine("case "s + *targetType->getMangledName() + "::" + variantEnumeratorPrefix + caseId + ": {");
     ++accu.indent;
     if (caseElem.varType == caseElem.VALUE)
-      accu.newLine("auto&& "s + caseElem.id + " = " + variantTmpRef + "." + variantUnionEntryPrefix + caseElem.id + ";");
+      accu.newLine("auto&& "s + caseId + " = " + variantTmpRef + "." + variantUnionEntryPrefix + caseId + ";");
     else if (caseElem.varType == caseElem.POINTER)
-      accu.newLine("auto "s + caseElem.id + " = &" + variantTmpRef + "." + variantUnionEntryPrefix + caseElem.id + ";");
+      accu.newLine("auto "s + caseId + " = &" + variantTmpRef + "." + variantUnionEntryPrefix + caseId + ";");
     accu.newLine();
     caseElem.block->codegen(accu, CodegenStage::define());
     accu.newLine("break;");

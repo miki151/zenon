@@ -704,18 +704,26 @@ WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) 
         return identifier.get_error();
       caseElem.codeloc = token2.codeLoc;
       token2 = tokens.popNext();
-      if (token2 != Keyword::CLOSE_BRACKET) {
+      if (token2 != Keyword::CLOSE_BRACKET && token2 != Keyword::COMMA) {
         if (!token2.contains<IdentifierToken>())
           return token2.codeLoc.getError("Expected variable identifier, got " + quote(token2.value));
-        caseElem.id = token2.value;
+        caseElem.ids.push_back(token2.value);
         caseElem.type = *identifier;
         if (auto t = tokens.eat(Keyword::CLOSE_BRACKET); !t)
           return t.get_error();
       } else {
-        if (auto s = identifier->asBasicIdentifier())
-          caseElem.id = *s;
-        else
-          return identifier->codeLoc.getError("Identifier " + quote(identifier->prettyString()) + " is not a variable");
+        while (1) {
+          if (auto s = identifier->asBasicIdentifier())
+            caseElem.ids.push_back(*s);
+          else
+            return identifier->codeLoc.getError("Identifier " + quote(identifier->prettyString()) + " is not a variable");
+          if (token2 == Keyword::CLOSE_BRACKET)
+            break;
+          identifier = parseIdentifier(tokens, true);
+          if (!identifier)
+            return identifier.get_error();
+          token2 = tokens.popNext();
+        }
       }
       if (auto block = parseBlock(tokens))
         caseElem.block = std::move(*block);

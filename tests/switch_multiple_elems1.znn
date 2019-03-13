@@ -1,0 +1,20 @@
+// 2
+
+enum E {
+  E1,
+  E2,
+  E3,
+  E4
+};
+
+int main() {
+  const e = E::E1;
+  switch (e) {
+    case (E2, E4) {
+      return 1;
+    }
+    case (E1, E3) {
+      return 2;
+    }
+  }
+}

@@ -148,12 +148,14 @@ optional<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, C
   for (auto& caseElem : statement.caseElems) {
     if (!caseElem.type.contains<none_t>())
       return caseElem.codeloc.getError("Expected enum element");
-    if (!contains(elements, caseElem.id))
-      return caseElem.codeloc.getError("Element " + quote(caseElem.id) + " not present in enum " + quote(name));
-    if (handledElems.count(caseElem.id))
-      return caseElem.codeloc.getError("Enum element " + quote(caseElem.id)
-          + " handled more than once in switch statement");
-    handledElems.insert(caseElem.id);
+    for (auto& id : caseElem.ids) {
+      if (!contains(elements, id))
+        return caseElem.codeloc.getError("Element " + quote(id) + " not present in enum " + quote(name));
+      if (handledElems.count(id))
+        return caseElem.codeloc.getError("Enum element " + quote(id)
+            + " handled more than once in switch statement");
+      handledElems.insert(id);
+    }
     if (auto err = caseElem.block->check(context))
       return err;
   }
@@ -413,15 +415,18 @@ optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement,
   };
   vector<Context::MovedVarsSnapshot> allMovedVars;
   for (auto& caseElem : statement.caseElems) {
-    if (!getAlternativeType(caseElem.id))
-      return caseElem.codeloc.getError("Element " + quote(caseElem.id) +
+    if (caseElem.ids.size() > 1)
+      return caseElem.codeloc.getError("Multiple case elements not allowed in a variant switch");
+    auto caseId = caseElem.ids[0];
+    if (!getAlternativeType(caseId))
+      return caseElem.codeloc.getError("Element " + quote(caseId) +
           " not present in variant " + quote(getName()));
-    if (handledTypes.count(caseElem.id))
-      return caseElem.codeloc.getError("Variant element " + quote(caseElem.id)
+    if (handledTypes.count(caseId))
+      return caseElem.codeloc.getError("Variant element " + quote(caseId)
         + " handled more than once in switch statement");
-    handledTypes.insert(caseElem.id);
+    handledTypes.insert(caseId);
     auto caseBodyContext = Context::withParent(outsideContext);
-    auto realType = getAlternativeType(caseElem.id).get();
+    auto realType = getAlternativeType(caseId).get();
     if (realType != ArithmeticType::VOID)
       caseElem.varType = caseElem.VALUE;
     auto caseTypeTmp = caseElem.getType(outsideContext);
@@ -430,7 +435,7 @@ optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement,
     if (auto caseType = caseTypeTmp.get()) {
       if (caseType != realType && caseType->removePointer() != realType)
         return caseElem.codeloc.getError(
-            "Can't handle variant element " + quote(caseElem.id) + " of type " +
+            "Can't handle variant element " + quote(caseId) + " of type " +
             quote(realType->getName()) + " as type " + quote(caseType->getName()));
       if (caseType == MutablePointerType::get(realType)) {
         caseElem.varType = caseElem.POINTER;
@@ -439,7 +444,7 @@ optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement,
               "Can only bind element to mutable pointer when switch argument is a mutable reference");
         if (realType == ArithmeticType::VOID)
           return caseElem.codeloc.getError("Can't bind void element to pointer");
-        caseBodyContext.addVariable(caseElem.id, MutableReferenceType::get(MutablePointerType::get(realType)));
+        caseBodyContext.addVariable(caseId, MutableReferenceType::get(MutablePointerType::get(realType)));
       } else
       if (caseType == PointerType::get(realType)) {
         caseElem.varType = caseElem.POINTER;
@@ -448,7 +453,7 @@ optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement,
               "Can only bind element to pointer when switch argument is a reference");
         if (realType == ArithmeticType::VOID)
           return caseElem.codeloc.getError("Can't bind void element to pointer");
-        caseBodyContext.addVariable(caseElem.id, MutableReferenceType::get(PointerType::get(realType)));
+        caseBodyContext.addVariable(caseId, MutableReferenceType::get(PointerType::get(realType)));
       }
     }
     if (caseElem.varType == caseElem.VALUE) {
@@ -456,7 +461,7 @@ optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement,
         return caseElem.codeloc.getError(
             "Type " + quote(realType->getName()) + " is not implicitly copyable. "
             "Try binding to a pointer or move from the variable that you are switching on");
-      caseBodyContext.addVariable(caseElem.id, ReferenceType::get(realType));
+      caseBodyContext.addVariable(caseId, ReferenceType::get(realType));
     }
     auto movedBeforeTrueSegment = outsideContext.getMovedVarsSnapshot();
     if (auto err = caseElem.block->check(caseBodyContext))
