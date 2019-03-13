@@ -364,6 +364,8 @@ const char* getCodegenName(Operator op) {
       return "op_logical_not";
     case Operator::MINUS_UNARY:
       return "op_minus_unary";
+    case Operator::GET_ADDRESS:
+      return "op_get_address";
     default:
       return nullptr;
   }

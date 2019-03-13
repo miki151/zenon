@@ -36,13 +36,3 @@ struct VariantHelper {
   }
 };
 
-
-template <typename T>
-const T* getAddress(const T& t) {
-  return &t;
-}
-
-template <typename T>
-T* getAddress(T& t) {
-  return &t;
-}

@@ -533,6 +533,8 @@ nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> a
             return FunctionType(PointerType::get(referenceType->underlying), {argTypes[0]}, {}).setBuiltin();
           else if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
             return FunctionType(MutablePointerType::get(referenceType->underlying), {argTypes[0]}, {}).setBuiltin();
+          else // this codegens a call to the op_get_address function, which returns the address of a temporary object
+            return FunctionType(PointerType::get(argTypes[0]), {argTypes[0]}, {});
         }
         break;
       case Operator::POINTER_DEREFERENCE:
