@@ -339,10 +339,14 @@ struct EnumDefinition : Statement {
   EnumDefinition(CodeLoc, string name);
   string name;
   vector<string> elements;
-  bool external;
+  bool external = false;
+  bool fullyDefined = true;
   NODISCARD virtual optional<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool = false) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+
+  public:
 };
 
 struct SwitchStatement : Statement {

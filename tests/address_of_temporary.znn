@@ -1,0 +1,21 @@
+// 6
+
+struct S {
+  int a;
+};
+
+S get() {
+  return S(1);
+}
+
+int value(S* s) {
+  return s->a;
+}
+
+int value2(int* a) {
+  return *a;
+}
+
+int main() {
+  return value(&get()) + value2(&5);
+}

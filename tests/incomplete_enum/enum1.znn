@@ -1,0 +1,32 @@
+
+export enum Enum1 {
+  E1,
+  E2,
+  E3
+};
+
+export enum Enum2;
+
+enum Enum2 {
+  E1,
+  E2
+};
+
+export Enum2 getE2() {
+  return Enum2::E2;
+}
+
+export int getValue(Enum1 e) {
+  switch (e) {
+    case (E1) { return 3; }
+    case (E2) { return 4; }
+    case (E3) { return 5; }
+  }
+}
+
+export int getValue(Enum2 e) {
+  switch (e) {
+    case (E1) { return 11; }
+    case (E2) { return 12; }
+  }
+}

@@ -460,7 +460,7 @@ string codegen(const AST& ast, const Context& context, const string& codegenIncl
   }
   set<const Type*> visitedTypes;
   for (auto& type : context.getAllTypes())
-    if (!context.isIncomplete(type.get()))
+    if (context.isFullyDefined(type.get()))
       type->codegenDefinition(visitedTypes, accu);
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::declare());
@@ -485,6 +485,13 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
       accu.add("struct " + *name + ";");
       accu.newLine();
     }
+}
+
+void EnumDefinition::codegen(Accu& accu, CodegenStage stage) const {
+  if (stage.isTypes) {
+    accu.add("enum class " + name + ";");
+    accu.newLine();
+  }
 }
 
 void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {

@@ -1,0 +1,11 @@
+
+import "fun.znn";
+
+export enum Enum1;
+
+export Enum1 get(bool b) {
+  if (b)
+    return get1();
+  else
+    return get2();
+}

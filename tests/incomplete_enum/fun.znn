@@ -1,0 +1,12 @@
+
+import "enum1.znn";
+
+export enum Enum1;
+
+export Enum1 get1() {
+  return Enum1::E2;
+}
+
+export Enum1 get2() {
+  return Enum1::E3;
+}

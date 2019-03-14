@@ -263,6 +263,10 @@ SType Type::getUnderlying() const {
   return get_this().get();
 }
 
+bool Type::isIncomplete(const Context&) const {
+  return false;
+}
+
 SType ReferenceType::getUnderlying() const {
   return underlying;
 }
@@ -382,6 +386,10 @@ static optional<string> checkMembers(set<const Type*> &visited, const SType& t) 
 optional<string> StructType::getSizeError() const {
   set<const Type*> visited;
   return checkMembers(visited, get_this().get());
+}
+
+bool StructType::isIncomplete(const Context& context) const {
+  return !context.isFullyDefined(this);
 }
 
 optional<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {

@@ -1,0 +1,11 @@
+// 21
+
+import "enum1.znn";
+import "fun2.znn";
+
+int main() {
+  const e1 = get(true);
+  const e2 = get(false);
+  const e3 = getE2();
+  return getValue(e1) + getValue(e2) + getValue(e3);
+}

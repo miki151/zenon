@@ -181,7 +181,7 @@ void Context::State::print() const {
       cout << overload->prettyString() << "\n";
   }
   for (auto& type : types)
-    cout << "Type: " << (incompleteTypes.at(type.second.get()) ? "(incomplete) " : "") <<
+    cout << "Type: " << (!fullyDefinedTypes.at(type.second.get()) ? "(incomplete) " : "") <<
         type.second->getName() << "\n";
 }
 
@@ -258,10 +258,10 @@ void Context::setReturnType(SType t) {
   state->returnType = t;
 }
 
-void Context::addType(const string& name, SType t, bool incomplete) {
+void Context::addType(const string& name, SType t, bool fullyDefined) {
   CHECK(!getType(name));
   state->types.insert({name, t});
-  state->incompleteTypes.insert({t.get(), incomplete});
+  state->fullyDefinedTypes.insert({t.get(), fullyDefined});
 }
 
 WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameterInfo>& ids) const {
@@ -303,20 +303,20 @@ nullable<SType> Context::getType(const string& s) const {
   return nullptr;
 }
 
-bool Context::isIncomplete(const Type* t) const {
-  bool was = false;
+bool Context::isFullyDefined(const Type* t) const {
+  bool was = true;
   for (auto& state : getReversedStates())
-    if (auto v = getValueMaybe(state->incompleteTypes, t)) {
-      if (!*v)
-        return false;
+    if (auto v = getValueMaybe(state->fullyDefinedTypes, t)) {
+      if (*v)
+        return true;
       else
-        was = true;
+        was = false;
     }
   return was;
 }
 
-void Context::setIncomplete(const Type* t, bool s) {
-  state->incompleteTypes[t] = s;
+void Context::setFullyDefined(const Type* t, bool s) {
+  state->fullyDefinedTypes[t] = s;
 }
 
 vector<SType> Context::getAllTypes() const {

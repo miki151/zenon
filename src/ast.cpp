@@ -98,7 +98,7 @@ WithErrorLine<SType> Variable::getDotOperatorType(Expression* left, Context& cal
     if (auto id = identifier.asBasicIdentifier()) {
       if (auto leftType = left->getTypeImpl(callContext)) {
         if (auto structType = leftType.get()->getUnderlying().dynamicCast<StructType>()) {
-          if (callContext.isIncomplete(structType.get()))
+          if (structType->isIncomplete(callContext))
             return codeLoc.getError(structType->getName() + " is incomplete in this context");
           if (auto member = structType->getTypeOfMember(*id))
             return SType(MutableReferenceType::get(*member));
@@ -377,7 +377,7 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   }
   if (realType == ArithmeticType::VOID)
     return codeLoc.getError("Can't declare variable of type " + quote(realType->getName()));
-  if (context.isIncomplete(realType.get().get()))
+  if (realType.get()->isIncomplete(context))
     return codeLoc.getError("Variable has incomplete type " + quote(realType->getName()));
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (!initExpr)
@@ -539,7 +539,7 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
       auto type = contextWithTemplateParams.getType(*param.type);
       if (!type)
         return param.codeLoc.getError("Type not found: " + quote(*param.type));
-      if (contextWithTemplateParams.isIncomplete(type.get().get()))
+      if (type.get()->isIncomplete(contextWithTemplateParams))
         return param.codeLoc.getError("Type is incomplete: " + quote(*param.type));
       templateTypes.push_back(CompileTimeValue::getTemplateValue(type.get(), param.name));
       contextWithTemplateParams.addType(param.name, templateTypes.back());
@@ -873,10 +873,10 @@ optional<ErrorLoc> FunctionDefinition::checkBody(TypeRegistry* typeRegistry, Con
 optional<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& context) {
   for (int i = 0; i < functionInfo->type.params.size(); ++i) {
     auto paramType = functionInfo->type.params[i].type;
-    if (context.isIncomplete(paramType.get()))
+    if (paramType->isIncomplete(context))
       return parameters[i].codeLoc.getError("Type " + quote(paramType->getName()) + " is incomplete in this context");
   }
-  if (context.isIncomplete(functionInfo->type.retVal.get()))
+  if (functionInfo->type.retVal->isIncomplete(context))
     return returnType.codeLoc.getError("Type " + quote(functionInfo->type.retVal->getName()) + " is incomplete in this context");
   return none;
 }
@@ -1104,7 +1104,7 @@ WithErrorLine<SType> FunctionCall::getDotOperatorType(Expression* left, Context&
     }
   }
   if (functionInfo) {
-    if (callContext.isIncomplete(functionInfo->type.retVal.get()))
+    if (functionInfo->type.retVal->isIncomplete(callContext))
       return codeLoc.getError("Calling a function whose return type " + quote(functionInfo->type.retVal->getName()) + " is incomplete");
     for (int i = 0; i < argNames.size(); ++i) {
       auto paramName = functionInfo->type.params[callType ? (i + 1) : i].name;
@@ -1189,7 +1189,7 @@ static WithErrorLine<shared_ptr<StructType>> getNewOrIncompleteStruct(Context& c
     const TemplateInfo& templateInfo, bool incomplete) {
   if (auto existing = context.getType(name)) {
     auto asStruct = existing.get().dynamicCast<StructType>();
-    if (!context.isIncomplete(existing.get().get()) || !asStruct)
+    if (context.isFullyDefined(existing.get().get()) || !asStruct)
       // if it's not an incomplete struct type then this returns a conflict error
       return codeLoc.getError(*context.checkNameConflict(name, "Type"));
     return asStruct;
@@ -1210,7 +1210,7 @@ static WithErrorLine<shared_ptr<StructType>> getNewOrIncompleteStruct(Context& c
         paramsContext.addType(param.name, returnType->templateParams.back());
       }
     }
-    context.addType(name, returnType, incomplete);
+    context.addType(name, returnType, !incomplete);
     return returnType;
   }
 }
@@ -1228,7 +1228,7 @@ optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
   if (!res)
     return res.get_error();
   type = *res;
-  context.setIncomplete(type.get().get(), false);
+  context.setFullyDefined(type.get().get(), true);
   if (auto err = getRedefinitionError(type->getName(), type->definition))
     return codeLoc.getError(*err);
   type->definition = codeLoc;
@@ -1281,7 +1281,7 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
     if (auto err = getRedefinitionError(type->getName(), type->definition))
       return codeLoc.getError(*err);
     type->definition = codeLoc;
-    context.setIncomplete(type.get().get(), false);
+    context.setFullyDefined(type.get().get(), true);
     if (templateInfo.params.size() != type->templateParams.size())
       return codeLoc.getError("Number of template parameters of type " + quote(type->getName()) +
           " differs from forward declaration.");
@@ -1484,20 +1484,24 @@ WithErrorLine<SType> Expression::getDotOperatorType(Expression* left, Context& c
 
 EnumDefinition::EnumDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
 
-optional<ErrorLoc> EnumDefinition::addToContext(Context& s) {
-  if (elements.empty())
-    return codeLoc.getError("Enum requires at least one element");
-  auto type = s.typeRegistry->getEnum(name);
-  if (auto err = getRedefinitionError(type->getName(), type->definition))
-    return codeLoc.getError(*err);
-  type->definition = codeLoc;
-  type->elements = elements;
-  type->external = external;
-  unordered_set<string> occurences;
-  for (auto& e : elements)
-    if (occurences.count(e))
-      return codeLoc.getError("Duplicate enum element: " + quote(e));
-  s.addType(name, std::move(type));
+optional<ErrorLoc> EnumDefinition::addToContext(Context& context) {
+  auto type = context.typeRegistry->getEnum(name);
+  context.setFullyDefined(type.get(), fullyDefined);
+  if (fullyDefined) {
+    if (elements.empty())
+      return codeLoc.getError("Enum requires at least one element");
+    if (auto err = getRedefinitionError(type->getName(), type->definition))
+      return codeLoc.getError(*err);
+    type->definition = codeLoc;
+    type->elements = elements;
+    type->external = external;
+    unordered_set<string> occurences;
+    for (auto& e : elements)
+      if (occurences.count(e))
+        return codeLoc.getError("Duplicate enum element: " + quote(e));
+  }
+  if (!context.getType(name))
+    context.addType(name, std::move(type));
   return none;
 }
 
@@ -1513,6 +1517,8 @@ WithErrorLine<SType> EnumConstant::getTypeImpl(Context& context) {
   if (!type)
     return type.get_error();
   if (auto enumType = type->dynamicCast<EnumType>()) {
+    if (!context.isFullyDefined(enumType.get()))
+      return codeLoc.getError("Enum type " + quote(enumType->getName()) + " elements are not known in this context");
     if (!contains(enumType->elements, enumElement))
       return codeLoc.getError(quote(enumElement) + " is not an element of enum " + quote(enumName));
   } else

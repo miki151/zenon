@@ -927,20 +927,21 @@ WithErrorLine<unique_ptr<Statement>> parseEnumStatement(Tokens& tokens, bool ext
     return name.codeLoc.getError("Expected enum name, got: " + quote(name.value));
   auto ret = unique<EnumDefinition>(tokens.peek().codeLoc, name.value);
   ret->external = external;
-  if (auto t = tokens.eat(Keyword::OPEN_BLOCK); !t)
-    return t.get_error();
-  while (1) {
-    auto element = tokens.popNext();
-    if (!element.contains<IdentifierToken>())
-      return element.codeLoc.getError("Expected enum element, got: " + quote(element.value));
-    ret->elements.push_back(element.value);
-    if (tokens.eatMaybe(Keyword::CLOSE_BLOCK))
-      break;
-    if (auto t = tokens.eat(Keyword::COMMA); !t)
-      return t.get_error();
-    if (tokens.eatMaybe(Keyword::CLOSE_BLOCK))
-      break;
-  }
+  if (tokens.eatMaybe(Keyword::OPEN_BLOCK))
+    while (1) {
+      auto element = tokens.popNext();
+      if (!element.contains<IdentifierToken>())
+        return element.codeLoc.getError("Expected enum element, got: " + quote(element.value));
+      ret->elements.push_back(element.value);
+      if (tokens.eatMaybe(Keyword::CLOSE_BLOCK))
+        break;
+      if (auto t = tokens.eat(Keyword::COMMA); !t)
+        return t.get_error();
+      if (tokens.eatMaybe(Keyword::CLOSE_BLOCK))
+        break;
+    }
+  else
+    ret->fullyDefined = false;
   if (auto t = tokens.eat(Keyword::SEMICOLON); !t)
     return t.get_error();
   return cast<Statement>(std::move(ret));
