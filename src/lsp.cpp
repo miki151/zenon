@@ -48,54 +48,59 @@ optional<string> findValue(const string& s, const string& key) {
   return ret;
 }
 
-string readData(int cnt) {
+string readData(int cnt, ostream& outCopy) {
   char buf[10000];
   std::cin.read(buf, cnt);
   buf[cnt] = 0;
+  outCopy << buf;
+  outCopy.flush();
   return buf;
 }
 
-void eat(istream& i, char c) {
-  assert(i.peek() == c);
+void eat(istream& i, char c, ostream& outCopy) {
+  CHECK(i.peek() == c) << "Expected \"" << c << "\"";
   i.ignore(1);
+  outCopy << c;
+  outCopy.flush();
 }
 
-void eat(istream& i, const string& s) {
+void eat(istream& i, const string& s, ostream& outCopy) {
   for (char c : s)
-    eat(i, c);
+    eat(i, c, outCopy);
 }
 
-bool readHeaderLine(int& v) {
+bool readHeaderLine(int& v, ostream& outCopy) {
   if (std::cin.peek() == '\r') {
-    eat(std::cin, "\r\n");
+    eat(std::cin, "\r\n", outCopy);
     return false;
   }
-  eat(std::cin, "Content-");
+  eat(std::cin, "Content-", outCopy);
   if (std::cin.peek() == 'L') {
-    eat(std::cin, "Length: ");
+    eat(std::cin, "Length: ", outCopy);
     std::cin >> v;
+    outCopy << v;
   } else {
     // We assume 'Content-Type: '
-    eat(std::cin, "Type: ");
+    eat(std::cin, "Type: ", outCopy);
     string type;
     while (std::cin.peek() != '\r')
       type += std::cin.get();
   }
   // Assume good delimeters
-  eat(std::cin, "\r\n");
+  eat(std::cin, "\r\n", outCopy);
   return true;
 }
 
-int readHeader() {
+int readHeader(ostream& outCopy) {
   int v;
-  while (readHeaderLine(v));
+  while (readHeaderLine(v, outCopy));
   return v;
 }
 
-string readInput() {
-  int cnt = readHeader();
+string readInput(ostream& outCopy) {
+  int cnt = readHeader(outCopy);
   cerr << "count: " << cnt << endl;
-  string s = readData(cnt);
+  string s = readData(cnt, outCopy);
   cerr << "Read: [" << s << "]" << endl;
   return s;
 }
@@ -210,7 +215,7 @@ void printDiagnostics(const char* installDir, const string& text, const string& 
       TypeRegistry typeRegistry;
       auto primaryContext = createPrimaryContext(&typeRegistry);
       auto context = Context::withParent(primaryContext);
-      auto imported = correctness(fs::canonical(path), *ast, context, primaryContext, {installDir}, false);
+      auto imported = correctness(fs::system_complete(path), *ast, context, primaryContext, {installDir}, false);
       if (!imported) {
         cerr << "Type error" << endl;
         add(imported.get_error().error, imported.get_error().loc);
@@ -221,11 +226,12 @@ void printDiagnostics(const char* installDir, const string& text, const string& 
 }
 
 void startLsp(const char* installDir) {
-  ofstream out("/home/michal/lsp.out");
-  cerr.rdbuf(out.rdbuf());
+  ofstream log("/home/michal/lsp.log");
+  cerr.rdbuf(log.rdbuf());
   cerr << "Starting log" << endl;
+  ofstream outCopy("/home/michal/lsp.out");
   while (1) {
-    auto input = readInput();
+    auto input = readInput(outCopy);
     auto method = findValue(input, "method");
     if (method)
       cerr << "Got method: " << *method << endl;
