@@ -4,6 +4,7 @@
 #include "variant_helpers.h"
 #include "array_utils.h"
 #include "lite_str.h"
+#include "stacktrace.h"
 using zenon_string = lite_str<>;
 
 template <typename T>

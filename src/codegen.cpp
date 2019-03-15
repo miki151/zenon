@@ -243,7 +243,7 @@ static string getFunctionSignatureName(const FunctionInfo& function) {
   );
 }
 
-static void addSignature(Accu& accu, const FunctionInfo& functionInfo) {
+static string getSignature(const FunctionInfo& functionInfo) {
   string retVal;
   //if (!name.contains<ConstructorId>())
     retVal = functionInfo.type.retVal->getCodegenName() + " ";
@@ -267,7 +267,7 @@ static void addSignature(Accu& accu, const FunctionInfo& functionInfo) {
     ret.pop_back();
   }
   ret.append(")");
-  accu.add(ret);
+  return ret;
 }
 
 void FunctionDefinition::handlePointerParamsInOperator(Accu& accu, const StatementBlock* thisBody) const {
@@ -287,6 +287,12 @@ void FunctionDefinition::handlePointerParamsInOperator(Accu& accu, const Stateme
     accu.newLine("}");
   } else
     thisBody->codegen(accu, CodegenStage::define());
+}
+
+void FunctionDefinition::addStacktraceGenerator(Accu& accu, const StatementBlock* thisBody) const {
+  accu.add("F_BEGIN");
+  handlePointerReturnInOperator(accu, thisBody);
+  accu.add("F_END(\"" + functionInfo->prettyString() + "\")");
 }
 
 void FunctionDefinition::handlePointerReturnInOperator(Accu& accu, const StatementBlock* thisBody) const {
@@ -309,10 +315,10 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
     return;
   auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body) {
     if (functionInfo.getMangledName()) {
-      addSignature(accu, functionInfo);
+      accu.add(getSignature(functionInfo));
       if (body && stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
         accu.newLine("");
-        handlePointerReturnInOperator(accu, body);
+        addStacktraceGenerator(accu, body);
         accu.newLine("");
       } else {
         accu.add(";");

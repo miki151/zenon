@@ -415,6 +415,7 @@ struct FunctionDefinition : Statement {
   NODISCARD optional<ErrorLoc> setFunctionType(const Context&, bool concept = false, bool builtInImport = false);
   void handlePointerParamsInOperator(Accu&, const StatementBlock*) const;
   void handlePointerReturnInOperator(Accu&, const StatementBlock*) const;
+  void addStacktraceGenerator(Accu&, const StatementBlock*) const;
   NODISCARD optional<ErrorLoc> generateVirtualDispatchBody(Context& bodyContext);
   WithErrorLine<unique_ptr<Expression>> getVirtualFunctionCallExpr(const Context&, const string& funName,
       const string& alternativeName, const SType& alternativeType, int virtualIndex);
