@@ -34,4 +34,4 @@ export double as_double(int a) {
 }
 
 export extern double sqrt(double value);
-
+export extern int abs(int value);

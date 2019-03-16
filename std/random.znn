@@ -31,3 +31,8 @@ T get_random() {
     return T(value);
   }
 }
+
+export template <T>
+T* get_random(T[] elems) {
+  return &elems[get_random(elems.size())];
+}
