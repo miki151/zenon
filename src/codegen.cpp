@@ -315,6 +315,8 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
     return;
   auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body) {
     if (functionInfo.getMangledName()) {
+      if (!functionInfo.type.templateParams.empty())
+        accu.add("inline ");
       accu.add(getSignature(functionInfo));
       if (body && stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
         accu.newLine("");
@@ -494,7 +496,7 @@ void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void EnumDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (stage.isTypes) {
+  if (stage.isTypes && !external) {
     accu.add("enum class " + name + ";");
     accu.newLine();
   }
