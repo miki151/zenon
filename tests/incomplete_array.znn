@@ -1,0 +1,10 @@
+// no_compile
+
+struct X;
+
+extern X[3] get();
+
+int main() {
+  const a = get();
+  return 0;
+}

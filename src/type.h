@@ -27,7 +27,6 @@ struct Type : public owned_object<Type> {
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const;
   virtual SType getType() const;
   void codegenDefinition(set<const Type*>& visited, Accu&) const;
-  virtual bool isIncomplete(const Context&) const;
   virtual ~Type() {}
   virtual WithErrorLine<SType> instantiate(const Context&, vector<SType> templateArgs, CodeLoc) const;
   Context& getStaticContext();
@@ -39,7 +38,7 @@ struct Type : public owned_object<Type> {
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const;
   virtual bool isBuiltinCopyable(const Context&) const;
   virtual SType removePointer() const;
-  virtual optional<string> getSizeError() const;
+  virtual optional<string> getSizeError(const Context&) const;
   Context staticContext;
 
   protected:
@@ -207,8 +206,7 @@ struct StructType : public Type {
   virtual WithErrorLine<SType> instantiate(const Context&, vector<SType> templateArgs, CodeLoc) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
-  virtual optional<string> getSizeError() const override;
-  virtual bool isIncomplete(const Context&) const override;
+  virtual optional<string> getSizeError(const Context&) const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
   WithError<SType> getTypeOfMember(const string&) const;
   string name;
@@ -254,7 +252,7 @@ struct ArrayType : public Type {
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   static shared_ptr<ArrayType> get(SType, SCompileTimeValue size);
   virtual bool isBuiltinCopyable(const Context&) const override;
-  virtual optional<string> getSizeError() const override;
+  virtual optional<string> getSizeError(const Context&) const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
   ArrayType(SType, SCompileTimeValue size);
   SCompileTimeValue size;
@@ -269,7 +267,6 @@ struct SliceType : public Type {
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   static shared_ptr<SliceType> get(SType);
   virtual bool isBuiltinCopyable(const Context&) const override;
-  virtual optional<string> getSizeError() const override;
   struct Private {};
   SliceType(Private, SType);
   SType underlying;

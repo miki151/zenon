@@ -1,0 +1,16 @@
+// no_compile
+
+
+struct X;
+
+template <T>
+struct Y {
+  T elem;
+};
+
+extern Y<X> get();
+
+int main() {
+  const a = get();
+  return 0;
+}

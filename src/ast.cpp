@@ -98,8 +98,8 @@ WithErrorLine<SType> Variable::getDotOperatorType(Expression* left, Context& cal
     if (auto id = identifier.asBasicIdentifier()) {
       if (auto leftType = left->getTypeImpl(callContext)) {
         if (auto structType = leftType.get()->getUnderlying().dynamicCast<StructType>()) {
-          if (structType->isIncomplete(callContext))
-            return codeLoc.getError(structType->getName() + " is incomplete in this context");
+          if (auto error = structType->getSizeError(callContext))
+            return codeLoc.getError(structType->getName() + *error);
           if (auto member = structType->getTypeOfMember(*id))
             return SType(MutableReferenceType::get(*member));
           else
@@ -377,8 +377,8 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   }
   if (realType == ArithmeticType::VOID)
     return codeLoc.getError("Can't declare variable of type " + quote(realType->getName()));
-  if (realType.get()->isIncomplete(context))
-    return codeLoc.getError("Variable has incomplete type " + quote(realType->getName()));
+  if (auto error = realType.get()->getSizeError(context))
+    return codeLoc.getError(*error);
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (!initExpr)
     return codeLoc.getError("Variable requires initialization");
@@ -539,8 +539,8 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
       auto type = contextWithTemplateParams.getType(*param.type);
       if (!type)
         return param.codeLoc.getError("Type not found: " + quote(*param.type));
-      if (type.get()->isIncomplete(contextWithTemplateParams))
-        return param.codeLoc.getError("Type is incomplete: " + quote(*param.type));
+      if (auto error = type.get()->getSizeError(contextWithTemplateParams))
+        return param.codeLoc.getError(*error);
       templateTypes.push_back(CompileTimeValue::getTemplateValue(type.get(), param.name));
       contextWithTemplateParams.addType(param.name, templateTypes.back());
     } else {
@@ -873,11 +873,11 @@ optional<ErrorLoc> FunctionDefinition::checkBody(TypeRegistry* typeRegistry, Con
 optional<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& context) {
   for (int i = 0; i < functionInfo->type.params.size(); ++i) {
     auto paramType = functionInfo->type.params[i].type;
-    if (paramType->isIncomplete(context))
-      return parameters[i].codeLoc.getError("Type " + quote(paramType->getName()) + " is incomplete in this context");
+    if (auto error = paramType->getSizeError(context))
+      return parameters[i].codeLoc.getError(*error);
   }
-  if (functionInfo->type.retVal->isIncomplete(context))
-    return returnType.codeLoc.getError("Type " + quote(functionInfo->type.retVal->getName()) + " is incomplete in this context");
+  if (auto error = functionInfo->type.retVal->getSizeError(context))
+    return returnType.codeLoc.getError(*error);
   return none;
 }
 
@@ -1104,8 +1104,8 @@ WithErrorLine<SType> FunctionCall::getDotOperatorType(Expression* left, Context&
     }
   }
   if (functionInfo) {
-    if (functionInfo->type.retVal->isIncomplete(callContext))
-      return codeLoc.getError("Calling a function whose return type " + quote(functionInfo->type.retVal->getName()) + " is incomplete");
+    if (auto error = functionInfo->type.retVal->getSizeError(callContext))
+      return codeLoc.getError(*error);
     for (int i = 0; i < argNames.size(); ++i) {
       auto paramName = functionInfo->type.params[callType ? (i + 1) : i].name;
       if (argNames[i] && paramName && argNames[i] != paramName) {
@@ -1298,9 +1298,8 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
       else
         return memberType.get_error();
     for (auto& member : members)
-      if (auto error = type->members.back().type->getSizeError())
-        return member.codeLoc.getError("Member " + quote(member.name) + " of type " +
-            quote(type->getName()) + " " + *error);
+      if (auto error = type->members.back().type->getSizeError(membersContext))
+        return member.codeLoc.getError(*error);
     for (int i = 0; i < members.size(); ++i)
       for (int j = i + 1; j < members.size(); ++j)
         if (members[i].name == members[j].name)
@@ -1328,9 +1327,9 @@ optional<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
     addTemplateParam(methodBodyContext, param);
   CHECK(!!applyConcept(methodBodyContext, templateInfo.requirements));
   type->updateInstantations();
-  if (!incomplete || notInImport)
-    if (auto error = type->getSizeError())
-      return codeLoc.getError("Type " + quote(type->getName()) + " " + *error);
+  if (!incomplete)
+    if (auto error = type->getSizeError(context))
+      return codeLoc.getError(*error);
   return none;
 }
 

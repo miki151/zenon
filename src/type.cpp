@@ -263,10 +263,6 @@ SType Type::getUnderlying() const {
   return get_this().get();
 }
 
-bool Type::isIncomplete(const Context&) const {
-  return false;
-}
-
 SType ReferenceType::getUnderlying() const {
   return underlying;
 }
@@ -339,7 +335,7 @@ SType Type::removePointer() const {
   return get_this().get();
 }
 
-optional<string> Type::getSizeError() const {
+optional<string> Type::getSizeError(const Context&) const {
   return none;
 }
 
@@ -367,29 +363,27 @@ bool MutableReferenceType::canAssign(SType from) const {
   return underlying == from->getUnderlying();
 }
 
-static optional<string> checkMembers(set<const Type*> &visited, const SType& t) {
+static optional<string> checkMembers(const Context& context, set<const Type*> &visited, const SType& t) {
   if (auto s = t.dynamicCast<StructType>()) {
     if (visited.count(t.get()))
-      return "has infinite size"s;
+      return "Type " + t->getName() + " has infinite size"s;
+    if (!context.isFullyDefined(t.get()))
+      return "Type " + t->getName() + " is incomplete in this context"s;
     visited.insert(t.get());
     for (auto& member : s->members)
-      if (auto res = checkMembers(visited, member.type))
+      if (auto res = checkMembers(context, visited, member.type))
         return res;
     for (auto& member : s->alternatives)
-      if (auto res = checkMembers(visited, member.type))
+      if (auto res = checkMembers(context, visited, member.type))
         return res;
     visited.erase(t.get());
   }
   return none;
 }
 
-optional<string> StructType::getSizeError() const {
+optional<string> StructType::getSizeError(const Context& context) const {
   set<const Type*> visited;
-  return checkMembers(visited, get_this().get());
-}
-
-bool StructType::isIncomplete(const Context& context) const {
-  return !context.isFullyDefined(this);
+  return checkMembers(context, visited, get_this().get());
 }
 
 optional<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
@@ -933,8 +927,8 @@ bool ArrayType::isBuiltinCopyable(const Context& context) const {
   return false;//underlying->isBuiltinCopyable(context);
 }
 
-optional<string> ArrayType::getSizeError() const {
-  return underlying->getSizeError();
+optional<string> ArrayType::getSizeError(const Context& context) const {
+  return underlying->getSizeError(context);
 }
 
 ArrayType::ArrayType(SType type, SCompileTimeValue size) : size(std::move(size)), underlying(type) {
@@ -1105,8 +1099,8 @@ bool SliceType::isBuiltinCopyable(const Context&) const {
   return true;
 }
 
-optional<string> SliceType::getSizeError() const {
+/*optional<string> SliceType::getSizeError(const Context& context) const {
   return underlying->getSizeError();
-}
+}*/
 
 SliceType::SliceType(SliceType::Private, SType t) : underlying(std::move(t)) {}
