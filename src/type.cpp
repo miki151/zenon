@@ -145,6 +145,7 @@ optional<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, C
   statement.type = SwitchStatement::ENUM;
   statement.targetType = (SType)get_this();
   unordered_set<string> handledElems;
+  vector<Context::MovedVarsSnapshot> allMovedVars;
   for (auto& caseElem : statement.caseElems) {
     if (!caseElem.type.contains<none_t>())
       return caseElem.codeloc.getError("Expected enum element");
@@ -156,8 +157,11 @@ optional<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, C
             + " handled more than once in switch statement");
       handledElems.insert(id);
     }
+    auto movedBeforeTrueSegment = context.getMovedVarsSnapshot();
     if (auto err = caseElem.block->check(context))
       return err;
+    allMovedVars.push_back(context.getMovedVarsSnapshot());
+    context.setMovedVars(std::move(movedBeforeTrueSegment));
   }
   if (!statement.defaultBlock) {
     vector<string> unhandled;
@@ -171,9 +175,14 @@ optional<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, C
     if (handledElems.size() == elements.size())
       return statement.defaultBlock->codeLoc.getError(
           "Default switch statement unnecessary when all enum elements are handled");
+    auto movedBeforeTrueSegment = context.getMovedVarsSnapshot();
     if (auto err = statement.defaultBlock->check(context))
       return err;
+    allMovedVars.push_back(context.getMovedVarsSnapshot());
+    context.setMovedVars(std::move(movedBeforeTrueSegment));
   }
+  for (auto& elem : allMovedVars)
+    context.mergeMovedVars(elem);
   return none;
 }
 
@@ -471,8 +480,6 @@ optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement,
     allMovedVars.push_back(outsideContext.getMovedVarsSnapshot());
     outsideContext.setMovedVars(std::move(movedBeforeTrueSegment));
   }
-  for (auto& elem : allMovedVars)
-    outsideContext.mergeMovedVars(elem);
   if (!statement.defaultBlock) {
     vector<string> unhandled;
     for (auto& alternative : alternatives)
@@ -485,9 +492,14 @@ optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement,
     if (handledTypes.size() == alternatives.size())
       return statement.defaultBlock->codeLoc.getError(
           "Default switch statement unnecessary when all variant cases are handled");
+    auto movedBeforeTrueSegment = outsideContext.getMovedVarsSnapshot();
     if (auto err = statement.defaultBlock->check(outsideContext))
       return err;
+    allMovedVars.push_back(outsideContext.getMovedVarsSnapshot());
+    outsideContext.setMovedVars(std::move(movedBeforeTrueSegment));
   }
+  for (auto& elem : allMovedVars)
+    outsideContext.mergeMovedVars(elem);
   return none;
 }
 

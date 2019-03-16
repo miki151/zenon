@@ -1,0 +1,22 @@
+// 5
+
+enum E {
+  E1,
+  E2,
+  E3
+};
+
+template <T>
+T get(E e, T t) {
+  switch (e) {
+    case (E1) { return move(t); }
+    case (E2) { return move(t); }
+    default {
+      return move(t);
+    }
+  }
+}
+
+int main() {
+  return get(E::E1, 5);
+}
