@@ -23,8 +23,8 @@ inline bool runningUnderDebugger() {
 struct PanicException {};
 
 #define F_BEGIN try
-#define F_END(FUN) catch(PanicException& panicException1234) {\
+#define F_END(FUN) catch(...) {\
   fprintf(stderr, "%s\n", FUN);\
-  throw panicException1234;\
+  throw;\
 }
 
