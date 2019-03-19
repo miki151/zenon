@@ -1,6 +1,27 @@
 
 export import "std/concepts.znn";
 
+export template <T, int Size>
+T* operator [] (T[Size]* a, int index) {
+  embed {
+    return &a->at(index);
+  }
+}
+
+export template <T, int Size>
+T mutable* operator [] (T[Size] mutable* a, int index) {
+  embed {
+    return &a->at(index);
+  }
+}
+
+export template <T, int Size>
+T operator [] (T[Size] a, int index) {
+  embed {
+    return std::move(a.at(index));
+  }
+}
+
 export template <T, int Size> requires can_copy<T>
 T[Size] copy(T[Size]* array) {
   embed {

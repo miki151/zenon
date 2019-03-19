@@ -514,19 +514,6 @@ void Context::addBuiltInFunction(const string& id, SType returnType, vector<STyp
 nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> argTypes) const {
   auto functionType = [&] () -> optional<FunctionType> {
     switch (op) {
-      case Operator::SUBSCRIPT:
-        if (argTypes.size() == 2)
-          if (auto arrayType = argTypes[0]->getUnderlying().dynamicCast<ArrayType>())
-            if (argTypes[1]->getUnderlying() == ArithmeticType::INT) {
-              if (argTypes[0].dynamicCast<ReferenceType>())
-                return FunctionType(
-                    ReferenceType::get(arrayType->underlying), {{argTypes[0]}, {ArithmeticType::INT}}, {}).setBuiltin();
-              if (argTypes[0].dynamicCast<MutableReferenceType>())
-                return FunctionType(
-                    MutableReferenceType::get(arrayType->underlying), {{argTypes[0]}, {ArithmeticType::INT}}, {}).setBuiltin();
-              return FunctionType(arrayType->underlying, {{argTypes[0]}, {ArithmeticType::INT}}, {}).setBuiltin();
-            }
-        break;
       case Operator::GET_ADDRESS:
         if (argTypes.size() == 1) {
           if (auto referenceType = argTypes[0].dynamicCast<ReferenceType>())

@@ -111,7 +111,7 @@ WithErrorLine<SType> Variable::getDotOperatorType(Expression* left, Context& cal
   return codeLoc.getError("Bad use of dot operator");
 }
 
-static bool isExactArg(SType arg, SType param) {
+static bool isExactArg(SType arg, SType param, bool onlyValue) {
   bool byValue = param == arg->getUnderlying();
   bool byConstRef = param.dynamicCast<ReferenceType>() &&
       !arg.dynamicCast<MutableReferenceType>() &&
@@ -120,20 +120,20 @@ static bool isExactArg(SType arg, SType param) {
   /*cout << "Passing " << arg->getName() << " to " << param->getName() << endl;
   if (byValue) cout << "By value "; if (byConstRef) cout << "By const ref "; if (byRef) cout << "By ref ";
   cout << endl;*/
-  return byValue || byConstRef || byRef;
+  return byValue || (!onlyValue && (byConstRef || byRef));
 }
 
-static bool exactArgs(const vector<SType>& argTypes, const FunctionType& f) {
+static bool exactArgs(const vector<SType>& argTypes, const FunctionType& f, bool onlyValue) {
   if (f.params.size() != argTypes.size() || !f.templateParams.empty())
     return false;
   for (int i = 0; i < f.params.size(); ++i)
-    if (!isExactArg(argTypes[i], f.params[i].type))
+    if (!isExactArg(argTypes[i], f.params[i].type, onlyValue))
       return false;
   return true;
 }
 
-static bool exactFirstArg(const vector<SType>& argTypes, const FunctionType& overload) {
-  return !argTypes.empty() && !overload.params.empty() && isExactArg(argTypes[0], overload.params[0].type);
+static bool exactFirstArg(const vector<SType>& argTypes, const FunctionType& overload, bool onlyValue) {
+  return !argTypes.empty() && !overload.params.empty() && isExactArg(argTypes[0], overload.params[0].type, onlyValue);
 }
 
 static bool fromConcept(const vector<SType>&, const FunctionType& f) {
@@ -156,8 +156,10 @@ static void filterOverloads(vector<SFunctionInfo>& overloads, const vector<SType
     if (overloads.empty())
       overloads = worse;
   };
-  filter(&exactArgs, "all args exact");
-  filter(&exactFirstArg, "first arg exact");
+  filter([](const auto& args, const auto& overload) { return exactArgs(args, overload, true);}, "all args exact");
+  filter([](const auto& args, const auto& overload) { return exactFirstArg(args, overload, true);}, "first arg exact");
+  filter([](const auto& args, const auto& overload) { return exactArgs(args, overload, false);}, "all args exact");
+  filter([](const auto& args, const auto& overload) { return exactFirstArg(args, overload, false);}, "first arg exact");
   // sometimes a function is both in the global context and in the concept, so prefer the one in the concept
   filter(&fromConcept, "non concept");
   filter(&userDefinedConstructor, "user defined constructor");
