@@ -1,0 +1,16 @@
+// 3
+
+int main() {
+  mutable x = 2;
+  mutable y = 3;
+  mutable z = 4;
+  mutable res = 0;
+  if (x == 1)
+    res = move(x);
+  else if (x == 2)
+    res = move(y);
+  else if (x == 3)
+    res = move(z);
+  return move(res);
+}
+

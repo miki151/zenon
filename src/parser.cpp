@@ -226,7 +226,7 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
           return parseFunctionCall(*identifier, tokens);
         } else {
           if (identifier->parts.size() == 1)
-            return cast<Expression>(unique<Variable>(token.codeLoc, *identifier));
+            return cast<Expression>(unique<Variable>(token.codeLoc, *identifier->asBasicIdentifier()));
           else
             return cast<Expression>(unique<EnumConstant>(token.codeLoc, identifier->parts[0].name,
                 identifier->parts[1].name));

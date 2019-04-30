@@ -1,0 +1,23 @@
+// no_compile
+
+enum E { E1, E2, E3 };
+
+int main() {
+  mutable e = E::E1;
+  mutable x = 1;
+  mutable y = 2;
+  mutable z = 3;
+  switch (move(e)) {
+    case (E1) {
+      discard move(x);
+    }
+    case (E2) {
+      discard move(y);
+    }
+    default {
+      discard move(z);
+    }
+  }
+  return x;
+}
+

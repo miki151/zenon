@@ -1,0 +1,9 @@
+// no_compile
+
+int main() {
+  mutable y = true;
+  for (mutable i = 0; i < 5 && move(y); ++i) {
+  }
+  return 0;
+}
+

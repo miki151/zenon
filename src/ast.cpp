@@ -7,6 +7,7 @@
 #include "code_loc.h"
 #include "identifier_type.h"
 #include "type_registry.h"
+#include "move_checker.h"
 
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
@@ -19,11 +20,7 @@ Constant::Constant(CodeLoc l, SCompileTimeValue v) : Expression(l), value(v) {
   INFO << "Created constant " << v->getName() << " of type " << v->getType();
 }
 
-Variable::Variable(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(id) {
-  INFO << "Parsed variable " << id.prettyString();
-}
-
-Variable::Variable(CodeLoc l, string s) : Variable(l, IdentifierInfo(s, l)) {
+Variable::Variable(CodeLoc l, string s) : Expression(l), identifier(std::move(s)) {
 }
 
 FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(std::move(id)) {
@@ -71,22 +68,17 @@ unique_ptr<Expression> Constant::replace(SType from, SType to, ErrorBuffer& erro
 
 WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
   optional<string> varError;
-  if (auto id = identifier.asBasicIdentifier()) {
-    if (auto varType = context.getTypeOfVariable(*id))
-      return *varType;
-    else
-      varError = varType.get_error();
-  }
-  if (auto t = context.getTypeFromString(identifier))
+  if (auto varType = context.getTypeOfVariable(identifier))
+    return *varType;
+  else
+    varError = varType.get_error();
+  if (auto t = context.getType(identifier))
     return t.get()->getType();
-  return codeLoc.getError(varError.value_or("Identifier not found: " + identifier.prettyString()));
+  return codeLoc.getError(varError.value_or("Identifier not found: " + identifier));
 }
 
 nullable<SType> Variable::eval(const Context& context) const {
-  if (auto res = context.getTypeFromString(identifier))
-    return *res;
-  else
-    return nullptr;
+  return context.getType(identifier);
 }
 
 unique_ptr<Expression> Variable::replace(SType from, SType to, ErrorBuffer& errors) const {
@@ -94,21 +86,26 @@ unique_ptr<Expression> Variable::replace(SType from, SType to, ErrorBuffer& erro
 }
 
 WithErrorLine<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
-  if (left)
-    if (auto id = identifier.asBasicIdentifier()) {
-      if (auto leftType = left->getTypeImpl(callContext)) {
-        if (auto structType = leftType.get()->getUnderlying().dynamicCast<StructType>()) {
-          if (auto error = structType->getSizeError(callContext))
-            return codeLoc.getError(structType->getName() + *error);
-          if (auto member = structType->getTypeOfMember(*id))
-            return SType(MutableReferenceType::get(*member));
-          else
-            return codeLoc.getError(member.get_error());
-        }
-      } else
-        return leftType;
-    }
+  if (left) {
+    if (auto leftType = left->getTypeImpl(callContext)) {
+      if (auto structType = leftType.get()->getUnderlying().dynamicCast<StructType>()) {
+        if (auto error = structType->getSizeError(callContext))
+          return codeLoc.getError(structType->getName() + *error);
+        if (auto member = structType->getTypeOfMember(identifier))
+          return SType(MutableReferenceType::get(*member));
+        else
+          return codeLoc.getError(member.get_error());
+      }
+    } else
+      return leftType;
+  }
   return codeLoc.getError("Bad use of dot operator");
+}
+
+optional<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
+  if (auto err = checker.getUsageError(identifier))
+    return codeLoc.getError(*err);
+  return none;
 }
 
 static bool isExactArg(SType arg, SType param, bool onlyValue) {
@@ -272,6 +269,14 @@ unique_ptr<Expression> BinaryExpression::replace(SType from, SType to, ErrorBuff
   return get(codeLoc, op, expr[0]->replace(from, to, errors), expr[1]->replace(from, to, errors));
 }
 
+optional<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
+  for (auto& e : expr) {
+    if (auto error = e->checkMoves(checker))
+      return error;
+  }
+  return none;
+}
+
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
     : Expression(l), op(o), expr(std::move(e)) {}
 
@@ -305,11 +310,26 @@ unique_ptr<Expression> UnaryExpression::replace(SType from, SType to, ErrorBuffe
   return unique<UnaryExpression>(codeLoc, op, expr->replace(from, to, errors));
 }
 
+optional<ErrorLoc> UnaryExpression::checkMoves(MoveChecker& checker) const {
+  return expr->checkMoves(checker);
+}
+
 optional<ErrorLoc> StatementBlock::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   for (auto& s : elems)
     if (auto err = s->check(bodyContext))
       return err;
+  return none;
+}
+
+optional<ErrorLoc> StatementBlock::checkMoves(MoveChecker& checker) const {
+  checker.startBlock();
+  for (auto& elem : elems)
+    if (auto err = elem->checkMoves(checker)) {
+      checker.endBlock();
+      return err;
+    }
+  checker.endBlock();
   return none;
 }
 
@@ -338,16 +358,35 @@ optional<ErrorLoc> IfStatement::check(Context& context, bool) {
     return codeLoc.getError(
         "Expected a type convertible to bool or with overloaded operator " +
         quote("!") + " inside if statement, got " + quote(condType.get()->getName()));
-  auto movedBeforeTrueSegment = ifContext.getMovedVarsSnapshot();
   if (auto err = ifTrue->check(ifContext))
     return err;
   if (ifFalse) {
-    auto movedAfterTrueSegment = ifContext.getMovedVarsSnapshot();
-    ifContext.setMovedVars(std::move(movedBeforeTrueSegment));
     if (auto err = ifFalse->check(ifContext))
       return err;
-    ifContext.mergeMovedVars(std::move(movedAfterTrueSegment));
   }
+  return none;
+}
+
+optional<ErrorLoc> IfStatement::checkMoves(MoveChecker& checker) const {
+  if (declaration)
+    if (auto err = declaration->checkMoves(checker))
+      return err;
+  if (auto err = condition->checkMoves(checker))
+    return err;
+  checker.startBlock();
+  checker.newAlternative();
+  if (auto err = ifTrue->checkMoves(checker)) {
+    checker.endBlock();
+    return err;
+  }
+  if (ifFalse) {
+    checker.newAlternative();
+    if (auto err = ifFalse->checkMoves(checker)){
+      checker.endBlock();
+      return err;
+    }
+  }
+  checker.endBlock();
   return none;
 }
 
@@ -402,6 +441,14 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   return none;
 }
 
+optional<ErrorLoc> VariableDeclaration::checkMoves(MoveChecker& checker) const {
+  if (initExpr)
+    if (auto err = initExpr->checkMoves(checker))
+      return err;
+  checker.addVariable(identifier);
+  return none;
+}
+
 unique_ptr<Statement> VariableDeclaration::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto ret = unique<VariableDeclaration>(codeLoc, none, identifier,
       initExpr ? initExpr->replace(from, to, errors) : nullptr);
@@ -423,6 +470,14 @@ optional<ErrorLoc> ReturnStatement::check(Context& context, bool) {
           "Can't return value of type " + quote(returnType.get()->getName()) +
           " from a function returning " + context.getReturnType()->getName());
   }
+  return none;
+}
+
+optional<ErrorLoc> ReturnStatement::checkMoves(MoveChecker& checker) const {
+  if (expr)
+    if (auto err = expr->checkMoves(checker))
+      return err;
+  checker.returnStatement();
   return none;
 }
 
@@ -716,6 +771,7 @@ optional<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& body
           codeLoc,
           alternativeType,
           {alternative.name},
+          alternative.name,
           std::move(block)
         });
   }
@@ -764,6 +820,7 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
               codeLoc,
               SType(alternative.type != ArithmeticType::VOID ? PointerType::get(alternative.type) : alternative.type),
               {alternative.name},
+              alternative.name,
               std::move(block)
             }
         );
@@ -867,9 +924,15 @@ optional<ErrorLoc> FunctionDefinition::checkBody(TypeRegistry* typeRegistry, Con
   if (name.contains<Operator>())
     retVal = convertReferenceToPointer(retVal);
   bodyContext.setReturnType(retVal);
+  if (auto err = myBody.check(bodyContext))
+    return err;
   if (retVal != ArithmeticType::VOID && !myBody.hasReturnStatement(bodyContext))
     return codeLoc.getError("Not all paths lead to a return statement in a function returning non-void");
-  return myBody.check(bodyContext);
+  MoveChecker moveChecker;
+  for (auto& p : parameters)
+    if (p.name)
+      moveChecker.addVariable(*p.name);
+  return myBody.checkMoves(moveChecker);
 }
 
 optional<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& context) {
@@ -1044,6 +1107,10 @@ unique_ptr<Statement> ExpressionStatement::replace(SType from, SType to, ErrorBu
   return unique<ExpressionStatement>(expr->replace(from, to, errors));
 }
 
+optional<ErrorLoc> ExpressionStatement::checkMoves(MoveChecker& checker) const {
+  return expr->checkMoves(checker);
+}
+
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
@@ -1154,6 +1221,13 @@ unique_ptr<Expression> FunctionCall::replace(SType from, SType to, ErrorBuffer& 
   return ret;
 }
 
+optional<ErrorLoc> FunctionCall::checkMoves(MoveChecker& checker) const {
+  for (auto& e : arguments)
+    if (auto error = e->checkMoves(checker))
+      return error;
+  return none;
+}
+
 FunctionCall::FunctionCall(CodeLoc l, Private) : Expression(l) {}
 
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
@@ -1163,6 +1237,33 @@ optional<ErrorLoc> SwitchStatement::check(Context& context, bool) {
     return t.get()->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
   else
     return t.get_error();
+}
+
+optional<ErrorLoc> SwitchStatement::checkMoves(MoveChecker& checker) const {
+  if (auto error = expr->checkMoves(checker))
+    return error;
+  checker.startBlock();
+  for (auto& elem : caseElems) {
+    checker.newAlternative();
+    checker.startBlock();
+    if (elem.declaredVar)
+      checker.addVariable(*elem.declaredVar);
+    if (auto err = elem.block->checkMoves(checker)) {
+      checker.endBlock();
+      checker.endBlock();
+      return err;
+    }
+    checker.endBlock();
+  }
+  if (defaultBlock) {
+    checker.newAlternative();
+    if (auto err = defaultBlock->checkMoves(checker)) {
+      checker.endBlock();
+      return err;
+    }
+  }
+  checker.endBlock();
+  return none;
 }
 
 unique_ptr<Statement> SwitchStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
@@ -1344,8 +1445,6 @@ WithErrorLine<SType> MoveExpression::getTypeImpl(Context& context) {
       if (!ret.get_value().dynamicCast<MutableReferenceType>() &&
           !ret.get_value().dynamicCast<ReferenceType>())
         return codeLoc.getError("Can't move from " + quote(ret.get_value()->getName()));
-      if (auto err = context.setVariableAsMoved(identifier))
-        return codeLoc.getError(*err);
       type = ret.get_value()->getUnderlying();
     } else
       return codeLoc.getError(ret.get_error());
@@ -1359,6 +1458,11 @@ unique_ptr<Expression> MoveExpression::replace(SType from, SType to, ErrorBuffer
   return ret;
 }
 
+optional<ErrorLoc> MoveExpression::checkMoves(MoveChecker& checker) const {
+  if (auto err = checker.moveVariable(codeLoc, identifier))
+    return codeLoc.getError(*err);
+  return none;
+}
 
 EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {
 }
@@ -1398,6 +1502,22 @@ optional<ErrorLoc> ForLoopStatement::check(Context& context, bool) {
   return body->check(bodyContext);
 }
 
+optional<ErrorLoc> ForLoopStatement::checkMoves(MoveChecker& checker) const {
+  if (auto err = init->checkMoves(checker))
+    return *err;
+  checker.startLoop(loopId);
+  if (auto err = cond->checkMoves(checker))
+    return *err;
+  if (auto err = iter->checkMoves(checker))
+    return *err;
+  if (auto err = body->checkMoves(checker)) {
+    if (auto err = checker.endLoop(loopId))
+      return err;
+    return *err;
+  }
+  return checker.endLoop(loopId);
+}
+
 unique_ptr<Statement> ForLoopStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
   return unique<ForLoopStatement>(codeLoc,
       init->replace(from, to, errors),
@@ -1418,6 +1538,19 @@ optional<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
   loopId = bodyContext.setIsInLoop();
   return body->check(bodyContext);
+}
+
+optional<ErrorLoc> WhileLoopStatement::checkMoves(MoveChecker& checker) const {
+  checker.startLoop(loopId);
+  if (auto err = cond->checkMoves(checker))
+    return *err;
+  if (auto err = body->checkMoves(checker)) {
+    if (auto err = checker.endLoop(loopId))
+      return err;
+    return *err;
+  }
+  return checker.endLoop(loopId);
+  return none;
 }
 
 unique_ptr<Statement> WhileLoopStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
@@ -1643,6 +1776,21 @@ optional<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   return body->check(bodyContext);
 }
 
+optional<ErrorLoc> RangedLoopStatement::checkMoves(MoveChecker& checker) const {
+  if (auto err = init->checkMoves(checker))
+    return *err;
+  if (auto err = container->checkMoves(checker))
+    return *err;
+  checker.startLoop(loopId);
+  if (auto err = body->checkMoves(checker)) {
+    if (auto err = checker.endLoop(loopId))
+      return err;
+    return *err;
+  }
+  return checker.endLoop(loopId);
+  return none;
+}
+
 unique_ptr<Statement> RangedLoopStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto ret = unique<RangedLoopStatement>(codeLoc,
       cast<VariableDeclaration>(init->replace(from, to, errors)),
@@ -1667,6 +1815,11 @@ unique_ptr<Statement> BreakStatement::replace(SType from, SType to, ErrorBuffer&
   return unique<BreakStatement>(codeLoc);
 }
 
+optional<ErrorLoc> BreakStatement::checkMoves(MoveChecker& checker) const {
+  checker.breakStatement(loopId);
+  return none;
+}
+
 optional<ErrorLoc> ContinueStatement::check(Context& context, bool) {
   if (!context.getLoopId())
     return codeLoc.getError("Continue statement outside of a loop");
@@ -1675,6 +1828,12 @@ optional<ErrorLoc> ContinueStatement::check(Context& context, bool) {
 
 unique_ptr<Statement> ContinueStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
   return unique<ContinueStatement>(codeLoc);
+}
+
+optional<ErrorLoc> ContinueStatement::checkMoves(MoveChecker& checker) const {
+  if (auto err = checker.continueStatement())
+    return codeLoc.getError(*err);
+  return none;
 }
 
 ArrayLiteral::ArrayLiteral(CodeLoc codeLoc) : Expression(codeLoc) {
@@ -1704,6 +1863,12 @@ unique_ptr<Expression> ArrayLiteral::replace(SType from, SType to, ErrorBuffer& 
   return ret;
 }
 
+optional<ErrorLoc> ArrayLiteral::checkMoves(MoveChecker& checker) const {
+  for (auto& e : contents)
+    if (auto error = e->checkMoves(checker))
+      return error;
+  return none;
+}
 
 WithErrorLine<SType> getType(Context& context, unique_ptr<Expression>& expr, bool evaluateAtCompileTime) {
   auto type = expr->getTypeImpl(context);

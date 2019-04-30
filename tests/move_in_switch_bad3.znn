@@ -1,0 +1,25 @@
+// no_compile
+
+variant V {
+  string s;
+  int x;
+  bool b;
+};
+
+int main() {
+  mutable e = V::s("pok");
+  switch (move(e)) {
+    case (s) {
+      discard move(s);
+    }
+    case (x) {
+      discard move(x);
+      return x;
+    }
+    default {
+      return 0;
+    }
+  }
+  return 1;
+}
+

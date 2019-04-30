@@ -1,0 +1,10 @@
+// no_compile
+
+int main() {
+  mutable y = 1;
+  if (move(y) == 1) {
+    return y;
+  }
+  return 0;
+}
+

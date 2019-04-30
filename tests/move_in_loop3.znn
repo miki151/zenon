@@ -1,0 +1,10 @@
+// 1
+
+int main() {
+  mutable x = 5;
+  while (true) {
+    discard move(x);
+    break;
+  }
+  return 1;
+}

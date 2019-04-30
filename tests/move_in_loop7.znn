@@ -1,0 +1,15 @@
+// 2
+
+int main() {
+  mutable y = 2;
+  mutable x = 1;
+  while (true) {
+    while (true) {
+      x = move(y);
+      break;
+    }
+    break;
+  }
+  return x;
+}
+

@@ -1,0 +1,15 @@
+// 1
+
+import "std/range.znn";
+
+int get() {
+  int ret = 1;
+  for (mutable i : range(0, 10)) {
+    return move(ret);
+  }
+  return 0;
+}
+
+int main() {
+  return get();
+}

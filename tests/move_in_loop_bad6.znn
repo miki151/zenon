@@ -1,0 +1,9 @@
+// no_compile
+
+int main() {
+  mutable y = true;
+  while (move(y)) {
+  }
+  return 0;
+}
+

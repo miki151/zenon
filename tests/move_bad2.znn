@@ -1,0 +1,16 @@
+// no_compile
+
+enum E { E1, E2 };
+
+int main() {
+  mutable e = E::E1;
+  switch (move(e)) {
+    case (E1) {
+      e = E::E2;
+    }
+    default {
+    }
+  }
+  return 0;
+}
+

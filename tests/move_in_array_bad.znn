@@ -1,0 +1,9 @@
+// no_compile
+
+int main() {
+  mutable y = 1;
+  discard move(y);
+  mutable x = {y, 5};
+  return x[0];
+}
+

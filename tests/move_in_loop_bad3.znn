@@ -1,0 +1,11 @@
+// no_compile
+
+int main() {
+  mutable x = 5;
+  while (true) {
+    discard move(x);
+    continue;
+    return 1;
+  }
+  return 1;
+}

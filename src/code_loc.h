@@ -10,6 +10,7 @@ struct CodeLoc {
   CodeLoc();
   ErrorLoc getError(string) const;
   CodeLoc plus(int numLines, int numColumns);
+  string toString() const;
 
   string file;
   int line;

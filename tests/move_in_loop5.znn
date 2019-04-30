@@ -1,0 +1,15 @@
+// 3
+
+int main() {
+  mutable y = 2;
+  mutable x = 0;
+  while (true) {
+    if (y == 3) {
+      x = move(y);
+      break;
+    }
+    y = y + 1;
+  }
+  return x;
+}
+

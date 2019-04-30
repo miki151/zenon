@@ -1,0 +1,15 @@
+// no_compile
+
+int main() {
+  mutable x = 1;
+  mutable y = 2;
+  mutable z = 3;
+  if (x == 1)
+    discard move(x);
+  else if (x == 2)
+    discard move(y);
+  else if (x == 3)
+    discard move(z);
+  return y;
+}
+

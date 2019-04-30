@@ -1,0 +1,15 @@
+// no_compile
+
+import "std/range.znn";
+
+int get() {
+  const ret = 1;
+  for (mutable i : range(0, 10)) {
+    const k = move(ret);
+  }
+  return 1;
+}
+
+int main() {
+  return get();
+}

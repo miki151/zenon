@@ -48,7 +48,7 @@ void initLogging(ofstream& logFile) {
 }
 
 [[noreturn]] static void exitWithError(CodeLoc loc, const string& e) {
-  ErrorLog.get() << loc.file << ": " << "Line " << loc.line + 1 << ", column " << loc.column + 1 << ": " << e;
+  ErrorLog.get() << loc.toString() << ": " << e;
   exit(-1);
 }
 

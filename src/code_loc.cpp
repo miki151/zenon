@@ -12,3 +12,7 @@ ErrorLoc CodeLoc::getError(string s) const {
 CodeLoc CodeLoc::plus(int numLines, int numColumns) {
   return CodeLoc(file, line + numLines, column + numColumns);
 }
+
+string CodeLoc::toString() const {
+  return file + ": " + "Line " + to_string(line + 1) + ", column "  + to_string(column + 1);
+}

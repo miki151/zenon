@@ -108,24 +108,6 @@ optional<string> Context::getMissingFunctions(const Concept& required, vector<Fu
   return none;
 }
 
-Context::MovedVarsSnapshot Context::getMovedVarsSnapshot() const {
-  MovedVarsSnapshot ret;
-  for (auto& state : getReversedStates())
-    ret[state] = state->movedVars;
-  return ret;
-}
-
-void Context::setMovedVars(Context::MovedVarsSnapshot snapshot) {
-  for (auto& state : getReversedStates())
-    state->movedVars = getValueMaybe(snapshot, state).value_or(set<string>());
-}
-
-void Context::mergeMovedVars(Context::MovedVarsSnapshot snapshot) {
-  for (auto& state : getReversedStates())
-    for (auto& var : getValueMaybe(snapshot, state).value_or(set<string>()))
-      state->movedVars.insert(var);
-}
-
 Context::ConstStates Context::getAllStates() const {
   auto ret = parentStates;
   ret.push_back(state);
@@ -148,20 +130,9 @@ Context Context::withStates(TypeRegistry* t, ConstStates states) {
 
 WithError<SType> Context::getTypeOfVariable(const string& id) const {
   for (auto& state : getReversedStates()) {
-    if (state->movedVars.count(id))
-      return "Variable has been moved: " + id;
     if (state->vars.count(id))
       return state->vars.at(id);
   }
-  return "Variable not found: " + id;
-}
-
-optional<string> Context::setVariableAsMoved(const string& id) {
-  for (auto& state : getReversedStates())
-    if (state->vars.count(id)) {
-      state->movedVars.insert(id);
-      return none;
-    }
   return "Variable not found: " + id;
 }
 
