@@ -1,0 +1,27 @@
+
+import "std/print.znn";
+
+export noreturn panic() {
+  embed {
+    if (runningUnderDebugger())
+      throw std::exception{};
+    else
+      throw PanicException{};
+  }
+}
+
+export noreturn panic(string message) {
+  print("The program panicked with the message: " + message);
+  panic();
+}
+
+export void assert(bool condition, string message) {
+  if (!condition)
+    panic(message);
+}
+
+export void assert(bool condition) {
+  if (!condition)
+    panic();
+}
+
