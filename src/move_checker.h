@@ -16,8 +16,9 @@ class MoveChecker {
   NODISCARD optional<string> continueStatement();
   void returnStatement();
   void addVariable(string name);
+  void clearStatementUsages();
   NODISCARD optional<string> moveVariable(CodeLoc, const string& name);
-  NODISCARD optional<string> getUsageError(const string& name) const;
+  NODISCARD optional<string> getUsageError(const string& name);
   ~MoveChecker();
   MoveChecker();
   MoveChecker(const MoveChecker&) = delete;
@@ -26,5 +27,7 @@ class MoveChecker {
   struct Block;
   struct VariableInfo;
   vector<Block> blocks;
+  struct StatementUsage;
+  vector<StatementUsage> statementUsages;
   optional<CodeLoc> wasMoved(const string& name) const;
 };

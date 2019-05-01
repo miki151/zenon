@@ -322,7 +322,7 @@ optional<ErrorLoc> StatementBlock::check(Context& context, bool) {
   return none;
 }
 
-optional<ErrorLoc> StatementBlock::checkMoves(MoveChecker& checker) const {
+optional<ErrorLoc> StatementBlock::checkMovesImpl(MoveChecker& checker) const {
   checker.startBlock();
   for (auto& elem : elems)
     if (auto err = elem->checkMoves(checker)) {
@@ -367,7 +367,7 @@ optional<ErrorLoc> IfStatement::check(Context& context, bool) {
   return none;
 }
 
-optional<ErrorLoc> IfStatement::checkMoves(MoveChecker& checker) const {
+optional<ErrorLoc> IfStatement::checkMovesImpl(MoveChecker& checker) const {
   if (declaration)
     if (auto err = declaration->checkMoves(checker))
       return err;
@@ -441,7 +441,7 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   return none;
 }
 
-optional<ErrorLoc> VariableDeclaration::checkMoves(MoveChecker& checker) const {
+optional<ErrorLoc> VariableDeclaration::checkMovesImpl(MoveChecker& checker) const {
   if (initExpr)
     if (auto err = initExpr->checkMoves(checker))
       return err;
@@ -473,7 +473,7 @@ optional<ErrorLoc> ReturnStatement::check(Context& context, bool) {
   return none;
 }
 
-optional<ErrorLoc> ReturnStatement::checkMoves(MoveChecker& checker) const {
+optional<ErrorLoc> ReturnStatement::checkMovesImpl(MoveChecker& checker) const {
   if (expr)
     if (auto err = expr->checkMoves(checker))
       return err;
@@ -491,6 +491,17 @@ optional<ErrorLoc> Statement::addToContext(Context&) {
 
 optional<ErrorLoc> Statement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
   return addToContext(context);
+}
+
+optional<ErrorLoc> Statement::checkMoves(MoveChecker& checker) const {
+  checker.clearStatementUsages();
+  auto ret = checkMovesImpl(checker);
+  checker.clearStatementUsages();
+  return ret;
+}
+
+optional<ErrorLoc> Statement::checkMovesImpl(MoveChecker&) const {
+  return none;
 }
 
 bool Statement::hasReturnStatement(const Context&) const {
@@ -1107,7 +1118,7 @@ unique_ptr<Statement> ExpressionStatement::replace(SType from, SType to, ErrorBu
   return unique<ExpressionStatement>(expr->replace(from, to, errors));
 }
 
-optional<ErrorLoc> ExpressionStatement::checkMoves(MoveChecker& checker) const {
+optional<ErrorLoc> ExpressionStatement::checkMovesImpl(MoveChecker& checker) const {
   return expr->checkMoves(checker);
 }
 
@@ -1239,7 +1250,7 @@ optional<ErrorLoc> SwitchStatement::check(Context& context, bool) {
     return t.get_error();
 }
 
-optional<ErrorLoc> SwitchStatement::checkMoves(MoveChecker& checker) const {
+optional<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const {
   if (auto error = expr->checkMoves(checker))
     return error;
   checker.startBlock();
@@ -1502,7 +1513,7 @@ optional<ErrorLoc> ForLoopStatement::check(Context& context, bool) {
   return body->check(bodyContext);
 }
 
-optional<ErrorLoc> ForLoopStatement::checkMoves(MoveChecker& checker) const {
+optional<ErrorLoc> ForLoopStatement::checkMovesImpl(MoveChecker& checker) const {
   if (auto err = init->checkMoves(checker))
     return *err;
   checker.startLoop(loopId);
@@ -1540,7 +1551,7 @@ optional<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
   return body->check(bodyContext);
 }
 
-optional<ErrorLoc> WhileLoopStatement::checkMoves(MoveChecker& checker) const {
+optional<ErrorLoc> WhileLoopStatement::checkMovesImpl(MoveChecker& checker) const {
   checker.startLoop(loopId);
   if (auto err = cond->checkMoves(checker))
     return *err;
@@ -1776,7 +1787,7 @@ optional<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   return body->check(bodyContext);
 }
 
-optional<ErrorLoc> RangedLoopStatement::checkMoves(MoveChecker& checker) const {
+optional<ErrorLoc> RangedLoopStatement::checkMovesImpl(MoveChecker& checker) const {
   if (auto err = init->checkMoves(checker))
     return *err;
   if (auto err = container->checkMoves(checker))
@@ -1815,7 +1826,7 @@ unique_ptr<Statement> BreakStatement::replace(SType from, SType to, ErrorBuffer&
   return unique<BreakStatement>(codeLoc);
 }
 
-optional<ErrorLoc> BreakStatement::checkMoves(MoveChecker& checker) const {
+optional<ErrorLoc> BreakStatement::checkMovesImpl(MoveChecker& checker) const {
   checker.breakStatement(loopId);
   return none;
 }
@@ -1830,7 +1841,7 @@ unique_ptr<Statement> ContinueStatement::replace(SType from, SType to, ErrorBuff
   return unique<ContinueStatement>(codeLoc);
 }
 
-optional<ErrorLoc> ContinueStatement::checkMoves(MoveChecker& checker) const {
+optional<ErrorLoc> ContinueStatement::checkMovesImpl(MoveChecker& checker) const {
   if (auto err = checker.continueStatement())
     return codeLoc.getError(*err);
   return none;

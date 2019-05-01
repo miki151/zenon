@@ -20,6 +20,11 @@ void MoveChecker::startBlock() {
   blocks.push_back(Block{ BlockType::STANDALONE, {} });
 }
 
+struct MoveChecker::StatementUsage {
+  string variable;
+  bool moved;
+};
+
 void MoveChecker::endBlock() {
   vector<MoveInfo> allMoved;
   while (blocks.back().type == BlockType::ALTERNATIVE) {
@@ -87,16 +92,28 @@ void MoveChecker::addVariable(string name) {
   blocks.back().variables.insert(std::move(name));
 }
 
+void MoveChecker::clearStatementUsages() {
+  statementUsages.clear();
+}
+
 optional<string> MoveChecker::moveVariable(CodeLoc loc, const string& name) {
   if (auto loc = wasMoved(name))
     return "Variable " + name + " has already been moved here: " + loc->toString();
+  for (auto& usage : statementUsages)
+    if (usage.variable == name)
+      return "Variable " + name + " can't be both moved and referenced within a single statement";
   blocks.back().moves.push_back(MoveInfo{name, none, loc});
+  statementUsages.push_back(StatementUsage{name, true});
   return none;
 }
 
-optional<string> MoveChecker::getUsageError(const string& name) const {
+optional<string> MoveChecker::getUsageError(const string& name) {
   if (auto loc = wasMoved(name))
     return "Variable " + name + " has been moved here:" + loc->toString();
+  for (auto& usage : statementUsages)
+    if (usage.variable == name && usage.moved)
+      return "Variable " + name + " can't be both moved and referenced within a single statement";
+  statementUsages.push_back(StatementUsage{name, false});
   return none;//"Variable not found: " + name;
 }
 
