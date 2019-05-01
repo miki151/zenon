@@ -6,6 +6,7 @@ Zenon is a statically typed language that compiles to C++. It offers safe and ea
 ### Features
 * No headers
 * Default pointer type is non-null.
+* Move semantics, usage-after-move is detected and disallowed.
 * No uninitialized variables and members.
 * No member functions/methods. Any function can be called with a method syntax.
 * Compiles to C++.
