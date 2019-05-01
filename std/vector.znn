@@ -117,6 +117,34 @@ T mutable* operator [](vector<T> mutable* v, int index) {
 }
 
 export template <T>
+T* back(vector<T>* v) {
+  embed {
+    return &v->back();
+  }
+}
+
+export template <T>
+T mutable* back(vector<T> mutable* v) {
+  embed {
+    return &v->back();
+  }
+}
+
+export template <T>
+T* front(vector<T>* v) {
+  embed {
+    return &v->front();
+  }
+}
+
+export template <T>
+T mutable* front(vector<T> mutable* v) {
+  embed {
+    return &v->front();
+  }
+}
+
+export template <T>
 int size(vector<T>* v) {
   embed {
     return v->size();

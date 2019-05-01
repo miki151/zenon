@@ -6,7 +6,7 @@ export embed {
 }
 
 export template <T> requires ordered<T>
-T min(mutable T a, mutable T b) {
+T min(T a, T b) {
   if (a < b)
     return move(a);
   else
@@ -14,7 +14,7 @@ T min(mutable T a, mutable T b) {
 }
 
 export template <T> requires ordered<T>
-T max(mutable T a, mutable T b) {
+T max(T a, T b) {
   if (a < b)
     return move(b);
   else
