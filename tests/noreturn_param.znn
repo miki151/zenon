@@ -1,0 +1,7 @@
+// no_compile
+
+void f(noreturn) {}
+
+int main() {
+  return 0;
+}

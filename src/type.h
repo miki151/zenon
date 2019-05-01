@@ -56,6 +56,7 @@ struct ArithmeticType : public Type {
   static DefType VOID;
   static DefType CHAR;
   static DefType STRING;
+  static DefType NORETURN;
   static DefType ANY_TYPE;
   static DefType ENUM_TYPE;
   ArithmeticType(const string& name, optional<string> codegenName = none);

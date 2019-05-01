@@ -1,0 +1,18 @@
+// 5
+
+noreturn exitProgram() {
+  embed {
+    throw std::exception();
+  }
+}
+
+int get(bool b) {
+  if (b)
+    return 5;
+  else
+    exitProgram();
+}
+
+int main() {
+  return get(true);
+}

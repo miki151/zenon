@@ -458,6 +458,8 @@ unique_ptr<Statement> VariableDeclaration::replace(SType from, SType to, ErrorBu
 }
 
 optional<ErrorLoc> ReturnStatement::check(Context& context, bool) {
+  if (context.getReturnType() == ArithmeticType::NORETURN)
+    return codeLoc.getError("This function should never return");
   if (!expr) {
     if (context.getReturnType() != ArithmeticType::VOID)
       return codeLoc.getError("Expected an expression in return statement in a function returning non-void");
@@ -587,6 +589,13 @@ static bool paramsAreGoodForOperator(const vector<FunctionType::Param>& params) 
   return false;
 }
 
+WithErrorLine<SType> FunctionDefinition::getReturnType(const Context& context) const {
+  if (returnType.asBasicIdentifier() == "noreturn"s)
+    return (SType) ArithmeticType::NORETURN;
+  else
+    return context.getTypeFromString(this->returnType);
+}
+
 optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, bool concept, bool builtInImport) {
   for (int i = 0; i < parameters.size(); ++i)
     if (!parameters[i].name)
@@ -621,7 +630,7 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
   auto requirements = applyConcept(contextWithTemplateParams, templateInfo.requirements);
   if (!requirements)
     return requirements.get_error();
-  if (auto returnType1 = contextWithTemplateParams.getTypeFromString(this->returnType)) {
+  if (auto returnType1 = getReturnType(contextWithTemplateParams)) {
     auto returnType = *returnType1;
     if (name.contains<Operator>())
       returnType = convertPointerToReference(returnType);
@@ -631,6 +640,8 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
       auto type = contextWithTemplateParams.getTypeFromString(p.type);
       if (!type)
         return type.get_error();
+      if (*type == ArithmeticType::VOID)
+        return p.codeLoc.getError("Function parameter may not have " + quote(type->get()->getName()) + " type");
       if (name.contains<Operator>())
         type = convertPointerToReference(*type);
       params.push_back({p.name, std::move(*type)});
@@ -937,6 +948,8 @@ optional<ErrorLoc> FunctionDefinition::checkBody(TypeRegistry* typeRegistry, Con
   bodyContext.setReturnType(retVal);
   if (auto err = myBody.check(bodyContext))
     return err;
+  if (retVal == ArithmeticType::NORETURN && !myBody.hasReturnStatement(bodyContext))
+    return codeLoc.getError("This function should never return");
   if (retVal != ArithmeticType::VOID && !myBody.hasReturnStatement(bodyContext))
     return codeLoc.getError("Not all paths lead to a return statement in a function returning non-void");
   MoveChecker moveChecker;
@@ -1107,9 +1120,10 @@ optional<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
   auto res = getType(context, expr);
   if (!res)
     return res.get_error();
-  if (!canDiscard && res.get() != ArithmeticType::VOID)
+  exprType = res.get();
+  if (!canDiscard && res.get() != ArithmeticType::VOID && res.get() != ArithmeticType::NORETURN)
     return codeLoc.getError("Expression result of type " + quote(res->get()->getName()) + " discarded");
-  if (canDiscard && res.get() == ArithmeticType::VOID)
+  if (canDiscard && (res.get() == ArithmeticType::VOID || res.get() == ArithmeticType::NORETURN))
     return codeLoc.getError("Void expression result unnecessarily marked as discarded");
   return none;
 }
@@ -1120,6 +1134,10 @@ unique_ptr<Statement> ExpressionStatement::replace(SType from, SType to, ErrorBu
 
 optional<ErrorLoc> ExpressionStatement::checkMovesImpl(MoveChecker& checker) const {
   return expr->checkMoves(checker);
+}
+
+bool ExpressionStatement::hasReturnStatement(const Context& context) const {
+  return exprType.get() == ArithmeticType::NORETURN;
 }
 
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
@@ -1491,6 +1509,10 @@ unique_ptr<Statement> EmbedStatement::replace(SType from, SType to, ErrorBuffer&
   ret->replacements = replacements;
   ret->replacements.push_back({from, to});
   return ret;
+}
+
+bool EmbedStatement::hasReturnStatement(const Context&) const {
+  return true;
 }
 
 ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<Statement> i, unique_ptr<Expression> c,

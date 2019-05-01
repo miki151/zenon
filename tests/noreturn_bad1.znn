@@ -1,0 +1,15 @@
+// no_compile
+
+noreturn f() {
+  embed {
+  }
+}
+
+noreturn g() {
+  if (true)
+    f();
+}
+
+int main() {
+  return 0;
+}

@@ -637,10 +637,6 @@ void EmbedStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.newLine();
 }
 
-bool EmbedStatement::hasReturnStatement(const Context&) const {
-  return true;
-}
-
 static string getLoopBreakLabel(int loopId) {
   return "break_loop_" + to_string(loopId);
 }

@@ -8,6 +8,7 @@ ArithmeticType::DefType ArithmeticType::VOID = shared<ArithmeticType>("void");
 ArithmeticType::DefType ArithmeticType::BOOL = shared<ArithmeticType>("bool");
 ArithmeticType::DefType ArithmeticType::STRING = shared<ArithmeticType>("string", "zenon_string"s);
 ArithmeticType::DefType ArithmeticType::CHAR = shared<ArithmeticType>("char");
+ArithmeticType::DefType ArithmeticType::NORETURN = shared<ArithmeticType>("noreturn", "[[noreturn]] void"s);
 ArithmeticType::DefType ArithmeticType::ANY_TYPE = shared<ArithmeticType>("any_type");
 ArithmeticType::DefType ArithmeticType::ENUM_TYPE = shared<ArithmeticType>("enum_type");
 

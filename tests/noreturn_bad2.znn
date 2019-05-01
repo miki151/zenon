@@ -1,0 +1,9 @@
+// no_compile
+
+noreturn f() {
+  return;
+}
+
+int main() {
+  return 0;
+}

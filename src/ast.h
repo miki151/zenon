@@ -250,7 +250,9 @@ struct ExpressionStatement : Statement {
   NODISCARD virtual optional<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
+  virtual bool hasReturnStatement(const Context&) const override;
   bool canDiscard = false;
+  nullable<SType> exprType;
 };
 
 struct ForLoopStatement : Statement {
@@ -449,6 +451,7 @@ struct FunctionDefinition : Statement {
   NODISCARD optional<ErrorLoc> checkBody(TypeRegistry*, Context::ConstStates callContext, StatementBlock& myBody,
       const FunctionInfo& instanceInfo) const;
   NODISCARD optional<ErrorLoc> checkForIncompleteTypes(const Context&);
+  WithErrorLine<SType> getReturnType(const Context&) const;
 };
 
 struct EmbedStatement : Statement {
