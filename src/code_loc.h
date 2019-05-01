@@ -27,9 +27,13 @@ class [[nodiscard]] WithErrorLine : public expected<T, ErrorLoc> {
   public:
   using expected<T, ErrorLoc>::expected;
   [[nodiscard]] T& get() {
+    if (!*this)
+      FATAL << "Getting element failed: " << this->get_error().loc.toString() << " " << this->get_error().error;
     return **this;
   }
   [[nodiscard]] const T& get() const {
+    if (!*this)
+      FATAL << "Getting element failed: " << this->get_error().loc.toString() << " " << this->get_error().error;
     return **this;
   }
   void unpack(optional<T>& value, optional<ErrorLoc>& error) {
