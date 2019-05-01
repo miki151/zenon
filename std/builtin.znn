@@ -24,3 +24,11 @@ export char copy(char* b) {
 export double copy(double* b) {
   return *b;
 }
+
+export template <Enum> requires is_enum<Enum>
+bool operator == (Enum e1, Enum e2) {
+  embed {
+    return e1 == e2;
+  }
+}
+
