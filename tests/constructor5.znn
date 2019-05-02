@@ -15,7 +15,7 @@ concept default_const {
 
 template<T> requires default_const<T>
 A(int x) {
-  return A<T>(x, "default", getValue());
+  return A<T>::A(x, "default", getValue());
 }
 
 template<T> requires default_const<T>

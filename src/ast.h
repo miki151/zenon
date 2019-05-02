@@ -148,6 +148,8 @@ struct FunctionCall : Expression {
   FunctionCall(CodeLoc, Private);
 };
 
+struct AST;
+
 struct Statement : Node {
   using Node::Node;
   NODISCARD virtual optional<ErrorLoc> addToContext(Context&);
@@ -156,6 +158,7 @@ struct Statement : Node {
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override final;
   NODISCARD virtual optional<ErrorLoc> checkMovesImpl(MoveChecker&) const;
   NODISCARD virtual bool hasReturnStatement(const Context&) const;
+  virtual void addGeneratedConstructor(Context&, const AST&) const {}
   virtual void codegen(Accu&, CodegenStage) const override {}
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const;
   enum class TopLevelAllowance {
@@ -324,6 +327,7 @@ struct StructDefinition : Statement {
   nullable<shared_ptr<StructType>> type;
   NODISCARD virtual optional<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool = false) override;
+  virtual void addGeneratedConstructor(Context&, const AST&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   bool external = false;

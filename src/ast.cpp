@@ -661,14 +661,6 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     if (name.contains<Operator>() && external)
       functionType.setBuiltin();
     functionInfo = FunctionInfo::getDefined(name, std::move(functionType), this);
-    if (name.contains<ConstructorTag>() && !concept) {
-      if (auto structType = returnType.dynamicCast<StructType>()) {
-        if (!structType->fileLocal && !exported &&
-            contextWithTemplateParams.areParamsEquivalent(functionInfo.get(), returnType->staticContext.getFunctions(ConstructorTag{}).front()))
-          return codeLoc.getError("Default constructor of an exported type must also be exported");
-      } else
-        return codeLoc.getError("Constructor functions can only be defined for struct and variant types");
-    }
     return none;
   } else
     return returnType1.get_error();
@@ -1092,9 +1084,11 @@ static optional<ErrorLoc> addExportedContext(const Context& primaryContext, Impo
   for (auto& elem : ast.elems) {
     if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
       import->setImportDirs(importDirs);
-    if (elem->exported)
+    if (elem->exported) {
       if (auto err = elem->addToContext(importContext, cache, primaryContext))
         return *err;
+      elem->addGeneratedConstructor(importContext, ast);
+    }
   }
   for (auto& elem : ast.elems)
     if (elem->exported)
@@ -1112,9 +1106,11 @@ WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST& ast, Cont
     return *err;
   context.merge(cache.getContext(path));
   for (auto& elem : ast.elems)
-    if (!elem->exported)
+    if (!elem->exported) {
       if (auto err = elem->addToContext(context, cache, primaryContext))
         return *err;
+      elem->addGeneratedConstructor(context, ast);
+    }
   for (auto& elem : ast.elems) {
     if (auto err = elem->check(context, true))
       return *err;
@@ -1422,7 +1418,6 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
       return codeLoc.getError(*err);
     type->definition = codeLoc;
     context.setFullyDefined(type.get().get(), true);
-    type->fileLocal = !exported;
     if (templateInfo.params.size() != type->templateParams.size())
       return codeLoc.getError("Number of template parameters of type " + quote(type->getName()) +
           " differs from forward declaration.");
@@ -1445,19 +1440,7 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
       for (int j = i + 1; j < members.size(); ++j)
         if (members[i].name == members[j].name)
           return members[j].codeLoc.getError("Duplicate member: " + quote(members[j].name));
-    if (!external) {
-      vector<FunctionType::Param> constructorParams;
-      for (auto& member : type->members)
-        constructorParams.push_back({member.name, member.type});
-      auto fun = FunctionType(type.get(), std::move(constructorParams), type->templateParams);
-      fun.generatedConstructor = true;
-      CHECK(!context.addImplicitFunction(ConstructorTag{}, fun));
-      fun.templateParams.clear();
-      fun.parentType = type.get();
-      CHECK(!type->getStaticContext().addImplicitFunction(ConstructorTag{}, fun));
-      type->getStaticContext().addType(name, type.get());
-    } else
-      type->external = true;
+    type->external = external;
   }
   return none;
 }
@@ -1472,6 +1455,29 @@ optional<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
     if (auto error = type->getSizeError(context))
       return codeLoc.getError(*error);
   return none;
+}
+
+void StructDefinition::addGeneratedConstructor(Context& context, const AST& ast) const {
+  if (!incomplete) {
+    bool hasUserDefinedConstructors = false;
+    for (auto& elem : ast.elems)
+      if (auto functionDef = dynamic_cast<const FunctionDefinition*>(elem.get()))
+        if (functionDef->name.contains<ConstructorTag>() && functionDef->returnType.parts[0].name == name)
+          hasUserDefinedConstructors = true;
+    if (!external) {
+      vector<FunctionType::Param> constructorParams;
+      for (auto& member : type->members)
+        constructorParams.push_back({member.name, member.type});
+      auto fun = FunctionType(type.get(), std::move(constructorParams), type->templateParams);
+      fun.generatedConstructor = true;
+      if (!hasUserDefinedConstructors)
+        CHECK(!context.addImplicitFunction(ConstructorTag{}, fun));
+      fun.templateParams.clear();
+      fun.parentType = type.get();
+      CHECK(!type->getStaticContext().addImplicitFunction(ConstructorTag{}, fun));
+      type->getStaticContext().addType(name, type.get());
+    }
+  }
 }
 
 MoveExpression::MoveExpression(CodeLoc l, string id) : Expression(l), identifier(id) {

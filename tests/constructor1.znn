@@ -7,7 +7,7 @@ struct A {
 };
 
 A(int x) {
-  return A(x, 2 * x);
+  return A::A(x, 2 * x);
 }
 
 int main() {

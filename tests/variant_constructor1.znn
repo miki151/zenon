@@ -1,0 +1,19 @@
+// 5
+
+export variant V {
+  int a;
+  bool b;
+};
+
+V() {
+  return V::a(5);
+}
+
+int main() {
+  const v = V();
+  switch (v) {
+    case (int a) { return a; }
+    case (bool b) { return 0; }
+  }
+}
+

@@ -8,7 +8,7 @@ struct Builder {
 };
 
 Builder() {
-  return Builder(0, "");
+  return Builder::Builder(0, "");
 }
 
 Builder setA(mutable Builder x, int a) {

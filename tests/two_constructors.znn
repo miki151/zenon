@@ -5,11 +5,11 @@ struct X {
 };
 
 X() {
-  return X(1);
+  return X::X(1);
 }
 
 int main() {
   mutable x = X();
-  x = X(6);
+  x = X::X(6);
   return x.value;
 }

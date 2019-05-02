@@ -14,7 +14,7 @@ int main() {
   mutable x = 1;
   const a1 = A(&x);
   const y = 1;
-  const a2 = A(&y);
+  const a2 = A::A(&y);
   mutable z = 1;
   const a3 = A::A(&z);
   return *a1.p + *a2.p + *a3.p;

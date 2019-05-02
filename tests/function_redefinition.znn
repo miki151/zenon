@@ -1,0 +1,14 @@
+// no_compile
+
+template <T>
+void f() {
+}
+
+template <U>
+void f() {
+}
+
+int main() {
+  return 0;
+}
+

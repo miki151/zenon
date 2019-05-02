@@ -1,6 +1,6 @@
-// 1
+// no_compile
 
-export struct S {
+struct S {
   int a;
 };
 
@@ -9,6 +9,5 @@ S() {
 }
 
 int main() {
-  const s = S();
-  return s.a;
+  return S(1).a;
 }

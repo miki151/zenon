@@ -507,7 +507,6 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
   type->members = members;
   type->parent = self;
   type->external = external;
-  type->fileLocal = fileLocal;
   instances.push_back(type);
   return type;
 }

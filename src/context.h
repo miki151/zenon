@@ -40,7 +40,6 @@ class Context : public owned_object<Context> {
   bool isFullyDefined(const Type*) const;
   void setFullyDefined(const Type*, bool);
   vector<SType> getAllTypes() const;
-  vector<SFunctionInfo> getFunctions(FunctionId) const;
   NODISCARD optional<string> addImplicitFunction(FunctionId, FunctionType);
   NODISCARD optional<string> addFunction(SFunctionInfo);
   WithError<IdentifierType> getIdentifierType(const IdentifierInfo&) const;
@@ -62,7 +61,7 @@ class Context : public owned_object<Context> {
   bool canConvert(SType from, SType to) const;
   optional<int> getLoopId() const;
   int setIsInLoop();
-  bool areParamsEquivalent(const SFunctionInfo&, const SFunctionInfo&) const;
+  bool areParamsEquivalent(FunctionType, FunctionType) const;
   bool isTemplated() const;
   void setTemplated();
 
@@ -107,6 +106,7 @@ class Context : public owned_object<Context> {
 
   vector<shared_ptr<const State>> getReversedStates() const;
   const State& getTopState() const;
+  vector<SFunctionInfo> getFunctions(FunctionId) const;
   nullable<SType> getVariable(const string&) const;
   bool isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific, vector<FunctionType> existing) const;
   vector<SFunctionInfo> getAllFunctions() const;

@@ -58,13 +58,22 @@ static string getFunctionIdName(const FunctionId& id) {
   );
 }
 
-bool Context::areParamsEquivalent(const SFunctionInfo& f1, const SFunctionInfo& f2) const {
-  auto checkFun = [this](const SFunctionInfo& f1, const SFunctionInfo& f2) {
-    return !!instantiateFunction(*this, f1, CodeLoc(), {}, transform(f2->type.params,
-            [](const auto& param) { return param.type; }),
-        vector<CodeLoc>(f2->type.params.size(), CodeLoc()), {});
-  };
-  return checkFun(f1, f2) && checkFun(f2, f1);
+bool Context::areParamsEquivalent(FunctionType f1, FunctionType f2) const {
+  if (f1.templateParams.size() != f2.templateParams.size() || f1.params.size() != f2.params.size())
+    return false;
+  for (int i = 0; i < f1.templateParams.size(); ++i) {
+    auto tParam = f2.templateParams[i];
+    ErrorBuffer errors;
+    f2 = replaceInFunction(std::move(f2), std::move(tParam), f1.templateParams[i], errors);
+    if (!errors.empty())
+      return false;
+  }
+  if (f1.requirements != f2.requirements)
+    return false;
+  for (int i = 0; i < f1.params.size(); ++i)
+    if (f1.params[i].type != f2.params[i].type)
+      return false;
+  return true;
 }
 
 bool Context::isTemplated() const {
@@ -392,8 +401,8 @@ optional<string> Context::checkNameConflictExcludingFunctions(const string& name
 optional<string> Context::addFunction(SFunctionInfo info) {
   auto& overloads = state->functions[info->id];
   for (auto& fun : overloads)
-    if (areParamsEquivalent(fun, info) && (!info->id.contains<ConstructorTag>()
-            || fun->type.retVal == info->type.retVal) &&
+    if (areParamsEquivalent(fun->type, info->type) &&
+        (!info->id.contains<ConstructorTag>() || fun->type.retVal == info->type.retVal) &&
         fun->type.generatedConstructor == info->type.generatedConstructor)
       return "Can't overload " + info->prettyString() + " with the same argument types."s;
   overloads.push_back(info);
