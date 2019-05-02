@@ -1,0 +1,14 @@
+// no_compile
+
+export struct S {
+  int a;
+};
+
+S(int a) {
+  return S::S(a + 1);
+}
+
+int main() {
+  const s = S(1);
+  return s.a;
+}

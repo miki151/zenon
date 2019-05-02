@@ -40,8 +40,9 @@ class Context : public owned_object<Context> {
   bool isFullyDefined(const Type*) const;
   void setFullyDefined(const Type*, bool);
   vector<SType> getAllTypes() const;
-  [[nodiscard]] optional<string> addImplicitFunction(FunctionId, FunctionType);
-  [[nodiscard]] optional<string> addFunction(SFunctionInfo);
+  vector<SFunctionInfo> getFunctions(FunctionId) const;
+  NODISCARD optional<string> addImplicitFunction(FunctionId, FunctionType);
+  NODISCARD optional<string> addFunction(SFunctionInfo);
   WithError<IdentifierType> getIdentifierType(const IdentifierInfo&) const;
   WithError<vector<SFunctionInfo>> getFunctionTemplate(IdentifierType) const;
   WithErrorLine<SFunctionInfo> instantiateFunctionTemplate(CodeLoc, SFunctionInfo, vector<SType>,
@@ -106,7 +107,6 @@ class Context : public owned_object<Context> {
 
   vector<shared_ptr<const State>> getReversedStates() const;
   const State& getTopState() const;
-  vector<SFunctionInfo> getFunctions(FunctionId) const;
   nullable<SType> getVariable(const string&) const;
   bool isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific, vector<FunctionType> existing) const;
   vector<SFunctionInfo> getAllFunctions() const;

@@ -1,0 +1,14 @@
+// 1
+
+export struct S {
+  int a;
+};
+
+S() {
+  return S::S(1);
+}
+
+int main() {
+  const s = S();
+  return s.a;
+}

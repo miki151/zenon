@@ -223,6 +223,7 @@ struct StructType : public Type {
   vector<Variable> members;
   vector<Variable> alternatives;
   bool external = false;
+  bool fileLocal = false;
   optional<CodeLoc> definition;
   void updateInstantations();
   SType getInstantiated(vector<SType> templateParams);

@@ -1,0 +1,11 @@
+// 1
+
+enum E { E1, E2 };
+
+int main() {
+  mutable e = E::E1;
+  if (e == E::E1)
+    return 1;
+  else
+    return 0;
+}

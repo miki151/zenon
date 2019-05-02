@@ -661,6 +661,14 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     if (name.contains<Operator>() && external)
       functionType.setBuiltin();
     functionInfo = FunctionInfo::getDefined(name, std::move(functionType), this);
+    if (name.contains<ConstructorTag>() && !concept) {
+      if (auto structType = returnType.dynamicCast<StructType>()) {
+        if (!structType->fileLocal && !exported &&
+            contextWithTemplateParams.areParamsEquivalent(functionInfo.get(), returnType->staticContext.getFunctions(ConstructorTag{}).front()))
+          return codeLoc.getError("Default constructor of an exported type must also be exported");
+      } else
+        return codeLoc.getError("Constructor functions can only be defined for struct and variant types");
+    }
     return none;
   } else
     return returnType1.get_error();
@@ -1414,6 +1422,7 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
       return codeLoc.getError(*err);
     type->definition = codeLoc;
     context.setFullyDefined(type.get().get(), true);
+    type->fileLocal = !exported;
     if (templateInfo.params.size() != type->templateParams.size())
       return codeLoc.getError("Number of template parameters of type " + quote(type->getName()) +
           " differs from forward declaration.");
