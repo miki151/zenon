@@ -1,44 +1,38 @@
-# zenon
-## The Zenon programming language (work in progress)
+## The Zenon programming language
 
-Zenon is a statically typed language that compiles to C++. The goal is to allow safer and easier application development than with C++ thanks to more high-level features and faster compile times.
+Zenon is a statically typed language that compiles to C++. It offers safe and easy application development thanks to high-level features and fast compile times, while keeping C++'s performance and familiar syntax.
 
 
 ### Features
-* No null pointer
-* No uninitialized variables and members
 * No headers
+* Default pointer type is non-null.
+* Move semantics, usage-after-move is detected and disallowed.
+* No uninitialized variables and members.
 * No member functions/methods. Any function can be called with a method syntax.
-* Compiles to C++
+* Compiles to C++.
 * Extremely easy binding with C/C++.
 * Built-in variant/tagged union type
 * Syntax similar to C++
 
-### To be done
-* Faster compile times of the C++ output code than when writing the corresponding program in C++ thanks to transparently using the pimpl idiom and other tricks when generating code.
-* Reflection
-* Imperative metaprogramming using the same language
-* Custom C++ code injection to allow printing clean stacktraces or generating profiling data.
-
-## Example code
+## Zenon in examples
 
 ### Variant
 
 ``` C++
 variant my_variant {
-    bool as_bool;
-    int as_int;
+    bool bvalue;
+    int ivalue;
 };
 
 int example() {
-    const var = my_variant::as_bool(true);
+    const var = my_variant::bvalue(true);
     switch (var) {
-        case (bool as_bool) {
-            if (as_bool)
+        case (bool bvalue) {
+            if (bvalue)
                 return 1;
         }
-        case (int as_int) {
-            return as_int;
+        case (int ivalue) {
+            return ivalue;
         }
     }
     return -1;
@@ -48,7 +42,7 @@ int example() {
 
 ### Templates
 ``` C++
-// Implementing a nullable a'ka optional type using a variant
+// Implementing a nullable aka optional type using a variant
 template <T>
 variant nullable {
     T value;
@@ -139,7 +133,7 @@ int main() {
 ### Working with multiple files
 ``` C++
 // library.znn
-int get_number() {
+export int get_number() {
     return 5;
 }
 ```
