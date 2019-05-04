@@ -1,0 +1,14 @@
+// no_compile
+
+template <T>
+concept can_eat {
+  void eat(T);
+};
+
+template <T> requires can_eat<M>
+void f() {
+}
+
+int main() {
+  return 0;
+}

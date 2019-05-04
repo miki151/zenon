@@ -565,12 +565,14 @@ NODISCARD static WithErrorLine<vector<SConcept>> applyConcept(Context& from, con
       vector<SType> translatedParams;
       for (int i = 0; i < requirementArgs.size(); ++i) {
         if (auto arg = requirementArgs[i].getReferenceMaybe<IdentifierInfo>()) {
-          auto origParam = from.getTypeFromString(IdentifierInfo(arg->parts[0], arg->codeLoc)).get();
-          if (auto templateParam = origParam.dynamicCast<TemplateParameterType>())
-            // Support is_enum concept
-            if (concept->getParams()[i]->getType() != ArithmeticType::ANY_TYPE)
-              templateParam->type = concept->getParams()[i]->getType();
-          translatedParams.push_back(std::move(origParam));
+          if (auto origParam = from.getTypeFromString(IdentifierInfo(arg->parts[0], arg->codeLoc))) {
+            if (auto templateParam = origParam->dynamicCast<TemplateParameterType>())
+              // Support is_enum concept
+              if (concept->getParams()[i]->getType() != ArithmeticType::ANY_TYPE)
+                templateParam->type = concept->getParams()[i]->getType();
+            translatedParams.push_back(std::move(*origParam));
+          } else
+            return origParam.get_error();
         } else
           return requirement.codeLoc.getError("Expected a type argument");
       }
