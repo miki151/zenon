@@ -46,7 +46,10 @@ struct Accu {
 };
 
 void Constant::codegen(Accu& accu, CodegenStage) const {
-  accu.add(value->getCodegenName());
+  if (structMemberName)
+    accu.add(*structMemberName);
+  else
+    accu.add(value->getCodegenName());
 }
 
 void Variable::codegen(Accu& accu, CodegenStage) const {

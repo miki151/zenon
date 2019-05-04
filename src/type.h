@@ -26,6 +26,12 @@ struct Type : public owned_object<Type> {
   virtual bool canReplaceBy(SType) const;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const;
   virtual SType getType() const;
+  struct MemberInfo {
+    SType type;
+    string name;
+  };
+  virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const;
+  virtual WithError<SType> getTypeOfMember(const string& name) const;
   void codegenDefinition(set<const Type*>& visited, Accu&) const;
   virtual ~Type() {}
   virtual WithErrorLine<SType> instantiate(const Context&, vector<SType> templateArgs, CodeLoc) const;
@@ -59,6 +65,7 @@ struct ArithmeticType : public Type {
   static DefType NORETURN;
   static DefType ANY_TYPE;
   static DefType ENUM_TYPE;
+  static DefType STRUCT_TYPE;
   ArithmeticType(const string& name, optional<string> codegenName = none);
 
   private:
@@ -75,6 +82,8 @@ struct ReferenceType : public Type {
   virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
+  virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const override;
+  virtual WithError<SType> getTypeOfMember(const string& name) const override;
   virtual SType removePointer() const override;
 
   static shared_ptr<ReferenceType> get(SType);
@@ -91,6 +100,8 @@ struct MutableReferenceType : public Type {
   virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
+  virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const override;
+  virtual WithError<SType> getTypeOfMember(const string& name) const override;
   virtual SType removePointer() const override;
 
   static shared_ptr<MutableReferenceType> get(SType);
@@ -192,11 +203,22 @@ struct TemplateParameterType : public Type {
   virtual optional<string> getMangledName() const override;
   virtual SType getType() const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
+  virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const override;
   TemplateParameterType(string name, CodeLoc);
   TemplateParameterType(SType type, string name, CodeLoc);
   string name;
   CodeLoc declarationLoc;
   SType type;
+};
+
+struct TemplateStructMemberType : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual optional<string> getMangledName() const override;
+  static shared_ptr<TemplateStructMemberType> get(SType structType, SCompileTimeValue);
+  SType structType;
+  SCompileTimeValue memberIndex;
+  struct Private {};
+  TemplateStructMemberType(Private, SType structType, SCompileTimeValue);
 };
 
 struct StructType : public Type {
@@ -209,7 +231,9 @@ struct StructType : public Type {
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual optional<string> getSizeError(const Context&) const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
-  WithError<SType> getTypeOfMember(const string&) const;
+  virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const override;
+  virtual SType getType() const override;
+  virtual WithError<SType> getTypeOfMember(const string&) const override;
   string name;
   shared_ptr<StructType> getInstance(vector<SType> templateParams);
   vector<SType> templateParams;

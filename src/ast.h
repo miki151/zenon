@@ -43,6 +43,7 @@ struct Expression : Node {
   virtual WithErrorLine<SType> getDotOperatorType(Expression* left, Context& callContext);
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorBuffer&) const = 0;
+  bool withBrackets = false;
 };
 
 struct Constant : Expression {
@@ -51,7 +52,9 @@ struct Constant : Expression {
   virtual nullable<SType> eval(const Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual WithErrorLine<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   SCompileTimeValue value;
+  optional<string> structMemberName;
 };
 
 struct EnumConstant : Expression {
@@ -255,7 +258,7 @@ struct ExpressionStatement : Statement {
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual bool hasReturnStatement(const Context&) const override;
   bool canDiscard = false;
-  nullable<SType> exprType;
+  bool noReturnExpr = false;
 };
 
 struct ForLoopStatement : Statement {

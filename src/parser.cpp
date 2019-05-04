@@ -193,6 +193,7 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
               return ret.get_error();
             if (auto t = tokens.eat(Keyword::CLOSE_BRACKET); !t)
               return t.get_error();
+            ret.get()->withBrackets = true;
             return std::move(*ret);
           }
           case Keyword::MOVE: {

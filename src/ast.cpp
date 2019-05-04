@@ -66,6 +66,22 @@ unique_ptr<Expression> Constant::replace(SType from, SType to, ErrorBuffer& erro
   return unique<Constant>(codeLoc, value->replace(from, to, errors).dynamicCast<CompileTimeValue>());
 }
 
+WithErrorLine<SType> Constant::getDotOperatorType(Expression* left, Context& callContext) {
+  auto myValue = eval(callContext).get().dynamicCast<CompileTimeValue>();
+  CHECK(myValue);
+  CHECK(left);
+  if (auto leftType = left->getTypeImpl(callContext)) {
+    if (auto error = leftType.get()->getSizeError(callContext))
+      return codeLoc.getError(leftType.get()->getName() + *error);
+    if (auto member = leftType.get()->getTypeOfMember(myValue)) {
+      structMemberName = member->name;
+      return member->type;
+    } else
+      return codeLoc.getError(member.get_error());
+  } else
+    return leftType;
+}
+
 WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
   optional<string> varError;
   if (auto varType = context.getTypeOfVariable(identifier))
@@ -86,20 +102,17 @@ unique_ptr<Expression> Variable::replace(SType from, SType to, ErrorBuffer& erro
 }
 
 WithErrorLine<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
-  if (left) {
-    if (auto leftType = left->getTypeImpl(callContext)) {
-      if (auto structType = leftType.get()->getUnderlying().dynamicCast<StructType>()) {
-        if (auto error = structType->getSizeError(callContext))
-          return codeLoc.getError(structType->getName() + *error);
-        if (auto member = structType->getTypeOfMember(identifier))
-          return SType(MutableReferenceType::get(*member));
-        else
-          return codeLoc.getError(member.get_error());
-      }
-    } else
-      return leftType;
-  }
-  return codeLoc.getError("Bad use of dot operator");
+  CHECK(left);
+  if (auto leftType1 = left->getTypeImpl(callContext)) {
+    auto leftType = leftType1.get();
+    if (auto error = leftType->getSizeError(callContext))
+      return codeLoc.getError(leftType->getName() + *error);
+    if (auto member = leftType->getTypeOfMember(identifier))
+      return *member;
+    else
+      return codeLoc.getError(member.get_error());
+  } else
+    return leftType1;
 }
 
 optional<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
@@ -214,6 +227,16 @@ unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, unique_pt
 BinaryExpression::BinaryExpression(BinaryExpression::Private, CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr)
     : Expression(loc), op(op), expr(std::move(expr)) {}
 
+static WithError<unique_ptr<Expression>> getCompileTimeValue(const Context& context, Expression* expr) {
+  if (auto evaled = expr->eval(context)) {
+    if (auto value = evaled.get().dynamicCast<CompileTimeValue>())
+      return cast<Expression>(unique<Constant>(expr->codeLoc, std::move(value)));
+    else
+      return "Expected a compile time value, got " + quote(evaled->getName());
+  }
+  return "Unable to evaluate constant expression"s;
+}
+
 WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
   auto leftTmp = getType(context, expr[0]);
   if (!leftTmp)
@@ -227,14 +250,13 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
       FATAL << "This operator should have been rewritten";
       fail();
     case Operator::MEMBER_ACCESS: {
-      if (auto rightType = expr[1]->getDotOperatorType(expr[0].get(), context)) {
-        if (!left.dynamicCast<ReferenceType>() && !left.dynamicCast<MutableReferenceType>())
-          rightType = rightType.get()->getUnderlying();
-        else if (left.dynamicCast<ReferenceType>() && rightType.get().dynamicCast<MutableReferenceType>())
-          *rightType = ReferenceType::get(rightType.get()->getUnderlying());
-        return rightType.get();
-      } else
-        return rightType;
+      if (expr[1]->withBrackets) {
+        if (auto asConstant = getCompileTimeValue(context, expr[1].get()))
+          expr[1] = std::move(*asConstant);
+        else
+          return expr[1]->codeLoc.getError(asConstant.get_error());
+      }
+      return expr[1]->getDotOperatorType(expr[0].get(), context);
     }
     default: {
       auto right = getType(context, expr[1]);
@@ -1004,11 +1026,14 @@ optional<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCach
   return none;
 }
 
-static void addIsEnumConcept(Context& context) {
-  auto name = "is_enum";
-  shared_ptr<Concept> concept = shared<Concept>(name, Context(context.typeRegistry));
-  concept->modParams().push_back(shared<TemplateParameterType>(ArithmeticType::ENUM_TYPE, "T", CodeLoc()));
-  context.addConcept(name, concept);
+static void addBuiltInConcepts(Context& context) {
+  auto addType = [&context](const char* name, SType type) {
+    shared_ptr<Concept> concept = shared<Concept>(name, Context(context.typeRegistry));
+    concept->modParams().push_back(shared<TemplateParameterType>(type, "T", CodeLoc()));
+    context.addConcept(name, concept);
+  };
+  addType("is_enum", ArithmeticType::ENUM_TYPE);
+  addType("is_struct", ArithmeticType::STRUCT_TYPE);
 }
 
 Context createPrimaryContext(TypeRegistry* typeRegistry) {
@@ -1043,7 +1068,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   for (auto op : {Operator::EQUALS})
     for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
       CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
-  addIsEnumConcept(context);
+  addBuiltInConcepts(context);
   context.addBuiltInFunction("enum_size", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
       [](vector<SType> args) -> WithError<SType> {
         if (auto enumType = args[0].dynamicCast<EnumType>())
@@ -1124,7 +1149,7 @@ optional<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
   auto res = getType(context, expr);
   if (!res)
     return res.get_error();
-  exprType = res.get();
+  noReturnExpr = res.get() == ArithmeticType::NORETURN;
   if (!canDiscard && res.get() != ArithmeticType::VOID && res.get() != ArithmeticType::NORETURN)
     return codeLoc.getError("Expression result of type " + quote(res->get()->getName()) + " discarded");
   if (canDiscard && (res.get() == ArithmeticType::VOID || res.get() == ArithmeticType::NORETURN))
@@ -1133,7 +1158,10 @@ optional<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
 }
 
 unique_ptr<Statement> ExpressionStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
-  return unique<ExpressionStatement>(expr->replace(from, to, errors));
+  auto ret = unique<ExpressionStatement>(expr->replace(from, to, errors));
+  ret->canDiscard = canDiscard;
+  ret->noReturnExpr = noReturnExpr;
+  return ret;
 }
 
 optional<ErrorLoc> ExpressionStatement::checkMovesImpl(MoveChecker& checker) const {
@@ -1141,7 +1169,7 @@ optional<ErrorLoc> ExpressionStatement::checkMovesImpl(MoveChecker& checker) con
 }
 
 bool ExpressionStatement::hasReturnStatement(const Context& context) const {
-  return exprType.get() == ArithmeticType::NORETURN;
+  return noReturnExpr;
 }
 
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {

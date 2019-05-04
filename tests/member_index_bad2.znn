@@ -1,0 +1,14 @@
+// no_compile
+
+struct S {
+  int a;
+  bool b;
+  string s;
+};
+
+int main() {
+  mutable s = S(1, false, "pok");
+  mutable i = 0;
+  s.(i) = 2;
+  return 0;
+}

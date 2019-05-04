@@ -11,6 +11,7 @@ ArithmeticType::DefType ArithmeticType::CHAR = shared<ArithmeticType>("char");
 ArithmeticType::DefType ArithmeticType::NORETURN = shared<ArithmeticType>("noreturn", "[[noreturn]] void"s);
 ArithmeticType::DefType ArithmeticType::ANY_TYPE = shared<ArithmeticType>("any_type");
 ArithmeticType::DefType ArithmeticType::ENUM_TYPE = shared<ArithmeticType>("enum_type");
+ArithmeticType::DefType ArithmeticType::STRUCT_TYPE = shared<ArithmeticType>("struct_type");
 
 string ArithmeticType::getName(bool withTemplateArguments) const {
   return name;
@@ -130,6 +131,14 @@ bool TemplateParameterType::isBuiltinCopyable(const Context&) const {
     return true;
   else
     return false;
+}
+
+WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SCompileTimeValue& value) const {
+  if (value->getType() != ArithmeticType::INT)
+    return "Member index must be of type: " + quote(ArithmeticType::INT->getName());
+  if (type == ArithmeticType::STRUCT_TYPE)
+    return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), value), "bad_member_name"};
+  return Type::getTypeOfMember(value);
 }
 
 TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l), type(ArithmeticType::ANY_TYPE) {}
@@ -391,12 +400,40 @@ optional<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& stateme
   return underlying->handleSwitchStatement(statement, context, SwitchArgument::REFERENCE);
 }
 
+WithError<Type::MemberInfo> ReferenceType::getTypeOfMember(const SCompileTimeValue& value) const {
+  if (auto res = underlying->getTypeOfMember(value))
+    return MemberInfo{(SType)get(res->type), res->name};
+  else
+    return res;
+}
+
+WithError<SType> ReferenceType::getTypeOfMember(const string& name) const {
+  if (auto res = underlying->getTypeOfMember(name))
+    return (SType)get(*res);
+  else
+    return res;
+}
+
 SType ReferenceType::removePointer() const {
   return underlying->removePointer();
 }
 
 optional<ErrorLoc> MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
   return underlying->handleSwitchStatement(statement, context, SwitchArgument::MUTABLE_REFERENCE);
+}
+
+WithError<Type::MemberInfo> MutableReferenceType::getTypeOfMember(const SCompileTimeValue& value) const {
+  if (auto res = underlying->getTypeOfMember(value))
+    return MemberInfo{(SType)get(res->type), res->name};
+  else
+    return res;
+}
+
+WithError<SType> MutableReferenceType::getTypeOfMember(const string& name) const {
+  if (auto res = underlying->getTypeOfMember(name))
+    return (SType)get(*res);
+  else
+    return res;
 }
 
 SType MutableReferenceType::removePointer() const {
@@ -529,6 +566,20 @@ void StructType::updateInstantations() {
   }
 }
 
+WithError<Type::MemberInfo> StructType::getTypeOfMember(const SCompileTimeValue& v) const {
+  if (auto intValue = v->value.getValueMaybe<int>()) {
+    if (*intValue >= 0 && *intValue < members.size())
+      return MemberInfo{members[*intValue].type, members[*intValue].name};
+    else
+      return "Member index for type " + quote(getName()) + " must be between 0 and " + to_string(members.size() - 1);
+  }
+  return "Member index must be of type: " + quote(ArithmeticType::INT->getName());
+}
+
+SType StructType::getType() const {
+  return ArithmeticType::STRUCT_TYPE;
+}
+
 StructType::StructType(string name, StructType::Private) : name(std::move(name)) {
 }
 
@@ -551,6 +602,14 @@ SType Type::replaceImpl(SType, SType, ErrorBuffer&) const {
 
 SType Type::getType() const {
   return ArithmeticType::ANY_TYPE;
+}
+
+WithError<Type::MemberInfo> Type::getTypeOfMember(const SCompileTimeValue&) const {
+  return "Type " + quote(getName()) + " doesn't support dot operator"s;
+}
+
+WithError<SType> Type::getTypeOfMember(const string&) const {
+  return "Type " + quote(getName()) + " doesn't support dot operator"s;
 }
 
 SType ReferenceType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
@@ -1100,3 +1159,22 @@ bool SliceType::isBuiltinCopyable(const Context&) const {
 }*/
 
 SliceType::SliceType(SliceType::Private, SType t) : underlying(std::move(t)) {}
+
+string TemplateStructMemberType::getName(bool withTemplateArguments) const {
+  return "typeof(" + structType->getName(withTemplateArguments) + "." + memberIndex->getName(withTemplateArguments) + ")";
+}
+
+optional<string> TemplateStructMemberType::getMangledName() const {
+  return none;
+}
+
+shared_ptr<TemplateStructMemberType> TemplateStructMemberType::get(SType structType, SCompileTimeValue index) {
+  static map<pair<SType, SCompileTimeValue>, shared_ptr<TemplateStructMemberType>> cache;
+  if (!cache.count(make_pair(structType, index))) {
+    cache.insert(make_pair(make_pair(structType, index), shared<TemplateStructMemberType>(Private{}, structType, index)));
+  }
+  return cache.at(make_pair(structType, index));
+}
+
+TemplateStructMemberType::TemplateStructMemberType(Private, SType structType, SCompileTimeValue index)
+    : structType(std::move(structType)), memberIndex(std::move(index)) {}

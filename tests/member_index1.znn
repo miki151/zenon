@@ -1,0 +1,27 @@
+// 3
+
+struct S {
+  int a;
+  bool b;
+  string s;
+};
+
+template <T>
+void eat(T*, T*) {}
+
+template <T, int N> requires is_struct<T>
+void f(T* t) {
+  int i = N;
+  eat(&t->(i - 1), &t->(i - 1));
+}
+
+int main() {
+  mutable s = S(1, false, "pok");
+  s.0 = 2;
+  s.1 = true;
+  s.2 = "pak";
+  if (s.b && s.s == "pak")
+    ++s.a;
+  f<S, 1>(&s);
+  return s.a;
+}
