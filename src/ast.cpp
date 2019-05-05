@@ -565,7 +565,7 @@ NODISCARD static WithErrorLine<vector<SConcept>> applyConcept(Context& from, con
       vector<SType> translatedParams;
       for (int i = 0; i < requirementArgs.size(); ++i) {
         if (auto arg = requirementArgs[i].getReferenceMaybe<IdentifierInfo>()) {
-          if (auto origParam = from.getTypeFromString(IdentifierInfo(arg->parts[0], arg->codeLoc))) {
+          if (auto origParam = from.getTypeFromString(*arg)) {
             if (auto templateParam = origParam->dynamicCast<TemplateParameterType>())
               // Support is_enum concept
               if (concept->getParams()[i]->getType() != ArithmeticType::ANY_TYPE)

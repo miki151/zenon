@@ -1,0 +1,22 @@
+// 2
+
+int transform(bool* b) {
+  if (*b)
+    return 2;
+  else
+    return 1;
+}
+
+template <T, U>
+concept can_transform {
+  U transform(T);
+};
+
+template <T, U> requires can_transform<T*, U>
+U transform(T t) {
+  return transform(&t);
+}
+
+int main() {
+  return transform<bool, int>(true);
+}
