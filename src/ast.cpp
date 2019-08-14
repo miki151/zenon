@@ -12,22 +12,28 @@
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
 
+unique_ptr<Expression> Expression::replace(SType from, SType to, ErrorBuffer& errors) const {
+  return transform([from, to, &errors](Expression* expr) { return expr->replace(from, to, errors); });
+}
+
 unique_ptr<Expression> Expression::expand(SType from, vector<SType> to) const {
-  return deepCopy();
+  return transform([from, to](Expression* expr) { return expr->expand(from, to); });
 }
 
 unique_ptr<Expression> Expression::replaceVar(string from, string to) const {
-  return deepCopy();
+  return transform([from, to](Expression* expr) { return expr->replaceVar(from, to); });
 }
 
 unique_ptr<Expression> Expression::expandVar(string from, vector<string> to) const {
-  return deepCopy();
+  return transform([from, to](Expression* expr) { return expr->expandVar(from, to); });
 }
 
 unique_ptr<Expression> Expression::deepCopy() const {
-  ErrorBuffer e;
-  auto tmp = shared<TemplateParameterType>("x", codeLoc);
-  return replace(tmp, tmp, e);
+  function<unique_ptr<Expression>(Expression*)> identity =
+    [&] (Expression* e) {
+      return e->transform(identity);
+    };
+  return transform(identity);
 }
 
 IfStatement::IfStatement(CodeLoc loc, unique_ptr<VariableDeclaration> d, unique_ptr<Expression> c,
@@ -86,6 +92,10 @@ unique_ptr<Expression> Constant::replace(SType from, SType to, ErrorBuffer& erro
   return unique<Constant>(codeLoc, value->replace(from, to, errors).dynamicCast<CompileTimeValue>());
 }
 
+unique_ptr<Expression> Constant::transform(const Expression::TransformFun&) const {
+  return unique<Constant>(codeLoc, value);
+}
+
 WithErrorLine<SType> Constant::getDotOperatorType(Expression* left, Context& callContext) {
   auto myValue = eval(callContext).get().dynamicCast<CompileTimeValue>();
   CHECK(myValue);
@@ -117,15 +127,15 @@ nullable<SType> Variable::eval(const Context& context) const {
   return context.getType(identifier);
 }
 
-unique_ptr<Expression> Variable::replace(SType from, SType to, ErrorBuffer& errors) const {
-  return unique<Variable>(codeLoc, identifier);
-}
-
 unique_ptr<Expression> Variable::replaceVar(string from, string to) const {
   if (identifier == from)
     return unique<Variable>(codeLoc, to);
   else
     return deepCopy();
+}
+
+unique_ptr<Expression> Variable::transform(const Expression::TransformFun& fun) const {
+  return unique<Variable>(codeLoc, identifier);
 }
 
 WithErrorLine<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
@@ -294,7 +304,7 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
         else
           return t;
       if (auto fun = handleOperatorOverloads(context, codeLoc, op, exprTypes,
-          transform(expr, [&](auto& e) { return e->codeLoc;}))) {
+          ::transform(expr, [&](auto& e) { return e->codeLoc;}))) {
         functionInfo = *fun;
         if (auto parent = functionInfo->parent)
           if (parent->definition)
@@ -314,20 +324,8 @@ nullable<SType> BinaryExpression::eval(const Context& context) const {
   return nullptr;
 }
 
-unique_ptr<Expression> BinaryExpression::replace(SType from, SType to, ErrorBuffer& errors) const {
-  return get(codeLoc, op, expr[0]->replace(from, to, errors), expr[1]->replace(from, to, errors));
-}
-
-unique_ptr<Expression> BinaryExpression::expand(SType from, vector<SType> to) const {
-  return get(codeLoc, op, expr[0]->expand(from, to), expr[1]->expand(from, to));
-}
-
-unique_ptr<Expression> BinaryExpression::replaceVar(string from, string to) const {
-  return get(codeLoc, op, expr[0]->replaceVar(from, to), expr[1]->replaceVar(from, to));
-}
-
-unique_ptr<Expression> BinaryExpression::expandVar(string from, vector<string> to) const {
-  return get(codeLoc, op, expr[0]->expandVar(from, to), expr[1]->expandVar(from, to));
+unique_ptr<Expression> BinaryExpression::transform(const TransformFun& fun) const {
+  return get(codeLoc, op, fun(expr[0].get()), fun(expr[1].get()));
 }
 
 optional<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
@@ -367,21 +365,8 @@ nullable<SType> UnaryExpression::eval(const Context& context) const {
     return nullptr;
 }
 
-unique_ptr<Expression> UnaryExpression::replace(SType from, SType to, ErrorBuffer& errors) const {
-  return unique<UnaryExpression>(codeLoc, op, expr->replace(from, to, errors));
-}
-
-unique_ptr<Expression> UnaryExpression::expand(SType from, vector<SType> to) const {
-  return unique<UnaryExpression>(codeLoc, op, expr->expand(from, to));
-}
-
-unique_ptr<Expression> UnaryExpression::replaceVar(string from, string to) const {
-  return unique<UnaryExpression>(codeLoc, op, expr->replaceVar(from, to));
-
-}
-
-unique_ptr<Expression> UnaryExpression::expandVar(string from, vector<string> to) const {
-  return unique<UnaryExpression>(codeLoc, op, expr->expandVar(from, to));
+unique_ptr<Expression> UnaryExpression::transform(const Expression::TransformFun& fun) const {
+  return unique<UnaryExpression>(codeLoc, op, fun(expr.get()));
 }
 
 optional<ErrorLoc> UnaryExpression::checkMoves(MoveChecker& checker) const {
@@ -1489,24 +1474,17 @@ nullable<SType> FunctionCall::eval(const Context& context) const {
 }
 
 unique_ptr<Expression> FunctionCall::replace(SType from, SType to, ErrorBuffer& errors) const {
-  auto ret = unique<FunctionCall>(codeLoc, Private{});
-  ret->identifier = identifier;
-  for (auto& arg : arguments)
-    ret->arguments.push_back(arg->replace(from, to, errors));
+  auto ret = cast<FunctionCall>(transform([from, to, &errors](Expression* expr) {
+      return expr->replace(from, to, errors); }));
   ret->templateArgs.emplace();
   for (auto& arg : *templateArgs)
     ret->templateArgs->push_back(arg->replace(from, to, errors));
-  ret->argNames = argNames;
   ret->identifierType = identifierType->replace(from, to, errors);
-  ret->variadicArgs = variadicArgs;
   return ret;
 }
 
 unique_ptr<Expression> FunctionCall::expand(SType from, vector<SType> to) const {
-  auto ret = unique<FunctionCall>(codeLoc, Private{});
-  ret->identifier = identifier;
-  for (int i = 0; i < arguments.size(); ++i)
-    ret->arguments.push_back(arguments[i]->expand(from, to));
+  auto ret = cast<FunctionCall>(transform([from, to](Expression* expr) { return expr->expand(from, to); }));
   ret->templateArgs.emplace();
   for (auto& arg : *templateArgs) {
     if (arg == from)
@@ -1514,26 +1492,18 @@ unique_ptr<Expression> FunctionCall::expand(SType from, vector<SType> to) const 
     else
       ret->templateArgs->push_back(arg);
   }
-  ret->argNames = argNames;
-  ret->variadicArgs = variadicArgs;
-  ret->identifierType = identifierType;
+  ret->variadicTemplateArgs = false;
   return ret;
 }
 
 unique_ptr<Expression> FunctionCall::replaceVar(string from, string to) const {
-  auto ret = unique<FunctionCall>(codeLoc, Private{});
-  ret->identifier = identifier;
-  for (auto& arg : arguments)
-    ret->arguments.push_back(arg->replaceVar(from, to));
-  ret->templateArgs = *templateArgs;
-  ret->argNames = transform(argNames, [&](auto& n) -> optional<string> { if (n == from) return to; else return n; });
-  ret->identifierType = identifierType;
-  ret->variadicArgs = variadicArgs;
+  auto ret = cast<FunctionCall>(transform([from, to](Expression* expr) { return expr->replaceVar(from, to); }));
+  ret->argNames = ::transform(argNames, [&](auto& n) -> optional<string> { if (n == from) return to; else return n; });
   return ret;
 }
 
 unique_ptr<Expression> FunctionCall::expandVar(string from, vector<string> to) const {
-  auto ret = cast<FunctionCall>(deepCopy());
+  auto ret = cast<FunctionCall>(transform([from, to](Expression* expr) { return expr->expandVar(from, to); }));
   if (variadicArgs) {
     auto lastArg = std::move(ret->arguments.back());
     ret->arguments.pop_back();
@@ -1544,6 +1514,19 @@ unique_ptr<Expression> FunctionCall::expandVar(string from, vector<string> to) c
     }
   }
   ret->variadicArgs = false;
+  return ret;
+}
+
+unique_ptr<Expression> FunctionCall::transform(const Expression::TransformFun& fun) const {
+  auto ret = unique<FunctionCall>(codeLoc, Private{});
+  ret->identifier = identifier;
+  for (auto& arg : arguments)
+    ret->arguments.push_back(fun(arg.get()));
+  ret->templateArgs = *templateArgs;
+  ret->argNames = argNames;
+  ret->identifierType = identifierType;
+  ret->variadicArgs = variadicArgs;
+  ret->variadicTemplateArgs = variadicTemplateArgs;
   return ret;
 }
 
@@ -1800,6 +1783,10 @@ unique_ptr<Expression> MoveExpression::replaceVar(string from, string to) const 
     return deepCopy();
 }
 
+unique_ptr<Expression> MoveExpression::transform(const Expression::TransformFun&) const {
+  return unique<MoveExpression>(codeLoc, identifier);
+}
+
 optional<ErrorLoc> MoveExpression::checkMoves(MoveChecker& checker) const {
   if (auto err = checker.moveVariable(codeLoc, identifier))
     return codeLoc.getError(*err);
@@ -2052,6 +2039,10 @@ unique_ptr<Expression> EnumConstant::replace(SType from, SType to, ErrorBuffer& 
   return ret;
 }
 
+unique_ptr<Expression> EnumConstant::transform(const Expression::TransformFun&) const {
+  return unique<EnumConstant>(codeLoc, enumName, enumElement);
+}
+
 ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
 }
 
@@ -2254,31 +2245,10 @@ WithErrorLine<SType> ArrayLiteral::getTypeImpl(Context& context) {
   return SType(ArrayType::get(ret, CompileTimeValue::get((int)contents.size())));
 }
 
-unique_ptr<Expression> ArrayLiteral::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Expression> ArrayLiteral::transform(const Expression::TransformFun& fun) const {
   auto ret = unique<ArrayLiteral>(codeLoc);
   for (auto& elem : contents)
-    ret->contents.push_back(elem->replace(from, to, errors));
-  return ret;
-}
-
-unique_ptr<Expression> ArrayLiteral::expand(SType from, vector<SType> to) const {
-  auto ret = unique<ArrayLiteral>(codeLoc);
-  for (auto& elem : contents)
-    ret->contents.push_back(elem->expand(from, to));
-  return ret;
-}
-
-unique_ptr<Expression> ArrayLiteral::replaceVar(string from, string to) const {
-  auto ret = unique<ArrayLiteral>(codeLoc);
-  for (auto& elem : contents)
-    ret->contents.push_back(elem->replaceVar(from, to));
-  return ret;
-}
-
-unique_ptr<Expression> ArrayLiteral::expandVar(string from, vector<string> to) const {
-  auto ret = unique<ArrayLiteral>(codeLoc);
-  for (auto& elem : contents)
-    ret->contents.push_back(elem->expandVar(from, to));
+    ret->contents.push_back(fun(elem.get()));
   return ret;
 }
 
