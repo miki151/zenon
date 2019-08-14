@@ -13,19 +13,19 @@ Node::Node(CodeLoc l) : codeLoc(l) {}
 
 
 unique_ptr<Expression> Expression::replace(SType from, SType to, ErrorBuffer& errors) const {
-  return transform([from, to, &errors](Expression* expr) { return expr->replace(from, to, errors); });
+  return transform([&](Expression* expr) { return expr->replace(from, to, errors); });
 }
 
 unique_ptr<Expression> Expression::expand(SType from, vector<SType> to) const {
-  return transform([from, to](Expression* expr) { return expr->expand(from, to); });
+  return transform([&](Expression* expr) { return expr->expand(from, to); });
 }
 
 unique_ptr<Expression> Expression::replaceVar(string from, string to) const {
-  return transform([from, to](Expression* expr) { return expr->replaceVar(from, to); });
+  return transform([&](Expression* expr) { return expr->replaceVar(from, to); });
 }
 
 unique_ptr<Expression> Expression::expandVar(string from, vector<string> to) const {
-  return transform([from, to](Expression* expr) { return expr->expandVar(from, to); });
+  return transform([&](Expression* expr) { return expr->expandVar(from, to); });
 }
 
 unique_ptr<Expression> Expression::deepCopy() const {
@@ -392,24 +392,10 @@ optional<ErrorLoc> StatementBlock::checkMovesImpl(MoveChecker& checker) const {
   return none;
 }
 
-unique_ptr<Statement> StatementBlock::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Statement> StatementBlock::transform(const Statement::TransformFun& fun, const Statement::ExprTransformFun&) const {
   auto ret = unique<StatementBlock>(codeLoc);
   for (auto& elem : elems)
-    ret->elems.push_back(elem->replace(from, to, errors));
-  return ret;
-}
-
-unique_ptr<Statement> StatementBlock::expand(SType from, vector<SType> to) const {
-  auto ret = unique<StatementBlock>(codeLoc);
-  for (auto& elem : elems)
-    ret->elems.push_back(elem->expand(from, to));
-  return ret;
-}
-
-unique_ptr<Statement> StatementBlock::expandVar(string from, vector<string> to) const {
-  auto ret = unique<StatementBlock>(codeLoc);
-  for (auto& elem : elems)
-    ret->elems.push_back(elem->expandVar(from, to));
+    ret->elems.push_back(fun(elem.get()));
   return ret;
 }
 
@@ -463,28 +449,13 @@ optional<ErrorLoc> IfStatement::checkMovesImpl(MoveChecker& checker) const {
   return none;
 }
 
-unique_ptr<Statement> IfStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Statement> IfStatement::transform(const Statement::TransformFun& fun,
+    const Statement::ExprTransformFun& exprFun) const {
   return unique<IfStatement>(codeLoc,
-      declaration ? cast<VariableDeclaration>(declaration->replace(from, to, errors)) : nullptr,
-      condition ? condition->replace(from, to, errors) : nullptr,
-      ifTrue->replace(from, to, errors),
-      ifFalse ? ifFalse->replace(from, to, errors) : nullptr);
-}
-
-unique_ptr<Statement> IfStatement::expand(SType from, vector<SType> to) const {
-  return unique<IfStatement>(codeLoc,
-      declaration ? cast<VariableDeclaration>(declaration->expand(from, to)) : nullptr,
-      condition ? condition->expand(from, to) : nullptr,
-      ifTrue->expand(from, to),
-      ifFalse ? ifFalse->expand(from, to) : nullptr);
-}
-
-unique_ptr<Statement> IfStatement::expandVar(string from, vector<string> to) const {
-  return unique<IfStatement>(codeLoc,
-      declaration ? cast<VariableDeclaration>(declaration->expandVar(from, to)) : nullptr,
-      condition ? condition->expandVar(from, to) : nullptr,
-      ifTrue->expandVar(from, to),
-      ifFalse ? ifFalse->expandVar(from, to) : nullptr);
+      declaration ? cast<VariableDeclaration>(fun(declaration.get())) : nullptr,
+      condition ? exprFun(condition.get()) : nullptr,
+      fun(ifTrue.get()),
+      ifFalse ? fun(ifFalse.get()) : nullptr);
 }
 
 optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
@@ -538,27 +509,11 @@ optional<ErrorLoc> VariableDeclaration::checkMovesImpl(MoveChecker& checker) con
   return none;
 }
 
-unique_ptr<Statement> VariableDeclaration::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Statement> VariableDeclaration::transform(const Statement::TransformFun&,
+    const Statement::ExprTransformFun& exprFun) const {
   auto ret = unique<VariableDeclaration>(codeLoc, none, identifier,
-      initExpr ? initExpr->replace(from, to, errors) : nullptr);
+      initExpr ? exprFun(initExpr.get()) : nullptr);
   ret->isMutable = isMutable;
-  ret->realType = realType->replace(from, to, errors);
-  return ret;
-}
-
-unique_ptr<Statement> VariableDeclaration::expand(SType from, vector<SType> to) const {
-  auto ret = unique<VariableDeclaration>(codeLoc, none, identifier,
-      initExpr ? initExpr->expand(from, to) : nullptr);
-  ret->isMutable = isMutable;
-  ret->realType = realType;
-  return ret;
-}
-
-unique_ptr<Statement> VariableDeclaration::expandVar(string from, vector<string> to) const {
-  auto ret = unique<VariableDeclaration>(codeLoc, none, identifier,
-      initExpr ? initExpr->expandVar(from, to) : nullptr);
-  ret->isMutable = isMutable;
-  ret->realType = realType;
   return ret;
 }
 
@@ -588,16 +543,8 @@ optional<ErrorLoc> ReturnStatement::checkMovesImpl(MoveChecker& checker) const {
   return none;
 }
 
-unique_ptr<Statement> ReturnStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
-  return unique<ReturnStatement>(codeLoc, expr ? expr->replace(from, to, errors) : nullptr);
-}
-
-unique_ptr<Statement> ReturnStatement::expand(SType from, vector<SType> to) const {
-  return unique<ReturnStatement>(codeLoc, expr ? expr->expand(from, to) : nullptr);
-}
-
-unique_ptr<Statement> ReturnStatement::expandVar(std::string from, vector<std::string> to) const {
-  return unique<ReturnStatement>(codeLoc, expr ? expr->expandVar(from, to) : nullptr);
+unique_ptr<Statement> ReturnStatement::transform(const Statement::TransformFun&, const Statement::ExprTransformFun& fun) const {
+  return unique<ReturnStatement>(codeLoc, expr ? fun(expr.get()) : nullptr);
 }
 
 optional<ErrorLoc> Statement::addToContext(Context&) {
@@ -624,22 +571,25 @@ bool Statement::hasReturnStatement(const Context&) const {
 }
 
 unique_ptr<Statement> Statement::replace(SType from, SType to, ErrorBuffer& errors) const {
-  fail();
+  return transform(
+      [&](Statement* s) { return s->replace(from, to, errors); },
+      [&](Expression* s) { return s->replace(from, to, errors); });
 }
 
 unique_ptr<Statement> Statement::expand(SType from, vector<SType> to) const {
-  return deepCopy();
-}
-
-unique_ptr<Statement> Statement::deepCopy() const {
-  ErrorBuffer e;
-  auto tmp = shared<TemplateParameterType>("x", codeLoc);
-  return replace(tmp, tmp, e);
-
+  return transform(
+      [&](Statement* s) { return s->expand(from, to); },
+      [&](Expression* s) { return s->expand(from, to); });
 }
 
 unique_ptr<Statement> Statement::expandVar(string from, vector<string> to) const {
-  return deepCopy();
+  return transform(
+      [&](Statement* s) { return s->expandVar(from, to); },
+  [&](Expression* s) { return s->expandVar(from, to); });
+}
+
+unique_ptr<Statement> Statement::transform(const Statement::TransformFun&, const Statement::ExprTransformFun&) const {
+  fail();
 }
 
 bool IfStatement::hasReturnStatement(const Context& context) const {
@@ -1291,22 +1241,8 @@ optional<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
   return none;
 }
 
-unique_ptr<Statement> ExpressionStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
-  auto ret = unique<ExpressionStatement>(expr->replace(from, to, errors));
-  ret->canDiscard = canDiscard;
-  ret->noReturnExpr = noReturnExpr;
-  return ret;
-}
-
-unique_ptr<Statement> ExpressionStatement::expand(SType from, vector<SType> to) const {
-  auto ret = unique<ExpressionStatement>(expr->expand(from, to));
-  ret->canDiscard = canDiscard;
-  ret->noReturnExpr = noReturnExpr;
-  return ret;
-}
-
-unique_ptr<Statement> ExpressionStatement::expandVar(string from, vector<string> to) const {
-  auto ret = unique<ExpressionStatement>(expr->expandVar(std::move(from), std::move(to)));
+unique_ptr<Statement> ExpressionStatement::transform(const Statement::TransformFun&, const Statement::ExprTransformFun& fun) const {
+  auto ret = unique<ExpressionStatement>(fun(expr.get()));
   ret->canDiscard = canDiscard;
   ret->noReturnExpr = noReturnExpr;
   return ret;
@@ -1585,6 +1521,17 @@ unique_ptr<Statement> SwitchStatement::replace(SType from, SType to, ErrorBuffer
   return ret;
 }
 
+unique_ptr<Statement> SwitchStatement::transform(const Statement::TransformFun& fun,
+    const Statement::ExprTransformFun& exprFun) const {
+  auto ret = unique<SwitchStatement>(codeLoc, exprFun(expr.get()));
+  ret->targetType = targetType;
+  if (defaultBlock)
+    ret->defaultBlock = cast<StatementBlock>(fun(defaultBlock.get()));
+  for (auto& elem : caseElems)
+    ret->caseElems.push_back(elem.transform(fun, exprFun));
+  return ret;
+}
+
 bool SwitchStatement::hasReturnStatement(const Context& context) const {
   for (auto& elem : caseElems)
     if (!elem.block->hasReturnStatement(context))
@@ -1851,28 +1798,13 @@ optional<ErrorLoc> ForLoopStatement::checkMovesImpl(MoveChecker& checker) const 
   return checker.endLoop(loopId);
 }
 
-unique_ptr<Statement> ForLoopStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Statement> ForLoopStatement::transform(const Statement::TransformFun& fun,
+    const Statement::ExprTransformFun& exprFun) const {
   return unique<ForLoopStatement>(codeLoc,
-      init->replace(from, to, errors),
-      cond->replace(from, to, errors),
-      iter->replace(from, to, errors),
-      body->replace(from, to, errors));
-}
-
-unique_ptr<Statement> ForLoopStatement::expand(SType from, vector<SType> to) const {
-  return unique<ForLoopStatement>(codeLoc,
-      init->expand(from, to),
-      cond->expand(from, to),
-      iter->expand(from, to),
-      body->expand(from, to));
-}
-
-unique_ptr<Statement> ForLoopStatement::expandVar(string from, vector<string> to) const {
-  return unique<ForLoopStatement>(codeLoc,
-      init->expandVar(from, to),
-      cond->expandVar(from, to),
-      iter->expandVar(from, to),
-      body->expandVar(from, to));
+      fun(init.get()),
+      exprFun(cond.get()),
+      exprFun(iter.get()),
+      fun(body.get()));
 }
 
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
@@ -1902,22 +1834,11 @@ optional<ErrorLoc> WhileLoopStatement::checkMovesImpl(MoveChecker& checker) cons
   return none;
 }
 
-unique_ptr<Statement> WhileLoopStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Statement> WhileLoopStatement::transform(const Statement::TransformFun& fun,
+    const Statement::ExprTransformFun& exprFun) const {
   return unique<WhileLoopStatement>(codeLoc,
-      cond->replace(from, to, errors),
-      body->replace(from, to, errors));
-}
-
-unique_ptr<Statement> WhileLoopStatement::expand(SType from, vector<SType> to) const {
-  return unique<WhileLoopStatement>(codeLoc,
-      cond->expand(from, to),
-      body->expand(from, to));
-}
-
-unique_ptr<Statement> WhileLoopStatement::expandVar(string from, vector<string> to) const {
-  return unique<WhileLoopStatement>(codeLoc,
-      cond->expandVar(from, to),
-      body->expandVar(from, to));
+      exprFun(cond.get()),
+      fun(body.get()));
 }
 
 ImportStatement::ImportStatement(CodeLoc l, string p, bool isBuiltIn)
@@ -2156,39 +2077,16 @@ optional<ErrorLoc> RangedLoopStatement::checkMovesImpl(MoveChecker& checker) con
   return none;
 }
 
-unique_ptr<Statement> RangedLoopStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Statement> RangedLoopStatement::transform(const Statement::TransformFun& fun,
+    const Statement::ExprTransformFun& exprFun) const {
   auto ret = unique<RangedLoopStatement>(codeLoc,
-      cast<VariableDeclaration>(init->replace(from, to, errors)),
-      container->replace(from, to, errors),
-      body->replace(from, to, errors));
-  ret->condition = condition->replace(from, to, errors);
-  ret->increment = increment->replace(from, to, errors);
+      cast<VariableDeclaration>(fun(init.get())),
+      exprFun(container.get()),
+      fun(body.get()));
+  ret->condition = exprFun(condition.get());
+  ret->increment = exprFun(increment.get());
   ret->containerName = containerName;
-  ret->containerEnd = cast<VariableDeclaration>(containerEnd->replace(from, to, errors));
-  return ret;
-}
-
-unique_ptr<Statement> RangedLoopStatement::expand(SType from, vector<SType> to) const {
-  auto ret = unique<RangedLoopStatement>(codeLoc,
-      cast<VariableDeclaration>(init->expand(from, to)),
-      container->expand(from, to),
-      body->expand(from, to));
-  ret->condition = condition->expand(from, to);
-  ret->increment = increment->expand(from, to);
-  ret->containerName = containerName;
-  ret->containerEnd = cast<VariableDeclaration>(containerEnd->expand(from, to));
-  return ret;
-}
-
-unique_ptr<Statement> RangedLoopStatement::expandVar(string from, vector<string> to) const {
-  auto ret = unique<RangedLoopStatement>(codeLoc,
-      cast<VariableDeclaration>(init->expandVar(from, to)),
-      container->expandVar(from, to),
-      body->expandVar(from, to));
-  ret->condition = condition->expandVar(from, to);
-  ret->increment = increment->expandVar(from, to);
-  ret->containerName = containerName;
-  ret->containerEnd = cast<VariableDeclaration>(containerEnd->expandVar(from, to));
+  ret->containerEnd = cast<VariableDeclaration>(fun(containerEnd.get()));
   return ret;
 }
 
@@ -2200,8 +2098,10 @@ optional<ErrorLoc> BreakStatement::check(Context& context, bool) {
     return codeLoc.getError("Break statement outside of a loop");
 }
 
-unique_ptr<Statement> BreakStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
-  return unique<BreakStatement>(codeLoc);
+unique_ptr<Statement> BreakStatement::transform(const Statement::TransformFun&, const Statement::ExprTransformFun&) const {
+  auto ret = unique<BreakStatement>(codeLoc);
+  ret->loopId = loopId;
+  return ret;
 }
 
 optional<ErrorLoc> BreakStatement::checkMovesImpl(MoveChecker& checker) const {
@@ -2215,7 +2115,7 @@ optional<ErrorLoc> ContinueStatement::check(Context& context, bool) {
   return none;
 }
 
-unique_ptr<Statement> ContinueStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Statement> ContinueStatement::transform(const Statement::TransformFun&, const Statement::ExprTransformFun&) const {
   return unique<ContinueStatement>(codeLoc);
 }
 
@@ -2295,6 +2195,16 @@ SwitchStatement::CaseElem SwitchStatement::CaseElem::replace(SType from, SType t
     ret.type = (*t)->replace(from, to, errors);
   else
     ret.type = type;
+  return ret;
+}
+
+SwitchStatement::CaseElem SwitchStatement::CaseElem::transform(const Statement::TransformFun& fun,
+    const Statement::ExprTransformFun&) const {
+  CaseElem ret;
+  ret.codeloc = codeloc;
+  ret.ids = ids;
+  ret.block = cast<StatementBlock>(fun(block.get()));
+  ret.type = type;
   return ret;
 }
 
