@@ -1,0 +1,17 @@
+// no_compile
+
+template <T>
+void f() {}
+
+template <T>
+struct X {
+};
+
+template <MyArgs...>
+void eat() {
+  MyArgs x;
+}
+
+int main() {
+  return 0;
+}

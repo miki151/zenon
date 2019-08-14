@@ -1,0 +1,17 @@
+// no_compile
+
+template <T>
+void f1(T arg1) {
+}
+
+void f1() {
+}
+
+template <Args...>
+void f2(Args*... args) {
+  f1<Args*...>(args...);
+}
+
+int main() {
+  return 0;
+}

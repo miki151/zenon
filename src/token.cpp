@@ -43,6 +43,7 @@ static const unordered_map<string, Keyword> keywords {
   {";", Keyword::SEMICOLON},
   {":", Keyword::COLON},
   {",", Keyword::COMMA},
+  {"...", Keyword::ELLIPSIS}
 };
 
 vector<string> getAllKeywords() {

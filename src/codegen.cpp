@@ -167,7 +167,9 @@ static string getFunctionCallName(const FunctionInfo& functionInfo, bool methodC
   else if (!methodCall)
     typePrefix += "::";
   return functionInfo.id.visit(
-      [&](const string& s) { return typePrefix + s + *functionInfo.getMangledName(); },
+      [&](const string& s) {
+        //std::cout << "Getting call name for " << functionInfo.prettyString();
+        return typePrefix + s + *functionInfo.getMangledName(); },
       [&](Operator op) {
         if (op == Operator::SUBSCRIPT)
           return "subscript_op"s;
@@ -320,6 +322,7 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
     if (functionInfo.getMangledName()) {
       if (!functionInfo.type.templateParams.empty())
         accu.add("inline ");
+      //std::cout << "In function " << getSignature(functionInfo) << std::endl;
       accu.add(getSignature(functionInfo));
       if (body && stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
         accu.newLine("");

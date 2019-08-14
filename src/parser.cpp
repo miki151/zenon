@@ -26,7 +26,7 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
     if (tokens.eatMaybe(Operator::LESS_THAN)) {
       while (1) {
         if (auto ident = parseIdentifier(tokens, true)) {
-          if (tokens.peek() == Keyword::COMMA || tokens.peek() == Operator::MORE_THAN)
+          if (tokens.peek() == Keyword::COMMA || tokens.peek() == Operator::MORE_THAN || tokens.peek() == Keyword::ELLIPSIS)
             ret.parts.back().templateArguments.push_back(*ident);
           else {
             tokens.rewind(beforeLessThan);
@@ -35,7 +35,7 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
           }
         } else {
           if (auto expr = parsePrimary(tokens)) {
-            if (tokens.peek() == Keyword::COMMA || tokens.peek() == Operator::MORE_THAN)
+            if (tokens.peek() == Keyword::COMMA || tokens.peek() == Operator::MORE_THAN || tokens.peek() == Keyword::ELLIPSIS)
               ret.parts.back().templateArguments.push_back(getSharedPtr(std::move(*expr)));
             else {
               ret.parts.back().templateArguments.clear();
@@ -45,6 +45,8 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
           } else
             return expr.get_error();
         }
+        if (tokens.eatMaybe(Keyword::ELLIPSIS))
+          ret.parts.back().variadic = true;
         if (tokens.eatMaybe(Operator::MORE_THAN))
           break;
         else if (!tokens.eatMaybe(Keyword::COMMA)) {
@@ -110,7 +112,10 @@ WithErrorLine<unique_ptr<Expression>> parseFunctionCall(IdentifierInfo id, Token
     ret->argNames.push_back(argName);
     if (tokens.peek() == Keyword::COMMA)
       tokens.popNext();
-    else
+    else if (tokens.eatMaybe(Keyword::ELLIPSIS)) {
+      ret->variadicArgs = true;
+      break;
+    } else
       break;
   }
   if (auto t = tokens.eat(Keyword::CLOSE_BRACKET); !t)
@@ -369,6 +374,8 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionSignature(IdentifierI
   while (1) {
     if (tokens.eatMaybe(Keyword::CLOSE_BRACKET))
       break;
+    else if (ret->isVariadicParams)
+      return tokens.peek().codeLoc.getError("Function parameter pack is only allowed at the end of parameter list");
     if (!ret->parameters.empty())
       if (auto t = tokens.eat(Keyword::COMMA); !t)
         return t.get_error();
@@ -382,6 +389,7 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionSignature(IdentifierI
     if (!typeId)
       return typeId.get_error();
     auto paramCodeLoc = typeId->codeLoc;
+    ret->isVariadicParams = !!tokens.eatMaybe(Keyword::ELLIPSIS);
     optional<string> paramName;
     auto nameToken = tokens.peek();
     if (nameToken.contains<IdentifierToken>()) {
@@ -429,8 +437,14 @@ static WithErrorLine<TemplateInfo> parseTemplateInfo(Tokens& tokens) {
     if (!paramToken.contains<IdentifierToken>())
       return paramToken.codeLoc.getError("Template parameter name expected");
     optional<string> typeName;
-    if (tokens.peek() != Operator::MORE_THAN) {
-      if (tokens.peek() != Keyword::COMMA) {
+    if (tokens.peek() != Operator::MORE_THAN && !tokens.eatMaybe(Keyword::COMMA)) {
+      if (tokens.eatMaybe(Keyword::ELLIPSIS)) {
+        ret.variadic = true;
+        ret.params.push_back({paramToken.value, typeName, paramToken.codeLoc});
+        if (tokens.peek() != Operator::MORE_THAN)
+          return paramToken.codeLoc.getError("Parameter pack is only allowed at the end of parameter list");
+        break;
+      } else {
         typeName = paramToken.value;
         paramToken = tokens.popNext();
         if (!paramToken.contains<IdentifierToken>())
@@ -439,18 +453,17 @@ static WithErrorLine<TemplateInfo> parseTemplateInfo(Tokens& tokens) {
           if (auto t = tokens.eat(Keyword::COMMA); !t)
             return t.get_error();
         }
-      } else
-        tokens.popNext();
+      }
     }
     ret.params.push_back({paramToken.value, typeName, paramToken.codeLoc});
   }
-  if (auto t = tokens.eat(Operator::MORE_THAN); !t)
-    return t.get_error();
+  CHECK(!!tokens.eat(Operator::MORE_THAN));
   if (tokens.eatMaybe(Keyword::REQUIRES))
     while (1) {
-      if (auto id = parseIdentifier(tokens, false))
-        ret.requirements.push_back(*id);
-      else
+      if (auto id = parseIdentifier(tokens, false)) {
+        bool variadic = !!tokens.eatMaybe(Keyword::ELLIPSIS);
+        ret.requirements.push_back(TemplateInfo::Requirement{*id, variadic});
+      } else
         return id.get_error();
       if (!tokens.eatMaybe(Keyword::COMMA))
         break;

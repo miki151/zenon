@@ -1,0 +1,15 @@
+// 2
+
+template <T>
+void f(T mutable* a, T b, bool x) {
+  if (x)
+    return;
+  *a = move(b);
+}
+
+int main() {
+  mutable x = 1;
+  const y = 2;
+  f(&x, y, false);
+  return x;
+}

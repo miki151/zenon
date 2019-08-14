@@ -35,8 +35,10 @@ void MoveChecker::endBlock() {
   blocks.pop_back();
   block.moves.insert(block.moves.end(), allMoved.begin(), allMoved.end());
   for (auto& move : block.moves)
-    if (!block.variables.count(move.variable))
+    if (!block.variables.count(move.variable)) {
+      CHECK(!blocks.empty());
       blocks.back().moves.push_back(move);
+    }
 }
 
 optional<ErrorLoc> MoveChecker::endLoop(int loopId) {

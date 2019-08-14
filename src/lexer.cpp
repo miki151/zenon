@@ -14,9 +14,11 @@ static string getKeywords() {
   auto all = getAllKeywords();
   sort(all.begin(), all.end(), [](const string& o1, const string& o2) { return o1.size() > o2.size(); });
   for (auto& k : all) {
-    if (!isalpha(k[0]))
+    for (auto& c : k) {
+      if (!isalpha(c))
       keywords.append("\\");
-    keywords.append(k);
+      keywords.push_back(c);
+    }
     if (all_of(k.begin(), k.end(), [](char c) { return isalpha(c); }))
       keywords.append("\\b");
     keywords.append("|");

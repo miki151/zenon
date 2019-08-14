@@ -1,0 +1,20 @@
+// 36
+
+int eat(int i) { return i; }
+int eat(bool b) { if (b) return 1; else return 0; }
+int eat(string) { return 20; }
+int eat(char) {return 10; }
+
+template <T>
+int eat(T t) { return 100; }
+
+int eat_all() { return 0; }
+
+template <T, Args...>
+int eat_all(T arg1, Args... args) {
+  return eat(move(arg1)) + eat_all(move(args)...);
+}
+
+int main() {
+  return eat_all(5, true, "pok", 'a');
+}

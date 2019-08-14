@@ -230,8 +230,9 @@ SFunctionInfo FunctionInfo::getInstance(FunctionId id, FunctionType type, SFunct
 }
 
 string FunctionInfo::prettyString() const {
-  return type.retVal->getName() + " " + toString(id) + joinTemplateParams(type.templateParams) + "(" +
-      combine(transform(type.params, [](auto& t) { return t.type->getName() + (t.name ? " " + *t.name : ""s); }), ", ") + ")" +
+  return type.retVal->getName() + " " + toString(id) + joinTemplateParams(type.templateParams, type.variadicTemplate) + "(" +
+      combine(transform(type.params, [](auto& t) { return t.type->getName() + (t.name ? " " + *t.name : ""s); }), ", ") +
+      (type.variadicParams ? "...)" : ")") +
       (type.fromConcept ? " [from concept]" : "");
 }
 
@@ -813,9 +814,72 @@ static bool areParamsTypesEqual(const FunctionType& f1, const FunctionType& f2) 
   return true;
 }
 
+string getExpandedParamName(const string& packName, int index) {
+  return "_" + packName + to_string(index);
+}
+
+static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc codeLoc, vector<SType> templateArgs,
+    vector<SType> argTypes) {
+  vector<SType> expandedTypes;
+  nullable<SType> lastTemplateParam;
+  if (!type.templateParams.empty())
+    lastTemplateParam = type.templateParams.back();
+  if (type.variadicTemplate) {
+    type.templateParams.pop_back();
+    optional<FunctionType::Param> lastParam;
+    int cnt = 0;
+    while (templateArgs.size() > type.templateParams.size()) {
+      type.templateParams.push_back(shared<TemplateParameterType>(lastTemplateParam->getType(),
+          getExpandedParamName(lastTemplateParam->getName(), cnt), codeLoc));
+      expandedTypes.push_back(type.templateParams.back());
+      if (type.variadicParams) {
+        if (!lastParam) {
+          lastParam = type.params.back();
+          type.params.pop_back();
+        }
+        ErrorBuffer errors;
+        type.params.push_back(FunctionType::Param(
+            lastParam->name.map([cnt](const string& name) { return getExpandedParamName(name, cnt); }),
+            lastParam->type->replace(lastTemplateParam.get(), type.templateParams.back(), errors)));
+        if (!errors.empty())
+          return errors[0];
+      }
+      ++cnt;
+    }
+    if (lastParam)
+      type.variadicParams = false;
+  }
+  if (type.variadicParams) {
+    auto lastParam = type.params.back();
+    type.params.pop_back();
+    int cnt = 0;
+    while (argTypes.size() > type.params.size()) {
+      auto thisType = lastParam.type;
+      if (type.variadicTemplate) {
+        if (expandedTypes.size() <= cnt) {
+          type.templateParams.push_back(shared<TemplateParameterType>(lastTemplateParam->getType(),
+              getExpandedParamName(lastTemplateParam->getName(), cnt), codeLoc));
+          expandedTypes.push_back(type.templateParams.back());
+        }
+        ErrorBuffer errors;
+        thisType = lastParam.type->replace(lastTemplateParam.get(), type.templateParams.back(), errors);
+        if (!errors.empty())
+          return errors[0];
+      }
+      type.params.push_back(FunctionType::Param(
+          lastParam.name.map([cnt](const string& name) { return getExpandedParamName(name, cnt); }),
+          thisType));
+      ++cnt;
+    }
+  }
+  return none;
+}
+
 WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo& input, CodeLoc codeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing) {
   FunctionType type = input->type;
+  if (auto error = expandVariadicTemplate(type, codeLoc, templateArgs, argTypes))
+    return *error;
   vector<SType> funParams = transform(type.params, [](const FunctionType::Param& p) { return p.type; });
   if (templateArgs.size() > type.templateParams.size())
     return codeLoc.getError("Too many template arguments.");
@@ -823,7 +887,8 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
   for (int i = 0; i < templateArgs.size(); ++i)
     mapping.templateArgs[i] = templateArgs[i];
   if (funParams.size() != argTypes.size())
-    return codeLoc.getError("Wrong number of function arguments.");
+    return codeLoc.getError("Wrong number of function arguments. Expected " +
+        to_string(funParams.size()) + " got " + to_string(argTypes.size()));
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
     for (auto tArg : context.getConversions(argTypes[i])) {
@@ -923,11 +988,11 @@ string joinTypeList(const vector<SType>& types) {
   return combine(transform(types, [](const SType& type) { return type->getName(); }), ", ");
 }
 
-string joinTemplateParams(const vector<SType>& params) {
+string joinTemplateParams(const vector<SType>& params, bool variadic) {
   if (params.empty())
     return "";
   else
-    return "<" + joinTypeList(params) + ">";
+    return "<" + joinTypeList(params) + (variadic ? "...>" : ">");
 }
 
 string joinTypeListCodegen(const vector<SType>& types) {

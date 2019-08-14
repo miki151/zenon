@@ -11,6 +11,25 @@
 
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
+
+unique_ptr<Expression> Expression::expand(SType from, vector<SType> to) const {
+  return deepCopy();
+}
+
+unique_ptr<Expression> Expression::replaceVar(string from, string to) const {
+  return deepCopy();
+}
+
+unique_ptr<Expression> Expression::expandVar(string from, vector<string> to) const {
+  return deepCopy();
+}
+
+unique_ptr<Expression> Expression::deepCopy() const {
+  ErrorBuffer e;
+  auto tmp = shared<TemplateParameterType>("x", codeLoc);
+  return replace(tmp, tmp, e);
+}
+
 IfStatement::IfStatement(CodeLoc loc, unique_ptr<VariableDeclaration> d, unique_ptr<Expression> c,
     unique_ptr<Statement> t, unique_ptr<Statement> f)
   : Statement(loc), declaration(std::move(d)), condition(std::move(c)), ifTrue(std::move(t)), ifFalse(std::move(f)) {
@@ -23,7 +42,8 @@ Constant::Constant(CodeLoc l, SCompileTimeValue v) : Expression(l), value(v) {
 Variable::Variable(CodeLoc l, string s) : Expression(l), identifier(std::move(s)) {
 }
 
-FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(std::move(id)) {
+FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(std::move(id)),
+    variadicTemplateArgs(identifier->parts.back().variadic) {
   INFO << "Function call " << id.prettyString();;
 }
 
@@ -99,6 +119,13 @@ nullable<SType> Variable::eval(const Context& context) const {
 
 unique_ptr<Expression> Variable::replace(SType from, SType to, ErrorBuffer& errors) const {
   return unique<Variable>(codeLoc, identifier);
+}
+
+unique_ptr<Expression> Variable::replaceVar(string from, string to) const {
+  if (identifier == from)
+    return unique<Variable>(codeLoc, to);
+  else
+    return deepCopy();
 }
 
 WithErrorLine<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
@@ -291,6 +318,18 @@ unique_ptr<Expression> BinaryExpression::replace(SType from, SType to, ErrorBuff
   return get(codeLoc, op, expr[0]->replace(from, to, errors), expr[1]->replace(from, to, errors));
 }
 
+unique_ptr<Expression> BinaryExpression::expand(SType from, vector<SType> to) const {
+  return get(codeLoc, op, expr[0]->expand(from, to), expr[1]->expand(from, to));
+}
+
+unique_ptr<Expression> BinaryExpression::replaceVar(string from, string to) const {
+  return get(codeLoc, op, expr[0]->replaceVar(from, to), expr[1]->replaceVar(from, to));
+}
+
+unique_ptr<Expression> BinaryExpression::expandVar(string from, vector<string> to) const {
+  return get(codeLoc, op, expr[0]->expandVar(from, to), expr[1]->expandVar(from, to));
+}
+
 optional<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
   for (auto& e : expr) {
     if (auto error = e->checkMoves(checker))
@@ -332,6 +371,19 @@ unique_ptr<Expression> UnaryExpression::replace(SType from, SType to, ErrorBuffe
   return unique<UnaryExpression>(codeLoc, op, expr->replace(from, to, errors));
 }
 
+unique_ptr<Expression> UnaryExpression::expand(SType from, vector<SType> to) const {
+  return unique<UnaryExpression>(codeLoc, op, expr->expand(from, to));
+}
+
+unique_ptr<Expression> UnaryExpression::replaceVar(string from, string to) const {
+  return unique<UnaryExpression>(codeLoc, op, expr->replaceVar(from, to));
+
+}
+
+unique_ptr<Expression> UnaryExpression::expandVar(string from, vector<string> to) const {
+  return unique<UnaryExpression>(codeLoc, op, expr->expandVar(from, to));
+}
+
 optional<ErrorLoc> UnaryExpression::checkMoves(MoveChecker& checker) const {
   return expr->checkMoves(checker);
 }
@@ -359,6 +411,20 @@ unique_ptr<Statement> StatementBlock::replace(SType from, SType to, ErrorBuffer&
   auto ret = unique<StatementBlock>(codeLoc);
   for (auto& elem : elems)
     ret->elems.push_back(elem->replace(from, to, errors));
+  return ret;
+}
+
+unique_ptr<Statement> StatementBlock::expand(SType from, vector<SType> to) const {
+  auto ret = unique<StatementBlock>(codeLoc);
+  for (auto& elem : elems)
+    ret->elems.push_back(elem->expand(from, to));
+  return ret;
+}
+
+unique_ptr<Statement> StatementBlock::expandVar(string from, vector<string> to) const {
+  auto ret = unique<StatementBlock>(codeLoc);
+  for (auto& elem : elems)
+    ret->elems.push_back(elem->expandVar(from, to));
   return ret;
 }
 
@@ -420,6 +486,22 @@ unique_ptr<Statement> IfStatement::replace(SType from, SType to, ErrorBuffer& er
       ifFalse ? ifFalse->replace(from, to, errors) : nullptr);
 }
 
+unique_ptr<Statement> IfStatement::expand(SType from, vector<SType> to) const {
+  return unique<IfStatement>(codeLoc,
+      declaration ? cast<VariableDeclaration>(declaration->expand(from, to)) : nullptr,
+      condition ? condition->expand(from, to) : nullptr,
+      ifTrue->expand(from, to),
+      ifFalse ? ifFalse->expand(from, to) : nullptr);
+}
+
+unique_ptr<Statement> IfStatement::expandVar(string from, vector<string> to) const {
+  return unique<IfStatement>(codeLoc,
+      declaration ? cast<VariableDeclaration>(declaration->expandVar(from, to)) : nullptr,
+      condition ? condition->expandVar(from, to) : nullptr,
+      ifTrue->expandVar(from, to),
+      ifFalse ? ifFalse->expandVar(from, to) : nullptr);
+}
+
 optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   if (auto err = context.checkNameConflict(identifier, "Variable"))
     return codeLoc.getError(*err);
@@ -479,6 +561,22 @@ unique_ptr<Statement> VariableDeclaration::replace(SType from, SType to, ErrorBu
   return ret;
 }
 
+unique_ptr<Statement> VariableDeclaration::expand(SType from, vector<SType> to) const {
+  auto ret = unique<VariableDeclaration>(codeLoc, none, identifier,
+      initExpr ? initExpr->expand(from, to) : nullptr);
+  ret->isMutable = isMutable;
+  ret->realType = realType;
+  return ret;
+}
+
+unique_ptr<Statement> VariableDeclaration::expandVar(string from, vector<string> to) const {
+  auto ret = unique<VariableDeclaration>(codeLoc, none, identifier,
+      initExpr ? initExpr->expandVar(from, to) : nullptr);
+  ret->isMutable = isMutable;
+  ret->realType = realType;
+  return ret;
+}
+
 optional<ErrorLoc> ReturnStatement::check(Context& context, bool) {
   if (context.getReturnType() == ArithmeticType::NORETURN)
     return codeLoc.getError("This function should never return");
@@ -506,7 +604,15 @@ optional<ErrorLoc> ReturnStatement::checkMovesImpl(MoveChecker& checker) const {
 }
 
 unique_ptr<Statement> ReturnStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
-  return unique<ReturnStatement>(codeLoc, expr->replace(from, to, errors));
+  return unique<ReturnStatement>(codeLoc, expr ? expr->replace(from, to, errors) : nullptr);
+}
+
+unique_ptr<Statement> ReturnStatement::expand(SType from, vector<SType> to) const {
+  return unique<ReturnStatement>(codeLoc, expr ? expr->expand(from, to) : nullptr);
+}
+
+unique_ptr<Statement> ReturnStatement::expandVar(std::string from, vector<std::string> to) const {
+  return unique<ReturnStatement>(codeLoc, expr ? expr->expandVar(from, to) : nullptr);
 }
 
 optional<ErrorLoc> Statement::addToContext(Context&) {
@@ -536,6 +642,21 @@ unique_ptr<Statement> Statement::replace(SType from, SType to, ErrorBuffer& erro
   fail();
 }
 
+unique_ptr<Statement> Statement::expand(SType from, vector<SType> to) const {
+  return deepCopy();
+}
+
+unique_ptr<Statement> Statement::deepCopy() const {
+  ErrorBuffer e;
+  auto tmp = shared<TemplateParameterType>("x", codeLoc);
+  return replace(tmp, tmp, e);
+
+}
+
+unique_ptr<Statement> Statement::expandVar(string from, vector<string> to) const {
+  return deepCopy();
+}
+
 bool IfStatement::hasReturnStatement(const Context& context) const {
   return ifTrue->hasReturnStatement(context) && ifFalse && ifFalse->hasReturnStatement(context);
 }
@@ -554,14 +675,15 @@ bool ReturnStatement::hasReturnStatement(const Context&) const {
   return true;
 }
 
-NODISCARD static WithErrorLine<vector<SConcept>> applyConcept(Context& from, const vector<IdentifierInfo>& requirements) {
+NODISCARD static WithErrorLine<vector<SConcept>> applyConcept(Context& from, const vector<TemplateInfo::Requirement>& requirements) {
   vector<SConcept> ret;
   for (auto& requirement : requirements) {
-    if (auto concept = from.getConcept(requirement.parts[0].name)) {
-      auto& requirementArgs = requirement.parts[0].templateArguments;
+    auto& reqId = requirement.identifier;
+    if (auto concept = from.getConcept(reqId.parts[0].name)) {
+      auto& requirementArgs = reqId.parts[0].templateArguments;
       if (requirementArgs.size() != concept->getParams().size())
-        return requirement.codeLoc.getError(
-            "Wrong number of template arguments to concept " + quote(requirement.parts[0].toString()));
+        return reqId.codeLoc.getError(
+            "Wrong number of template arguments to concept " + quote(reqId.parts[0].toString()));
       vector<SType> translatedParams;
       for (int i = 0; i < requirementArgs.size(); ++i) {
         if (auto arg = requirementArgs[i].getReferenceMaybe<IdentifierInfo>()) {
@@ -574,7 +696,7 @@ NODISCARD static WithErrorLine<vector<SConcept>> applyConcept(Context& from, con
           } else
             return origParam.get_error();
         } else
-          return requirement.codeLoc.getError("Expected a type argument");
+          return reqId.codeLoc.getError("Expected a type argument");
       }
       ErrorBuffer errors;
       auto translated = concept->translate(translatedParams, errors);
@@ -583,7 +705,7 @@ NODISCARD static WithErrorLine<vector<SConcept>> applyConcept(Context& from, con
       from.merge(translated->getContext());
       ret.push_back(translated);
     } else
-      return requirement.codeLoc.getError("Uknown concept: " + requirement.parts[0].name);
+      return reqId.codeLoc.getError("Uknown concept: " + reqId.parts[0].name);
   }
   return ret;
 }
@@ -635,7 +757,8 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
   }
   Context contextWithTemplateParams = Context::withParent(context);
   vector<SType> templateTypes;
-  for (auto& param : templateInfo.params) {
+  for (int i = 0; i < templateInfo.params.size(); ++i) {
+    auto& param = templateInfo.params[i];
     if (param.type) {
       auto type = contextWithTemplateParams.getType(*param.type);
       if (!type)
@@ -648,7 +771,8 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
       if (auto err = contextWithTemplateParams.checkNameConflict(param.name, "template parameter"))
         return param.codeLoc.getError(*err);
       templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-      contextWithTemplateParams.addType(param.name, templateTypes.back());
+      contextWithTemplateParams.addType(param.name, templateTypes.back(), true,
+          i == templateInfo.params.size() - 1 && templateInfo.variadic);
     }
   }
   auto requirements = applyConcept(contextWithTemplateParams, templateInfo.requirements);
@@ -660,8 +784,9 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
       returnType = convertPointerToReference(returnType);
     vector<FunctionType::Param> params;
     set<string> paramNames;
-    for (auto& p : parameters) {
-      auto type = contextWithTemplateParams.getTypeFromString(p.type);
+    for (int i = 0; i < parameters.size(); ++i) {
+      auto& p = parameters[i];
+      auto type = contextWithTemplateParams.getTypeFromString(p.type, isVariadicParams && i == parameters.size() - 1);
       if (!type)
         return type.get_error();
       if (*type == ArithmeticType::VOID)
@@ -680,6 +805,8 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     FunctionType functionType(returnType, params, templateTypes);
     functionType.fromConcept = concept;
     functionType.requirements = *requirements;
+    functionType.variadicTemplate = templateInfo.variadic;
+    functionType.variadicParams = isVariadicParams;
     if (name.contains<ConstructorTag>() && external)
       functionType.generatedConstructor = true;
     if (name.contains<Operator>() && external)
@@ -880,16 +1007,30 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
 void FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody) {
   CHECK(!body);
   auto templateParams = functionInfo->parent->type.templateParams;
-  for (int i = 0; i < functionInfo->type.templateParams.size(); ++i) {
+  for (int i = 0; i < templateParams.size(); ++i) {
     StatementBlock* useBody = (i == 0) ? parentBody : body.get();
     ErrorBuffer errors;
-    body = cast<StatementBlock>(
-        useBody->replace(templateParams[i], functionInfo->type.templateParams[i], errors));
+    if (functionInfo->parent->type.variadicTemplate && i == templateParams.size() - 1) {
+      vector<SType> expanded;
+      for (int j = i; j < functionInfo->type.templateParams.size(); ++j)
+        expanded.push_back(functionInfo->type.templateParams[j]);
+      body = cast<StatementBlock>(
+          useBody->expand(templateParams[i], std::move(expanded)));
+    } else
+      body = cast<StatementBlock>(
+          useBody->replace(templateParams[i], {functionInfo->type.templateParams[i]}, errors));
     for (int j = i + 1; j < templateParams.size(); ++j)
       templateParams[j] = templateParams[j]->replace(templateParams[i], functionInfo->type.templateParams[i], errors);
     CHECK(errors.empty());
   }
   CHECK(!!body);
+  if (functionInfo->parent->type.variadicParams)
+    if (auto& lastName = functionInfo->parent->type.params.back().name) {
+      vector<string> expanded;
+      for (int i = 0; i < functionInfo->type.params.size() + 1 - functionInfo->parent->type.params.size(); ++i)
+        expanded.push_back(getExpandedParamName(*lastName, i));
+      body = cast<StatementBlock>(body->expandVar(*lastName, expanded));
+    }
 }
 
 void FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
@@ -914,13 +1055,16 @@ void FunctionDefinition::addInstance(const Context& callContext, const SFunction
     CHECK(instance->type.templateParams.empty());
 }
 
-static void addTemplateParam(Context& context, SType param) {
-  if (auto valueType = param.dynamicCast<CompileTimeValue>()) {
-    auto templateValue = valueType->value.getReferenceMaybe<CompileTimeValue::TemplateValue>();
-    context.addType(templateValue->name,
-        CompileTimeValue::get(CompileTimeValue::TemplateValue{templateValue->type, templateValue->name}));
-  } else
-    context.addType(param->getName(), param);
+static void addTemplateParams(Context& context, vector<SType> params, bool variadic) {
+  for (int i = 0; i < params.size(); ++i) {
+    auto& param = params[i];
+    if (auto valueType = param.dynamicCast<CompileTimeValue>()) {
+      auto templateValue = valueType->value.getReferenceMaybe<CompileTimeValue::TemplateValue>();
+      context.addType(templateValue->name,
+          CompileTimeValue::get(CompileTimeValue::TemplateValue{templateValue->type, templateValue->name}));
+    } else
+      context.addType(param->getName(), param, true, variadic && i == params.size() - 1);
+  }
 }
 
 static Context::ConstStates mergeStates(Context::ConstStates v1, const Context::ConstStates& v2) {
@@ -932,8 +1076,7 @@ static Context::ConstStates mergeStates(Context::ConstStates v1, const Context::
 
 optional<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
   Context bodyContext = Context::withParent(context);
-  for (auto& param : functionInfo->type.templateParams)
-    addTemplateParam(bodyContext, param);
+  addTemplateParams(bodyContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
   auto res = applyConcept(bodyContext, templateInfo.requirements);
   if (!res)
     return res.get_error();
@@ -950,9 +1093,11 @@ optional<ErrorLoc> FunctionDefinition::checkBody(TypeRegistry* typeRegistry, Con
     StatementBlock& myBody,  const FunctionInfo& instanceInfo) const {
   auto bodyContext = Context::withStates(typeRegistry, mergeStates(definitionContext, callContext));
   bodyContext.setAsTopLevel();
+  bool isTemplated = false;
   for (auto& t : instanceInfo.type.templateParams)
     if (!t->getMangledName()) {
       bodyContext.setTemplated();
+      isTemplated = true;
       break;
     }
   for (int i = 0; i < instanceInfo.type.params.size(); ++i) {
@@ -961,9 +1106,11 @@ optional<ErrorLoc> FunctionDefinition::checkBody(TypeRegistry* typeRegistry, Con
     if (name.contains<Operator>())
       type = convertReferenceToPointer(type);
     if (p.name) {
-      bodyContext.addVariable(*p.name, parameters[i].isMutable
-          ? SType(MutableReferenceType::get(type))
-          : SType(ReferenceType::get(type)));
+      auto varType = parameters[i].isMutable ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
+      if (!isVariadicParams || i < instanceInfo.type.params.size() - 1 || !isTemplated)
+        bodyContext.addVariable(*p.name, varType);
+      else
+        bodyContext.addVariablePack(*p.name, varType);
     }
   }
   auto retVal = instanceInfo.type.retVal;
@@ -976,11 +1123,7 @@ optional<ErrorLoc> FunctionDefinition::checkBody(TypeRegistry* typeRegistry, Con
     return codeLoc.getError("This function should never return");
   if (retVal != ArithmeticType::VOID && !myBody.hasReturnStatement(bodyContext))
     return codeLoc.getError("Not all paths lead to a return statement in a function returning non-void");
-  MoveChecker moveChecker;
-  for (auto& p : parameters)
-    if (p.name)
-      moveChecker.addVariable(*p.name);
-  return myBody.checkMoves(moveChecker);
+  return none;
 }
 
 optional<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& context) {
@@ -1000,8 +1143,7 @@ optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport)
   definitionContext = context.getAllStates();
   if (body && (!templateInfo.params.empty() || notInImport)) {
     Context paramsContext = Context::withParent(context);
-    for (auto& param : functionInfo->type.templateParams)
-      addTemplateParam(paramsContext, param);
+    addTemplateParams(paramsContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
     auto res = applyConcept(paramsContext, templateInfo.requirements);
     if (!res)
       return res.get_error();
@@ -1016,6 +1158,11 @@ optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport)
             *instances[i].functionInfo))
           return err;
       }
+    MoveChecker moveChecker;
+    for (auto& p : parameters)
+      if (p.name)
+        moveChecker.addVariable(*p.name);
+    return body->checkMoves(moveChecker);
   }
   return none;
 }
@@ -1166,6 +1313,20 @@ unique_ptr<Statement> ExpressionStatement::replace(SType from, SType to, ErrorBu
   return ret;
 }
 
+unique_ptr<Statement> ExpressionStatement::expand(SType from, vector<SType> to) const {
+  auto ret = unique<ExpressionStatement>(expr->expand(from, to));
+  ret->canDiscard = canDiscard;
+  ret->noReturnExpr = noReturnExpr;
+  return ret;
+}
+
+unique_ptr<Statement> ExpressionStatement::expandVar(string from, vector<string> to) const {
+  auto ret = unique<ExpressionStatement>(expr->expandVar(std::move(from), std::move(to)));
+  ret->canDiscard = canDiscard;
+  ret->noReturnExpr = noReturnExpr;
+  return ret;
+}
+
 optional<ErrorLoc> ExpressionStatement::checkMovesImpl(MoveChecker& checker) const {
   return expr->checkMoves(checker);
 }
@@ -1181,25 +1342,85 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& context) {
   return getDotOperatorType(nullptr, context);
 }
 
-WithErrorLine<SType> FunctionCall::getDotOperatorType(Expression* left, Context& callContext) {
-  optional<ErrorLoc> error;
+optional<ErrorLoc> FunctionCall::initializeTemplateArgsAndIdentifierType(const Context& context) {
   if (!templateArgs) {
-    if (auto res = callContext.getTypeList(identifier->parts.back().templateArguments))
+    if (auto res = context.getTypeList(identifier->parts.back().templateArguments, variadicTemplateArgs))
       templateArgs = res.get();
     else
       return res.get_error();
   }
   if (!identifierType) {
-    if (auto res = callContext.getIdentifierType(*identifier))
+    if (auto res = context.getIdentifierType(*identifier))
       identifierType = *res;
     else
       return identifier->codeLoc.getError(res.get_error());
   }
+  return none;
+}
+
+optional<ErrorLoc> FunctionCall::checkNamedArgs() const {
+  for (int i = 0; i < argNames.size(); ++i) {
+    auto paramName = functionInfo->type.params[callType ? (i + 1) : i].name;
+    if (argNames[i] && paramName && argNames[i] != paramName) {
+      return arguments[i]->codeLoc.getError("Function argument " + quote(*argNames[i]) +
+          " doesn't match parameter " + quote(*paramName) + " of function " +
+          functionInfo->prettyString());
+    }
+  }
+  return none;
+}
+
+optional<ErrorLoc> FunctionCall::checkVariadicCall(Expression* left, const Context& callContext) {
+  if (!variadicTemplateArgs && !variadicArgs)
+    return none;
+  auto context = Context::withParent(callContext);
+  nullable<SType> returnType;
+  vector<SType> expanded;
+  vector<string> expandedVars;
+  while (true) {
+    auto call = cast<FunctionCall>(deepCopy());
+    if (variadicTemplateArgs)
+      call = cast<FunctionCall>(expand(templateArgs->back(), expanded));
+    auto& variablePack = callContext.getVariablePack();
+    if (variablePack)
+      call = cast<FunctionCall>(call->expandVar(variablePack->name, expandedVars));
+    if (auto type = call->getDotOperatorType(left, context)) {
+      if (!!returnType && returnType != type.get())
+        return codeLoc.getError("Return type mismatch between called functions in variadic function call");
+      returnType = type.get();
+      if (call->functionInfo->type.variadicTemplate)
+        break;
+    } else
+      return type.get_error();
+    expanded.push_back(shared<TemplateParameterType>(getExpandedParamName("SomeType", expanded.size()), codeLoc));
+    if (variablePack) {
+      expandedVars.push_back(getExpandedParamName("SomeVar", expanded.size()));
+      ErrorBuffer errors;
+      context.addVariable(expandedVars.back(),
+          variablePack->type->replace(callContext.getTypePack().get(), expanded.back(), errors));
+      if (!errors.empty())
+        return errors[0];
+    }
+  }
+  return none;
+}
+
+WithErrorLine<SType> FunctionCall::getDotOperatorType(Expression* left, Context& callContext) {
+  if (auto error = initializeTemplateArgsAndIdentifierType(callContext))
+    return *error;
+  optional<ErrorLoc> error;
   if (!functionInfo) {
     vector<SType> argTypes;
     vector<CodeLoc> argLocs;
     for (int i = 0; i < arguments.size(); ++i) {
-      if (auto t = getType(callContext, arguments[i]))
+      auto context = Context::withParent(callContext);
+      if (variadicArgs && i == arguments.size() - 1) {
+        if (auto& currentPack = context.getVariablePack())
+          context.expandVariablePack({currentPack->name});
+        else
+          return arguments[i]->codeLoc.getError("No parameter pack is present in this context");
+      }
+      if (auto t = getType(context, arguments[i]))
         argTypes.push_back(*t);
       else
         return t.get_error();
@@ -1236,16 +1457,12 @@ WithErrorLine<SType> FunctionCall::getDotOperatorType(Expression* left, Context&
     }
   }
   if (functionInfo) {
+    if (auto error = checkVariadicCall(left, callContext))
+      return *error;
     if (auto error = functionInfo->type.retVal->getSizeError(callContext))
       return codeLoc.getError(*error);
-    for (int i = 0; i < argNames.size(); ++i) {
-      auto paramName = functionInfo->type.params[callType ? (i + 1) : i].name;
-      if (argNames[i] && paramName && argNames[i] != paramName) {
-        return arguments[i]->codeLoc.getError("Function argument " + quote(*argNames[i]) +
-            " doesn't match parameter " + quote(*paramName) + " of function " +
-            functionInfo->prettyString());
-      }
-    }
+    if (auto error = checkNamedArgs())
+      return *error;
     if (auto parent = functionInfo->parent)
       if (parent->definition)
         parent->definition->addInstance(callContext, functionInfo.get());
@@ -1281,6 +1498,52 @@ unique_ptr<Expression> FunctionCall::replace(SType from, SType to, ErrorBuffer& 
     ret->templateArgs->push_back(arg->replace(from, to, errors));
   ret->argNames = argNames;
   ret->identifierType = identifierType->replace(from, to, errors);
+  ret->variadicArgs = variadicArgs;
+  return ret;
+}
+
+unique_ptr<Expression> FunctionCall::expand(SType from, vector<SType> to) const {
+  auto ret = unique<FunctionCall>(codeLoc, Private{});
+  ret->identifier = identifier;
+  for (int i = 0; i < arguments.size(); ++i)
+    ret->arguments.push_back(arguments[i]->expand(from, to));
+  ret->templateArgs.emplace();
+  for (auto& arg : *templateArgs) {
+    if (arg == from)
+      append(*ret->templateArgs, to);
+    else
+      ret->templateArgs->push_back(arg);
+  }
+  ret->argNames = argNames;
+  ret->variadicArgs = variadicArgs;
+  ret->identifierType = identifierType;
+  return ret;
+}
+
+unique_ptr<Expression> FunctionCall::replaceVar(string from, string to) const {
+  auto ret = unique<FunctionCall>(codeLoc, Private{});
+  ret->identifier = identifier;
+  for (auto& arg : arguments)
+    ret->arguments.push_back(arg->replaceVar(from, to));
+  ret->templateArgs = *templateArgs;
+  ret->argNames = transform(argNames, [&](auto& n) -> optional<string> { if (n == from) return to; else return n; });
+  ret->identifierType = identifierType;
+  ret->variadicArgs = variadicArgs;
+  return ret;
+}
+
+unique_ptr<Expression> FunctionCall::expandVar(string from, vector<string> to) const {
+  auto ret = cast<FunctionCall>(deepCopy());
+  if (variadicArgs) {
+    auto lastArg = std::move(ret->arguments.back());
+    ret->arguments.pop_back();
+    ret->argNames.pop_back();
+    for (auto& toName : to) {
+      ret->arguments.push_back(lastArg->replaceVar(from, toName));
+      ret->argNames.push_back(none);
+    }
+  }
+  ret->variadicArgs = false;
   return ret;
 }
 
@@ -1452,8 +1715,7 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
       return codeLoc.getError("Number of template parameters of type " + quote(type->getName()) +
           " differs from forward declaration.");
     auto membersContext = Context::withParent(context);
-    for (auto& param : type->templateParams)
-      addTemplateParam(membersContext, param);
+    addTemplateParams(membersContext, type->templateParams, false);
     if (auto res = applyConcept(membersContext, templateInfo.requirements))
       type->requirements = *res;
     else
@@ -1477,8 +1739,7 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
 
 optional<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
   auto methodBodyContext = Context::withParent(context);
-  for (auto& param : type->templateParams)
-    addTemplateParam(methodBodyContext, param);
+  addTemplateParams(methodBodyContext, type->templateParams, false);
   CHECK(!!applyConcept(methodBodyContext, templateInfo.requirements));
   type->updateInstantations();
   if (!incomplete)
@@ -1530,6 +1791,13 @@ unique_ptr<Expression> MoveExpression::replace(SType from, SType to, ErrorBuffer
   auto ret = unique<MoveExpression>(codeLoc, identifier);
   ret->type = type->replace(from, to, errors);
   return ret;
+}
+
+unique_ptr<Expression> MoveExpression::replaceVar(string from, string to) const {
+  if (from == identifier)
+    return unique<MoveExpression>(codeLoc, to);
+  else
+    return deepCopy();
 }
 
 optional<ErrorLoc> MoveExpression::checkMoves(MoveChecker& checker) const {
@@ -1604,6 +1872,22 @@ unique_ptr<Statement> ForLoopStatement::replace(SType from, SType to, ErrorBuffe
       body->replace(from, to, errors));
 }
 
+unique_ptr<Statement> ForLoopStatement::expand(SType from, vector<SType> to) const {
+  return unique<ForLoopStatement>(codeLoc,
+      init->expand(from, to),
+      cond->expand(from, to),
+      iter->expand(from, to),
+      body->expand(from, to));
+}
+
+unique_ptr<Statement> ForLoopStatement::expandVar(string from, vector<string> to) const {
+  return unique<ForLoopStatement>(codeLoc,
+      init->expandVar(from, to),
+      cond->expandVar(from, to),
+      iter->expandVar(from, to),
+      body->expandVar(from, to));
+}
+
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
   : Statement(l), cond(std::move(c)), body(std::move(b)) {}
 
@@ -1635,6 +1919,18 @@ unique_ptr<Statement> WhileLoopStatement::replace(SType from, SType to, ErrorBuf
   return unique<WhileLoopStatement>(codeLoc,
       cond->replace(from, to, errors),
       body->replace(from, to, errors));
+}
+
+unique_ptr<Statement> WhileLoopStatement::expand(SType from, vector<SType> to) const {
+  return unique<WhileLoopStatement>(codeLoc,
+      cond->expand(from, to),
+      body->expand(from, to));
+}
+
+unique_ptr<Statement> WhileLoopStatement::expandVar(string from, vector<string> to) const {
+  return unique<WhileLoopStatement>(codeLoc,
+      cond->expandVar(from, to),
+      body->expandVar(from, to));
 }
 
 ImportStatement::ImportStatement(CodeLoc l, string p, bool isBuiltIn)
@@ -1881,6 +2177,30 @@ unique_ptr<Statement> RangedLoopStatement::replace(SType from, SType to, ErrorBu
   return ret;
 }
 
+unique_ptr<Statement> RangedLoopStatement::expand(SType from, vector<SType> to) const {
+  auto ret = unique<RangedLoopStatement>(codeLoc,
+      cast<VariableDeclaration>(init->expand(from, to)),
+      container->expand(from, to),
+      body->expand(from, to));
+  ret->condition = condition->expand(from, to);
+  ret->increment = increment->expand(from, to);
+  ret->containerName = containerName;
+  ret->containerEnd = cast<VariableDeclaration>(containerEnd->expand(from, to));
+  return ret;
+}
+
+unique_ptr<Statement> RangedLoopStatement::expandVar(string from, vector<string> to) const {
+  auto ret = unique<RangedLoopStatement>(codeLoc,
+      cast<VariableDeclaration>(init->expandVar(from, to)),
+      container->expandVar(from, to),
+      body->expandVar(from, to));
+  ret->condition = condition->expandVar(from, to);
+  ret->increment = increment->expandVar(from, to);
+  ret->containerName = containerName;
+  ret->containerEnd = cast<VariableDeclaration>(containerEnd->expandVar(from, to));
+  return ret;
+}
+
 optional<ErrorLoc> BreakStatement::check(Context& context, bool) {
   if (auto id = context.getLoopId()) {
     loopId = *id;
@@ -1938,6 +2258,27 @@ unique_ptr<Expression> ArrayLiteral::replace(SType from, SType to, ErrorBuffer& 
   auto ret = unique<ArrayLiteral>(codeLoc);
   for (auto& elem : contents)
     ret->contents.push_back(elem->replace(from, to, errors));
+  return ret;
+}
+
+unique_ptr<Expression> ArrayLiteral::expand(SType from, vector<SType> to) const {
+  auto ret = unique<ArrayLiteral>(codeLoc);
+  for (auto& elem : contents)
+    ret->contents.push_back(elem->expand(from, to));
+  return ret;
+}
+
+unique_ptr<Expression> ArrayLiteral::replaceVar(string from, string to) const {
+  auto ret = unique<ArrayLiteral>(codeLoc);
+  for (auto& elem : contents)
+    ret->contents.push_back(elem->replaceVar(from, to));
+  return ret;
+}
+
+unique_ptr<Expression> ArrayLiteral::expandVar(string from, vector<string> to) const {
+  auto ret = unique<ArrayLiteral>(codeLoc);
+  for (auto& elem : contents)
+    ret->contents.push_back(elem->expandVar(from, to));
   return ret;
 }
 

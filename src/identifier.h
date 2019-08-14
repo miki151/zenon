@@ -16,6 +16,7 @@ struct IdentifierInfo {
     vector<TemplateParameterInfo> templateArguments;
     string toString() const;
     bool operator == (const IdentifierPart&) const;
+    bool variadic = false;
     //HASH_ALL(name, templateArguments)
   };
   explicit IdentifierInfo(string name, CodeLoc);

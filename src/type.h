@@ -316,7 +316,9 @@ struct FunctionType {
   bool fromConcept = false;
   bool builtinOperator = false;
   bool generatedConstructor = false;
-  COMPARABLE(FunctionType, retVal, params, templateParams, parentType)
+  bool variadicTemplate = false;
+  bool variadicParams = false;
+  COMPARABLE(FunctionType, retVal, params, templateParams, parentType, variadicTemplate, variadicParams)
 };
 
 struct FunctionInfo : public owned_object<FunctionInfo> {
@@ -360,7 +362,8 @@ extern WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, 
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing = {});
 extern FunctionType replaceInFunction(FunctionType, SType from, SType to, ErrorBuffer&);
 extern SFunctionInfo replaceInFunction(const SFunctionInfo&, SType from, SType to, ErrorBuffer&);
-extern string joinTemplateParams(const vector<SType>&);
+extern string joinTemplateParams(const vector<SType>&, bool variadic = false);
 extern string joinTypeList(const vector<SType>&);
 extern string joinTemplateParamsCodegen(const vector<SType>&);
 extern string joinTypeListCodegen(const vector<SType>&);
+extern string getExpandedParamName(const string& packName, int index);

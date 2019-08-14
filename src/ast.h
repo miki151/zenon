@@ -43,6 +43,10 @@ struct Expression : Node {
   virtual WithErrorLine<SType> getDotOperatorType(Expression* left, Context& callContext);
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorBuffer&) const = 0;
+  virtual unique_ptr<Expression> expand(SType from, vector<SType> to) const;
+  virtual unique_ptr<Expression> replaceVar(string from, string to) const;
+  virtual unique_ptr<Expression> expandVar(string from, vector<string> to) const;
+  unique_ptr<Expression> deepCopy() const;
   bool withBrackets = false;
 };
 
@@ -74,6 +78,7 @@ struct Variable : Expression {
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual nullable<SType> eval(const Context&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual WithErrorLine<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
@@ -86,6 +91,9 @@ struct BinaryExpression : Expression {
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual nullable<SType> eval(const Context&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Expression> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
+  virtual unique_ptr<Expression> expandVar(string from, vector<string> to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
   Operator op;
@@ -100,6 +108,9 @@ struct UnaryExpression : Expression {
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual nullable<SType> eval(const Context&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Expression> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
+  virtual unique_ptr<Expression> expandVar(string from, vector<string> to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
   Operator op;
@@ -111,6 +122,7 @@ struct MoveExpression : Expression {
   MoveExpression(CodeLoc, string);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   string identifier;
@@ -121,6 +133,9 @@ struct ArrayLiteral : Expression {
   ArrayLiteral(CodeLoc);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Expression> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
+  virtual unique_ptr<Expression> expandVar(string from, vector<string> to) const override;
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   vector<unique_ptr<Expression>> contents;
@@ -138,6 +153,9 @@ struct FunctionCall : Expression {
   virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const override;
   virtual nullable<SType> eval(const Context&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Expression> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
+  virtual unique_ptr<Expression> expandVar(string from, vector<string> to) const override;
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
   optional<IdentifierInfo> identifier;
   optional<IdentifierType> identifierType;
@@ -146,9 +164,15 @@ struct FunctionCall : Expression {
   vector<unique_ptr<Expression>> arguments;
   vector<optional<string>> argNames;
   optional<MethodCallType> callType;
-
+  bool variadicArgs = false;
+  bool variadicTemplateArgs = false;
   struct Private {};
   FunctionCall(CodeLoc, Private);
+
+  private:
+  optional<ErrorLoc> initializeTemplateArgsAndIdentifierType(const Context&);
+  optional<ErrorLoc> checkNamedArgs() const;
+  optional<ErrorLoc> checkVariadicCall(Expression* left, const Context&);
 };
 
 struct AST;
@@ -164,6 +188,9 @@ struct Statement : Node {
   virtual void addGeneratedConstructor(Context&, const AST&) const {}
   virtual void codegen(Accu&, CodegenStage) const override {}
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const;
+  virtual unique_ptr<Statement> expand(SType from, vector<SType> to) const;
+  virtual unique_ptr<Statement> expandVar(string from, vector<string> to) const;
+  unique_ptr<Statement> deepCopy() const;
   enum class TopLevelAllowance {
     CANT,
     CAN,
@@ -184,6 +211,8 @@ struct VariableDeclaration : Statement {
   NODISCARD virtual optional<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Statement> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Statement> expandVar(string from, vector<string> to) const override;
 };
 
 struct ExternConstantDeclaration : Statement {
@@ -209,6 +238,8 @@ struct IfStatement : Statement {
   NODISCARD virtual optional<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Statement> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Statement> expandVar(string from, vector<string> to) const override;
 };
 
 struct StatementBlock : Statement {
@@ -219,6 +250,8 @@ struct StatementBlock : Statement {
   NODISCARD virtual optional<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Statement> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Statement> expandVar(string from, vector<string> to) const override;
 };
 
 struct ReturnStatement : Statement {
@@ -229,6 +262,8 @@ struct ReturnStatement : Statement {
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual optional<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Statement> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Statement> expandVar(string from, vector<string> to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
@@ -255,6 +290,8 @@ struct ExpressionStatement : Statement {
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual optional<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Statement> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Statement> expandVar(string from, vector<string> to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual bool hasReturnStatement(const Context&) const override;
   bool canDiscard = false;
@@ -272,6 +309,8 @@ struct ForLoopStatement : Statement {
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual optional<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Statement> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Statement> expandVar(string from, vector<string> to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
@@ -289,6 +328,8 @@ struct RangedLoopStatement : Statement {
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual optional<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Statement> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Statement> expandVar(string from, vector<string> to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
@@ -300,6 +341,8 @@ struct WhileLoopStatement : Statement {
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual optional<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorBuffer&) const override;
+  virtual unique_ptr<Statement> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Statement> expandVar(string from, vector<string> to) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
 };
 
@@ -313,7 +356,12 @@ struct TemplateParameter {
 
 struct TemplateInfo {
   vector<TemplateParameter> params;
-  vector<IdentifierInfo> requirements;
+  bool variadic = false;
+  struct Requirement {
+    IdentifierInfo identifier;
+    bool variadic = false;
+  };
+  vector<Requirement> requirements;
 };
 
 struct StructDefinition : Statement {
@@ -438,6 +486,7 @@ struct FunctionDefinition : Statement {
   };
   bool isVirtual = false;
   bool isDefault = false;
+  bool isVariadicParams = false;
   vector<Initializer> initializers;
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual optional<ErrorLoc> addToContext(Context&, ImportCache&, const Context& primaryContext) override;

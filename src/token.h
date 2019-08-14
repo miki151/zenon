@@ -58,7 +58,8 @@ enum class Keyword {
   BREAK,
   CONTINUE,
   VIRTUAL,
-  DISCARD
+  DISCARD,
+  ELLIPSIS
 };
 
 struct EmbedToken {

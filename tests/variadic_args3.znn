@@ -1,0 +1,16 @@
+// 6
+
+int cnt() {
+  return 0;
+}
+
+template <T, MyArgs...>
+int cnt() {
+  return 1 + cnt<MyArgs...>();
+}
+
+struct X;
+
+int main() {
+  return cnt<int, char, X, string, int, int>();
+}

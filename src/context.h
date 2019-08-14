@@ -31,12 +31,21 @@ class Context : public owned_object<Context> {
   optional<string> getMissingFunctions(const Concept&, vector<FunctionType> existing) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   void addVariable(const string& ident, SType);
+  void addVariablePack(const string& ident, SType);
+  struct VariablePackInfo {
+    string name;
+    SType type;
+    bool wasExpanded = false;
+  };
+  const optional<VariablePackInfo>& getVariablePack() const;
+  void expandVariablePack(const vector<string>&);
   void replace(SType from, SType to, ErrorBuffer&);
   nullable<SType> getReturnType() const;
   void setReturnType(SType);
-  void addType(const string& name, SType, bool fullyDefined = true);
-  WithErrorLine<SType> getTypeFromString(IdentifierInfo) const;
+  void addType(const string& name, SType, bool fullyDefined = true, bool typePack = false);
+  WithErrorLine<SType> getTypeFromString(IdentifierInfo, bool typePack = false) const;
   nullable<SType> getType(const string&) const;
+  nullable<SType> getTypePack() const;
   bool isFullyDefined(const Type*) const;
   void setFullyDefined(const Type*, bool);
   vector<SType> getAllTypes() const;
@@ -75,7 +84,9 @@ class Context : public owned_object<Context> {
   struct State : public owned_object<State> {
     map<string, SType> vars;
     vector<string> varsList;
+    optional<VariablePackInfo> variablePack;
     map<string, SType> types;
+    nullable<SType> typePack;
     map<const Type*, bool> fullyDefinedTypes;
     map<FunctionId, vector<SFunctionInfo>> functions;
     nullable<SType> returnType;
@@ -94,7 +105,7 @@ class Context : public owned_object<Context> {
   void setAsTopLevel();
   static Context withStates(TypeRegistry*, ConstStates);
 
-  WithErrorLine<vector<SType> > getTypeList(const vector<TemplateParameterInfo>&) const;
+  WithErrorLine<vector<SType> > getTypeList(const vector<TemplateParameterInfo>&, bool variadic) const;
 
   TypeRegistry* const typeRegistry;
 

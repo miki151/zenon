@@ -1,0 +1,10 @@
+// no_compile
+
+template <Arg, Args...>
+int sum(Arg a, Args... args) {
+  return sum(move(args)...);
+}
+
+int main() {
+  return 0;
+}

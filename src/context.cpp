@@ -138,16 +138,37 @@ Context Context::withStates(TypeRegistry* t, ConstStates states) {
 }
 
 WithError<SType> Context::getTypeOfVariable(const string& id) const {
-  for (auto& state : getReversedStates()) {
+  for (auto& state : getReversedStates())
     if (state->vars.count(id))
       return state->vars.at(id);
-  }
+  for (auto& state : getReversedStates())
+    if (state->variablePack && state->variablePack->name == id)
+      return "Parameter pack must be unpacked using the '...' operator before being used"s;
   return "Variable not found: " + id;
 }
 
 void Context::addVariable(const string& ident, SType t) {
   state->vars.insert({ident, t});
   state->varsList.push_back(ident);
+}
+
+void Context::addVariablePack(const string& ident, SType t) {
+  state->variablePack = VariablePackInfo{ident, t};
+}
+
+const optional<Context::VariablePackInfo>& Context::getVariablePack() const {
+  for (auto& state : getReversedStates())
+    if (state->variablePack)
+      return state->variablePack;
+  return state->variablePack;
+}
+
+void Context::expandVariablePack(const vector<string>& vars) {
+  auto& pack = *getVariablePack();
+  for (auto& v : vars)
+    addVariable(v, pack.type);
+  state->variablePack = pack;
+  state->variablePack->wasExpanded = true;
 }
 
 void Context::State::print() const {
@@ -238,22 +259,25 @@ void Context::setReturnType(SType t) {
   state->returnType = t;
 }
 
-void Context::addType(const string& name, SType t, bool fullyDefined) {
+void Context::addType(const string& name, SType t, bool fullyDefined, bool typePack) {
   CHECK(!getType(name));
   state->types.insert({name, t});
   state->fullyDefinedTypes.insert({t.get(), fullyDefined});
+  if (typePack)
+    state->typePack = t;
 }
 
-WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameterInfo>& ids) const {
+WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameterInfo>& ids, bool variadic) const {
   vector<SType> params;
-  for (auto& id : ids) {
-    auto type = id.visit(
-        [&](const IdentifierInfo& id) -> WithErrorLine<SType> { return getTypeFromString(id); },
+  for (int i = 0; i < ids.size(); ++i) {
+    auto type = ids[i].visit(
+        [&](const IdentifierInfo& id) -> WithErrorLine<SType> {
+          return getTypeFromString(id,  i == ids.size() - 1 && variadic); },
         [&](const shared_ptr<Expression>& expr) -> WithErrorLine<SType> {
-            if (auto value = expr->eval(*this))
-              return value.get();
-            else
-              return expr->codeLoc.getError("Can't evaluate expression at compile-time");
+          if (auto value = expr->eval(*this))
+            return value.get();
+          else
+            return expr->codeLoc.getError("Can't evaluate expression at compile-time");
         }
     );
     if (type)
@@ -280,6 +304,13 @@ nullable<SType> Context::getType(const string& s) const {
   for (auto& state : getReversedStates())
     if (state->types.count(s))
       return state->types.at(s);
+  return nullptr;
+}
+
+nullable<SType> Context::getTypePack() const {
+  for (auto& state : getReversedStates())
+    if (auto t = state->typePack)
+      return t.get();
   return nullptr;
 }
 
@@ -335,16 +366,23 @@ nullable<SType> Context::getVariable(const string& name) const {
   return nullptr;
 }
 
-WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id) const {
+WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, bool typePack) const {
   if (id.parts.size() != 1)
     return id.codeLoc.getError("Bad type identifier: " + id.prettyString());
   auto name = id.parts.at(0).name;
   auto topType = getType(name);
   if (!topType)
     return id.codeLoc.getError("Type not found: " + quote(name));
-  auto templateArgs = getTypeList(id.parts.at(0).templateArguments);
+  if (!typePack && topType == getTypePack())
+    return id.codeLoc.getError("Type parameter pack " + quote(name) + " must be unpacked using the '...' operator");
+  if (typePack && getTypePack() != topType.get())
+    return id.codeLoc.getError("Type " + quote(name) + " is not a type parameter pack");
+  bool variadicParams = id.parts.at(0).variadic;
+  auto templateArgs = getTypeList(id.parts.at(0).templateArguments, variadicParams);
   if (!templateArgs)
     return templateArgs.get_error();
+  if (variadicParams)
+    return id.codeLoc.getError("Type " + quote(name) + " is not a variadic template");
   WithErrorLine<SType> ret = topType->instantiate(*this, *templateArgs, id.codeLoc);
   if (ret)
     for (auto& elem : id.typeOperator) {

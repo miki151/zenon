@@ -1,0 +1,37 @@
+// 18
+
+template <T>
+int get(T) {
+  return 0;
+}
+
+int get(int a) {
+  return a * 2;
+}
+
+int sum() {
+  return 0;
+}
+
+template <Arg, Args...>
+int sum(Arg a, Args... args) {
+  return get(move(a)) + sum(move(args)...);
+}
+
+int alt(int a) {
+  return a + 1;
+}
+
+template <T>
+T alt(T a) {
+  return move(a);
+}
+
+template <Args...>
+int alt_sum(Args... args) {
+  return sum(alt(move(args))...);
+}
+
+int main() {
+  return alt_sum(1, 2, 'a', 3);
+}

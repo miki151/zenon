@@ -1,0 +1,9 @@
+// no_compile
+
+template <MyArgs...>
+void eat(MyArgs my_args) {
+}
+
+int main() {
+  return 0;
+}

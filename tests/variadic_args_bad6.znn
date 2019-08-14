@@ -1,0 +1,9 @@
+// no_compile
+
+template <Args...>
+void f(Args... m, int a) {
+}
+
+int main() {
+  return 0;
+}
