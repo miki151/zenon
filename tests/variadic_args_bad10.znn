@@ -1,0 +1,10 @@
+// no_compile
+
+template <Args...>
+void f(Args*...) {
+}
+
+int main() {
+  f(1);
+  return 0;
+}

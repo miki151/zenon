@@ -1,0 +1,8 @@
+// no_compile
+
+template <int N> requires (N > 0)
+int f() { return N; }
+
+int main() {
+  return f<-1>();
+}

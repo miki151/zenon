@@ -340,10 +340,11 @@ struct TemplateParameter {
 struct TemplateInfo {
   vector<TemplateParameter> params;
   bool variadic = false;
-  struct Requirement {
+  struct ConceptRequirement {
     IdentifierInfo identifier;
     bool variadic = false;
   };
+  using Requirement = variant<ConceptRequirement, shared_ptr<Expression>>;
   vector<Requirement> requirements;
 };
 

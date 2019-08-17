@@ -1,0 +1,12 @@
+// no_compile
+
+bool b() {
+  return true;
+}
+
+template <int N> requires (b())
+int f() { return N; }
+
+int main() {
+  return 0;
+}

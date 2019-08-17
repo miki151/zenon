@@ -657,8 +657,9 @@ SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
       members.type = members.type->replace(from, to, errors);
     }
     ret->requirements = requirements;
-    for (auto& concept : ret->requirements)
-      concept = concept->replace(from, to, errors);
+    for (auto& req : ret->requirements)
+      req.visit([&](SConcept& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); },
+          [&](shared_ptr<Expression>& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); });
     ret->staticContext.replace(from, to, errors);
   } else
     INFO << "Found instantiated: " << ret->getName();
@@ -673,8 +674,9 @@ FunctionType replaceInFunction(FunctionType type, SType from, SType to, ErrorBuf
     param.type = param.type->replace(from, to, errors);
   for (auto& param : type.templateParams)
     param = param->replace(from, to, errors);
-  for (auto& concept : type.requirements)
-    concept = concept->replace(from, to, errors);
+  for (auto& req : type.requirements)
+    req.visit([&](SConcept& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); },
+        [&](shared_ptr<Expression>& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); });
   return type;
 }
 
@@ -718,9 +720,15 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
     if (!errors.empty())
       return errors[0];
   }
-  for (auto& concept : ret.dynamicCast<StructType>()->requirements)
-    if (auto error = context.getMissingFunctions(*concept, {}))
-      return loc.getError(*error);
+  for (auto& req : ret.dynamicCast<StructType>()->requirements)
+    if (auto concept = req.getReferenceMaybe<SConcept>()) {
+      if (auto error = context.getMissingFunctions(**concept, {}))
+        return loc.getError(*error);
+    } else
+    if (auto expr1 = req.getReferenceMaybe<shared_ptr<Expression>>()) {
+      if (expr1->get()->eval(context) == CompileTimeValue::get(false))
+        return loc.getError("Unable to insantiate " + quote(ret->getName()) + ": predicate requirement evaluates to false");
+    }
   return (SType) ret;
 }
 
@@ -927,9 +935,15 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
       return FunctionInfo::getInstance(input->id, type, input);
   existing.push_back(input->type);
   //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
-  for (auto& concept : type.requirements)
-    if (auto error = context.getMissingFunctions(*concept, existing))
-      return codeLoc.getError(*error);
+  for (auto& req : type.requirements)
+    if (auto concept = req.getReferenceMaybe<SConcept>()) {
+      if (auto error = context.getMissingFunctions(**concept, existing))
+        return codeLoc.getError(*error);
+    } else
+    if (auto expr1 = req.getReferenceMaybe<shared_ptr<Expression>>()) {
+      if (expr1->get()->eval(context) == CompileTimeValue::get(false))
+        return expr1->get()->codeLoc.getError("Predicate evaluates to false");
+    }
   return FunctionInfo::getInstance(input->id, type, input);
 }
 
@@ -1031,6 +1045,11 @@ optional<string> ArrayType::getMangledName() const {
 }
 
 SType ArrayType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  /*if (from == size)
+    if (auto value = to.dynamicCast<CompileTimeValue>())
+      if (auto intValue = value->value.getValueMaybe<int>())
+        if (*intValue <= 0)
+          errors.push_back(CodeLoc().getError("Can't have non-positive array size"));*/
   return get(underlying->replace(from, to, errors), size->replace(from, to, errors).dynamicCast<CompileTimeValue>());
 }
 

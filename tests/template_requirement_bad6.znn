@@ -1,0 +1,15 @@
+// no_compile
+
+template <int N> requires (N > 0)
+struct S {
+  int[N] elems;
+};
+
+template <T>
+void f() {
+}
+
+int main() {
+  f<S<-10>>();
+  return 0;
+}

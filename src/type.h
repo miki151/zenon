@@ -14,6 +14,9 @@ struct SwitchStatement;
 struct FunctionDefinition;
 struct Accu;
 
+
+using TemplateRequirement = variant<SConcept, shared_ptr<Expression>>;
+
 struct Type : public owned_object<Type> {
   Type();
   virtual string getName(bool withTemplateArguments = true) const = 0;
@@ -239,7 +242,7 @@ struct StructType : public Type {
   vector<SType> templateParams;
   vector<shared_ptr<StructType>> instances;
   nullable<shared_ptr<StructType>> parent;
-  vector<SConcept> requirements;
+  vector<TemplateRequirement> requirements;
   struct Variable {
     string name;
     SType type;
@@ -311,7 +314,7 @@ struct FunctionType {
   SType retVal;
   vector<Param> params;
   vector<SType> templateParams;
-  vector<SConcept> requirements;
+  vector<TemplateRequirement> requirements;
   nullable<SType> parentType;
   bool fromConcept = false;
   bool builtinOperator = false;

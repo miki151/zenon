@@ -1,0 +1,9 @@
+// no_compile
+
+template <T>
+void f() {}
+
+int main() {
+  f<int[-10]>();
+  return 0;
+}

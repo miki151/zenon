@@ -1,0 +1,8 @@
+// no_compile
+
+template <int N> requires (N + 1)
+int f() { return N; }
+
+int main() {
+  return 0;
+}

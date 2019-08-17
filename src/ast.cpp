@@ -610,38 +610,51 @@ bool ReturnStatement::hasReturnStatement(const Context&) const {
   return true;
 }
 
-NODISCARD static WithErrorLine<vector<SConcept>> applyConcept(Context& from, const vector<TemplateInfo::Requirement>& requirements) {
-  vector<SConcept> ret;
-  for (auto& requirement : requirements) {
-    auto& reqId = requirement.identifier;
-    if (auto concept = from.getConcept(reqId.parts[0].name)) {
-      auto& requirementArgs = reqId.parts[0].templateArguments;
-      if (requirementArgs.size() != concept->getParams().size())
-        return reqId.codeLoc.getError(
-            "Wrong number of template arguments to concept " + quote(reqId.parts[0].toString()));
-      vector<SType> translatedParams;
-      for (int i = 0; i < requirementArgs.size(); ++i) {
-        if (auto arg = requirementArgs[i].getReferenceMaybe<IdentifierInfo>()) {
-          if (auto origParam = from.getTypeFromString(*arg)) {
-            if (auto templateParam = origParam->dynamicCast<TemplateParameterType>())
-              // Support is_enum concept
-              if (concept->getParams()[i]->getType() != ArithmeticType::ANY_TYPE)
-                templateParam->type = concept->getParams()[i]->getType();
-            translatedParams.push_back(std::move(*origParam));
+NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyConcept(Context& from, const vector<TemplateInfo::Requirement>& requirements) {
+  vector<TemplateRequirement> ret;
+  for (auto& req : requirements)
+    if (auto requirement = req.getValueMaybe<TemplateInfo::ConceptRequirement>()) {
+      auto& reqId = requirement->identifier;
+      if (auto concept = from.getConcept(reqId.parts[0].name)) {
+        auto& requirementArgs = reqId.parts[0].templateArguments;
+        if (requirementArgs.size() != concept->getParams().size())
+          return reqId.codeLoc.getError(
+              "Wrong number of template arguments to concept " + quote(reqId.parts[0].toString()));
+        vector<SType> translatedParams;
+        for (int i = 0; i < requirementArgs.size(); ++i) {
+          if (auto arg = requirementArgs[i].getReferenceMaybe<IdentifierInfo>()) {
+            if (auto origParam = from.getTypeFromString(*arg)) {
+              if (auto templateParam = origParam->dynamicCast<TemplateParameterType>())
+                // Support is_enum concept
+                if (concept->getParams()[i]->getType() != ArithmeticType::ANY_TYPE)
+                  templateParam->type = concept->getParams()[i]->getType();
+              translatedParams.push_back(std::move(*origParam));
+            } else
+              return origParam.get_error();
           } else
-            return origParam.get_error();
-        } else
-          return reqId.codeLoc.getError("Expected a type argument");
-      }
-      ErrorBuffer errors;
-      auto translated = concept->translate(translatedParams, errors);
-      if (!errors.empty())
-        return errors[0];
-      from.merge(translated->getContext());
-      ret.push_back(translated);
+            return reqId.codeLoc.getError("Expected a type argument");
+        }
+        ErrorBuffer errors;
+        auto translated = concept->translate(translatedParams, errors);
+        if (!errors.empty())
+          return errors[0];
+        from.merge(translated->getContext());
+        ret.push_back(translated);
+      } else
+        return reqId.codeLoc.getError("Uknown concept: " + reqId.parts[0].name);
     } else
-      return reqId.codeLoc.getError("Uknown concept: " + reqId.parts[0].name);
-  }
+    if (auto expr1 = req.getValueMaybe<shared_ptr<Expression>>()) {
+      auto expr = expr1->get()->deepCopy();
+      if (auto res = getType(from, expr); !res)
+        return res.get_error();
+      if (auto value = expr->eval(from)) {
+        if (value->getType() != ArithmeticType::BOOL)
+          return expr->codeLoc.getError("Expected expression of type " + quote(ArithmeticType::BOOL->getName()) +
+              ", got " + quote(value->getType()->getName()));
+        ret.push_back(shared_ptr<Expression>(std::move(expr)));
+      } else
+        return expr1->get()->codeLoc.getError("Unable to evaluate expression at compile-time");
+    }
   return ret;
 }
 
@@ -1458,7 +1471,7 @@ unique_ptr<Expression> FunctionCall::transform(const Expression::TransformFun& f
   ret->identifier = identifier;
   for (auto& arg : arguments)
     ret->arguments.push_back(fun(arg.get()));
-  ret->templateArgs = *templateArgs;
+  ret->templateArgs = templateArgs;
   ret->argNames = argNames;
   ret->identifierType = identifierType;
   ret->variadicArgs = variadicArgs;

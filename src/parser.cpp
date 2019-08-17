@@ -460,9 +460,17 @@ static WithErrorLine<TemplateInfo> parseTemplateInfo(Tokens& tokens) {
   CHECK(!!tokens.eat(Operator::MORE_THAN));
   if (tokens.eatMaybe(Keyword::REQUIRES))
     while (1) {
+      if (tokens.eatMaybe(Keyword::OPEN_BRACKET)) {
+        if (auto expr = parseExpression(tokens)) {
+          ret.requirements.push_back(getSharedPtr(std::move(*expr)));
+          if (auto err = tokens.eat(Keyword::CLOSE_BRACKET); !err)
+            return err.get_error();
+        } else
+          return expr.get_error();
+      } else
       if (auto id = parseIdentifier(tokens, false)) {
         bool variadic = !!tokens.eatMaybe(Keyword::ELLIPSIS);
-        ret.requirements.push_back(TemplateInfo::Requirement{*id, variadic});
+        ret.requirements.push_back(TemplateInfo::ConceptRequirement{*id, variadic});
       } else
         return id.get_error();
       if (!tokens.eatMaybe(Keyword::COMMA))
