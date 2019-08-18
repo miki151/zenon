@@ -1108,7 +1108,7 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
       [](const string& v) { return v; },
       [](const EnumValue& t) { return t.type->getName() + "::" + t.type->elements[t.index]; },
       [](const ArrayValue& t) { return "{" + combine(transform(t.values,
-           [](const auto& v) { return v->getName();}), ", ") + "}"; },
+          [](const auto& v) { return v->getName();}), ", ") + "}"; },
       [](const TemplateValue& v) { return v.name; },
       [](const TemplateExpression& v) { return getPrettyString(v.op, v.args); },
       [](const TemplateFunctionCall& v) { return "[function call]"; }
@@ -1120,7 +1120,7 @@ string CompileTimeValue::getCodegenName() const {
       [this](const auto&) { return getName(); },
       [](const string& v) { return "\"" + v +"\"_lstr"; },
       [](const ArrayValue& t) { return "make_array(" + combine(transform(t.values,
-      [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
+          [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
       [](const TemplateValue&) -> string { fail(); },
       [](const TemplateExpression&) -> string { fail(); },
       [](const TemplateFunctionCall&) -> string { fail(); }
