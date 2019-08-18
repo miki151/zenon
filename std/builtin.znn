@@ -3,6 +3,7 @@ export import "std/slice.znn";
 export import "std/array.znn";
 export import "std/concepts.znn";
 export import "std/string.znn";
+export import "std/optional.znn";
 
 export template <T>
 T* copy(T** p) {

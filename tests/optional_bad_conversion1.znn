@@ -1,0 +1,11 @@
+// no_compile
+
+template <T>
+T get(T? a) {
+  embed {}
+}
+
+int main() {
+  return get(null);
+}
+

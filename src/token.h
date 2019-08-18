@@ -42,6 +42,7 @@ enum class Keyword {
   CASE,
   DEFAULT,
   MAYBE,
+  NULL_TOKEN,
   TEMPLATE,
   FOR,
   WHILE,

@@ -4,7 +4,7 @@ import "std/concepts.znn";
 
 int f() {
   const a = A(5);
-  const v = V<int>::null();
+  const v = V<int>::isNull();
   const e = E::E1;
   return g();
 }
@@ -54,7 +54,7 @@ T m2(A<T>* a) {
 
 template <T>
 variant V {
-  void null;
+  void isNull;
   T elem;
 };
 

@@ -1,5 +1,4 @@
 // 6
-import "std/nullable.znn";
 
 struct X {
   int value;
@@ -9,12 +8,12 @@ int f(X* x) {
   return 1;
 }
 
-nullable<X> get1() {
-  return null<X>();
+X? get1() {
+  return null;
 }
 
-nullable<X> get2() {
-  return value(X(5));
+X? get2() {
+  return X(5);
 }
 
 bool get_bool() {

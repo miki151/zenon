@@ -72,6 +72,9 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
       else if (auto t = tokens.eatMaybe(Operator::MULTIPLY)) {
         ret.typeOperator.push_back(IdentifierInfo::CONST);
       }
+      else if (auto t = tokens.eatMaybe(Keyword::MAYBE)) {
+        ret.typeOperator.push_back(IdentifierInfo::Optional{});
+      }
       else if (auto t = tokens.eatMaybe(Keyword::OPEN_SQUARE_BRACKET)) {
         if (tokens.peek() != Keyword::CLOSE_SQUARE_BRACKET) {
           if (auto expr = parseExpression(tokens))
@@ -218,6 +221,9 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
           case Keyword::TRUE:
             tokens.popNext();
             return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(true)));
+          case Keyword::NULL_TOKEN:
+            tokens.popNext();
+            return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(CompileTimeValue::NullValue{})));
           case Keyword::OPEN_BLOCK:
             return parseArrayLiteral(tokens);
           default:

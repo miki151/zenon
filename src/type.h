@@ -68,6 +68,7 @@ struct ArithmeticType : public Type {
   static DefType NORETURN;
   static DefType ANY_TYPE;
   static DefType ENUM_TYPE;
+  static DefType NULL_TYPE;
   static DefType STRUCT_TYPE;
   ArithmeticType(const string& name, optional<string> codegenName = none);
 
@@ -140,6 +141,20 @@ struct MutablePointerType : public Type {
   SType underlying;
 };
 
+struct OptionalType : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual optional<string> getMangledName() const override;
+  virtual string getCodegenName() const override;
+  //virtual bool canAssign(SType from) const override;
+  virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
+  virtual bool isBuiltinCopyable(const Context&) const override;
+
+  static shared_ptr<OptionalType> get(SType);
+  SType underlying;
+  OptionalType(SType);
+};
+
 struct EnumType;
 
 #define COMPARABLE(Type, ...)\
@@ -191,8 +206,8 @@ struct CompileTimeValue : public Type {
     SType type;
     COMPARABLE(ArrayValue, values, type)
   };
-
-  using Value = variant<int, bool, double, char, string, EnumValue, ArrayValue, TemplateValue, TemplateExpression, TemplateFunctionCall>;
+  struct NullValue { COMPARABLE(NullValue) };
+  using Value = variant<int, bool, double, char, NullValue, string, EnumValue, ArrayValue, TemplateValue, TemplateExpression, TemplateFunctionCall>;
   static shared_ptr<CompileTimeValue> get(Value);
   static shared_ptr<CompileTimeValue> getTemplateValue(SType type, string name);
   Value value;

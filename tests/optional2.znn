@@ -1,0 +1,10 @@
+// 5
+
+int main() {
+  mutable int? x = 5;
+  if (x)
+    return *x;
+  else
+    return 4;
+}
+

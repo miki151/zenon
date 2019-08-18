@@ -11,6 +11,7 @@ ArithmeticType::DefType ArithmeticType::CHAR = shared<ArithmeticType>("char");
 ArithmeticType::DefType ArithmeticType::NORETURN = shared<ArithmeticType>("noreturn", "[[noreturn]] void"s);
 ArithmeticType::DefType ArithmeticType::ANY_TYPE = shared<ArithmeticType>("any_type");
 ArithmeticType::DefType ArithmeticType::ENUM_TYPE = shared<ArithmeticType>("enum_type");
+ArithmeticType::DefType ArithmeticType::NULL_TYPE = shared<ArithmeticType>("null_type");
 ArithmeticType::DefType ArithmeticType::STRUCT_TYPE = shared<ArithmeticType>("struct_type");
 
 string ArithmeticType::getName(bool withTemplateArguments) const {
@@ -888,7 +889,7 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
   FunctionType type = input->type;
   if (auto error = expandVariadicTemplate(type, codeLoc, templateArgs, argTypes))
     return *error;
-  vector<SType> funParams = transform(type.params, [](const FunctionType::Param& p) { return p.type; });
+  const vector<SType> funParams = transform(type.params, [](const FunctionType::Param& p) { return p.type; });
   if (templateArgs.size() > type.templateParams.size())
     return codeLoc.getError("Too many template arguments.");
   TypeMapping mapping { type.templateParams, vector<nullable<SType>>(type.templateParams.size()) };
@@ -899,15 +900,18 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
         to_string(funParams.size()) + " got " + to_string(argTypes.size()));
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
-    for (auto tArg : context.getConversions(argTypes[i])) {
-      if (auto error = getDeductionError(context, mapping, funParams[i], tArg)) {
-        if (!firstError)
-          firstError = argLoc[i].getError(*error);
-      } else {
-        firstError = none;
-        break;
-      }
-    }
+    if (argTypes[i] != ArithmeticType::NULL_TYPE)
+      for (auto tArg : context.getConversions(argTypes[i]))
+        if (!input->id.contains<Operator>() || tArg == argTypes[i] ||
+            (tArg.dynamicCast<ArithmeticType>() && argTypes[i].dynamicCast<ArithmeticType>())) {
+          if (auto error = getDeductionError(context, mapping, funParams[i], tArg)) {
+            if (!firstError)
+              firstError = argLoc[i].getError(*error);
+          } else {
+            firstError = none;
+            break;
+          }
+        }
     if (firstError)
       return *firstError;
   }
@@ -1100,6 +1104,7 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
       [](double v) { return to_string(v); },
       [](bool v) { return v ? "true" : "false"; },
       [](char v) { return "\'" + string(1, v) + "\'"; },
+      [](NullValue v) { return "null"; },
       [](const string& v) { return v; },
       [](const EnumValue& t) { return t.type->getName() + "::" + t.type->elements[t.index]; },
       [](const ArrayValue& t) { return "{" + combine(transform(t.values,
@@ -1115,7 +1120,7 @@ string CompileTimeValue::getCodegenName() const {
       [this](const auto&) { return getName(); },
       [](const string& v) { return "\"" + v +"\"_lstr"; },
       [](const ArrayValue& t) { return "make_array(" + combine(transform(t.values,
-           [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
+      [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
       [](const TemplateValue&) -> string { fail(); },
       [](const TemplateExpression&) -> string { fail(); },
       [](const TemplateFunctionCall&) -> string { fail(); }
@@ -1128,6 +1133,7 @@ SType CompileTimeValue::getType() const {
       [](double)-> SType {  return ArithmeticType::DOUBLE; },
       [](bool)-> SType {  return ArithmeticType::BOOL; },
       [](char)-> SType {  return ArithmeticType::CHAR; },
+      [](NullValue)-> SType {  return ArithmeticType::NULL_TYPE; },
       [](const string&)-> SType {  return ArithmeticType::STRING; },
       [](const EnumValue& v)-> SType {  return v.type; },
       [](const ArrayValue& v)-> SType {  return ArrayType::get(v.type, CompileTimeValue::get((int) v.values.size())); },
@@ -1261,4 +1267,43 @@ shared_ptr<TemplateStructMemberType> TemplateStructMemberType::get(SType structT
 }
 
 TemplateStructMemberType::TemplateStructMemberType(Private, SType structType, SCompileTimeValue index)
-    : structType(std::move(structType)), memberIndex(std::move(index)) {}
+  : structType(std::move(structType)), memberIndex(std::move(index)) {}
+
+string OptionalType::getName(bool withTemplateArguments) const {
+  return underlying->getName(withTemplateArguments) + "?";
+}
+
+optional<string> OptionalType::getMangledName() const {
+  return underlying->getMangledName().map([](const string& name) { return "OP" + name;});
+}
+
+string OptionalType::getCodegenName() const {
+  return "std::optional<" + underlying->getCodegenName() + ">";
+}
+
+optional<string> OptionalType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
+  if (auto argPointer = from.dynamicCast<OptionalType>())
+    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+  return "Can't bind type " + quote(from->getName()) + " to type " + quote(getName());
+}
+
+SType OptionalType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  return OptionalType::get(underlying->replace(from, to, errors));
+}
+
+bool OptionalType::isBuiltinCopyable(const Context& context) const {
+  return underlying->isBuiltinCopyable(context);
+}
+
+shared_ptr<OptionalType> OptionalType::get(SType type) {
+  static map<SType, shared_ptr<OptionalType>> generated;
+  if (!generated.count(type)) {
+    auto ret = shared<OptionalType>(type);
+    generated.insert({type, ret});
+  }
+  return generated.at(type);
+}
+
+OptionalType::OptionalType(SType t) : underlying(std::move(t)) {
+
+}

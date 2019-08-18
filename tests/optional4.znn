@@ -1,0 +1,14 @@
+// 5
+
+template <T>
+T getOr(T b, T? a) {
+  if (a)
+    return move(b);
+  else
+    return move(b);
+}
+
+int main() {
+  return getOr(5, null);
+}
+

@@ -1,8 +1,7 @@
 " Vim syntax file
 " Language:	Zenon
-" Current Maintainer:	vim-jp (https://github.com/vim-jp/vim-cpp)
-" Previous Maintainer:	Ken Shan <ccshan@post.harvard.edu>
-" Last Change:	2015 Nov 10
+" Current Maintainer:	Zenon dev (https://github.com/miki151/zenon)
+" Last Change:	2019
 
 " For version 5.x: Clear all syntax items
 " For version 6.x: Quit when a syntax file was already loaded
@@ -20,12 +19,12 @@ else
   unlet b:current_syntax
 endif
 
-" C++ extensions
+" Zenon extensions, includes C++ keywords because they're also reserved
 syn keyword cInclude            import
 syn keyword cppStatement	new delete this friend using move requires
 syn keyword cppAccess		public protected private
 syn keyword cppModifier		inline virtual explicit export
-syn keyword cppType		bool wchar_t string
+syn keyword cppType		bool wchar_t string 
 syn keyword cppExceptions	throw try catch
 syn keyword cppOperator		operator typeid
 syn keyword cppOperator		and bitor or xor compl bitand and_eq or_eq xor_eq not not_eq
@@ -34,29 +33,21 @@ syn match cppCast		"\<\(const\|static\|dynamic\|reinterpret\)_cast\s*$"
 syn keyword cppStorageClass	mutable
 syn keyword cppStructure	class typename template namespace variant embed concept
 syn keyword cppBoolean		true false
-syn keyword cppConstant		__cplusplus
+syn keyword cppConstant		__cplusplus null
 syn match   cFormat		display "{.\{-}}" contained
 
-" C++ 11 extensions
-if !exists("cpp_no_cpp11")
-  syn keyword cppModifier	override final
-  syn keyword cppType		nullptr_t
-  syn keyword cppExceptions	noexcept
-  syn keyword cppStorageClass	constexpr decltype thread_local
-  syn keyword cppConstant	nullptr
-  syn keyword cppConstant	ATOMIC_FLAG_INIT ATOMIC_VAR_INIT
-  syn keyword cppConstant	ATOMIC_BOOL_LOCK_FREE ATOMIC_CHAR_LOCK_FREE
-  syn keyword cppConstant	ATOMIC_CHAR16_T_LOCK_FREE ATOMIC_CHAR32_T_LOCK_FREE
-  syn keyword cppConstant	ATOMIC_WCHAR_T_LOCK_FREE ATOMIC_SHORT_LOCK_FREE
-  syn keyword cppConstant	ATOMIC_INT_LOCK_FREE ATOMIC_LONG_LOCK_FREE
-  syn keyword cppConstant	ATOMIC_LLONG_LOCK_FREE ATOMIC_POINTER_LOCK_FREE
-  syn region cppRawString	matchgroup=cppRawStringDelimiter start=+\%(u8\|[uLU]\)\=R"\z([[:alnum:]_{}[\]#<>%:;.?*\+\-/\^&|~!=,"']\{,16}\)(+ end=+)\z1"+ contains=@Spell
-endif
+syn keyword cppModifier	override final
+syn keyword cppType		nullptr_t
+syn keyword cppExceptions	noexcept
+syn keyword cppStorageClass	constexpr decltype thread_local
+syn keyword cppConstant	nullptr
+syn keyword cppConstant	ATOMIC_FLAG_INIT ATOMIC_VAR_INIT
+syn keyword cppConstant	ATOMIC_BOOL_LOCK_FREE ATOMIC_CHAR_LOCK_FREE
+syn keyword cppConstant	ATOMIC_CHAR16_T_LOCK_FREE ATOMIC_CHAR32_T_LOCK_FREE
+syn keyword cppConstant	ATOMIC_WCHAR_T_LOCK_FREE ATOMIC_SHORT_LOCK_FREE
+syn keyword cppConstant	ATOMIC_INT_LOCK_FREE ATOMIC_LONG_LOCK_FREE
+syn keyword cppConstant	ATOMIC_LLONG_LOCK_FREE ATOMIC_POINTER_LOCK_FREE
 
-" C++ 14 extensions
-if !exists("cpp_no_cpp14")
-  syn match cppNumber		display "\<0b[01]\+\(u\=l\{0,2}\|ll\=u\)\>"
-endif
 
 " The minimum and maximum operators in GNU C++
 syn match cppMinMax "[<>]?"

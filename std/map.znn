@@ -1,5 +1,4 @@
 
-export import "std/nullable.znn";
 export import "std/vector.znn";
 export import "std/concepts.znn";
 
@@ -42,22 +41,22 @@ bool contains(map<Key, Value>* m, Key key) {
 }
 
 template <Key, Value> requires comparable<Key>
-nullable<Value*> getMaybe(map<Key, Value>* m, Key key) {
+Value*? getMaybe(map<Key, Value>* m, Key key) {
   embed {
     if (m->count(key) > 0)
-      return value(&m->at(key));
+      return &m->at(key);
     else
-      return null<const Value*>();
+      return null;
   }
 }
 
 template <Key, Value> requires comparable<Key>
-nullable<Value mutable*> getMaybe(map<Key, Value> mutable* m, Key key) {
+Value mutable*? getMaybe(map<Key, Value> mutable* m, Key key) {
   embed {
     if (m->count(key) > 0)
-      return value(&m->at(key));
+      return &m->at(key);
     else
-      return null<Value*>();
+      return null;
   }
 }
 
@@ -75,5 +74,5 @@ vector<Key> getAllKeys(map<Key, Value>* m) {
     for (auto& elem : *m)
       ret.push_back(elem.first);
   }
-  return ret;
+  return move(ret);
 }

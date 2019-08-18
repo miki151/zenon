@@ -1,0 +1,13 @@
+// 5
+
+int getOr5(int? a) {
+  if (a)
+    return *a;
+  else
+    return 5;
+}
+
+int main() {
+  return getOr5(null);
+}
+

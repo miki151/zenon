@@ -199,11 +199,15 @@ vector<SType> Context::getConversions(SType type) const {
     ret.push_back(ArithmeticType::DOUBLE);
   if (auto ptr = type->getUnderlying().dynamicCast<MutablePointerType>())
     ret.push_back(PointerType::get(ptr->underlying));
+  if (type->getUnderlying() != ArithmeticType::NULL_TYPE)
+    ret.push_back(OptionalType::get(type->getUnderlying()));
   return ret;
 }
 
 bool Context::canConvert(SType from, SType to) const {
-  return contains(getConversions(from), to);
+  return contains(getConversions(from), to) ||
+      (from == ArithmeticType::NULL_TYPE && to.dynamicCast<OptionalType>() &&
+          to.dynamicCast<OptionalType>()->underlying != ArithmeticType::NULL_TYPE);
 }
 
 optional<int> Context::getLoopId() const {
@@ -410,6 +414,9 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, bool typePack
           },
           [&](IdentifierInfo::Slice) {
             *ret = SliceType::get(*ret);
+          },
+          [&](IdentifierInfo::Optional) {
+            *ret = OptionalType::get(*ret);
           }
       );
       if (!ret)

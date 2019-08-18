@@ -5,15 +5,15 @@ import "std/concepts.znn";
 template <Param>
 variant nullable {
   Param p;
-  void null;
+  void isNull;
 };
 
 template <Param> requires can_copy<Param>
 nullable<Param> copy(nullable<Param>* x) = default;
 
 template <T>
-nullable<T> null() {
-  return nullable<T>::null();
+nullable<T> isNull() {
+  return nullable<T>::isNull();
 }
 
 template <T>
@@ -36,7 +36,7 @@ bool equal(V2<U,V>* v, U u) {
   switch (move(vTmp)) {
     case (e1) {
       switch (move(e1)) {
-        case (null) {
+        case (isNull) {
           return false;
         }
         case (p) {

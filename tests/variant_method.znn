@@ -2,7 +2,7 @@
 
 variant V {
   int value;
-  void null;
+  void isNull;
 };
 
 int getValueOr(V mutable* v, int a) {
@@ -10,7 +10,7 @@ int getValueOr(V mutable* v, int a) {
     case (int value) {
       return value;
     }
-    case (null) {
+    case (isNull) {
       return a;
     }
   }
@@ -18,6 +18,6 @@ int getValueOr(V mutable* v, int a) {
 
 int main() {
   mutable v = V::value(5);
-  v = V::null();
+  v = V::isNull();
   return v.getValueOr(4);
 }

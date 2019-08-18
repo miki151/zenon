@@ -158,29 +158,19 @@ optional<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
   return none;
 }
 
-static bool isExactArg(SType arg, SType param, bool onlyValue) {
-  bool byValue = param == arg->getUnderlying();
-  bool byConstRef = param.dynamicCast<ReferenceType>() &&
-      !arg.dynamicCast<MutableReferenceType>() &&
-      param->getUnderlying() == arg->getUnderlying();
-  bool byRef = param == arg;
-  /*cout << "Passing " << arg->getName() << " to " << param->getName() << endl;
-  if (byValue) cout << "By value "; if (byConstRef) cout << "By const ref "; if (byRef) cout << "By ref ";
-  cout << endl;*/
-  return byValue || (!onlyValue && (byConstRef || byRef));
-}
-
-static bool exactArgs(const vector<SType>& argTypes, const FunctionType& f, bool onlyValue) {
+template <typename Comp>
+static bool exactArgs(const vector<SType>& argTypes, const FunctionType& f, Comp comp) {
   if (f.params.size() != argTypes.size() || !f.templateParams.empty())
     return false;
   for (int i = 0; i < f.params.size(); ++i)
-    if (!isExactArg(argTypes[i], f.params[i].type, onlyValue))
+    if (!comp(argTypes[i], f.params[i].type))
       return false;
   return true;
 }
 
-static bool exactFirstArg(const vector<SType>& argTypes, const FunctionType& overload, bool onlyValue) {
-  return !argTypes.empty() && !overload.params.empty() && isExactArg(argTypes[0], overload.params[0].type, onlyValue);
+template <typename Comp>
+static bool exactFirstArg(const vector<SType>& argTypes, const FunctionType& overload, Comp comp) {
+  return !argTypes.empty() && !overload.params.empty() && comp(argTypes[0], overload.params[0].type);
 }
 
 static bool fromConcept(const vector<SType>&, const FunctionType& f) {
@@ -203,10 +193,28 @@ static void filterOverloads(vector<SFunctionInfo>& overloads, const vector<SType
     if (overloads.empty())
       overloads = worse;
   };
-  filter([](const auto& args, const auto& overload) { return exactArgs(args, overload, true);}, "all args exact");
-  filter([](const auto& args, const auto& overload) { return exactFirstArg(args, overload, true);}, "first arg exact");
-  filter([](const auto& args, const auto& overload) { return exactArgs(args, overload, false);}, "all args exact");
-  filter([](const auto& args, const auto& overload) { return exactFirstArg(args, overload, false);}, "first arg exact");
+  auto isExactValueArg = [] (SType arg, SType param) {
+    return param == arg->getUnderlying();
+  };
+  auto isExactReferenceArg = [] (SType arg, SType param) {
+    bool byConstRef = param.dynamicCast<ReferenceType>() &&
+        !arg.dynamicCast<MutableReferenceType>() &&
+        param->getUnderlying() == arg->getUnderlying();
+    bool byRef = param == arg;
+    return byConstRef || byRef;
+  };
+  auto isConstToMutableReferenceArg = [] (SType arg, SType param) {
+    bool byConstRef = param.dynamicCast<ReferenceType>() &&
+        arg.dynamicCast<MutableReferenceType>() &&
+        param->getUnderlying() == arg->getUnderlying();
+    return byConstRef;
+  };
+  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload, isExactValueArg);}, "all args exact");
+  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload, isExactValueArg);}, "first arg exact");
+  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload, isExactReferenceArg);}, "all args exact");
+  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload, isExactReferenceArg);}, "first arg exact");
+  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload, isConstToMutableReferenceArg);}, "all args exact");
+  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload, isConstToMutableReferenceArg);}, "first arg exact");
   // sometimes a function is both in the global context and in the concept, so prefer the one in the concept
   filter(&fromConcept, "non concept");
   filter(&userDefinedConstructor, "user defined constructor");
@@ -229,8 +237,8 @@ static WithErrorLine<SFunctionInfo> handleOperatorOverloads(Context& context, Co
     //cout << "Chosen overload " << overloads[0].toString() << endl;
     return overloads[0];
   } else {
-      string error = "No overload found for operator: " + quote(getString(op)) + " with argument types: " +
-          joinTypeList(types);
+      string error = (overloads.empty() ? "No overload" : "Multiple overloads") + " found for operator: "s +
+          quote(getString(op)) + " with argument types: " + joinTypeList(types);
       for (auto& f : overloads)
         error += "\nCandidate: " + f->prettyString();
       for (auto& f : errors)
@@ -404,19 +412,26 @@ optional<ErrorLoc> IfStatement::check(Context& context, bool) {
   if (declaration)
     if (auto err = declaration->check(ifContext))
       return err;
-  if (!condition) {
-    auto negate = [&] (unique_ptr<Expression> expr) {
-      return unique<UnaryExpression>(declaration->codeLoc, Operator::LOGICAL_NOT, std::move(expr));
-    };
+  auto negate = [&] (unique_ptr<Expression> expr) {
+    auto codeLoc = expr->codeLoc;
+    return unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT, std::move(expr));
+  };
+  if (!condition)
     condition = negate(negate(unique<Variable>(declaration->codeLoc, declaration->identifier)));
-  }
   auto condType = getType(ifContext, condition);
   if (!condType)
     return condType.get_error();
-  if (!ifContext.canConvert(*condType, ArithmeticType::BOOL))
+  if (!ifContext.canConvert(*condType, ArithmeticType::BOOL)) {
+    condition = negate(negate(std::move(condition)));
+    condType = getType(ifContext, condition);
+    if (!condType)
+      return condType.get_error();
+  }
+  if (!ifContext.canConvert(*condType, ArithmeticType::BOOL)) {
     return codeLoc.getError(
         "Expected a type convertible to bool or with overloaded operator " +
         quote("!") + " inside if statement, got " + quote(condType.get()->getName()));
+  }
   if (auto err = ifTrue->check(ifContext))
     return err;
   if (ifFalse) {
@@ -1136,7 +1151,7 @@ static void addBuiltInConcepts(Context& context) {
 Context createPrimaryContext(TypeRegistry* typeRegistry) {
   Context context(typeRegistry);
   for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE, ArithmeticType::BOOL,
-       ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING})
+       ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING, ArithmeticType::NULL_TYPE})
     context.addType(type->getName(), type);
   CHECK(!context.addImplicitFunction(Operator::PLUS, FunctionType(ArithmeticType::STRING,
       {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {}).setBuiltin()));

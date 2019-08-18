@@ -5,7 +5,7 @@ import "std/concepts.znn";
 template <T>
 variant V {
   T value;
-  void null;
+  void isNull;
 };
 
 template<U, T> requires can_copy<T>
@@ -14,7 +14,7 @@ T getValueOr(V<T>* v, U u, mutable T a) {
     case (T* value) {
       return value->copy();
     }
-    case (null) {
+    case (isNull) {
       return move(a);
     }
   }
@@ -22,6 +22,6 @@ T getValueOr(V<T>* v, U u, mutable T a) {
 
 int main() {
   mutable v = V<int>::value(5);
-  v = V<int>::null();
+  v = V<int>::isNull();
   return v.getValueOr<bool>(true, 4);
 }

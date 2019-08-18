@@ -23,7 +23,7 @@ concept hasValue {
 template <S> requires hasValue<S>
 variant V {
   S s;
-  void null;
+  void isNull;
 };
 
 template <S> requires hasValue<S>
@@ -32,7 +32,7 @@ int getValue(V<S>* v) {
     case (S* s) {
       return s->getValue();
     }
-    case (null) {
+    case (isNull) {
       return -1;
     }
   }
@@ -42,6 +42,6 @@ int getValue(V<S>* v) {
 int main() {
   const v1 = V<A>::s(A());
   const v2 = V<B>::s(B(4));
-  const v3 = V<A>::null();
+  const v3 = V<A>::isNull();
   return v1.getValue() + v2.getValue() + v3.getValue();
 }

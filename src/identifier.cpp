@@ -47,6 +47,9 @@ string IdentifierInfo::prettyString() const {
         },
         [&](const Slice&) {
           ret.append("[]");
+        },
+        [&](const Optional&) {
+          ret.append("?");
         }
     );
   return ret;
