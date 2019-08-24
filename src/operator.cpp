@@ -33,6 +33,8 @@ const static vector<pair<string, Operator>> operators {
   {"!", Operator::LOGICAL_NOT},
   {"&&", Operator::LOGICAL_AND},
   {"||", Operator::LOGICAL_OR},
+  {"?", Operator::MAYBE},
+  {"??", Operator::VALUE_OR},
 };
 
 optional<Operator> getOperator(const string& s) {
@@ -79,28 +81,32 @@ int getPrecedence(Operator op) {
     case Operator::LESS_OR_EQUAL:
     case Operator::MORE_OR_EQUAL:
       return 6;
+    case Operator::MAYBE:
+      return 7;
     case Operator::PLUS:
     case Operator::PLUS_UNARY:
     case Operator::MINUS:
     case Operator::MINUS_UNARY:
-      return 7;
+      return 8;
     case Operator::MODULO:
     case Operator::DIVIDE:
     case Operator::MULTIPLY:
-      return 8;
-    case Operator::DECREMENT:
       return 9;
-    case Operator::INCREMENT:
+    case Operator::VALUE_OR:
       return 10;
-    case Operator::POINTER_DEREFERENCE:
+    case Operator::DECREMENT:
       return 11;
-    case Operator::GET_ADDRESS:
+    case Operator::INCREMENT:
       return 12;
-    case Operator::SUBSCRIPT:
+    case Operator::POINTER_DEREFERENCE:
       return 13;
+    case Operator::GET_ADDRESS:
+      return 14;
+    case Operator::SUBSCRIPT:
+      return 15;
     case Operator::MEMBER_ACCESS:
     case Operator::POINTER_MEMBER_ACCESS:
-      return 14;
+      return 16;
   }
 }
 
@@ -136,6 +142,8 @@ bool isUnary(Operator op) {
     case Operator::POINTER_MEMBER_ACCESS:
     case Operator::LOGICAL_AND:
     case Operator::LOGICAL_OR:
+    case Operator::VALUE_OR:
+    case Operator::MAYBE:
       return false;
     case Operator::POINTER_DEREFERENCE:
     case Operator::PLUS_UNARY:
@@ -174,6 +182,7 @@ bool canOverload(Operator op) {
     case Operator::DECREMENT:
     case Operator::LOGICAL_NOT:
     case Operator::MINUS_UNARY:
+    case Operator::VALUE_OR:
       return true;
     default:
       return false;
@@ -237,6 +246,8 @@ static nullable<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileT
     case Operator::DECREMENT_BY:
     case Operator::MULTIPLY_BY:
     case Operator::DIVIDE_BY:
+    case Operator::VALUE_OR:
+    case Operator::MAYBE:
       return nullptr;
     case Operator::LOGICAL_OR:
       return tryTypes<bool, bool>(op, args, [](bool b1, bool b2) { return b1 || b2; });
@@ -366,6 +377,8 @@ const char* getCodegenName(Operator op) {
       return "op_minus_unary";
     case Operator::GET_ADDRESS:
       return "op_get_address";
+    case Operator::VALUE_OR:
+      return "op_value_or";
     default:
       return nullptr;
   }

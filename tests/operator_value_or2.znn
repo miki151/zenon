@@ -1,0 +1,12 @@
+// 1
+
+struct X {
+  int v;
+};
+
+int main() {
+  const X? x = null;
+  const res = move(x) ?? X(1);
+  return res.v;
+}
+

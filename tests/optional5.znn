@@ -1,0 +1,19 @@
+// 4
+
+template <T>
+T value_or(T? elem, T o) {
+  if (elem)
+    return *move(elem);
+  else
+    return move(o);
+}
+
+int main() {
+  mutable int? x = null;
+  mutable res = 0;
+  res += x.value_or(1);
+  x = 3;
+  res += x.value_or(5);
+  return res;
+}
+

@@ -1,0 +1,60 @@
+
+export import "std/panic.znn";
+
+export template <T>
+bool operator ! (T?* elem) {
+  embed {
+    return !*elem;
+  }
+}
+
+export template <T>
+T* operator * (T?* elem) {
+  if (!*elem)
+    panic("Attempted to dereference a null value");
+  embed {
+    return *elem;
+  }
+}
+
+export template <T>
+T operator * (T? elem) {
+  if (!elem)
+    panic("Attempted to dereference a null value");
+  embed {
+    return std::move(*elem);
+  }
+}
+
+export template <T>
+T* operator ?? (T?* elem, T* alt) {
+  if (*elem)
+    return &**elem;
+  else
+    return alt;
+}
+
+export template <T>
+T operator ?? (T? elem, T alt) {
+  if (elem)
+    return *move(elem);
+  else
+    return move(alt);
+}
+
+export bool operator ! (null_type*) {
+  return true;
+}
+
+export noreturn operator * (null_type*) {
+  panic("Attempted to dereference a null value");
+}
+
+export template <T>
+bool operator == (T?* elem, null_type*) {
+  return !*elem;
+}
+
+export bool operator == (null_type*, null_type*) {
+  return true;
+}

@@ -1,0 +1,11 @@
+// 4
+
+int main() {
+  mutable int? x = null;
+  mutable res = 0;
+  res += x ?? 1;
+  x = 3;
+  res += x ?? 5;
+  return res;
+}
+

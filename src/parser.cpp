@@ -72,7 +72,7 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
       else if (auto t = tokens.eatMaybe(Operator::MULTIPLY)) {
         ret.typeOperator.push_back(IdentifierInfo::CONST);
       }
-      else if (auto t = tokens.eatMaybe(Keyword::MAYBE)) {
+      else if (auto t = tokens.eatMaybe(Operator::MAYBE)) {
         ret.typeOperator.push_back(IdentifierInfo::Optional{});
       }
       else if (auto t = tokens.eatMaybe(Keyword::OPEN_SQUARE_BRACKET)) {

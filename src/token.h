@@ -41,7 +41,6 @@ enum class Keyword {
   SWITCH,
   CASE,
   DEFAULT,
-  MAYBE,
   NULL_TOKEN,
   TEMPLATE,
   FOR,

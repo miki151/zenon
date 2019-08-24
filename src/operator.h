@@ -40,7 +40,9 @@ enum class Operator {
   SUBSCRIPT,
   LOGICAL_NOT,
   LOGICAL_AND,
-  LOGICAL_OR
+  LOGICAL_OR,
+  MAYBE,
+  VALUE_OR
 };
 
 extern optional<Operator> getOperator(const string&);

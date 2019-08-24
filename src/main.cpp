@@ -26,7 +26,7 @@ static po::parser getCommandLineFlags() {
 }
 
 static int compileCpp(string command, const string& program, const string& output) {
-  command += " -xc++ - -std=c++17 -c -o " + output;
+  command += " -xc++ - -std=c++17 -Wno-trigraphs -c -o " + output;
   cerr << command << endl;
   FILE* p = popen(command.c_str(), "w");
   fwrite(program.c_str(), 1, program.size(), p);
