@@ -1,0 +1,32 @@
+// 74
+
+int get(int) {
+  return 27;
+}
+
+template <T>
+int get(T) {
+  return 1;
+}
+
+template <T>
+struct X {
+};
+
+template <T>
+int get(X<T>) {
+  return 3;
+}
+
+template <T>
+int get(X<X<T>>) {
+  return 9;
+}
+
+int main() {
+  return 1 * get(1) + 
+      2 * get(false) +
+      3 * get(X<int>()) + 
+      4 * get(X<X<int>>());
+}
+

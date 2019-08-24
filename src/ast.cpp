@@ -173,25 +173,24 @@ static bool exactFirstArg(const vector<SType>& argTypes, const FunctionType& ove
   return !argTypes.empty() && !overload.params.empty() && comp(argTypes[0], overload.params[0].type);
 }
 
-static bool fromConcept(const vector<SType>&, const FunctionType& f) {
-  return f.fromConcept;
+static bool fromConcept(const vector<SType>&, const SFunctionInfo& f) {
+  return f->type.fromConcept;
 }
 
-static bool userDefinedConstructor(const vector<SType>&, const FunctionType& f) {
-  return !f.generatedConstructor;
+static bool userDefinedConstructor(const vector<SType>&, const SFunctionInfo& f) {
+  return !f->type.generatedConstructor;
 }
 
-static void filterOverloads(vector<SFunctionInfo>& overloads, const vector<SType>& argTypes) {
+static void filterOverloads(const Context& context, vector<SFunctionInfo>& overloads, const vector<SType>& argTypes) {
   auto filter = [&] (auto fun, const char* method) {
-    auto worse = overloads;
-    overloads.clear();
-    for (auto& overload : worse)
-      if (fun(argTypes, overload->type)) {
-        overloads.push_back(overload);
+    vector<SFunctionInfo> better;
+    for (auto& overload : overloads)
+      if (fun(argTypes, overload)) {
+        better.push_back(overload);
         //cout << overload.toString() << " chosen by " << method << endl;
       }
-    if (overloads.empty())
-      overloads = worse;
+    if (!better.empty())
+      overloads = better;
   };
   auto isExactValueArg = [] (SType arg, SType param) {
     return param == arg->getUnderlying();
@@ -209,15 +208,23 @@ static void filterOverloads(vector<SFunctionInfo>& overloads, const vector<SType
         param->getUnderlying() == arg->getUnderlying();
     return byConstRef;
   };
-  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload, isExactValueArg);}, "all args exact");
-  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload, isExactValueArg);}, "first arg exact");
-  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload, isExactReferenceArg);}, "all args exact");
-  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload, isExactReferenceArg);}, "first arg exact");
-  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload, isConstToMutableReferenceArg);}, "all args exact");
-  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload, isConstToMutableReferenceArg);}, "first arg exact");
+  auto isSpecialized = [&] (const auto& args, const auto& overload) {
+    for (auto& other : overloads)
+      if (other != overload && context.isGeneralization(overload->parent.value_or(overload), other->parent.value_or(other)))
+        return false;
+    return true;
+  };
+  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isExactValueArg);}, "all args exact");
+  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isExactValueArg);}, "first arg exact");
+  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isExactReferenceArg);}, "all args exact");
+  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isExactReferenceArg);}, "first arg exact");
+  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isConstToMutableReferenceArg);}, "all args exact");
+  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isConstToMutableReferenceArg);}, "first arg exact");
   // sometimes a function is both in the global context and in the concept, so prefer the one in the concept
   filter(&fromConcept, "non concept");
   filter(&userDefinedConstructor, "user defined constructor");
+  // try to choose a more specialized template, eg. f<T>(X<T>) instead of f<T>(T).
+  filter(isSpecialized, "specialized");
 }
 
 
@@ -232,7 +239,7 @@ static WithErrorLine<SFunctionInfo> handleOperatorOverloads(Context& context, Co
       overloads.push_back(inst.get());
     else
       errors.push_back("Candidate: " + fun->prettyString() + ": " + inst.get_error().error);
-  filterOverloads(overloads, types);
+  filterOverloads(context, overloads, types);
   if (overloads.size() == 1) {
     //cout << "Chosen overload " << overloads[0].toString() << endl;
     return overloads[0];
@@ -796,7 +803,7 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
   }
   if (overloads.empty())
     return errors;
-  filterOverloads(overloads, argTypes);
+  filterOverloads(context, overloads, argTypes);
   CHECK(!overloads.empty());
   if (overloads.size() == 1)
     return overloads[0];

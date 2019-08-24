@@ -84,6 +84,9 @@ class nullable {
   T get() const {
     return *elem;
   }
+  T value_or(T t) const {
+    return elem.value_or(t);
+  }
   Param& operator*() const {
     return **elem;
   }

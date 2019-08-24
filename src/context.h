@@ -29,6 +29,7 @@ class Context : public owned_object<Context> {
   void operator = (Context&&) = delete;
   void deepCopyFrom(const Context&);
   optional<string> getMissingFunctions(const Concept&, vector<FunctionType> existing) const;
+  bool isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific, vector<FunctionType> existing = {}) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   void addVariable(const string& ident, SType);
   void addVariablePack(const string& ident, SType);
@@ -119,7 +120,6 @@ class Context : public owned_object<Context> {
   const State& getTopState() const;
   vector<SFunctionInfo> getFunctions(FunctionId) const;
   nullable<SType> getVariable(const string&) const;
-  bool isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific, vector<FunctionType> existing) const;
   vector<SFunctionInfo> getAllFunctions() const;
   vector<SFunctionInfo> getConstructorsFor(const SType&) const;
 };
