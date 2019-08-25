@@ -12,7 +12,7 @@
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
 
-unique_ptr<Expression> Expression::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Expression> Expression::replace(SType from, SType to, ErrorLocBuffer& errors) const {
   return transform([&](Expression* expr) { return expr->replace(from, to, errors); });
 }
 
@@ -88,8 +88,11 @@ nullable<SType> Constant::eval(const Context&) const {
   return (SType) value;
 }
 
-unique_ptr<Expression> Constant::replace(SType from, SType to, ErrorBuffer& errors) const {
-  return unique<Constant>(codeLoc, value->replace(from, to, errors).dynamicCast<CompileTimeValue>());
+unique_ptr<Expression> Constant::replace(SType from, SType to, ErrorLocBuffer& errors) const {
+  ErrorBuffer errors2;
+  auto ret = unique<Constant>(codeLoc, value->replace(from, to, errors2).dynamicCast<CompileTimeValue>());
+  merge(errors, errors2, codeLoc);
+  return ret;
 }
 
 unique_ptr<Expression> Constant::transform(const Expression::TransformFun&) const {
@@ -323,7 +326,8 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
         functionInfo = *fun;
         if (auto parent = functionInfo->parent)
           if (parent->definition)
-            parent->definition->addInstance(context, functionInfo.get());
+            if (auto error = parent->definition->addInstance(context, functionInfo.get()))
+              return *error;
         return functionInfo->type.retVal;
       } else
         return fun.get_error();
@@ -365,7 +369,8 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
       functionInfo = *fun;
       if (auto parent = functionInfo->parent)
         if (parent->definition)
-          parent->definition->addInstance(context, functionInfo.get());
+          if (auto error = parent->definition->addInstance(context, functionInfo.get()))
+            return *error;
       return functionInfo->type.retVal;
     } else
       return fun.get_error();
@@ -592,7 +597,7 @@ bool Statement::hasReturnStatement(const Context&) const {
   return false;
 }
 
-unique_ptr<Statement> Statement::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Statement> Statement::replace(SType from, SType to, ErrorLocBuffer& errors) const {
   return transform(
       [&](Statement* s) { return s->replace(from, to, errors); },
       [&](Expression* s) { return s->replace(from, to, errors); });
@@ -659,7 +664,7 @@ NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyConcept(Context
         ErrorBuffer errors;
         auto translated = concept->translate(translatedParams, errors);
         if (!errors.empty())
-          return errors[0];
+          return reqId.codeLoc.getError(errors[0]);
         from.merge(translated->getContext());
         ret.push_back(translated);
       } else
@@ -974,12 +979,12 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
   return none;
 }
 
-void FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody) {
+optional<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody, CodeLoc codeLoc) {
   CHECK(!body);
   auto templateParams = functionInfo->parent->type.templateParams;
   for (int i = 0; i < templateParams.size(); ++i) {
     StatementBlock* useBody = (i == 0) ? parentBody : body.get();
-    ErrorBuffer errors;
+    ErrorLocBuffer errors;
     if (functionInfo->parent->type.variadicTemplate && i == templateParams.size() - 1) {
       vector<SType> expanded;
       for (int j = i; j < functionInfo->type.templateParams.size(); ++j)
@@ -989,9 +994,12 @@ void FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody) 
     } else
       body = cast<StatementBlock>(
           useBody->replace(templateParams[i], {functionInfo->type.templateParams[i]}, errors));
+    ErrorBuffer errors2;
     for (int j = i + 1; j < templateParams.size(); ++j)
-      templateParams[j] = templateParams[j]->replace(templateParams[i], functionInfo->type.templateParams[i], errors);
-    CHECK(errors.empty());
+      templateParams[j] = templateParams[j]->replace(templateParams[i], functionInfo->type.templateParams[i], errors2);
+    merge(errors, errors2, codeLoc);
+    if (!errors.empty())
+      return errors[0];
   }
   CHECK(!!body);
   if (functionInfo->parent->type.variadicParams)
@@ -1001,28 +1009,30 @@ void FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody) 
         expanded.push_back(getExpandedParamName(*lastName, i));
       body = cast<StatementBlock>(body->expandVar(*lastName, expanded));
     }
+  return none;
 }
 
-void FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
+optional<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
   if (callContext.isTemplated())
-    return;
+    return none;
   auto callTopContext = callContext.getTopLevelStates();
   if (instance != functionInfo.get()) {
     if (body) {
       CHECK(instance->parent == functionInfo);
       for (auto& other : instances)
         if (other.functionInfo == instance)
-          return;
+          return none;
       instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, callTopContext});
       if (!definitionContext.empty()) {
-        instances.back().generateBody(body.get());
-        auto res = checkBody(callContext.typeRegistry, callTopContext, *instances.back().body,
+        if (auto error = instances.back().generateBody(body.get(), codeLoc))
+          return *error;
+        return checkBody(callContext.typeRegistry, callTopContext, *instances.back().body,
             *instances.back().functionInfo);
-        CHECK(!res) << res->loc.file << " " << res->loc.line << " " << res->error;
       }
     }
   } else
     CHECK(instance->type.templateParams.empty());
+  return none;
 }
 
 static void addTemplateParams(Context& context, vector<SType> params, bool variadic) {
@@ -1123,7 +1133,8 @@ optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport)
       return err;
     for (int i = 0; i < instances.size(); ++i)
       if (!instances[i].body) {
-        instances[i].generateBody(body.get());
+        if (auto err = instances[i].generateBody(body.get(), codeLoc))
+          return *err;
         if (auto err = checkBody(context.typeRegistry, instances[i].callContext, *instances[i].body,
             *instances[i].functionInfo))
           return err;
@@ -1355,7 +1366,7 @@ optional<ErrorLoc> FunctionCall::checkVariadicCall(Expression* left, const Conte
       context.addVariable(expandedVars.back(),
           variablePack->type->replace(callContext.getTypePack().get(), expanded.back(), errors));
       if (!errors.empty())
-        return errors[0];
+        return codeLoc.getError(errors[0]);
     }
   }
   return none;
@@ -1421,7 +1432,8 @@ WithErrorLine<SType> FunctionCall::getDotOperatorType(Expression* left, Context&
       return *error;
     if (auto parent = functionInfo->parent)
       if (parent->definition)
-        parent->definition->addInstance(callContext, functionInfo.get());
+        if (auto error = parent->definition->addInstance(callContext, functionInfo.get()))
+          return *error;
     return functionInfo->type.retVal;
   }
   return *error;
@@ -1444,13 +1456,15 @@ nullable<SType> FunctionCall::eval(const Context& context) const {
   return nullptr;
 }
 
-unique_ptr<Expression> FunctionCall::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Expression> FunctionCall::replace(SType from, SType to, ErrorLocBuffer& errors) const {
   auto ret = cast<FunctionCall>(transform([from, to, &errors](Expression* expr) {
       return expr->replace(from, to, errors); }));
   ret->templateArgs.emplace();
+  ErrorBuffer errors2;
   for (auto& arg : *templateArgs)
-    ret->templateArgs->push_back(arg->replace(from, to, errors));
-  ret->identifierType = identifierType->replace(from, to, errors);
+    ret->templateArgs->push_back(arg->replace(from, to, errors2));
+  ret->identifierType = identifierType->replace(from, to, errors2);
+  merge(errors, errors2, codeLoc);
   return ret;
 }
 
@@ -1546,9 +1560,11 @@ optional<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const {
   return none;
 }
 
-unique_ptr<Statement> SwitchStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Statement> SwitchStatement::replace(SType from, SType to, ErrorLocBuffer& errors) const {
   auto ret = unique<SwitchStatement>(codeLoc, expr->replace(from, to, errors));
-  ret->targetType = targetType->replace(from, to, errors);
+  ErrorBuffer errors2;
+  ret->targetType = targetType->replace(from, to, errors2);
+  merge(errors, errors2, codeLoc);
   if (defaultBlock)
     ret->defaultBlock = cast<StatementBlock>(defaultBlock->replace(from, to, errors));
   for (auto& elem : caseElems)
@@ -1752,9 +1768,11 @@ WithErrorLine<SType> MoveExpression::getTypeImpl(Context& context) {
   return type.get();
 }
 
-unique_ptr<Expression> MoveExpression::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Expression> MoveExpression::replace(SType from, SType to, ErrorLocBuffer& errors) const {
   auto ret = unique<MoveExpression>(codeLoc, identifier);
-  ret->type = type->replace(from, to, errors);
+  ErrorBuffer errors2;
+  ret->type = type->replace(from, to, errors2);
+  merge(errors, errors2, codeLoc);
   return ret;
 }
 
@@ -1786,7 +1804,7 @@ Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
   return TopLevelAllowance::CAN;
 }
 
-unique_ptr<Statement> EmbedStatement::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Statement> EmbedStatement::replace(SType from, SType to, ErrorLocBuffer& errors) const {
   auto ret = unique<EmbedStatement>(codeLoc, value);
   ret->replacements = replacements;
   ret->replacements.push_back({from, to});
@@ -1989,9 +2007,11 @@ nullable<SType> EnumConstant::eval(const Context& context) const {
   fail();
 }
 
-unique_ptr<Expression> EnumConstant::replace(SType from, SType to, ErrorBuffer& errors) const {
+unique_ptr<Expression> EnumConstant::replace(SType from, SType to, ErrorLocBuffer& errors) const {
   auto ret = unique<EnumConstant>(codeLoc, enumName, enumElement);
-  ret->enumType = enumType->replace(from, to, errors);
+  ErrorBuffer errors2;
+  ret->enumType = enumType->replace(from, to, errors2);
+  merge(errors, errors2, codeLoc);
   return ret;
 }
 
@@ -2221,15 +2241,17 @@ WithErrorLine<nullable<SType>> SwitchStatement::CaseElem::getType(const Context&
   );
 }
 
-SwitchStatement::CaseElem SwitchStatement::CaseElem::replace(SType from, SType to, ErrorBuffer& errors) const {
+SwitchStatement::CaseElem SwitchStatement::CaseElem::replace(SType from, SType to, ErrorLocBuffer& errors) const {
   CaseElem ret;
   ret.codeloc = codeloc;
   ret.ids = ids;
   ret.block = cast<StatementBlock>(block->replace(from, to, errors));
+  ErrorBuffer errors2;
   if (auto t = type.getReferenceMaybe<SType>())
-    ret.type = (*t)->replace(from, to, errors);
+    ret.type = (*t)->replace(from, to, errors2);
   else
     ret.type = type;
+  merge(errors, errors2, codeloc);
   return ret;
 }
 

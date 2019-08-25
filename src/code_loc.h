@@ -11,6 +11,7 @@ struct CodeLoc {
   ErrorLoc getError(string) const;
   CodeLoc plus(int numLines, int numColumns);
   string toString() const;
+  bool operator < (const CodeLoc&) const;
 
   string file;
   int line;
@@ -71,4 +72,6 @@ class [[nodiscard]] WithError : public expected<T, string> {
   }
 };
 
-using ErrorBuffer = vector<ErrorLoc>;
+using ErrorLocBuffer = vector<ErrorLoc>;
+using ErrorBuffer = vector<string>;
+void merge(ErrorLocBuffer&, const ErrorBuffer&, CodeLoc);

@@ -636,8 +636,8 @@ SType MutablePointerType::replaceImpl(SType from, SType to, ErrorBuffer& errors)
 static void checkNonVoidMember(const SType& type, const SType& to, ErrorBuffer& errors) {
   if (auto param = type.dynamicCast<TemplateParameterType>())
     if (to == ArithmeticType::VOID)
-      errors.push_back(param->declarationLoc.getError(
-          "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName())));
+      errors.push_back(
+          "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
 }
 
 SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
@@ -663,7 +663,12 @@ SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
     ret->requirements = requirements;
     for (auto& req : ret->requirements)
       req.visit([&](SConcept& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); },
-          [&](shared_ptr<Expression>& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); });
+          [&](shared_ptr<Expression>& conceptOrExpr) {
+            ErrorLocBuffer errors2;
+            conceptOrExpr = conceptOrExpr->replace(from, to, errors2);
+            if (!errors2.empty())
+              errors.push_back(errors2[0].error);
+          });
     ret->staticContext.replace(from, to, errors);
   } else
     INFO << "Found instantiated: " << ret->getName();
@@ -680,7 +685,12 @@ FunctionType replaceInFunction(FunctionType type, SType from, SType to, ErrorBuf
     param = param->replace(from, to, errors);
   for (auto& req : type.requirements)
     req.visit([&](SConcept& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); },
-        [&](shared_ptr<Expression>& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); });
+        [&](shared_ptr<Expression>& conceptOrExpr) {
+          ErrorLocBuffer errors2;
+          conceptOrExpr = conceptOrExpr->replace(from, to, errors2);
+          if (!errors2.empty())
+            errors.push_back(errors2[0].error);
+        });
   return type;
 }
 
@@ -716,13 +726,11 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
   if (templateArgs.size() != templateParams.size())
     return loc.getError("Wrong number of template parameters for type " + getName());
   auto ret = get_this().get().dynamicCast<StructType>();
+  ErrorBuffer errors;
   for (int i = 0; i < templateParams.size(); ++i) {
     if (!ret->templateParams[i]->canReplaceBy(templateArgs[i]))
       return loc.getError(getCantSubstituteError(templateParams[i], templateArgs[i]));
-    ErrorBuffer errors;
     ret = ret->replace(ret->templateParams[i], templateArgs[i], errors).dynamicCast<StructType>();
-    if (!errors.empty())
-      return errors[0];
   }
   for (auto& req : ret.dynamicCast<StructType>()->requirements)
     if (auto concept = req.getReferenceMaybe<SConcept>()) {
@@ -733,6 +741,8 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
       if (expr1->get()->eval(context) == CompileTimeValue::get(false))
         return loc.getError("Unable to insantiate " + quote(ret->getName()) + ": predicate requirement evaluates to false");
     }
+  if (!errors.empty())
+    return loc.getError(errors[0]);
   return (SType) ret;
 }
 
@@ -854,7 +864,7 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
             lastParam->name.map([cnt](const string& name) { return getExpandedParamName(name, cnt); }),
             lastParam->type->replace(lastTemplateParam.get(), type.templateParams.back(), errors)));
         if (!errors.empty())
-          return errors[0];
+          return codeLoc.getError(errors[0]);
       }
       ++cnt;
     }
@@ -876,7 +886,7 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
         ErrorBuffer errors;
         thisType = lastParam.type->replace(lastTemplateParam.get(), type.templateParams.back(), errors);
         if (!errors.empty())
-          return errors[0];
+          return codeLoc.getError(errors[0]);
       }
       type.params.push_back(FunctionType::Param(
           lastParam.name.map([cnt](const string& name) { return getExpandedParamName(name, cnt); }),
@@ -926,20 +936,19 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
         return codeLoc.getError("Couldn't deduce template argument " + quote(type.templateParams[i]->getName()));
     }
   }
+  ErrorBuffer errors;
   for (int i = 0; i < type.templateParams.size(); ++i) {
     if (!type.templateParams[i]->canReplaceBy(templateArgs[i]))
       return codeLoc.getError(getCantSubstituteError(type.templateParams[i], templateArgs[i]));
-    ErrorBuffer errors;
     type = replaceInFunction(type, type.templateParams[i], templateArgs[i], errors);
-    if (!errors.empty())
-      return errors[0];
     type.templateParams[i] = templateArgs[i];
   }
-  for (auto& fun : existing)
-    if (areParamsTypesEqual(input->type, fun))
-      // To avoid infinite recursion we don't check concept requirements twice for the same >>original<< function
-      // (not instantation). If this causes issues then it needs to be revised.
-      return FunctionInfo::getInstance(input->id, type, input);
+  if (errors.empty())
+    for (auto& fun : existing)
+      if (areParamsTypesEqual(input->type, fun))
+        // To avoid infinite recursion we don't check concept requirements twice for the same >>original<< function
+        // (not instantation). If this causes issues then it needs to be revised.
+        return FunctionInfo::getInstance(input->id, type, input);
   existing.push_back(input->type);
   //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
   for (auto& req : type.requirements)
@@ -951,6 +960,9 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
       if (expr1->get()->eval(context) == CompileTimeValue::get(false))
         return expr1->get()->codeLoc.getError("Predicate evaluates to false");
     }
+  // The replace() errors need to be checked after returning potential requirement errors.
+  if (!errors.empty())
+    return codeLoc.getError(errors[0]);
   return FunctionInfo::getInstance(input->id, type, input);
 }
 
@@ -1052,11 +1064,11 @@ optional<string> ArrayType::getMangledName() const {
 }
 
 SType ArrayType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
-  /*if (from == size)
+  if (from == size)
     if (auto value = to.dynamicCast<CompileTimeValue>())
       if (auto intValue = value->value.getValueMaybe<int>())
         if (*intValue <= 0)
-          errors.push_back(CodeLoc().getError("Can't have non-positive array size"));*/
+          errors.push_back("Can't have non-positive array size");
   return get(underlying->replace(from, to, errors), size->replace(from, to, errors).dynamicCast<CompileTimeValue>());
 }
 

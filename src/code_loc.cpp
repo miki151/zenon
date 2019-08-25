@@ -16,3 +16,12 @@ CodeLoc CodeLoc::plus(int numLines, int numColumns) {
 string CodeLoc::toString() const {
   return file + ": " + "Line " + to_string(line + 1) + ", column "  + to_string(column + 1);
 }
+
+bool CodeLoc::operator <(const CodeLoc& l) const {
+  return std::forward_as_tuple(file, line, column) < std::forward_as_tuple(l.file, l.line, l.column);
+}
+
+void merge(ErrorLocBuffer& errors, const ErrorBuffer& errors2, CodeLoc l) {
+  for (auto& e : errors2)
+    errors.push_back(l.getError(e));
+}

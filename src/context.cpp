@@ -405,6 +405,11 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, bool typePack
             if (auto type = size.expr->eval(*this)) {
               if (auto value = type.get().dynamicCast<CompileTimeValue>())
                 if (value.get()->getType() == ArithmeticType::INT) {
+                  if (auto sizeInt = value->value.getValueMaybe<int>())
+                    if (*sizeInt < 0) {
+                      ret = size.expr->codeLoc.getError("Array size must be non-negative");
+                      return;
+                    }
                   *ret = ArrayType::get(*ret, value);
                   return;
                 }
