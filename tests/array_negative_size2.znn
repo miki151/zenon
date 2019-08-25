@@ -1,0 +1,14 @@
+// no_compile
+
+template <T>
+void f() {}
+
+template <int N>
+void g() {
+  f<int[N]>();
+}
+
+int main() {
+  g<-10>();
+  return 0;
+}

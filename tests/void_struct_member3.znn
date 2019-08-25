@@ -6,6 +6,9 @@ struct X {
 };
 
 template <T>
+void g(T) {}
+
+template <T>
 concept C1 {
   void g(X<T>);
 };
