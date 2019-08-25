@@ -244,6 +244,9 @@ optional<string> FunctionInfo::getMangledName() const {
       suf += *name;
     else
       return none;
+  if (id != "main"s && id != "copy"s)
+    if (auto def = getParent()->definition)
+      suf += to_string(def->codeLoc.line);
   return suf;
 }
 

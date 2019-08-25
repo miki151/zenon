@@ -57,7 +57,7 @@ void Variable::codegen(Accu& accu, CodegenStage) const {
 }
 
 void MoveExpression::codegen(Accu& accu, CodegenStage) const {
-  accu.add("std::move(const_cast<" + type->getCodegenName() + "&>(" + identifier + "))");
+  accu.add("std::move(" + identifier + ")");
 }
 
 void Expression::codegenDotOperator(Accu& accu, CodegenStage stage, Expression* leftSide) const {
@@ -113,8 +113,8 @@ void StatementBlock::codegen(Accu& accu, CodegenStage stage) const {
 void VariableDeclaration::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   accu.add(realType.get()->getCodegenName() + " ");
-  if (!isMutable)
-    accu.add("const ");
+/*  if (!isMutable)
+    accu.add("const ");*/
   accu.add(identifier);
   if (initExpr) {
     accu.add(" = ");
