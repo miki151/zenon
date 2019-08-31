@@ -234,7 +234,8 @@ string FunctionInfo::prettyString() const {
   return type.retVal->getName() + " " + toString(id) + joinTemplateParams(type.templateParams, type.variadicTemplate) + "(" +
       combine(transform(type.params, [](auto& t) { return t.type->getName() + (t.name ? " " + *t.name : ""s); }), ", ") +
       (type.variadicParams ? "...)" : ")") +
-      (type.fromConcept ? " [from concept]" : "");
+      (type.fromConcept ? " [from concept]" : "") +
+      (getParent()->definition ? getParent()->definition->codeLoc.toString() : "");
 }
 
 optional<string> FunctionInfo::getMangledName() const {
@@ -591,7 +592,8 @@ StructType::StructType(string name, StructType::Private) : name(std::move(name))
 SType Type::replace(SType from, SType to, ErrorBuffer& errors) const {
   auto self = get_this().get();
   if (from == self) {
-    CHECK(canReplaceBy(to));
+    if (!canReplaceBy(to))
+      errors.push_back("Can't substitute type " + from->getName() + " by " + to->getName());
     return to;
   } else
     return replaceImpl(from, to, errors);
@@ -734,8 +736,8 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
   }
   for (auto& req : ret.dynamicCast<StructType>()->requirements)
     if (auto concept = req.getReferenceMaybe<SConcept>()) {
-      if (auto error = context.getMissingFunctions(**concept, {}))
-        return loc.getError(*error);
+      if (auto res = context.getRequiredFunctions(**concept, {}); !res)
+        return loc.getError(res.get_error());
     } else
     if (auto expr1 = req.getReferenceMaybe<shared_ptr<Expression>>()) {
       if (expr1->get()->eval(context) == CompileTimeValue::get(false))
@@ -953,8 +955,8 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
   //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
   for (auto& req : type.requirements)
     if (auto concept = req.getReferenceMaybe<SConcept>()) {
-      if (auto error = context.getMissingFunctions(**concept, existing))
-        return codeLoc.getError(*error);
+      if (auto res = context.getRequiredFunctions(**concept, existing); !res)
+        return codeLoc.getError(res.get_error());
     } else
     if (auto expr1 = req.getReferenceMaybe<shared_ptr<Expression>>()) {
       if (expr1->get()->eval(context) == CompileTimeValue::get(false))
@@ -1210,12 +1212,22 @@ SType CompileTimeValue::replaceImpl(SType from, SType to, ErrorBuffer& errors) c
         return CompileTimeValue::getTemplateValue(value.type->replace(from, to, errors), value.name);
       },
       [&](const TemplateExpression& value) {
-        return ::eval(value.op, transform(value.args,
-            [&](const SType& t){ return t->replace(from, to, errors); })).get();
+        if (auto ret = ::eval(value.op, transform(value.args,
+            [&](const SType& t){ return t->replace(from, to, errors); })))
+          return ret.get();
+        else {
+          errors.push_back("Can't evaluate operator " + quote(getString(value.op)));
+          return get_this().get();
+        }
       },
       [&](const TemplateFunctionCall& value) {
-        return value.functionInfo.invokeFunction(value.name, value.loc, transform(value.args,
-            [&](const SType& t){ return t->replace(from, to, errors); }), value.argLoc).get();
+        if (auto ret = value.functionInfo.invokeFunction(value.name, value.loc, transform(value.args,
+            [&](const SType& t){ return t->replace(from, to, errors); }), value.argLoc))
+          return ret.get();
+        else {
+          errors.push_back("Bad arguments to function " + quote(value.name));
+          return get_this().get();
+        }
       },
       [&](const auto&) { return get_this().get();}
   );
@@ -1322,3 +1334,4 @@ shared_ptr<OptionalType> OptionalType::get(SType type) {
 OptionalType::OptionalType(SType t) : underlying(std::move(t)) {
 
 }
+

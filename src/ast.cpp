@@ -1015,18 +1015,24 @@ optional<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBlock
 optional<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
   if (callContext.isTemplated())
     return none;
-  auto callTopContext = callContext.getTopLevelStates();
+  vector<SFunctionInfo> requirements;
+  for (auto& req : instance->type.requirements)
+    if (auto concept = req.getValueMaybe<SConcept>())
+      append(requirements, *callContext.getRequiredFunctions(**concept, {}));
+  for (auto& fun : requirements)
+    if (fun->type.fromConcept)
+      return none;
   if (instance != functionInfo.get()) {
     if (body) {
       CHECK(instance->parent == functionInfo);
       for (auto& other : instances)
         if (other.functionInfo == instance)
           return none;
-      instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, callTopContext});
-      if (!definitionContext.empty()) {
+      instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, requirements});
+      if (definitionContext) {
         if (auto error = instances.back().generateBody(body.get(), codeLoc))
           return *error;
-        return checkBody(callContext.typeRegistry, callTopContext, *instances.back().body,
+        return checkBody(requirements, *instances.back().body,
             *instances.back().functionInfo);
       }
     }
@@ -1047,13 +1053,6 @@ static void addTemplateParams(Context& context, vector<SType> params, bool varia
   }
 }
 
-static Context::ConstStates mergeStates(Context::ConstStates v1, const Context::ConstStates& v2) {
-  for (auto& elem : v2)
-    if (find(v1.begin(), v1.end(), elem) == v1.end())
-      v1.push_back(elem);
-  return v1;
-}
-
 optional<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
   Context bodyContext = Context::withParent(context);
   addTemplateParams(bodyContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
@@ -1069,10 +1068,13 @@ optional<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
   return none;
 }
 
-optional<ErrorLoc> FunctionDefinition::checkBody(TypeRegistry* typeRegistry, Context::ConstStates callContext,
+optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& requirements,
     StatementBlock& myBody,  const FunctionInfo& instanceInfo) const {
-  auto bodyContext = Context::withStates(typeRegistry, mergeStates(definitionContext, callContext));
-  bodyContext.setAsTopLevel();
+  auto bodyContext = Context::withParent(*definitionContext);
+  for (auto& f : requirements) {
+    if (!contains(bodyContext.getFunctions(f->id), f))
+      CHECK(!bodyContext.addFunction(f));
+  }
   bool isTemplated = false;
   for (auto& t : instanceInfo.type.templateParams)
     if (!t->getMangledName()) {
@@ -1120,7 +1122,6 @@ optional<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& co
 optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport) {
   if (auto err = generateDefaultBodies(context))
     return err;
-  definitionContext = context.getAllStates();
   if (body && (!templateInfo.params.empty() || notInImport)) {
     Context paramsContext = Context::withParent(context);
     addTemplateParams(paramsContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
@@ -1129,13 +1130,17 @@ optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport)
       return res.get_error();
     if (auto err = checkForIncompleteTypes(paramsContext))
       return err;
-    if (auto err = checkBody(context.typeRegistry, paramsContext.getAllStates(), *body, *functionInfo))
+    // For checking the template we use the Context that includes the template params.
+    definitionContext.emplace(Context::withParent(paramsContext));
+    if (auto err = checkBody({}, *body, *functionInfo))
       return err;
+    // For checking instances we just use the top level context.
+    definitionContext.emplace(Context::withParent(context));
     for (int i = 0; i < instances.size(); ++i)
       if (!instances[i].body) {
         if (auto err = instances[i].generateBody(body.get(), codeLoc))
           return *err;
-        if (auto err = checkBody(context.typeRegistry, instances[i].callContext, *instances[i].body,
+        if (auto err = checkBody(instances[i].requirements, *instances[i].body,
             *instances[i].functionInfo))
           return err;
       }
@@ -1433,7 +1438,8 @@ WithErrorLine<SType> FunctionCall::getDotOperatorType(Expression* left, Context&
     if (auto parent = functionInfo->parent)
       if (parent->definition)
         if (auto error = parent->definition->addInstance(callContext, functionInfo.get()))
-          return *error;
+          return codeLoc.getError("When instantiating template " + parent->prettyString() + " as " + functionInfo->prettyString()  + ":\n"
+            + error->loc.toString() + ": " + error->error);
     return functionInfo->type.retVal;
   }
   return *error;

@@ -26,9 +26,9 @@ class Context : public owned_object<Context> {
   Context(const Context&) = delete;
   Context(Context&&) = default;
   void operator = (const Context&) = delete;
-  void operator = (Context&&) = delete;
+  Context& operator = (Context&&) = default;
   void deepCopyFrom(const Context&);
-  optional<string> getMissingFunctions(const Concept&, vector<FunctionType> existing) const;
+  WithError<vector<SFunctionInfo>> getRequiredFunctions(const Concept&, vector<FunctionType> existing) const;
   bool isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific, vector<FunctionType> existing = {}) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   void addVariable(const string& ident, SType);
@@ -101,24 +101,19 @@ class Context : public owned_object<Context> {
   };
 
   using ConstStates = vector<shared_ptr<const State>>;
-  ConstStates getAllStates() const;
-  ConstStates getTopLevelStates() const;
-  void setAsTopLevel();
   static Context withStates(TypeRegistry*, ConstStates);
 
   WithErrorLine<vector<SType> > getTypeList(const vector<TemplateParameterInfo>&, bool variadic) const;
+  vector<SFunctionInfo> getFunctions(FunctionId) const;
 
   TypeRegistry* const typeRegistry;
 
   private:
 
   ConstStates parentStates;
-  ConstStates topLevelStates;
   shared_ptr<State> state;
 
   vector<shared_ptr<const State>> getReversedStates() const;
-  const State& getTopState() const;
-  vector<SFunctionInfo> getFunctions(FunctionId) const;
   nullable<SType> getVariable(const string&) const;
   vector<SFunctionInfo> getAllFunctions() const;
   vector<SFunctionInfo> getConstructorsFor(const SType&) const;

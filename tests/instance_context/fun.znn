@@ -1,14 +1,15 @@
 
 export template <T>
 concept C1 {
-  void g(T);
+  int g(T*);
 };
 
 export template <T> requires C1<T>
-void f(T*) {
+int f(T* t) {
+  return g(t);
 }
 
 export template <T> requires C1<T>
-void f(T t) {
-  f(&t);
+int f(T t) {
+  return g(&t) + f(&t);
 }

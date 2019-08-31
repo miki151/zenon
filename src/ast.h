@@ -457,13 +457,13 @@ struct FunctionDefinition : Statement {
   struct InstanceInfo {
     unique_ptr<StatementBlock> body;
     SFunctionInfo functionInfo;
-    Context::ConstStates callContext;
+    vector<SFunctionInfo> requirements;
     NODISCARD optional<ErrorLoc> generateBody(StatementBlock* parentBody, CodeLoc);
   };
   vector<InstanceInfo> instances;
   TemplateInfo templateInfo;
   nullable<SFunctionInfo> functionInfo;
-  Context::ConstStates definitionContext;
+  optional<Context> definitionContext;
   bool external = false;
   struct Initializer {
     CodeLoc codeLoc;
@@ -490,7 +490,7 @@ struct FunctionDefinition : Statement {
   NODISCARD optional<ErrorLoc> checkAndGenerateCopyFunction(const Context&);
   NODISCARD optional<ErrorLoc> addInstance(const Context& callContext, const SFunctionInfo&);
   NODISCARD optional<ErrorLoc> generateDefaultBodies(Context&);
-  NODISCARD optional<ErrorLoc> checkBody(TypeRegistry*, Context::ConstStates callContext, StatementBlock& myBody,
+  NODISCARD optional<ErrorLoc> checkBody(const vector<SFunctionInfo>& requirements, StatementBlock& myBody,
       const FunctionInfo& instanceInfo) const;
   NODISCARD optional<ErrorLoc> checkForIncompleteTypes(const Context&);
   WithErrorLine<SType> getReturnType(const Context&) const;

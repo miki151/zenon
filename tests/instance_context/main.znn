@@ -1,4 +1,4 @@
-// 3
+// 2
 
 import "fun.znn";
 
@@ -6,10 +6,9 @@ struct X {
   int a;
 };
 
-void g(X) {}
-void g(X*) {}
+int g(X*) { return 1; }
+int g(X**) { return 50; }
 
 int main() {
-  f(X(1));
-  return 0;
+  return f(X(1));
 }

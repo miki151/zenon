@@ -7,7 +7,6 @@ Context Context::withParent(const Context& c) {
   Context ret(c.typeRegistry);
   ret.parentStates = c.parentStates;
   ret.parentStates.push_back(c.state);
-  ret.topLevelStates = c.topLevelStates;
   return ret;
 }
 
@@ -15,7 +14,6 @@ Context Context::withParent(vector<const Context*> parents) {
   Context ret(parents[0]->typeRegistry);
   for (auto context : parents) {
     append(ret.parentStates, context->parentStates);
-    append(ret.topLevelStates, context->topLevelStates);
     ret.parentStates.push_back(context->state);
   }
   return ret;
@@ -98,37 +96,25 @@ bool Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo
     return false;
 }
 
-optional<string> Context::getMissingFunctions(const Concept& required, vector<FunctionType> existing) const {
-  vector<FunctionType> ret;
+WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& required, vector<FunctionType> existing) const {
+  vector<SFunctionInfo> ret;
   for (auto otherState : required.getContext().getReversedStates()) {
     for (auto& overloads : otherState->functions)
       for (auto& function : overloads.second) {
-        bool found = false;
-        for (auto& myFun : getFunctions(overloads.first))
-          if (isGeneralization(myFun, function, existing)) {
-            found = true;
-            break;
-          }
-        if (!found)
+        auto getFunction = [&]() -> optional<SFunctionInfo> {
+          for (auto& myFun : getFunctions(overloads.first))
+            if (isGeneralization(myFun, function, existing))
+              return myFun;
+          return none;
+        };
+        if (auto res = getFunction())
+          ret.push_back(*res);
+        else
           return "Required function not implemented: " + function->prettyString() +
               ", required by concept: " + quote(required.getName());
       }
   }
-  return none;
-}
-
-Context::ConstStates Context::getAllStates() const {
-  auto ret = parentStates;
-  ret.push_back(state);
   return ret;
-}
-
-Context::ConstStates Context::getTopLevelStates() const {
-  return topLevelStates;
-}
-
-void Context::setAsTopLevel() {
-  topLevelStates = parentStates;
 }
 
 Context Context::withStates(TypeRegistry* t, ConstStates states) {
@@ -235,13 +221,6 @@ void Context::replace(SType from, SType to, ErrorBuffer& errors) {
   }
   for (auto& type : state->types)
     type.second = type.second->replace(from, to, errors);
-}
-
-const Context::State& Context::getTopState() const {
-  if (parentStates.empty())
-    return *state;
-  else
-    return *parentStates.front();
 }
 
 vector<shared_ptr<const Context::State>> Context::getReversedStates() const {
