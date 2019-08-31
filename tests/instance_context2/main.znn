@@ -1,0 +1,21 @@
+// 7
+
+import "fun.znn";
+
+struct X {
+  int a;
+};
+
+int h(X) { return 1; }
+
+template <T>
+concept H {
+  int h(T);
+};
+
+template <T> requires H<T>
+int g(T t) { return 2 + h(move(t)); }
+
+int main() {
+  return f(X(1));
+}

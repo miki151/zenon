@@ -104,7 +104,7 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
         auto getFunction = [&]() -> optional<SFunctionInfo> {
           for (auto& myFun : getFunctions(overloads.first))
             if (isGeneralization(myFun, function, existing))
-              return myFun;
+              return myFun->getWithoutRequirements();
           return none;
         };
         if (auto res = getFunction())

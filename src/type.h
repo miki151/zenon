@@ -336,7 +336,7 @@ struct FunctionType {
   bool generatedConstructor = false;
   bool variadicTemplate = false;
   bool variadicParams = false;
-  COMPARABLE(FunctionType, retVal, params, templateParams, parentType, variadicTemplate, variadicParams)
+  COMPARABLE(FunctionType, retVal, params, templateParams, parentType, variadicTemplate, variadicParams, requirements, fromConcept, builtinOperator, generatedConstructor)
 };
 
 struct FunctionInfo : public owned_object<FunctionInfo> {
@@ -346,11 +346,11 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   static SFunctionInfo getDefined(FunctionId, FunctionType, FunctionDefinition*);
   const FunctionId id;
   const FunctionType type;
-  vector<SFunctionInfo> instantiations;
   const nullable<SFunctionInfo> parent;
   FunctionDefinition* const definition = nullptr;
   string prettyString() const;
   optional<string> getMangledName() const;
+  SFunctionInfo getWithoutRequirements() const;
   FunctionInfo(Private, FunctionId, FunctionType, nullable<SFunctionInfo> parent);
   FunctionInfo(Private, FunctionId, FunctionType, FunctionDefinition*);
   SFunctionInfo getParent() const;

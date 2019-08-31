@@ -1,0 +1,10 @@
+
+export template <T>
+concept C1 {
+  int g(T);
+};
+
+export template <T> requires C1<T>
+int f(T t) {
+  return 4 + g(move(t));
+}

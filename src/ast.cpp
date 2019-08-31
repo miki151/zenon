@@ -1026,7 +1026,7 @@ optional<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, c
     if (body) {
       CHECK(instance->parent == functionInfo);
       for (auto& other : instances)
-        if (other.functionInfo == instance)
+        if (other.functionInfo->getWithoutRequirements() == instance->getWithoutRequirements())
           return none;
       instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, requirements});
       if (definitionContext) {
@@ -1072,7 +1072,7 @@ optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& re
     StatementBlock& myBody,  const FunctionInfo& instanceInfo) const {
   auto bodyContext = Context::withParent(*definitionContext);
   for (auto& f : requirements) {
-    if (!contains(bodyContext.getFunctions(f->id), f))
+    if (!contains(bodyContext.getFunctions(f->id), f->getParent()))
       CHECK(!bodyContext.addFunction(f));
   }
   bool isTemplated = false;

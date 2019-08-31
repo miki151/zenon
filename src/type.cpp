@@ -224,7 +224,6 @@ SFunctionInfo FunctionInfo::getInstance(FunctionId id, FunctionType type, SFunct
   static map<decltype(args), SFunctionInfo> generated;
   if (!generated.count(args)) {
     auto ret = shared<FunctionInfo>(Private{}, id, type, parent);
-    parent->instantiations.push_back(ret);
     generated.insert(make_pair(args, std::move(ret)));
   }
   return generated.at(args);
@@ -249,6 +248,12 @@ optional<string> FunctionInfo::getMangledName() const {
     if (auto def = getParent()->definition)
       suf += to_string(def->codeLoc.line);
   return suf;
+}
+
+SFunctionInfo FunctionInfo::getWithoutRequirements() const {
+  auto newType = type;
+  newType.requirements.clear();
+  return getInstance(id, std::move(newType), getParent());
 }
 
 SFunctionInfo FunctionInfo::getParent() const {
