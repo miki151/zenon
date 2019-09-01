@@ -485,6 +485,16 @@ unique_ptr<Statement> IfStatement::transform(const Statement::TransformFun& fun,
       ifFalse ? fun(ifFalse.get()) : nullptr);
 }
 
+static optional<string> getVariableInitializationError(const char* action, const Context& context, const SType& varType,
+    const SType& exprType) {
+  if ((exprType.dynamicCast<ReferenceType>() || exprType.dynamicCast<MutableReferenceType>()) &&
+      !exprType.get()->getUnderlying()->isBuiltinCopyable(context))
+    return "Type " + quote(exprType.get()->getUnderlying()->getName()) + " cannot be copied implicitly"s;
+  if (!context.canConvert(exprType, varType))
+    return "Can't "s + action + " of type "
+       + quote(varType->getName()) + " using a value of type " + quote(exprType->getName()); return none;
+}
+
 optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   if (auto err = context.checkNameConflict(identifier, "Variable"))
     return codeLoc.getError(*err);
@@ -516,13 +526,8 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   if (!isMutable)
     if (auto value = initExpr->eval(context))
       context.addType(identifier, value.get());
-  if ((exprType->dynamicCast<ReferenceType>() || exprType->dynamicCast<MutableReferenceType>()) &&
-      !exprType.get()->getUnderlying()->isBuiltinCopyable(context))
-    return initExpr->codeLoc.getError("Type " + quote(exprType.get()->getUnderlying()->getName()) +
-        " cannot be copied implicitly");
-  if (!context.canConvert(*exprType, realType.get()))
-    return initExpr->codeLoc.getError("Can't initialize variable of type "
-       + quote(realType.get()->getName()) + " with value of type " + quote(exprType.get()->getName()));
+  if (auto error = getVariableInitializationError("initialize variable", context, realType.get(), *exprType))
+    return initExpr->codeLoc.getError(*error);
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
   context.addVariable(identifier, std::move(varType));
   return none;
@@ -2194,14 +2199,14 @@ WithErrorLine<SType> ArrayLiteral::getTypeImpl(Context& context) {
   if (!typeTmp)
     return typeTmp.get_error();
   auto ret = typeTmp.get()->getUnderlying();
-  for (int i = (typeId ? 0 : 1); i < contents.size(); ++i) {
-    typeTmp = getType(context, contents[i]);
-    if (!typeTmp)
-      return typeTmp.get_error();
-    auto t = typeTmp.get()->getUnderlying();
-    if (t != ret)
-      return contents[i]->codeLoc.getError("Incompatible types in array literal: " +
-        quote(ret->getName()) + " and " + quote(t->getName()));
+  for (int i = 0; i < contents.size(); ++i) {
+    if (i > 0 || !typeId) {
+      typeTmp = getType(context, contents[i]);
+      if (!typeTmp)
+        return typeTmp.get_error();
+    }
+    if (auto error = getVariableInitializationError("construct array", context, ret, typeTmp.get()))
+      return contents[i]->codeLoc.getError(*error);
   }
   type = ret;
   return SType(ArrayType::get(ret, CompileTimeValue::get((int)contents.size())));

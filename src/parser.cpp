@@ -183,17 +183,18 @@ static WithErrorLine<unique_ptr<Expression>> parseArrayLiteral(Tokens& tokens) {
     if (auto t = tokens.eat(Operator::MORE_THAN); !t)
       return t.get_error();
   }
-  while (1) {
-    if (auto expr = parseExpression(tokens))
-      ret->contents.push_back(std::move(*expr));
-    else
-      return expr.get_error();
-    if (tokens.eatMaybe(Keyword::CLOSE_BLOCK))
-      break;
-    else
-      if (auto t = tokens.eat(Keyword::COMMA); !t)
-        return t.get_error();
-  }
+  if (!tokens.eatMaybe(Keyword::CLOSE_BLOCK))
+    while (1) {
+      if (auto expr = parseExpression(tokens))
+        ret->contents.push_back(std::move(*expr));
+      else
+        return expr.get_error();
+      if (tokens.eatMaybe(Keyword::CLOSE_BLOCK))
+        break;
+      else
+        if (auto t = tokens.eat(Keyword::COMMA); !t)
+          return t.get_error();
+    }
   if (ret->contents.empty() && !ret->typeId)
     return ret->codeLoc.getError("Empty array literal must include type specifier, ex. " + quote("{}<int>"));
   return cast<Expression>(std::move(ret));

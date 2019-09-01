@@ -1,0 +1,9 @@
+// 1
+
+struct X { int a; };
+
+int main() {
+  const x = X(1);
+  const a = {move(x)};
+  return a[0].a;
+}

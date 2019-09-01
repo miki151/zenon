@@ -1,0 +1,9 @@
+// no_compile
+
+struct X {};
+
+int main() {
+  const x = X();
+  const a = {x};
+  return 0;
+}
