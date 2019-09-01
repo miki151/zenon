@@ -135,6 +135,8 @@ struct ArrayLiteral : Expression {
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   vector<unique_ptr<Expression>> contents;
+  optional<IdentifierInfo> typeId;
+  nullable<SType> type;
 };
 
 enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_POINTER };

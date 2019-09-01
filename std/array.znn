@@ -36,7 +36,7 @@ std::array<T, Size> copy(std::array<T, Size> const* array) {
 }
 }
 
-export template <int Size, T> requires can_copy<T>, (Size > 0)
+export template <int Size, T> requires can_copy<T>, (Size >= 0)
 T[Size] array_repeat(T elem) {
   embed {
     std::array<T, Size> a;

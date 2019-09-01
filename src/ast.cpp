@@ -2190,11 +2190,11 @@ ArrayLiteral::ArrayLiteral(CodeLoc codeLoc) : Expression(codeLoc) {
 }
 
 WithErrorLine<SType> ArrayLiteral::getTypeImpl(Context& context) {
-  auto typeTmp = getType(context, contents[0]);
+  auto typeTmp = typeId ? context.getTypeFromString(*typeId, false) : getType(context, contents[0]);
   if (!typeTmp)
     return typeTmp.get_error();
   auto ret = typeTmp.get()->getUnderlying();
-  for (int i = 1; i < contents.size(); ++i) {
+  for (int i = (typeId ? 0 : 1); i < contents.size(); ++i) {
     typeTmp = getType(context, contents[i]);
     if (!typeTmp)
       return typeTmp.get_error();
@@ -2203,6 +2203,7 @@ WithErrorLine<SType> ArrayLiteral::getTypeImpl(Context& context) {
       return contents[i]->codeLoc.getError("Incompatible types in array literal: " +
         quote(ret->getName()) + " and " + quote(t->getName()));
   }
+  type = ret;
   return SType(ArrayType::get(ret, CompileTimeValue::get((int)contents.size())));
 }
 

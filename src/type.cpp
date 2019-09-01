@@ -1074,8 +1074,8 @@ SType ArrayType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   if (from == size)
     if (auto value = to.dynamicCast<CompileTimeValue>())
       if (auto intValue = value->value.getValueMaybe<int>())
-        if (*intValue <= 0)
-          errors.push_back("Can't have non-positive array size");
+        if (*intValue < 0)
+          errors.push_back("Can't have negative array size");
   return get(underlying->replace(from, to, errors), size->replace(from, to, errors).dynamicCast<CompileTimeValue>());
 }
 

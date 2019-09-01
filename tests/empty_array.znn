@@ -1,9 +1,7 @@
 // 1
 
-import "std/array.znn";
-
 int main() {
-  int[0] a = {};
+  const a = {<int>};
   mutable sum = 1;
   for (mutable x : a)
     sum += *x;

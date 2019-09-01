@@ -729,12 +729,14 @@ void ContinueStatement::codegen(Accu& accu, CodegenStage) const {
 }
 
 void ArrayLiteral::codegen(Accu& accu, CodegenStage stage) const {
-  accu.add("make_array(");
+  accu.add("make_array<" + type->getCodegenName() + ">(");
   for (auto& elem : contents) {
     elem->codegen(accu, stage);
     accu.add(", ");
   }
-  accu.pop_back();
-  accu.pop_back();
+  if (!contents.empty()) {
+    accu.pop_back();
+    accu.pop_back();
+  }
   accu.add(")");
 }
