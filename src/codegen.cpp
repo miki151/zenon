@@ -10,7 +10,7 @@ struct Accu {
 
   enum Position {
     CURRENT,
-    EMBED
+    LAST_TOP_LEVEL,
   };
 
   void add(const string& s, Position pos = CURRENT) {
@@ -742,5 +742,9 @@ void ArrayLiteral::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void LambdaExpression::codegen(Accu& a, CodegenStage) const {
-  a.add("LAMBDA");
+  a.add(type->getName() + "{}");
+}
+
+void LambdaType::codegenDefinitionImpl(set<const Type*>& visited, Accu& a) const {
+  a.add("struct " + name + " { }; \n");
 }

@@ -315,6 +315,16 @@ struct SliceType : public Type {
   SType underlying;
 };
 
+struct LambdaType : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
+  virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual bool isBuiltinCopyable(const Context&) const override;
+  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
+  LambdaType();
+  string name;
+};
+
 struct FunctionType {
   struct Param {
     Param(optional<string> name, SType type);

@@ -1,0 +1,6 @@
+// no_compile
+
+int main() {
+  const f = [] -> int { return false; };
+  return 0;
+}

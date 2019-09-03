@@ -238,7 +238,7 @@ nullable<SType> Context::getReturnType() const {
 }
 
 void Context::setReturnType(SType t) {
-  CHECK(!getReturnType()) << "Attempted to overwrite return type";
+  CHECK(!state->returnType) << "Attempted to overwrite return type";
   state->returnType = t;
 }
 
@@ -248,6 +248,10 @@ void Context::addType(const string& name, SType t, bool fullyDefined, bool typeP
   state->fullyDefinedTypes.insert({t.get(), fullyDefined});
   if (typePack)
     state->typePack = t;
+}
+
+void Context::addLambda(SType t) {
+  parentStates[0].removeConst()->types.insert(make_pair(t->getName(), t));
 }
 
 WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameterInfo>& ids, bool variadic) const {

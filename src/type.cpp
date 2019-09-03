@@ -1340,3 +1340,25 @@ OptionalType::OptionalType(SType t) : underlying(std::move(t)) {
 
 }
 
+
+string LambdaType::getName(bool withTemplateArguments) const {
+  return name;
+}
+
+SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer&) const {
+  return shared<LambdaType>();
+}
+
+optional<string> LambdaType::getMappingError(const Context&, TypeMapping&, SType argType) const {
+  return none;
+}
+
+bool LambdaType::isBuiltinCopyable(const Context& c) const {
+  return true;
+}
+
+LambdaType::LambdaType() {
+  static int allIds = 0;
+  ++allIds;
+  name = "LAMBDA" + to_string(allIds);
+}

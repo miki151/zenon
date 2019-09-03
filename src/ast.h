@@ -151,6 +151,7 @@ struct LambdaExpression : Expression {
   vector<FunctionParameter> parameters;
   unique_ptr<StatementBlock> block;
   optional<IdentifierInfo> returnType;
+  nullable<SType> type;
 };
 
 struct ArrayLiteral : Expression {

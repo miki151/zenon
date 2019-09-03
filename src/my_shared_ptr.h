@@ -16,6 +16,13 @@ class shared_ptr : public std::shared_ptr<T> {
   shared_ptr<U> dynamicCast() const {
     return shared_ptr<U>(std::dynamic_pointer_cast<U>(*this));
   }
+
+  using NoConst = typename std::remove_const<T>::type;
+
+  auto removeConst() const {
+    return std::const_pointer_cast<NoConst>(*this);
+  }
+
   bool operator == (const T* o) const {
     return this->get() == o;
   }

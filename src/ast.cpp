@@ -2327,7 +2327,19 @@ LambdaExpression::LambdaExpression(CodeLoc l, vector<FunctionParameter> params, 
 }
 
 WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
-  return context.getTypeFromString(*returnType, false);
+  if (!type)
+    type = (SType) shared<LambdaType>();
+  auto retType = context.getTypeFromString(*returnType);
+  if (!retType)
+    return retType.get_error();
+  context.addLambda(type.get());
+  auto bodyContext = Context::withParent(context);
+  bodyContext.setReturnType(*retType);
+  if (auto err = block->check(bodyContext))
+    return *err;
+  if (!block->hasReturnStatement(context) && *retType != ArithmeticType::VOID)
+    return block->codeLoc.getError("Not all paths lead to a return statement in a lambda expression returning non-void");
+  return type.get();
 }
 
 unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, const ExprTransformFun& exprFun) const {
