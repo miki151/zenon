@@ -200,11 +200,56 @@ static WithErrorLine<unique_ptr<Expression>> parseArrayLiteral(Tokens& tokens) {
   return cast<Expression>(std::move(ret));
 }
 
+WithErrorLine<unique_ptr<StatementBlock>> parseBlock(Tokens&);
+
+WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
+  auto beginToken = *tokens.eat(Keyword::OPEN_SQUARE_BRACKET);
+  if (auto err = tokens.eat(Keyword::CLOSE_SQUARE_BRACKET); !err)
+    return err.get_error();
+  vector<FunctionParameter> params;
+  if (!!tokens.eat(Keyword::OPEN_BRACKET))
+    while (1) {
+      if (tokens.eatMaybe(Keyword::CLOSE_BRACKET))
+        break;
+      if (!params.empty())
+        if (auto t = tokens.eat(Keyword::COMMA); !t)
+          return t.get_error();
+      bool isParamMutable = !!tokens.eatMaybe(Keyword::MUTABLE);
+      auto typeId = parseIdentifier(tokens, true);
+      if (!typeId)
+        return typeId.get_error();
+      auto paramCodeLoc = typeId->codeLoc;
+      optional<string> paramName;
+      auto nameToken = tokens.peek();
+      if (nameToken.contains<IdentifierToken>()) {
+        paramName = nameToken.value;
+        paramCodeLoc = nameToken.codeLoc;
+        tokens.popNext();
+      }
+      params.push_back({paramCodeLoc, *typeId, paramName, isParamMutable, false});
+    }
+  optional<IdentifierInfo> returnType;
+  if (tokens.eatMaybe(Operator::POINTER_MEMBER_ACCESS)) {
+    if (auto retType = parseIdentifier(tokens, true))
+      returnType = *retType;
+    else
+      return retType.get_error();
+  }
+  if (auto block = parseBlock(tokens))
+    return cast<Expression>(unique<LambdaExpression>(beginToken.codeLoc, std::move(params), std::move(*block),
+        std::move(returnType)));
+  else
+    return block.get_error();
+}
+
 WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
   auto token = tokens.peek();
   return token.visit(
       [&](const Keyword& k) -> WithErrorLine<unique_ptr<Expression>> {
         switch (k) {
+          case Keyword::OPEN_SQUARE_BRACKET: {
+            return parseLambda(tokens);
+          }
           case Keyword::OPEN_BRACKET: {
             tokens.popNext();
             auto ret = parseExpression(tokens);

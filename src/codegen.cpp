@@ -740,3 +740,7 @@ void ArrayLiteral::codegen(Accu& accu, CodegenStage stage) const {
   }
   accu.add(")");
 }
+
+void LambdaExpression::codegen(Accu& a, CodegenStage) const {
+  a.add("LAMBDA");
+}
