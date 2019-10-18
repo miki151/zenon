@@ -1,0 +1,26 @@
+// 45
+
+int eat(int i) { return i; }
+int drink(int* i) { return 2 * *i; }
+
+template <T>
+concept can_eat {
+  int eat(T);
+};
+
+template <T>
+concept can_drink {
+  int drink(T*);
+};
+
+int eat_all() { return 0; }
+
+template <T, Args...> requires can_eat<Args>..., can_eat<T>, can_drink<T>, can_drink<Args>... 
+int eat_all(T arg1, Args... args) {
+  const res = drink(&arg1);
+  return res + eat(move(arg1)) + eat_all(move(args)...);
+}
+
+int main() {
+  return eat_all(1, 2, 3, 4, 5);
+}

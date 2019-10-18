@@ -203,3 +203,17 @@ template <typename T, typename U>
 unique_ptr<T> cast(unique_ptr<U> p) {
   return unique_ptr<T>((T*)p.release());
 }
+
+template <typename T>
+void ignore(T) {}
+
+#define COMPARABLE(Type, ...)\
+auto asTuple() const {\
+  return std::forward_as_tuple(__VA_ARGS__);\
+}\
+bool operator == (const Type& o) const {\
+  return asTuple() == o.asTuple();\
+}\
+bool operator < (const Type& o) const {\
+  return asTuple() < o.asTuple();\
+}

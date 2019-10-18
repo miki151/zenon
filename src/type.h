@@ -14,9 +14,6 @@ struct SwitchStatement;
 struct FunctionDefinition;
 struct Accu;
 
-
-using TemplateRequirement = variant<SConcept, shared_ptr<Expression>>;
-
 struct Type : public owned_object<Type> {
   Type();
   virtual string getName(bool withTemplateArguments = true) const = 0;
@@ -157,17 +154,6 @@ struct OptionalType : public Type {
 
 struct EnumType;
 
-#define COMPARABLE(Type, ...)\
-auto asTuple() const {\
-  return std::forward_as_tuple(__VA_ARGS__);\
-}\
-bool operator == (const Type& o) const {\
-  return asTuple() == o.asTuple();\
-}\
-bool operator < (const Type& o) const {\
-  return asTuple() < o.asTuple();\
-}
-
 struct CompileTimeValue : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
@@ -237,6 +223,14 @@ struct TemplateStructMemberType : public Type {
   SCompileTimeValue memberIndex;
   struct Private {};
   TemplateStructMemberType(Private, SType structType, SCompileTimeValue);
+};
+
+struct TemplateRequirement {
+  using Base = variant<SConcept, shared_ptr<Expression>>;
+  TemplateRequirement(Base base, bool variadic) : base(std::move(base)), variadic(variadic) {}
+  Base base;
+  bool variadic;
+  COMPARABLE(TemplateRequirement, base, variadic)
 };
 
 struct StructType : public Type {

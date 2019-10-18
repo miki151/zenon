@@ -106,6 +106,7 @@ class Context : public owned_object<Context> {
 
   WithErrorLine<vector<SType> > getTypeList(const vector<TemplateParameterInfo>&, bool variadic) const;
   vector<SFunctionInfo> getFunctions(FunctionId) const;
+  vector<SFunctionInfo> getAllFunctions() const;
 
   TypeRegistry* const typeRegistry;
 
@@ -116,6 +117,5 @@ class Context : public owned_object<Context> {
 
   vector<shared_ptr<const State>> getReversedStates() const;
   nullable<SType> getVariable(const string&) const;
-  vector<SFunctionInfo> getAllFunctions() const;
   vector<SFunctionInfo> getConstructorsFor(const SType&) const;
 };

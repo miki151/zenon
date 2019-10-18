@@ -675,7 +675,7 @@ NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyConcept(Context
         vector<SType> translatedParams;
         for (int i = 0; i < requirementArgs.size(); ++i) {
           if (auto arg = requirementArgs[i].getReferenceMaybe<IdentifierInfo>()) {
-            if (auto origParam = from.getTypeFromString(*arg)) {
+            if (auto origParam = from.getTypeFromString(*arg, requirement->variadic)) {
               if (auto templateParam = origParam->dynamicCast<TemplateParameterType>())
                 // Support is_enum concept
                 if (concept->getParams()[i]->getType() != ArithmeticType::ANY_TYPE)
@@ -691,7 +691,7 @@ NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyConcept(Context
         if (!errors.empty())
           return reqId.codeLoc.getError(errors[0]);
         from.merge(translated->getContext());
-        ret.push_back(translated);
+        ret.push_back(TemplateRequirement(std::move(translated), requirement->variadic));
       } else
         return reqId.codeLoc.getError("Uknown concept: " + reqId.parts[0].name);
     } else
@@ -703,7 +703,7 @@ NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyConcept(Context
         if (value->getType() != ArithmeticType::BOOL)
           return expr->codeLoc.getError("Expected expression of type " + quote(ArithmeticType::BOOL->getName()) +
               ", got " + quote(value->getType()->getName()));
-        ret.push_back(shared_ptr<Expression>(std::move(expr)));
+        ret.push_back(TemplateRequirement(shared_ptr<Expression>(std::move(expr)), false));
       } else
         return expr1->get()->codeLoc.getError("Unable to evaluate expression at compile-time");
     }
@@ -1042,7 +1042,7 @@ optional<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, c
     return none;
   vector<SFunctionInfo> requirements;
   for (auto& req : instance->type.requirements)
-    if (auto concept = req.getValueMaybe<SConcept>())
+    if (auto concept = req.base.getValueMaybe<SConcept>())
       append(requirements, *callContext.getRequiredFunctions(**concept, {}));
   for (auto& fun : requirements)
     if (fun->type.fromConcept)
@@ -1389,7 +1389,18 @@ optional<ErrorLoc> FunctionCall::checkVariadicCall(Expression* left, const Conte
         break;
     } else
       return type.get_error();
-    expanded.push_back(shared<TemplateParameterType>(getExpandedParamName("SomeType", expanded.size()), codeLoc));
+    expanded.push_back(shared<TemplateParameterType>(getExpandedParamName(
+        callContext.getTypePack()->getName(), expanded.size()), codeLoc));
+    // Go through all functions coming from a concept and try to expand them from the current type pack into 'expanded'.
+    // Otherwise one of the types in 'expanded' might fail a requirement in the checked call
+    for (auto& fun : callContext.getAllFunctions())
+      if (fun->type.fromConcept) {
+        ErrorBuffer errors;
+        auto replaced = replaceInFunction(fun, callContext.getTypePack().get(), expanded.back(), errors);
+        if (errors.empty() && replaced != fun)
+          ignore(context.addFunction(replaced));
+        CHECK(errors.empty()); // not sure if any errors should appear here, so checking just in case
+      }
     if (variablePack) {
       expandedVars.push_back(getExpandedParamName("SomeVar", expanded.size()));
       ErrorBuffer errors;

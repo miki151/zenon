@@ -669,7 +669,7 @@ SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
     }
     ret->requirements = requirements;
     for (auto& req : ret->requirements)
-      req.visit([&](SConcept& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); },
+      req.base.visit([&](SConcept& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); },
           [&](shared_ptr<Expression>& conceptOrExpr) {
             ErrorLocBuffer errors2;
             conceptOrExpr = conceptOrExpr->replace(from, to, errors2);
@@ -691,7 +691,7 @@ FunctionType replaceInFunction(FunctionType type, SType from, SType to, ErrorBuf
   for (auto& param : type.templateParams)
     param = param->replace(from, to, errors);
   for (auto& req : type.requirements)
-    req.visit([&](SConcept& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); },
+    req.base.visit([&](SConcept& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); },
         [&](shared_ptr<Expression>& conceptOrExpr) {
           ErrorLocBuffer errors2;
           conceptOrExpr = conceptOrExpr->replace(from, to, errors2);
@@ -740,11 +740,11 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
     ret = ret->replace(ret->templateParams[i], templateArgs[i], errors).dynamicCast<StructType>();
   }
   for (auto& req : ret.dynamicCast<StructType>()->requirements)
-    if (auto concept = req.getReferenceMaybe<SConcept>()) {
+    if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
       if (auto res = context.getRequiredFunctions(**concept, {}); !res)
         return loc.getError(res.get_error());
     } else
-    if (auto expr1 = req.getReferenceMaybe<shared_ptr<Expression>>()) {
+    if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
       if (expr1->get()->eval(context) == CompileTimeValue::get(false))
         return loc.getError("Unable to insantiate " + quote(ret->getName()) + ": predicate requirement evaluates to false");
     }
@@ -901,6 +901,25 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
       ++cnt;
     }
   }
+  vector<TemplateRequirement> newRequirements;
+  for (auto requirement : type.requirements)
+    if (!requirement.variadic)
+      newRequirements.push_back(std::move(requirement));
+    else {
+      ErrorBuffer errors;
+      ErrorLocBuffer errors2;
+      for (auto& expanded : expandedTypes)
+        newRequirements.push_back(requirement.base.visit(
+            [&](const SConcept& r) {
+              return TemplateRequirement(r->replace(lastTemplateParam.get(), expanded, errors), false);
+            },
+            [&](const shared_ptr<Expression>& r) {
+              return TemplateRequirement(shared_ptr<Expression>(r->replace(lastTemplateParam.get(), expanded, errors2)), false);
+            }
+        ));
+      break;
+    }
+  type.requirements = std::move(newRequirements);
   return none;
 }
 
@@ -959,11 +978,11 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
   existing.push_back(input->type);
   //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
   for (auto& req : type.requirements)
-    if (auto concept = req.getReferenceMaybe<SConcept>()) {
+    if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
       if (auto res = context.getRequiredFunctions(**concept, existing); !res)
         return codeLoc.getError(res.get_error());
     } else
-    if (auto expr1 = req.getReferenceMaybe<shared_ptr<Expression>>()) {
+    if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
       if (expr1->get()->eval(context) == CompileTimeValue::get(false))
         return expr1->get()->codeLoc.getError("Predicate evaluates to false");
     }
