@@ -5,6 +5,6 @@ enum E {
 };
 
 int main() {
-  const x = enum_size<int>(E);
+  const x = enum_count<int>(E);
   return 0;
 }

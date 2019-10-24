@@ -1,0 +1,41 @@
+// 49
+
+struct X {
+  int a;
+  string b;
+  bool c;
+};
+
+template <T>
+int get_value(T*) {
+  return 100;
+}
+
+int get_value(int* x) {
+  return *x;
+}
+
+int get_value(string* s) {
+  return s->size();
+}
+
+int get_value(bool* b) {
+  if (*b)
+    return 1;
+  else
+    return 0;
+}
+
+template <T> requires is_struct<T>
+int sum_fields(T* t) {
+  mutable res = 0;
+  static for (mutable i = 0; i < struct_count(T); ++i)
+    res += get_value(&t->(i));
+  return res;
+}
+
+int main() {
+  const x = X(13, "pok", true);
+  const y = X(26, "pokpok", false);
+  return sum_fields(&x) + sum_fields(&y);
+}

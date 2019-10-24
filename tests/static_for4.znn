@@ -1,0 +1,9 @@
+// 10
+
+int main() {
+  mutable res = 0;
+  static for (mutable i = 0; i < 5; ++i)
+    static for (mutable j = 0; j < i; ++j)
+      ++res;
+  return res;
+}

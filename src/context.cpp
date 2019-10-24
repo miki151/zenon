@@ -262,7 +262,7 @@ WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameter
           return getTypeFromString(id,  i == ids.size() - 1 && variadic); },
         [&](const shared_ptr<Expression>& expr) -> WithErrorLine<SType> {
           if (auto value = expr->eval(*this))
-            return value.get();
+            return value->value;
           else
             return expr->codeLoc.getError("Can't evaluate expression at compile-time");
         }
@@ -386,7 +386,7 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, bool typePack
           },
           [&](const IdentifierInfo::ArraySize& size) {
             if (auto type = size.expr->eval(*this)) {
-              if (auto value = type.get().dynamicCast<CompileTimeValue>())
+              if (auto value = type->value.dynamicCast<CompileTimeValue>())
                 if (value.get()->getType() == ArithmeticType::INT) {
                   if (auto sizeInt = value->value.getValueMaybe<int>())
                     if (*sizeInt < 0) {
@@ -396,7 +396,7 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, bool typePack
                   *ret = ArrayType::get(*ret, value);
                   return;
                 }
-              ret = size.expr->codeLoc.getError("Inappropriate type of array size: " + quote(type.get()->getName()));
+              ret = size.expr->codeLoc.getError("Inappropriate type of array size: " + quote(type->value->getName()));
             } else
               ret = size.expr->codeLoc.getError("Can't evaluate array size expression at compile-time"s);
           },

@@ -2,7 +2,7 @@
 
 template <E> requires is_enum<E>
 int f() {
-  return enum_size(E);
+  return enum_count(E);
 }
 
 enum E1 {
@@ -13,5 +13,5 @@ enum E1 {
 };
 
 int main() {
-  return f<E1>() + enum_size(E1);
+  return f<E1>() + enum_count(E1);
 }

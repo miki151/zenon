@@ -9,8 +9,8 @@ enum E {
 };
 
 int main() {
-  mutable sum = enum_size(E);
-  for (mutable i = 0; i < enum_size(E); ++i) {
+  mutable sum = enum_count(E);
+  for (mutable i = 0; i < enum_count(E); ++i) {
     const elem = enum_strings(E)[i];
     if (elem == "E2")
       sum += 20;

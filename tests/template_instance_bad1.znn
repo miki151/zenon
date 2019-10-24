@@ -1,8 +1,10 @@
 // no_compile
 
-struct S {};
+template <T>
+void f() {
+}
 
 int main() {
-  const x = enum_count(1);
+  f<1>();
   return 0;
 }

@@ -207,86 +207,126 @@ optional<Operator> getUnary(Operator op) {
   }
 }
 
+template <typename Arg1>
+static optional<Arg1> tryReference(const CompileTimeValue& arg) {
+  if (auto value = arg.value.getValueMaybe<Arg1>())
+    return value;
+  if (auto ref = arg.value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
+    if (auto value = ref->value->value.getValueMaybe<Arg1>())
+      return value;
+  return none;
+}
+
 template <typename Arg1, typename Arg2, typename Operation>
-nullable<SCompileTimeValue> tryTypes(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
-  if (auto value1 = args[0]->value.getValueMaybe<Arg1>())
-    if (auto value2 = args[1]->value.getValueMaybe<Arg2>())
-      return CompileTimeValue::get(operation(*value1, *value2));
+nullable<SCompileTimeValue> tryTypes(const vector<SCompileTimeValue>& args, Operation operation) {
+  auto value1 = tryReference<Arg1>(*args[0]);
+  auto value2 = tryReference<Arg2>(*args[1]);
+  if (value1 && value2)
+    return CompileTimeValue::get(operation(*value1, *value2));
   return nullptr;
 }
 
 template <typename Arg, typename Operation>
-nullable<SCompileTimeValue> tryType(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
-  if (auto value1 = args[0]->value.getValueMaybe<Arg>())
+nullable<SCompileTimeValue> tryType(const vector<SCompileTimeValue>& args, Operation operation) {
+  if (auto value1 = tryReference<Arg>(*args[0]))
     return CompileTimeValue::get(operation(*value1));
   return nullptr;
 }
 
 template <typename Operation>
-nullable<SCompileTimeValue> tryArithmetic(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
-  if (auto res = tryTypes<int, int>(op, args, operation))
+nullable<SCompileTimeValue> tryArithmetic(const vector<SCompileTimeValue>& args, Operation operation) {
+  if (auto res = tryTypes<int, int>(args, operation))
     return res;
-  if (auto res = tryTypes<int, double>(op, args, operation))
+  if (auto res = tryTypes<int, double>(args, operation))
     return res;
-  if (auto res = tryTypes<double, int>(op, args, operation))
+  if (auto res = tryTypes<double, int>(args, operation))
     return res;
-  return tryTypes<double, double>(op, args, operation);
+  return tryTypes<double, double>(args, operation);
 }
 
 template <typename Operation>
-nullable<SCompileTimeValue> tryArithmeticUnary(Operator op, const vector<SCompileTimeValue>& args, Operation operation) {
-  return tryType<int>(op, args, operation);
+nullable<SCompileTimeValue> tryArithmeticUnary(const vector<SCompileTimeValue>& args, Operation operation) {
+  return tryType<int>(args, operation);
+}
+
+template <typename Operation>
+nullable<SCompileTimeValue> tryReferenceUnary(const vector<SCompileTimeValue>& args, Operation operation) {
+  if (auto ref = args[0]->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>()) {
+    if (auto res = tryArithmeticUnary({ref->value}, operation)) {
+      ref->value = res.get();
+      return res;
+    }
+  }
+  return nullptr;
+}
+
+template <typename Operation>
+nullable<SCompileTimeValue> tryReferenceBinary(const vector<SCompileTimeValue>& args, Operation operation) {
+  if (auto ref = args[0]->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>()) {
+    if (auto res = tryArithmetic({ref->value, args[1]}, operation)) {
+      ref->value = res.get();
+      return res;
+    }
+  }
+  return nullptr;
 }
 
 static nullable<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileTimeValue> args) {
   CHECK((args.size() == 2 && !isUnary(op)) || (args.size() == 1 && isUnary(op)));
   switch (op) {
     case Operator::ASSIGNMENT:
-    case Operator::INCREMENT_BY:
-    case Operator::DECREMENT_BY:
+      return tryReferenceBinary(args, [](auto value1, auto value2) { return value2; });
     case Operator::MULTIPLY_BY:
+      return tryReferenceBinary(args, [](auto value1, auto value2) { return value1 * value2; });
     case Operator::DIVIDE_BY:
-    case Operator::VALUE_OR:
-    case Operator::MAYBE:
-      return nullptr;
+      return tryReferenceBinary(args, [](auto value1, auto value2) { return value1 / value2; });
+    case Operator::DECREMENT_BY:
+      return tryReferenceBinary(args, [](auto value1, auto value2) { return value1 - value2; });
+    case Operator::INCREMENT_BY:
+      return tryReferenceBinary(args, [](auto value1, auto value2) { return value1 + value2; });
+    case Operator::DECREMENT:
+      return tryReferenceUnary(args, [](auto value) { return value - 1; });
+    case Operator::INCREMENT:
+      return tryReferenceUnary(args, [](auto value) { return value + 1; });
     case Operator::LOGICAL_OR:
-      return tryTypes<bool, bool>(op, args, [](bool b1, bool b2) { return b1 || b2; });
+      return tryTypes<bool, bool>(args, [](bool b1, bool b2) { return b1 || b2; });
     case Operator::LOGICAL_AND:
-      return tryTypes<bool, bool>(op, args, [](bool b1, bool b2) { return b1 && b2; });
+      return tryTypes<bool, bool>(args, [](bool b1, bool b2) { return b1 && b2; });
     case Operator::EQUALS:
-      return tryArithmetic(op, args, [](auto v1, auto v2) { return v1 == v2; });
+      return tryArithmetic(args, [](auto v1, auto v2) { return v1 == v2; });
       /*if (args[0].index() == args[1].index())
         return SCompileTimeValue(args[0] == args[1]);
       else
         return getError(op, args);*/
     case Operator::LOGICAL_NOT:
-      return tryType<bool>(op, args, [](bool b) { return !b; });
-    case Operator::LESS_THAN:
-      return tryArithmetic(op, args, [](auto v1, auto v2) { return v1 < v2; });
+      return tryType<bool>(args, [](bool b) { return !b; });
+    case Operator::LESS_THAN: {
+      return tryArithmetic(args, [](auto v1, auto v2) { return v1 < v2; });
+    }
     case Operator::MORE_THAN:
-      return tryArithmetic(op, args, [](auto v1, auto v2) { return v1 > v2; });
+      return tryArithmetic(args, [](auto v1, auto v2) { return v1 > v2; });
     case Operator::PLUS:
-      if (auto res = tryArithmetic(op, args, [](auto v1, auto v2) { return v1 + v2; }))
+      if (auto res = tryArithmetic(args, [](auto v1, auto v2) { return v1 + v2; }))
         return res;
-      return tryTypes<string, string>(op, args, [](auto v1, auto v2) { return v1 + v2; });
+      return tryTypes<string, string>(args, [](auto v1, auto v2) { return v1 + v2; });
     case Operator::PLUS_UNARY:
-      return tryArithmeticUnary(op, args, [](auto v) { return v; });
+      return tryArithmeticUnary(args, [](auto v) { return v; });
     case Operator::MINUS:
-      return tryArithmetic(op, args, [](auto v1, auto v2) { return v1 - v2; });
+      return tryArithmetic(args, [](auto v1, auto v2) { return v1 - v2; });
     case Operator::MINUS_UNARY:
-      return tryArithmeticUnary(op, args, [](auto v) { return -v; });
+      return tryArithmeticUnary(args, [](auto v) { return -v; });
     case Operator::MODULO:
-      return tryTypes<int, int>(op, args, [](int v1, int v2) { return v1 % v2; });
+      return tryTypes<int, int>(args, [](int v1, int v2) { return v1 % v2; });
     case Operator::DIVIDE:
-      return tryArithmetic(op, args, [](auto v1, auto v2) { return v1 / v2; });
+      return tryArithmetic(args, [](auto v1, auto v2) { return v1 / v2; });
     case Operator::MULTIPLY:
-      return tryArithmetic(op, args, [](auto v1, auto v2) { return v1 * v2; });
-    case Operator::DECREMENT:
-    case Operator::INCREMENT:
+      return tryArithmetic(args, [](auto v1, auto v2) { return v1 * v2; });
     case Operator::POINTER_DEREFERENCE:
     case Operator::GET_ADDRESS:
     case Operator::SUBSCRIPT:
     case Operator::MEMBER_ACCESS:
+    case Operator::VALUE_OR:
+    case Operator::MAYBE:
       return nullptr;
     case Operator::POINTER_MEMBER_ACCESS:
     case Operator::NOT_EQUAL:
@@ -308,6 +348,8 @@ static SCompileTimeValue getExampleValue(SType type) {
     return CompileTimeValue::get(""s);
   if (ArithmeticType::CHAR == type)
     return CompileTimeValue::get('a');
+  if (auto ref = type.dynamicCast<MutableReferenceType>())
+    return CompileTimeValue::getReference(getExampleValue(ref->getUnderlying()));
   //if (ArithmeticType::VOID == type)
   fail();
 }

@@ -1,0 +1,14 @@
+// 33
+
+int round(double d) {
+  embed {
+    return int(d);
+  }
+}
+
+int main() {
+  mutable res = 0.0;
+  static for (mutable i = 0.0; i <= 5.5; i += 0.5)
+    res += i;
+  return round(res);
+}

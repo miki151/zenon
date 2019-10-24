@@ -192,13 +192,22 @@ struct CompileTimeValue : public Type {
     SType type;
     COMPARABLE(ArrayValue, values, type)
   };
+  struct ReferenceValue {
+    ReferenceValue(SCompileTimeValue);
+    SCompileTimeValue value;
+    int id;
+    COMPARABLE(ReferenceValue, id)
+  };
   struct NullValue { COMPARABLE(NullValue) };
-  using Value = variant<int, bool, double, char, NullValue, string, EnumValue, ArrayValue, TemplateValue, TemplateExpression, TemplateFunctionCall>;
+  using Value = variant<int, bool, double, char, NullValue, string, EnumValue, ArrayValue, TemplateValue, TemplateExpression,
+      TemplateFunctionCall, ReferenceValue>;
   static shared_ptr<CompileTimeValue> get(Value);
+  static shared_ptr<CompileTimeValue> getReference(SCompileTimeValue);
   static shared_ptr<CompileTimeValue> getTemplateValue(SType type, string name);
   Value value;
 
-  CompileTimeValue(Value);
+  struct Private {};
+  CompileTimeValue(Private, Value);
 };
 
 struct TemplateParameterType : public Type {
@@ -208,6 +217,7 @@ struct TemplateParameterType : public Type {
   virtual SType getType() const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
   virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const override;
+  virtual WithError<SType> getTypeOfMember(const string&) const override;
   TemplateParameterType(string name, CodeLoc);
   TemplateParameterType(SType type, string name, CodeLoc);
   string name;

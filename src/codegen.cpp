@@ -168,8 +168,13 @@ static string getFunctionCallName(const FunctionInfo& functionInfo, bool methodC
     typePrefix += "::";
   return functionInfo.id.visit(
       [&](const string& s) {
-        //std::cout << "Getting call name for " << functionInfo.prettyString();
-        return typePrefix + s + *functionInfo.getMangledName(); },
+        if (auto name = functionInfo.getMangledName())
+          return typePrefix + s + *name;
+        else {
+          FATAL << functionInfo.prettyString();
+          fail();
+        }
+      },
       [&](Operator op) {
         if (op == Operator::SUBSCRIPT)
           return "subscript_op"s;
@@ -663,6 +668,13 @@ void ForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.newLine();
 }
 
+void StaticForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
+  for (auto& elem : unrolled) {
+    accu.add("{");
+    elem->codegen(accu, stage);
+    accu.add("}");
+  }
+}
 
 void RangedLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);

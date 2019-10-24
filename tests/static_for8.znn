@@ -1,0 +1,15 @@
+// 35
+
+template <int N>
+int add(int mutable* res) {
+  *res += N;
+  return *res;
+}
+
+int main() {
+  mutable res = 0;
+  static for (mutable i = 4; i >= 0; --i)
+    static for (mutable j = i + 1; j < 5; ++j)
+      mutable a = add<(i*j)>(&res);
+  return res;
+}

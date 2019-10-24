@@ -141,10 +141,9 @@ WithErrorLine<unique_ptr<Expression>> parseStringLiteral(CodeLoc initialLoc, str
     if (!left)
       left = std::move(right);
     else
-      left = BinaryExpression::get(loc, Operator::PLUS, std::move(left), std::move(right));
+      left = BinaryExpression::get(loc, Operator::PLUS, std::move(left), std::move(right), false);
   };
   regex re(getInputReg());
-  int lastPos = 0;
   auto words_begin = sregex_iterator(literal.begin(), literal.end(), re);
   auto words_end = sregex_iterator();
   for (auto it = words_begin; it != words_end; ++it)
@@ -160,7 +159,7 @@ WithErrorLine<unique_ptr<Expression>> parseStringLiteral(CodeLoc initialLoc, str
           auto tokens = lex(it->str().substr(1, it->str().size() - 2), loc, "end of expression").get();
           if (auto expr = parseExpression(tokens)) {
             auto call = BinaryExpression::get(loc, Operator::MEMBER_ACCESS, std::move(*expr),
-                unique<FunctionCall>(loc, IdentifierInfo("to_string", loc)));
+                cast<Expression>(unique<FunctionCall>(loc, IdentifierInfo("to_string", loc))), false);
             addElem(std::move(call), loc);
           } else
             return expr.get_error();
@@ -257,7 +256,6 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
               return ret.get_error();
             if (auto t = tokens.eat(Keyword::CLOSE_BRACKET); !t)
               return t.get_error();
-            ret.get()->withBrackets = true;
             return std::move(*ret);
           }
           case Keyword::MOVE: {
@@ -342,6 +340,7 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
       if (getPrecedence(*op1) < minPrecedence)
         break;
       tokens.popNext();
+      bool inBrackets = tokens.peek() == Keyword::OPEN_BRACKET;
       auto rhs = parsePrimary(tokens);
       if (!rhs)
         return rhs.get_error();
@@ -356,13 +355,14 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
               (!isRightAssociative(*op2) || getPrecedence(*op2) < getPrecedence(*op1)))
             break;
           rhs = parseExpressionImpl(tokens, std::move(*rhs), getPrecedence(*op2));
+          inBrackets = false;
           if (!rhs)
             return rhs.get_error();
           token = tokens.peek();
         } else
           break;
       }
-      lhs = BinaryExpression::get(token.codeLoc, *op1, std::move(lhs), std::move(*rhs));
+      lhs = BinaryExpression::get(token.codeLoc, *op1, std::move(lhs), std::move(*rhs), inBrackets);
     } else
     if (token == Keyword::OPEN_SQUARE_BRACKET) {
       tokens.popNext();
@@ -371,7 +371,7 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
         return rhs.get_error();
       if (auto t = tokens.eat(Keyword::CLOSE_SQUARE_BRACKET); !t)
         return t.get_error();
-      lhs = BinaryExpression::get(token.codeLoc, Operator::SUBSCRIPT, std::move(lhs), std::move(*rhs));
+      lhs = BinaryExpression::get(token.codeLoc, Operator::SUBSCRIPT, std::move(lhs), std::move(*rhs), false);
     } else
       break;
   }
@@ -747,6 +747,43 @@ WithErrorLine<unique_ptr<WhileLoopStatement>> parseWhileLoopStatement(Tokens& to
   if (!body)
     return body.get_error();
   return unique<WhileLoopStatement>(codeLoc, std::move(*cond), std::move(*body));
+}
+
+WithErrorLine<unique_ptr<Statement>> parseStaticForLoopStatement(Tokens& tokens) {
+  auto codeLoc = tokens.peek().codeLoc;
+  if (auto t = tokens.eat(Keyword::STATIC); !t)
+    return t.get_error();
+  if (auto t = tokens.eat(Keyword::FOR); !t)
+    return t.get_error();
+  if (auto t = tokens.eat(Keyword::OPEN_BRACKET); !t)
+    return t.get_error();
+  if (auto t = tokens.eat(Keyword::MUTABLE); !t)
+    return t.get_error();
+  auto counter = tokens.popNext();
+  if (!counter.contains<IdentifierToken>())
+    return counter.codeLoc.getError("Expected static loop counter variable");
+  if (auto t = tokens.eat(Operator::ASSIGNMENT); !t)
+    return t.get_error();
+  auto init = parseExpression(tokens);
+  if (!init)
+    return init.get_error();
+  if (auto t = tokens.eat(Keyword::SEMICOLON); !t)
+    return t.get_error();
+  auto cond = parseExpression(tokens);
+  if (!cond)
+    return cond.get_error();
+  if (auto t = tokens.eat(Keyword::SEMICOLON); !t)
+    return t.get_error();
+  auto iter = parseExpression(tokens);
+  if (!iter)
+    return iter.get_error();
+  if (auto t = tokens.eat(Keyword::CLOSE_BRACKET); !t)
+    return t.get_error();
+  auto body = parseNonTopLevelStatement(tokens);
+  if (!body)
+    return body.get_error();
+  return cast<Statement>(
+      unique<StaticForLoopStatement>(codeLoc, counter.value, std::move(*init), std::move(*cond), std::move(*iter), std::move(*body)));
 }
 
 WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) {
@@ -1134,6 +1171,8 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
               ret.get()->canDiscard = true;
             return cast<Statement>(std::move(ret));
           }
+          case Keyword::STATIC:
+            return cast<Statement>(parseStaticForLoopStatement(tokens));
           default:
             return token.codeLoc.getError("Unexpected keyword: " + quote(token.value));
         }

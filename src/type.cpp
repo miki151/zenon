@@ -134,12 +134,21 @@ bool TemplateParameterType::isBuiltinCopyable(const Context&) const {
     return false;
 }
 
-WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SCompileTimeValue& value) const {
+WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SCompileTimeValue& value1) const {
+  auto value = value1;
+  if (auto ref = value->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
+    value = ref->value;
   if (value->getType() != ArithmeticType::INT)
-    return "Member index must be of type: " + quote(ArithmeticType::INT->getName());
+    return "Member index must be of type: " + quote(ArithmeticType::INT->getName()) + ", got " + value->getType()->getName();
   if (type == ArithmeticType::STRUCT_TYPE)
     return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), value), "bad_member_name"};
   return Type::getTypeOfMember(value);
+}
+
+WithError<SType> TemplateParameterType::getTypeOfMember(const string& s) const {
+  if (type == ArithmeticType::STRUCT_TYPE)
+    return "Can only refer to template struct type members by index"s;
+  return Type::getTypeOfMember(s);
 }
 
 TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l), type(ArithmeticType::ANY_TYPE) {}
@@ -577,14 +586,20 @@ void StructType::updateInstantations() {
   }
 }
 
-WithError<Type::MemberInfo> StructType::getTypeOfMember(const SCompileTimeValue& v) const {
+WithError<Type::MemberInfo> StructType::getTypeOfMember(const SCompileTimeValue& v1) const {
+  auto v = v1;
+  if (auto ref = v->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
+    v = ref->value;
   if (auto intValue = v->value.getValueMaybe<int>()) {
     if (*intValue >= 0 && *intValue < members.size())
       return MemberInfo{members[*intValue].type, members[*intValue].name};
     else
-      return "Member index for type " + quote(getName()) + " must be between 0 and " + to_string(members.size() - 1);
+      return "Member index for type " + quote(getName()) + " must be between 0 and " + to_string(members.size() - 1) +
+          ", got " + to_string(*intValue);
   }
-  return "Member index must be of type: " + quote(ArithmeticType::INT->getName());
+  if (v->getType() == ArithmeticType::INT)
+    return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), v), "bad_member_name"};
+  return "Member index must be of type: " + quote(ArithmeticType::INT->getName()) + ", got " + v->getType()->getName();
 }
 
 SType StructType::getType() const {
@@ -745,7 +760,7 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
         return loc.getError(res.get_error());
     } else
     if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
-      if (expr1->get()->eval(context) == CompileTimeValue::get(false))
+      if (expr1->get()->eval(context)->value == CompileTimeValue::get(false))
         return loc.getError("Unable to insantiate " + quote(ret->getName()) + ": predicate requirement evaluates to false");
     }
   if (!errors.empty())
@@ -983,7 +998,7 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
         return codeLoc.getError(res.get_error());
     } else
     if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
-      if (expr1->get()->eval(context) == CompileTimeValue::get(false))
+      if (expr1->get()->eval(context)->value == CompileTimeValue::get(false))
         return expr1->get()->codeLoc.getError("Predicate evaluates to false");
     }
   // The replace() errors need to be checked after returning potential requirement errors.
@@ -1130,13 +1145,15 @@ optional<string> ArrayType::getMappingError(const Context& context, TypeMapping&
 SCompileTimeValue CompileTimeValue::get(Value value) {
   static map<Value, SCompileTimeValue> generated;
   if (!generated.count(value)) {
-    auto ret = shared<CompileTimeValue>(value);
+    auto ret = shared<CompileTimeValue>(Private{}, value);
     generated.insert({value, ret});
   }
+  for (auto& elem : generated)
+    CHECK(elem.first == elem.second->value);
   return generated.at(value);
 }
 
-CompileTimeValue::CompileTimeValue(Value value) : value(std::move(value)) {
+CompileTimeValue::CompileTimeValue(Private, Value value) : value(std::move(value)) {
 }
 
 string CompileTimeValue::getName(bool withTemplateArguments) const {
@@ -1145,11 +1162,12 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
       [](double v) { return to_string(v); },
       [](bool v) { return v ? "true" : "false"; },
       [](char v) { return "\'" + string(1, v) + "\'"; },
+      [](const ReferenceValue& ref) { return ref.value->getName(); },
       [](NullValue v) { return "null"; },
       [](const string& v) { return v; },
       [](const EnumValue& t) { return t.type->getName() + "::" + t.type->elements[t.index]; },
       [](const ArrayValue& t) { return "{" + combine(transform(t.values,
-          [](const auto& v) { return v->getName();}), ", ") + "}"; },
+      [](const auto& v) { return v->getName();}), ", ") + "}"; },
       [](const TemplateValue& v) { return v.name; },
       [](const TemplateExpression& v) { return getPrettyString(v.op, v.args); },
       [](const TemplateFunctionCall& v) { return "[function call]"; }
@@ -1159,9 +1177,10 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
 string CompileTimeValue::getCodegenName() const {
   return value.visit(
       [this](const auto&) { return getName(); },
+      [](const ReferenceValue& ref) { return ref.value->getName(); },
       [](const string& v) { return "\"" + v +"\"_lstr"; },
       [](const ArrayValue& t) { return "make_array(" + combine(transform(t.values,
-          [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
+      [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
       [](const TemplateValue&) -> string { fail(); },
       [](const TemplateExpression&) -> string { fail(); },
       [](const TemplateFunctionCall&) -> string { fail(); }
@@ -1174,6 +1193,7 @@ SType CompileTimeValue::getType() const {
       [](double)-> SType {  return ArithmeticType::DOUBLE; },
       [](bool)-> SType {  return ArithmeticType::BOOL; },
       [](char)-> SType {  return ArithmeticType::CHAR; },
+      [](const ReferenceValue& ref)-> SType {  return MutableReferenceType::get(ref.value->getType()); },
       [](NullValue)-> SType {  return ArithmeticType::NULL_TYPE; },
       [](const string&)-> SType {  return ArithmeticType::STRING; },
       [](const EnumValue& v)-> SType {  return v.type; },
@@ -1204,10 +1224,20 @@ optional<string> CompileTimeValue::getMangledName() const {
               return none;
           return "Arr"s + combine(names, "");
       },
+      [](const ReferenceValue& ref)-> optional<string> {
+        if (auto name = ref.value->getMangledName())
+          return "Ref" + *name;
+        else
+          return none;
+        },
       [](const TemplateValue& v) -> optional<string> { return none; },
       [](const TemplateExpression&) -> optional<string> { return none; },
       [](const TemplateFunctionCall&) -> optional<string> { return none; }
   );
+}
+
+shared_ptr<CompileTimeValue> CompileTimeValue::getReference(SCompileTimeValue value) {
+  return get(ReferenceValue{std::move(value)});
 }
 
 shared_ptr<CompileTimeValue> CompileTimeValue::getTemplateValue(SType type, string name) {
@@ -1223,10 +1253,9 @@ optional<string> CompileTimeValue::getMappingError(const Context& context, TypeM
 }
 
 bool CompileTimeValue::canReplaceBy(SType t) const {
-  if (auto myValue = value.getReferenceMaybe<TemplateValue>())
-    if (auto v = t.dynamicCast<CompileTimeValue>()) {
+  if (auto myValue = value.getReferenceMaybe<TemplateValue>()) {
+    if (auto v = t.dynamicCast<CompileTimeValue>())
       return myValue->type == v->getType();
-    }
   return false;
 }
 
@@ -1380,4 +1409,9 @@ LambdaType::LambdaType() {
   static int allIds = 0;
   ++allIds;
   name = "LAMBDA" + to_string(allIds);
+}
+
+CompileTimeValue::ReferenceValue::ReferenceValue(SCompileTimeValue v) : value(std::move(v)) {
+  static int idCounter = 0;
+  id = ++idCounter;
 }

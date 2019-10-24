@@ -98,8 +98,8 @@ WithErrorLine<SType> Constant::getTypeImpl(Context&) {
   return value->getType();
 }
 
-nullable<SType> Constant::eval(const Context&) const {
-  return (SType) value;
+optional<EvalResult> Constant::eval(const Context&) const {
+  return EvalResult{ value, true};
 }
 
 unique_ptr<Expression> Constant::replace(SType from, SType to, ErrorLocBuffer& errors) const {
@@ -114,7 +114,7 @@ unique_ptr<Expression> Constant::transform(const StmtTransformFun&, const ExprTr
 }
 
 WithErrorLine<SType> Constant::getDotOperatorType(Expression* left, Context& callContext) {
-  auto myValue = eval(callContext).get().dynamicCast<CompileTimeValue>();
+  auto myValue = eval(callContext)->value.dynamicCast<CompileTimeValue>();
   CHECK(myValue);
   CHECK(left);
   if (auto leftType = left->getTypeImpl(callContext)) {
@@ -140,8 +140,14 @@ WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
   return codeLoc.getError(varError.value_or("Identifier not found: " + identifier));
 }
 
-nullable<SType> Variable::eval(const Context& context) const {
-  return context.getType(identifier);
+optional<EvalResult> Variable::eval(const Context& context) const {
+  auto res = context.getType(identifier);
+  if (res) {
+    auto value = res.get().dynamicCast<CompileTimeValue>();
+    bool isConstant = !value || !value->value.contains<CompileTimeValue::ReferenceValue>();
+    return EvalResult { res.get(), isConstant};
+  }
+  return none;
 }
 
 unique_ptr<Expression> Variable::replaceVar(string from, string to) const {
@@ -271,37 +277,38 @@ static WithErrorLine<SFunctionInfo> handleOperatorOverloads(Context& context, Co
   }
 }
 
-unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr) {
+unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr, bool rightWithBrackets) {
   switch (op) {
     case Operator::NOT_EQUAL:
-      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::EQUALS, std::move(expr)));
+      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::EQUALS, std::move(expr), rightWithBrackets));
     case Operator::LESS_OR_EQUAL:
-      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::MORE_THAN, std::move(expr)));
+      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::MORE_THAN, std::move(expr), rightWithBrackets));
     case Operator::MORE_OR_EQUAL:
-      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::LESS_THAN, std::move(expr)));
+      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::LESS_THAN, std::move(expr), rightWithBrackets));
     case Operator::POINTER_MEMBER_ACCESS:
       return get(loc, Operator::MEMBER_ACCESS,
           unique<UnaryExpression>(loc, Operator::POINTER_DEREFERENCE, std::move(expr[0])),
-          std::move(expr[1]));
+          std::move(expr[1]), rightWithBrackets);
     default:
-      return unique<BinaryExpression>(Private{}, loc, op, std::move(expr));
+      return unique<BinaryExpression>(Private{}, loc, op, std::move(expr), rightWithBrackets);
   }
 }
 
 unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, unique_ptr<Expression> a,
-    unique_ptr<Expression> b) {
-  return get(loc, op, makeVec<unique_ptr<Expression>>(std::move(a), std::move(b)));
+    unique_ptr<Expression> b, bool rightWithBrackets) {
+  return get(loc, op, makeVec<unique_ptr<Expression>>(std::move(a), std::move(b)), rightWithBrackets);
 }
 
-BinaryExpression::BinaryExpression(BinaryExpression::Private, CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr)
-    : Expression(loc), op(op), expr(std::move(expr)) {}
+BinaryExpression::BinaryExpression(BinaryExpression::Private, CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr,
+      bool rightWithBrackets)
+    : Expression(loc), op(op), expr(std::move(expr)), rightWithBrackets(rightWithBrackets) {}
 
 static WithError<unique_ptr<Expression>> getCompileTimeValue(const Context& context, Expression* expr) {
   if (auto evaled = expr->eval(context)) {
-    if (auto value = evaled.get().dynamicCast<CompileTimeValue>())
+    if (auto value = evaled->value.dynamicCast<CompileTimeValue>())
       return cast<Expression>(unique<Constant>(expr->codeLoc, std::move(value)));
     else
-      return "Expected a compile time value, got " + quote(evaled->getName());
+      return "Expected a compile time value, got " + quote(evaled->value->getName());
   }
   return "Unable to evaluate constant expression"s;
 }
@@ -319,7 +326,7 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
       FATAL << "This operator should have been rewritten";
       fail();
     case Operator::MEMBER_ACCESS: {
-      if (expr[1]->withBrackets) {
+      if (rightWithBrackets) {
         if (auto asConstant = getCompileTimeValue(context, expr[1].get()))
           expr[1] = std::move(*asConstant);
         else
@@ -349,16 +356,17 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
   }
 }
 
-nullable<SType> BinaryExpression::eval(const Context& context) const {
+optional<EvalResult> BinaryExpression::eval(const Context& context) const {
   if (auto value1 = expr[0]->eval(context)) {
     if (auto value2 = expr[1]->eval(context))
-      return ::eval(op, {value1.get(), value2.get()});
+      if (auto res = ::eval(op, {value1->value, value2->value}))
+        return EvalResult{res.get(), value1->isConstant && value2->isConstant};
   }
-  return nullptr;
+  return none;
 }
 
 unique_ptr<Expression> BinaryExpression::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
-  return get(codeLoc, op, fun(expr[0].get()), fun(expr[1].get()));
+  return get(codeLoc, op, fun(expr[0].get()), fun(expr[1].get()), rightWithBrackets);
 }
 
 optional<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
@@ -392,11 +400,12 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
     return t;
 }
 
-nullable<SType> UnaryExpression::eval(const Context& context) const {
-  if (auto value = expr->eval(context))
-    return ::eval(op, {value.get()});
-  else
-    return nullptr;
+optional<EvalResult> UnaryExpression::eval(const Context& context) const {
+  if (auto value = expr->eval(context)) {
+      if (auto res = ::eval(op, {value->value}))
+        return EvalResult{res.get(), value->isConstant};
+  }
+  return none;
 }
 
 unique_ptr<Expression> UnaryExpression::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
@@ -539,7 +548,7 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
     return exprType.get_error();
   if (!isMutable)
     if (auto value = initExpr->eval(context))
-      context.addType(identifier, value.get());
+      context.addType(identifier, value->value);
   if (auto error = getVariableInitializationError("initialize variable", context, realType.get(), *exprType))
     return initExpr->codeLoc.getError(*error);
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
@@ -700,9 +709,9 @@ NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyConcept(Context
       if (auto res = getType(from, expr); !res)
         return res.get_error();
       if (auto value = expr->eval(from)) {
-        if (value->getType() != ArithmeticType::BOOL)
+        if (value->value->getType() != ArithmeticType::BOOL)
           return expr->codeLoc.getError("Expected expression of type " + quote(ArithmeticType::BOOL->getName()) +
-              ", got " + quote(value->getType()->getName()));
+              ", got " + quote(value->value->getType()->getName()));
         ret.push_back(TemplateRequirement(shared_ptr<Expression>(std::move(expr)), false));
       } else
         return expr1->get()->codeLoc.getError("Unable to evaluate expression at compile-time");
@@ -882,7 +891,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCall
       return unique_ptr<Expression>(unique<UnaryExpression>(codeLoc, op, std::move(arguments[0])));
     else {
       CHECK(parameters.size() == 2);
-      return unique_ptr<Expression>(BinaryExpression::get(codeLoc, op, std::move(arguments)));
+      return unique_ptr<Expression>(BinaryExpression::get(codeLoc, op, std::move(arguments), false));
     }
   } else
     return fun.get_error();
@@ -971,7 +980,7 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
         auto copyCall = unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc));
         copyCall->arguments.push_back(unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
             BinaryExpression::get(codeLoc, Operator::POINTER_MEMBER_ACCESS,
-            std::move(copiedParam), unique<Variable>(codeLoc, elem.name))));
+            std::move(copiedParam), unique<Variable>(codeLoc, elem.name), false)));
         call->arguments.push_back(std::move(copyCall));
       }
       body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
@@ -1072,7 +1081,7 @@ static void addTemplateParams(Context& context, vector<SType> params, bool varia
     if (auto valueType = param.dynamicCast<CompileTimeValue>()) {
       auto templateValue = valueType->value.getReferenceMaybe<CompileTimeValue::TemplateValue>();
       context.addType(templateValue->name,
-          CompileTimeValue::get(CompileTimeValue::TemplateValue{templateValue->type, templateValue->name}));
+          CompileTimeValue::getTemplateValue(templateValue->type, templateValue->name));
     } else
       context.addType(param->getName(), param, true, variadic && i == params.size() - 1);
   }
@@ -1229,10 +1238,17 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
     for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
       CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
   addBuiltInConcepts(context);
-  context.addBuiltInFunction("enum_size", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
+  context.addBuiltInFunction("enum_count", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
       [](vector<SType> args) -> WithError<SType> {
         if (auto enumType = args[0].dynamicCast<EnumType>())
           return (SType) CompileTimeValue::get((int) enumType->elements.size());
+        else
+          fail();
+      });
+  context.addBuiltInFunction("struct_count", ArithmeticType::INT, {SType(ArithmeticType::STRUCT_TYPE)},
+      [](vector<SType> args) -> WithError<SType> {
+        if (auto structType = args[0].dynamicCast<StructType>())
+          return (SType) CompileTimeValue::get((int) structType->members.size());
         else
           fail();
       });
@@ -1481,7 +1497,7 @@ WithErrorLine<SType> FunctionCall::getDotOperatorType(Expression* left, Context&
   return *error;
 }
 
-nullable<SType> FunctionCall::eval(const Context& context) const {
+optional<EvalResult> FunctionCall::eval(const Context& context) const {
   if (identifier)
     if (auto name = identifier->asBasicIdentifier()) {
       vector<SType> args;
@@ -1489,13 +1505,14 @@ nullable<SType> FunctionCall::eval(const Context& context) const {
       for (auto& e : arguments) {
         locs.push_back(e->codeLoc);
         if (auto res = e->eval(context))
-          args.push_back(res.get());
+          args.push_back(res->value);
         else
           return res;
       }
-      return context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs));
+      if (auto res = context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs)))
+        return EvalResult{res.get(), true};
     }
-  return nullptr;
+  return none;
 }
 
 unique_ptr<Expression> FunctionCall::replace(SType from, SType to, ErrorLocBuffer& errors) const {
@@ -1909,6 +1926,109 @@ unique_ptr<Statement> ForLoopStatement::transform(const StmtTransformFun& fun,
       fun(body.get()));
 }
 
+StaticForLoopStatement::StaticForLoopStatement(CodeLoc l, string counter, unique_ptr<Expression> init, unique_ptr<Expression> cond,
+    unique_ptr<Expression> iter, unique_ptr<Statement> body) : Statement(l), counter(std::move(counter)), init(std::move(init)),
+  cond(std::move(cond)), iter(std::move(iter)), body(std::move(body)) {
+}
+
+optional<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& bodyContext) const {
+  auto context = Context::withParent(bodyContext);
+  auto initVal = init->eval(context);
+  if (!initVal)
+    return init->codeLoc.getError("Unable to evaluate expression at compile time");
+  context.addType(counter, CompileTimeValue::getReference(initVal->value.dynamicCast<CompileTimeValue>()));
+  auto condVal = cond->eval(context);
+  if (!condVal)
+    return cond->codeLoc.getError("Unable to evaluate expression at compile time");
+  if (condVal->value->getType()->getUnderlying() != ArithmeticType::BOOL)
+    return cond->codeLoc.getError("Loop condition must be of type " + quote(ArithmeticType::BOOL->getName()));
+  auto iterVal = iter->eval(context);
+  if (!iterVal)
+    return iter->codeLoc.getError("Unable to evaluate expression at compile time");
+  return none;
+}
+
+WithError<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled(const Context& context, SType counterType) const {
+  vector<unique_ptr<Statement>> ret;
+  auto counterValue = CompileTimeValue::getReference(init->eval(context)->value.dynamicCast<CompileTimeValue>());
+  const int maxIterations = 500;
+  int countIter = 0;
+  while (1) {
+    auto evalContext = Context::withParent(context);
+    evalContext.addType(counter, counterValue);
+    auto condValue = cond->eval(evalContext)->value;
+    if (!*condValue.dynamicCast<CompileTimeValue>()->value.getValueMaybe<bool>())
+      break;
+    auto currentCounter = counterValue->value.getValueMaybe<CompileTimeValue::ReferenceValue>()->value;
+    auto replaceExpr = unique<Constant>(body->codeLoc, currentCounter);
+    ErrorLocBuffer errors;
+    ret.push_back(body->replace(counterType, currentCounter, errors));
+    CHECK(errors.empty()) << errors[0].error;
+    if (auto err = ret.back()->check(evalContext))
+      FATAL << err->error;
+    CHECK(iter->eval(evalContext)->value->getMangledName());
+    if (++countIter >= maxIterations)
+      return "Static loop reached maximum number of iterations (" + to_string(maxIterations) + ")";
+  }
+  return std::move(ret);
+}
+
+optional<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
+  if (auto err = context.checkNameConflict(counter, "variable"))
+    return codeLoc.getError(*err);
+  auto bodyContext = Context::withParent(context);
+  if (auto err = checkExpressions(bodyContext))
+    return *err;
+  auto initType = getType(bodyContext, init);
+  if (initType)
+    bodyContext.addVariable(counter, MutableReferenceType::get(getType(bodyContext, init).get()));
+  else
+    return initType.get_error();
+  auto condType = getType(bodyContext, cond);
+  if (!condType)
+    return condType.get_error();
+  if (*condType != ArithmeticType::BOOL)
+    return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
+  auto res = getType(bodyContext, iter);
+  if (!res)
+    return res.get_error();
+  auto counterType = CompileTimeValue::getTemplateValue(*initType, counter);
+  bodyContext.addType(counter, counterType);
+  auto bodyTemplateContext = Context::withParent(bodyContext);
+  bodyTemplateContext.setTemplated();
+  if (auto err = body->check(bodyTemplateContext))
+    return err;
+  if (!bodyContext.isTemplated()) {
+    if (auto res = getUnrolled(context, counterType))
+      unrolled = std::move(*res);
+    else
+      return codeLoc.getError(res.get_error());
+  }
+  return none;
+}
+
+optional<ErrorLoc> StaticForLoopStatement::checkMovesImpl(MoveChecker& checker) const {
+  static int loopId = 0;
+  --loopId;
+  checker.startLoop(loopId);
+  if (auto err = body->checkMoves(checker)) {
+    if (auto err = checker.endLoop(loopId))
+      return err;
+    return *err;
+  }
+  return checker.endLoop(loopId);
+}
+
+unique_ptr<Statement> StaticForLoopStatement::transform(const StmtTransformFun& fun,
+    const ExprTransformFun& exprFun) const {
+  return unique<StaticForLoopStatement>(codeLoc,
+      counter,
+      exprFun(init.get()),
+      exprFun(cond.get()),
+      exprFun(iter.get()),
+      fun(body.get()));
+}
+
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
   : Statement(l), cond(std::move(c)), body(std::move(b)) {}
 
@@ -1992,8 +2112,8 @@ optional<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& 
   return codeLoc.getError("Couldn't resolve import path: " + path);
 }
 
-nullable<SType> Expression::eval(const Context&) const {
-  return nullptr;
+optional<EvalResult> Expression::eval(const Context&) const {
+  return none;
 }
 
 WithErrorLine<SType> Expression::getDotOperatorType(Expression* left, Context& callContext) {
@@ -2044,12 +2164,12 @@ WithErrorLine<SType> EnumConstant::getTypeImpl(Context& context) {
   return type;
 }
 
-nullable<SType> EnumConstant::eval(const Context& context) const {
+optional<EvalResult> EnumConstant::eval(const Context& context) const {
   if (auto type = context.getTypeFromString(IdentifierInfo(enumName, codeLoc))) {
     if (auto enumType = type->dynamicCast<EnumType>()) {
       for (int i = 0; i < enumType->elements.size(); ++i)
         if (enumType->elements[i] == enumElement)
-          return (SType) CompileTimeValue::get(CompileTimeValue::EnumValue{enumType, i});
+          return EvalResult{ CompileTimeValue::get(CompileTimeValue::EnumValue{enumType, i}), true};
     }
   }
   FATAL << "Unrecognized enum element - should have been discovered by the type checker";
@@ -2143,14 +2263,14 @@ optional<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   bodyContext.addVariable(*containerName, containerType);
   containerEnd = unique<VariableDeclaration>(codeLoc, none, containerEndName,
       BinaryExpression::get(codeLoc, Operator::MEMBER_ACCESS,
-          unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("end", codeLoc))));
+          unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("end", codeLoc)), false));
   if (auto err = containerEnd->check(bodyContext))
     return err;
   init->initExpr = BinaryExpression::get(codeLoc, Operator::MEMBER_ACCESS,
-      unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("begin", codeLoc)));
+      unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("begin", codeLoc)), false);
   init->isMutable = true;
   condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL, unique<Variable>(codeLoc, init->identifier),
-      unique<Variable>(codeLoc, containerEndName));
+      unique<Variable>(codeLoc, containerEndName), false);
   increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(codeLoc, init->identifier));
   if (auto err = init->check(bodyContext))
     return err;
@@ -2270,8 +2390,9 @@ WithErrorLine<SType> getType(Context& context, unique_ptr<Expression>& expr, boo
     return type;
   if (evaluateAtCompileTime) {
     if (auto type = expr->eval(context)) {
-      if (auto value = type.get().dynamicCast<CompileTimeValue>())
-        expr = unique<Constant>(expr->codeLoc, value);
+      if (type->isConstant)
+        if (auto value = type->value.dynamicCast<CompileTimeValue>())
+          expr = unique<Constant>(expr->codeLoc, value);
     }
   }
   return type;

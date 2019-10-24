@@ -3,6 +3,6 @@
 struct S {};
 
 int main() {
-  const x = enum_size(S);
+  const x = enum_count(S);
   return 0;
 }

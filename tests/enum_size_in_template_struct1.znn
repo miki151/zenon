@@ -2,12 +2,12 @@
 
 template <Key> requires is_enum<Key>
 struct S {
-  int[enum_size(Key)] values;
+  int[enum_count(Key)] values;
 };
 
 template <Key> requires is_enum<Key>
 S() {
-  return S<Key>::S(array_repeat<(enum_size(Key))>(0));
+  return S<Key>::S(array_repeat<(enum_count(Key))>(0));
 }
 
 enum E1 {
