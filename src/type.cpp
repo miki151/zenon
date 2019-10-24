@@ -116,7 +116,8 @@ string TemplateParameterType::getName(bool withTemplateArguments) const {
 }
 
 bool TemplateParameterType::canReplaceBy(SType t) const {
-  return type == ArithmeticType::ANY_TYPE || t->getType() == type;
+  return (type == ArithmeticType::ANY_TYPE && (t->getType() == ArithmeticType::ENUM_TYPE || t->getType() == ArithmeticType::STRUCT_TYPE)) ||
+      t->getType() == type;
 }
 
 optional<string> TemplateParameterType::getMangledName() const {
@@ -1253,7 +1254,7 @@ optional<string> CompileTimeValue::getMappingError(const Context& context, TypeM
 }
 
 bool CompileTimeValue::canReplaceBy(SType t) const {
-  if (auto myValue = value.getReferenceMaybe<TemplateValue>()) {
+  if (auto myValue = value.getReferenceMaybe<TemplateValue>())
     if (auto v = t.dynamicCast<CompileTimeValue>())
       return myValue->type == v->getType();
   return false;
