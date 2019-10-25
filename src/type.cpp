@@ -1197,7 +1197,7 @@ string CompileTimeValue::getCodegenName() const {
       [this](const auto&) { return getName(); },
       [](const ReferenceValue& ref) { return ref.value->getName(); },
       [](const string& v) { return "\"" + v +"\"_lstr"; },
-      [](const ArrayValue& t) { return "make_array(" + combine(transform(t.values,
+      [](const ArrayValue& t) { return "make_array<" + t.type->getCodegenName() + ">(" + combine(transform(t.values,
       [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
       [](const TemplateValue&) -> string { fail(); },
       [](const TemplateExpression&) -> string { fail(); },
