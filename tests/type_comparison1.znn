@@ -1,0 +1,12 @@
+// 101
+
+template <T> requires (T == int || T == char)
+int f(T value) {
+  embed {
+    return int(value);
+  }
+}
+
+int main() {
+  return f(4) + f('a');
+}

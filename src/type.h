@@ -171,7 +171,7 @@ struct CompileTimeValue : public Type {
   };
   struct TemplateExpression {
     Operator op;
-    vector<SCompileTimeValue> args;
+    vector<SType> args;
     SType type;
     COMPARABLE(TemplateExpression, op, args, type)
   };

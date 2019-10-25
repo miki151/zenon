@@ -10,20 +10,11 @@ T* copy(T** p) {
   return *p;
 }
 
-export bool copy(bool* b) {
-  return *b;
-}
-
-export int copy(int* b) {
-  return *b;
-}
-
-export char copy(char* b) {
-  return *b;
-}
-
-export double copy(double* b) {
-  return *b;
+export template <T> requires (T == bool || T == int || T == char || T == double)
+T copy(T* b) {
+  embed {
+    return *b;
+  }
 }
 
 export template <Enum> requires is_enum<Enum>

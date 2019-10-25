@@ -358,9 +358,10 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
 
 optional<EvalResult> BinaryExpression::eval(const Context& context) const {
   if (auto value1 = expr[0]->eval(context)) {
-    if (auto value2 = expr[1]->eval(context))
+    if (auto value2 = expr[1]->eval(context)) {
       if (auto res = ::eval(op, {value1->value, value2->value}))
         return EvalResult{res.get(), value1->isConstant && value2->isConstant};
+    }
   }
   return none;
 }
@@ -1247,6 +1248,10 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   for (auto op : {Operator::EQUALS})
     for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
       CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
+  auto metaTypes = {ArithmeticType::ANY_TYPE, ArithmeticType::STRUCT_TYPE, ArithmeticType::ENUM_TYPE};
+  for (auto type1 : metaTypes)
+    for (auto type2 : metaTypes)
+      CHECK(!context.addImplicitFunction(Operator::EQUALS, FunctionType(ArithmeticType::BOOL, {{type1}, {type2}}, {}).setBuiltin()));
   addBuiltInConcepts(context);
   context.addBuiltInFunction("enum_count", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
       [](vector<SType> args) -> WithError<SType> {

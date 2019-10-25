@@ -1,0 +1,14 @@
+// 5
+
+template <T>
+struct X {
+};
+
+template <T> requires (T == X<int>)
+int f(T value) {
+  return 5;
+}
+
+int main() {
+  return f(X<int>());
+}

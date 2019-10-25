@@ -292,12 +292,6 @@ static nullable<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileT
       return tryTypes<bool, bool>(args, [](bool b1, bool b2) { return b1 || b2; });
     case Operator::LOGICAL_AND:
       return tryTypes<bool, bool>(args, [](bool b1, bool b2) { return b1 && b2; });
-    case Operator::EQUALS:
-      return tryArithmetic(args, [](auto v1, auto v2) { return v1 == v2; });
-      /*if (args[0].index() == args[1].index())
-        return SCompileTimeValue(args[0] == args[1]);
-      else
-        return getError(op, args);*/
     case Operator::LOGICAL_NOT:
       return tryType<bool>(args, [](bool b) { return !b; });
     case Operator::LESS_THAN: {
@@ -332,6 +326,7 @@ static nullable<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileT
     case Operator::NOT_EQUAL:
     case Operator::LESS_OR_EQUAL:
     case Operator::MORE_OR_EQUAL:
+    case Operator::EQUALS:
       FATAL << "This operator should have been rewritten";
       fail();
   }
@@ -355,6 +350,12 @@ static SCompileTimeValue getExampleValue(SType type) {
 }
 
 nullable<SType> eval(Operator op, vector<SType> args1) {
+  if (op == Operator::EQUALS && args1.size() == 2) {
+    auto result = args1[0]->getMangledName() && args1[1]->getMangledName()
+        ? CompileTimeValue::get(args1[0] == args1[1])
+        : CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, args1, ArithmeticType::BOOL});
+    return SType(std::move(result));
+  }
   vector<SCompileTimeValue> args;
   for (auto& arg1 : args1) {
     if (auto arg = arg1.dynamicCast<CompileTimeValue>())
@@ -373,7 +374,7 @@ nullable<SType> eval(Operator op, vector<SType> args1) {
   if (!ret)
     return nullptr;
   if (wasTemplate)
-    ret = CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, argsOrig, ret->getType()});
+    ret = CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, args1, ret->getType()});
   return (SType) ret.get();
 }
 
@@ -426,7 +427,7 @@ const char* getCodegenName(Operator op) {
   }
 }
 
-string getPrettyString(Operator op, vector<SCompileTimeValue> args) {
+string getPrettyString(Operator op, vector<SType> args) {
   if (isUnary(op))
     return getString(op) + args[0]->getName();
   else
