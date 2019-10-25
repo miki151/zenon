@@ -1232,6 +1232,7 @@ optional<string> CompileTimeValue::getMangledName() const {
       [this](const auto&) -> optional<string> { return getName(); },
       [](int v) -> optional<string> { return mangleNumber(v); },
       [](double v) -> optional<string> { return mangleNumber(v); },
+      [](char c) -> optional<string> { return "C" + to_string(int(c)); },
       [](const string& v) -> optional<string> {
         string ret;
         for (auto c : v)

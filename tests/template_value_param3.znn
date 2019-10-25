@@ -1,0 +1,12 @@
+// 97
+
+template <char c>
+int f() {
+  embed {
+    return int(c);
+  }
+}
+
+int main() {
+  return f<'a'>();
+}
