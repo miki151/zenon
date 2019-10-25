@@ -1252,6 +1252,13 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
         else
           fail();
       });
+  context.addBuiltInFunction("string_length", ArithmeticType::INT, {SType(ArithmeticType::STRING)},
+      [](vector<SType> args) -> WithError<SType> {
+        if (auto value = args[0].dynamicCast<CompileTimeValue>())
+          if (auto s = value->value.getReferenceMaybe<string>())
+            return (SType) CompileTimeValue::get((int) s->size());
+        fail();
+      });
   context.addBuiltInFunction("enum_strings", ArrayType::get(ArithmeticType::STRING, CompileTimeValue::get(0)),
           {SType(ArithmeticType::ENUM_TYPE)},
       [](vector<SType> args) -> WithError<SType> {

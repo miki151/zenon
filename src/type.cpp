@@ -1215,15 +1215,23 @@ optional<string> CompileTimeValue::getMangledName() const {
       [this](const auto&) -> optional<string> { return getName(); },
       [](int v) -> optional<string> { return mangleNumber(v); },
       [](double v) -> optional<string> { return mangleNumber(v); },
-      [](const string& v) -> optional<string> { return "\"" + v +"\"_lstr"; },
+      [](const string& v) -> optional<string> {
+        string ret;
+        for (auto c : v)
+          if (isalpha(c))
+            ret += c;
+          else
+            ret += "_" + to_string(int(c));
+        return std::move(ret);
+      },
       [](const ArrayValue& t) -> optional<string> {
-          vector<string> names;
-          for (auto& elem : t.values)
-            if (auto name = elem->getMangledName())
-              names.push_back(*name);
-            else
-              return none;
-          return "Arr"s + combine(names, "");
+        vector<string> names;
+        for (auto& elem : t.values)
+          if (auto name = elem->getMangledName())
+            names.push_back(*name);
+          else
+            return none;
+        return "Arr"s + combine(names, "");
       },
       [](const ReferenceValue& ref)-> optional<string> {
         if (auto name = ref.value->getMangledName())
