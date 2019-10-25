@@ -1,0 +1,13 @@
+// no_compile
+
+template <T, T v>
+struct X {
+};
+
+template <T>
+void f() {}
+
+int main() {
+  f<X<double, 5.5>>();
+  return 0;
+}

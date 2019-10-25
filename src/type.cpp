@@ -152,6 +152,10 @@ WithError<SType> TemplateParameterType::getTypeOfMember(const string& s) const {
   return Type::getTypeOfMember(s);
 }
 
+bool TemplateParameterType::canBeValueTemplateParam() const {
+  return true;
+}
+
 TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l), type(ArithmeticType::ANY_TYPE) {}
 
 TemplateParameterType::TemplateParameterType(SType type, string name, CodeLoc l)
@@ -362,12 +366,20 @@ bool ArithmeticType::isBuiltinCopyable(const Context&) const {
   return true;
 }
 
+bool ArithmeticType::canBeValueTemplateParam() const {
+  return this == INT.get() || this == BOOL.get() || this == CHAR.get() || this == STRING.get();
+}
+
 SType Type::removePointer() const {
   return get_this().get();
 }
 
 optional<string> Type::getSizeError(const Context&) const {
   return none;
+}
+
+bool Type::canBeValueTemplateParam() const {
+  return false;
 }
 
 bool PointerType::isBuiltinCopyable(const Context&) const {
@@ -755,6 +767,9 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
       return loc.getError(getCantSubstituteError(templateParams[i], templateArgs[i]));
     ret = ret->replace(ret->templateParams[i], templateArgs[i], errors).dynamicCast<StructType>();
   }
+  for (auto& arg : templateArgs)
+    if (arg.dynamicCast<CompileTimeValue>() && !arg->getType()->canBeValueTemplateParam())
+      return loc.getError("Value template parameter cannot have type " + quote(arg->getType()->getName()));
   for (auto& req : ret.dynamicCast<StructType>()->requirements)
     if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
       if (auto res = context.getRequiredFunctions(**concept, {}); !res)
@@ -977,6 +992,8 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
       else
         return codeLoc.getError("Couldn't deduce template argument " + quote(type.templateParams[i]->getName()));
     }
+    if (templateArgs[i].dynamicCast<CompileTimeValue>() && !templateArgs[i]->getType()->canBeValueTemplateParam())
+      return codeLoc.getError("Value template parameter cannot have type " + quote(templateArgs[i]->getType()->getName()));
   }
   ErrorBuffer errors;
   for (int i = 0; i < type.templateParams.size(); ++i) {

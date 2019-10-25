@@ -751,6 +751,27 @@ WithErrorLine<SType> FunctionDefinition::getReturnType(const Context& context) c
     return context.getTypeFromString(this->returnType);
 }
 
+static WithErrorLine<vector<SType>> getTemplateParams(const TemplateInfo& info, const Context& context) {
+  vector<SType> ret;
+  auto paramsContext = Context::withParent(context);
+  for (auto& param : info.params) {
+    if (param.type) {
+      if (auto type = paramsContext.getType(*param.type)) {
+        if (!type->canBeValueTemplateParam())
+          return param.codeLoc.getError("Value template parameter cannot have type " + quote(*param.type));
+        ret.push_back(CompileTimeValue::getTemplateValue(type.get(), param.name));
+      } else
+        return param.codeLoc.getError("Type not found: " + quote(*param.type));
+    } else {
+      if (auto err = paramsContext.checkNameConflict(param.name, "template parameter"))
+        return param.codeLoc.getError(*err);
+      ret.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
+      paramsContext.addType(param.name, ret.back());
+    }
+  }
+  return ret;
+}
+
 optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, bool concept, bool builtInImport) {
   for (int i = 0; i < parameters.size(); ++i)
     if (!parameters[i].name)
@@ -765,24 +786,13 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
           " with " + to_string(parameters.size()) + " arguments.");
   }
   Context contextWithTemplateParams = Context::withParent(context);
-  vector<SType> templateTypes;
+  auto templateTypes = getTemplateParams(templateInfo, context);
+  if (!templateTypes)
+    return templateTypes.get_error();
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];
-    if (param.type) {
-      auto type = contextWithTemplateParams.getType(*param.type);
-      if (!type)
-        return param.codeLoc.getError("Type not found: " + quote(*param.type));
-      if (auto error = type.get()->getSizeError(contextWithTemplateParams))
-        return param.codeLoc.getError(*error);
-      templateTypes.push_back(CompileTimeValue::getTemplateValue(type.get(), param.name));
-      contextWithTemplateParams.addType(param.name, templateTypes.back());
-    } else {
-      if (auto err = contextWithTemplateParams.checkNameConflict(param.name, "template parameter"))
-        return param.codeLoc.getError(*err);
-      templateTypes.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-      contextWithTemplateParams.addType(param.name, templateTypes.back(), true,
+    contextWithTemplateParams.addType(param.name, templateTypes->at(i), true,
           i == templateInfo.params.size() - 1 && templateInfo.variadic);
-    }
   }
   auto requirements = applyConcept(contextWithTemplateParams, templateInfo.requirements);
   if (!requirements)
@@ -811,7 +821,7 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     }
     if (!builtInImport && !concept && name.contains<Operator>() && !paramsAreGoodForOperator(params))
       return codeLoc.getError("Operator parameters must include at least one user-defined type");
-    FunctionType functionType(returnType, params, templateTypes);
+    FunctionType functionType(returnType, params, *templateTypes);
     functionType.fromConcept = concept;
     functionType.requirements = *requirements;
     functionType.variadicTemplate = templateInfo.variadic;
@@ -1681,18 +1691,11 @@ static WithErrorLine<shared_ptr<StructType>> getNewOrIncompleteStruct(Context& c
       return codeLoc.getError(*err);
     auto paramsContext = Context::withParent(context);
     auto returnType = context.typeRegistry->getStruct(name);
-    for (auto& param : templateInfo.params) {
-      if (param.type) {
-        if (auto type = paramsContext.getType(*param.type)) {
-          auto valueType = CompileTimeValue::getTemplateValue(type.get(), param.name);
-          returnType->templateParams.push_back(valueType);
-        } else
-          return param.codeLoc.getError("Type not found: " + quote(*param.type));
-      } else {
-        returnType->templateParams.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-        paramsContext.addType(param.name, returnType->templateParams.back());
-      }
-    }
+    auto paramTypes = getTemplateParams(templateInfo, context);
+    if (!paramTypes)
+      return paramTypes.get_error();
+    for (auto& t : *paramTypes)
+      returnType->templateParams.push_back(std::move(t));
     context.addType(name, returnType, !incomplete);
     return returnType;
   }

@@ -1,0 +1,10 @@
+// no_compile
+
+template <T, T v>
+void f() {
+}
+
+int main() {
+  f<double, 5.5>();
+  return 0;
+}

@@ -45,6 +45,7 @@ struct Type : public owned_object<Type> {
   virtual bool isBuiltinCopyable(const Context&) const;
   virtual SType removePointer() const;
   virtual optional<string> getSizeError(const Context&) const;
+  virtual bool canBeValueTemplateParam() const;
   Context staticContext;
 
   protected:
@@ -55,6 +56,7 @@ struct ArithmeticType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
+  virtual bool canBeValueTemplateParam() const override;
   using DefType = shared_ptr<ArithmeticType>;
   static DefType INT;
   static DefType DOUBLE;
@@ -218,6 +220,7 @@ struct TemplateParameterType : public Type {
   virtual bool isBuiltinCopyable(const Context&) const override;
   virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const override;
   virtual WithError<SType> getTypeOfMember(const string&) const override;
+  virtual bool canBeValueTemplateParam() const override;
   TemplateParameterType(string name, CodeLoc);
   TemplateParameterType(SType type, string name, CodeLoc);
   string name;
