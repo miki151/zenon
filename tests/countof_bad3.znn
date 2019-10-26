@@ -1,0 +1,7 @@
+// no_compile
+
+int main() {
+  const y = 1;
+  const x = countof(y);
+  return 0;
+}

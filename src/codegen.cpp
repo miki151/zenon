@@ -760,3 +760,7 @@ void LambdaExpression::codegen(Accu& a, CodegenStage) const {
 void LambdaType::codegenDefinitionImpl(set<const Type*>& visited, Accu& a) const {
   a.add("struct " + name + " { }; \n");
 }
+
+void CountOfExpression::codegen(Accu&, CodegenStage) const {
+  FATAL << "Attempting to codegen countof expression";
+}

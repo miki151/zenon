@@ -139,6 +139,19 @@ struct MoveExpression : Expression {
   nullable<SType> type;
 };
 
+struct CountOfExpression : Expression {
+  CountOfExpression(CodeLoc, string);
+  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual unique_ptr<Expression> expand(SType from, vector<SType> to) const override;
+  virtual unique_ptr<Expression> expandVar(string from, vector<string> to) const override;
+  virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+  virtual optional<EvalResult> eval(const Context&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  string identifier;
+  nullable<SType> type;
+  optional<int> count;
+};
+
 struct StatementBlock;
 
 struct FunctionParameter {

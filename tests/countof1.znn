@@ -1,0 +1,18 @@
+// 9
+
+template <Args...>
+int f() {
+  mutable res = 0;
+  static for (mutable i = 0; i < countof(Args); ++i)
+    ++res;
+  return res;
+}
+
+template <Args...>
+int g(Args... args) {
+  return f<int, Args...>() + countof(args);
+}
+
+int main() {
+  return g(1, 2, 'a', "pok");
+}

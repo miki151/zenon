@@ -60,7 +60,8 @@ enum class Keyword {
   VIRTUAL,
   DISCARD,
   ELLIPSIS,
-  STATIC
+  STATIC,
+  COUNTOF
 };
 
 struct EmbedToken {

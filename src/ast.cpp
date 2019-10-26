@@ -2492,3 +2492,51 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
 unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, const ExprTransformFun& exprFun) const {
   return unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->transform(fun, exprFun)), returnType);
 }
+
+CountOfExpression::CountOfExpression(CodeLoc l, string id) : Expression(l), identifier(std::move(id)) {
+}
+
+WithErrorLine<SType> CountOfExpression::getTypeImpl(Context& context) {
+  if (!count) {
+    if (context.getTypeOfVariable(identifier))
+      return codeLoc.getError("Expected variable or type pack");
+    auto& variablePack = context.getVariablePack();
+    if (!variablePack || variablePack->name != identifier) {
+      if (auto t = context.getTypeFromString(IdentifierInfo(identifier, codeLoc), true))
+        type = *t;
+      else
+        return t;
+    }
+  }
+  return SType(ArithmeticType::INT);
+}
+
+unique_ptr<Expression> CountOfExpression::expand(SType from, vector<SType> to) const {
+  if (type == from) {
+    auto ret = unique<CountOfExpression>(codeLoc, identifier);
+    ret->count = to.size();
+    return std::move(ret);
+  } else
+    return deepCopy();
+}
+
+unique_ptr<Expression> CountOfExpression::expandVar(string from, vector<string> to) const {
+  if (identifier == from) {
+    auto ret = unique<CountOfExpression>(codeLoc, identifier);
+    ret->count = to.size();
+    return std::move(ret);
+  } else
+    return deepCopy();
+}
+
+unique_ptr<Expression> CountOfExpression::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+  return unique<CountOfExpression>(codeLoc, identifier);
+}
+
+optional<EvalResult> CountOfExpression::eval(const Context&) const {
+  if (count)
+    return EvalResult{CompileTimeValue::get(*count), true};
+  else
+    return EvalResult{CompileTimeValue::getTemplateValue(ArithmeticType::INT, "countof"), false};
+}
+

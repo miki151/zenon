@@ -269,6 +269,17 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
               return var.codeLoc.getError("Expected variable identifier");
             return cast<Expression>(unique<MoveExpression>(token.codeLoc, var.value));
           } 
+          case Keyword::COUNTOF: {
+            tokens.popNext();
+            if (auto t = tokens.eat(Keyword::OPEN_BRACKET); !t)
+              return t.get_error();
+            auto var = tokens.popNext();
+            if (auto t = tokens.eat(Keyword::CLOSE_BRACKET); !t)
+              return t.get_error();
+            if (!var.contains<IdentifierToken>())
+              return var.codeLoc.getError("Expected variable identifier");
+            return cast<Expression>(unique<CountOfExpression>(token.codeLoc, var.value));
+          }
           case Keyword::FALSE:
             tokens.popNext();
             return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(false)));
