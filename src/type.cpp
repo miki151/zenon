@@ -1442,3 +1442,10 @@ CompileTimeValue::ReferenceValue::ReferenceValue(SCompileTimeValue v) : value(st
   static int idCounter = 0;
   id = ++idCounter;
 }
+
+string VariablePack::getName(bool withTemplateArguments) const {
+  return identifier + "...";
+}
+
+VariablePack::VariablePack(SType p, string id) : identifier(id), packType(std::move(p)) {
+}

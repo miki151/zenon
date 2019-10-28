@@ -1,0 +1,18 @@
+// 3
+
+template <T> 
+concept has_value {
+  int get_value(T*);
+};
+
+template <Args...> requires has_value<Args>...
+int g(Args*... args) {
+  mutable res = 3;
+  static for (mutable i = 0; i < countof(args); ++i)
+    res += get_value(args[i]);
+  return res;
+}
+
+int main() {
+  return g();
+}

@@ -764,3 +764,7 @@ void LambdaType::codegenDefinitionImpl(set<const Type*>& visited, Accu& a) const
 void CountOfExpression::codegen(Accu&, CodegenStage) const {
   FATAL << "Attempting to codegen countof expression";
 }
+
+void VariablePackElement::codegen(Accu&, CodegenStage) const {
+  FATAL << "Attempting to codegen variable pack element";
+}

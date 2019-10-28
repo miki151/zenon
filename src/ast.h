@@ -104,6 +104,7 @@ struct BinaryExpression : Expression {
   static unique_ptr<Expression> get(CodeLoc, Operator, vector<unique_ptr<Expression>>, bool rightWithBrackets);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual optional<EvalResult> eval(const Context&) const override;
+  virtual unique_ptr<Expression> expandVar(string from, vector<string> to) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
@@ -150,6 +151,17 @@ struct CountOfExpression : Expression {
   string identifier;
   nullable<SType> type;
   optional<int> count;
+};
+
+struct VariablePackElement : Expression {
+  VariablePackElement(CodeLoc, string packName, vector<string> ids, SCompileTimeValue index);
+  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
+  virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  string packName;
+  vector<string> ids;
+  SCompileTimeValue index;
 };
 
 struct StatementBlock;
@@ -361,7 +373,7 @@ struct StaticForLoopStatement : Statement {
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   optional<ErrorLoc> checkExpressions(const Context&) const;
-  WithError<vector<unique_ptr<Statement>>> getUnrolled(const Context&, SType counterType) const;
+  WithErrorLine<vector<unique_ptr<Statement>>> getUnrolled(const Context&, SType counterType) const;
 };
 
 struct RangedLoopStatement : Statement {

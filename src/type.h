@@ -332,6 +332,13 @@ struct LambdaType : public Type {
   string name;
 };
 
+struct VariablePack : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  VariablePack(SType, string);
+  string identifier;
+  SType packType;
+};
+
 struct FunctionType {
   struct Param {
     Param(optional<string> name, SType type);

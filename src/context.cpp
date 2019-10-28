@@ -550,6 +550,11 @@ nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> a
           if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
             return FunctionType(ArithmeticType::VOID, {argTypes[0], referenceType->underlying}, {}).setBuiltin();
         break;
+      case Operator::SUBSCRIPT:
+        if (argTypes.size() == 2 && canConvert(argTypes[1], ArithmeticType::INT))
+          if (auto pack = argTypes[0].dynamicCast<VariablePack>())
+            return FunctionType(pack->packType, {argTypes[0]->getUnderlying(), argTypes[0]->getUnderlying()}, {}).setBuiltin();
+        break;
       default:
         break;
     }

@@ -1,0 +1,19 @@
+// no_compile
+
+int get_value(string* s) { return s->size(); }
+int get_value(int* a) { return *a; }
+
+template <T> 
+concept has_value {
+  int get_value(T*);
+};
+
+template <Args...> requires has_value<Args>...
+int g(Args*... args) {
+  mutable res = 0;
+  return get_value(args[res]);
+}
+
+int main() {
+  return g(&1, &2, &"pokss");
+}

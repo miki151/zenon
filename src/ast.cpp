@@ -130,6 +130,9 @@ WithErrorLine<SType> Constant::getDotOperatorType(Expression* left, Context& cal
 }
 
 WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
+  if (auto& pack = context.getVariablePack())
+    if (pack->name == identifier)
+      return SType(shared<VariablePack>(pack->type, identifier));
   optional<string> varError;
   if (auto varType = context.getTypeOfVariable(identifier))
     return *varType;
@@ -314,10 +317,6 @@ static WithError<unique_ptr<Expression>> getCompileTimeValue(const Context& cont
 }
 
 WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
-  auto leftTmp = getType(context, expr[0]);
-  if (!leftTmp)
-    return leftTmp;
-  auto left = *leftTmp;
   switch (op) {
     case Operator::POINTER_MEMBER_ACCESS:
     case Operator::NOT_EQUAL:
@@ -335,13 +334,14 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
       return expr[1]->getDotOperatorType(expr[0].get(), context);
     }
     default: {
-      auto right = getType(context, expr[1]);
       vector<SType> exprTypes;
       for (auto& elem : expr)
-        if (auto t = elem->getTypeImpl(context))
+        if (auto t = getType(context, elem))
           exprTypes.push_back(*t);
         else
           return t;
+      if (op == Operator::SUBSCRIPT && exprTypes[0].dynamicCast<VariablePack>() && !expr[1]->eval(context))
+        return expr[1]->codeLoc.getError("Unable to evaluate variable pack index at compile-time");
       if (auto fun = handleOperatorOverloads(context, codeLoc, op, exprTypes,
           ::transform(expr, [&](auto& e) { return e->codeLoc;}))) {
         functionInfo = *fun;
@@ -364,6 +364,20 @@ optional<EvalResult> BinaryExpression::eval(const Context& context) const {
     }
   }
   return none;
+}
+
+unique_ptr<Expression> BinaryExpression::expandVar(string from, vector<string> to) const {
+  if (op == Operator::SUBSCRIPT)
+    if (auto var = dynamic_cast<Variable*>(expr[0].get()))
+      if (var->identifier == from)
+        if (auto index = dynamic_cast<Constant*>(expr[1].get())) {
+          if (auto val = index->value->value.getValueMaybe<int>()){
+            if (*val >= 0 && *val < to.size())
+              return unique<Variable>(codeLoc, to[*val]);
+          } else
+            return unique<VariablePackElement>(codeLoc, from, std::move(to), index->value);
+        }
+  return Expression::expandVar(std::move(from), std::move(to));
 }
 
 unique_ptr<Expression> BinaryExpression::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
@@ -1963,7 +1977,7 @@ optional<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& bodyC
   return none;
 }
 
-WithError<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled(const Context& context, SType counterType) const {
+WithErrorLine<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled(const Context& context, SType counterType) const {
   vector<unique_ptr<Statement>> ret;
   auto counterValue = CompileTimeValue::getReference(init->eval(context)->value.dynamicCast<CompileTimeValue>());
   const int maxIterations = 500;
@@ -1978,12 +1992,13 @@ WithError<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled(con
     auto replaceExpr = unique<Constant>(body->codeLoc, currentCounter);
     ErrorLocBuffer errors;
     ret.push_back(body->replace(counterType, currentCounter, errors));
-    CHECK(errors.empty()) << errors[0].error;
+    if (!errors.empty())
+      return errors[0];
     if (auto err = ret.back()->check(evalContext))
-      FATAL << err->error;
+      return *err;
     CHECK(iter->eval(evalContext)->value->getMangledName());
     if (++countIter >= maxIterations)
-      return "Static loop reached maximum number of iterations (" + to_string(maxIterations) + ")";
+      return codeLoc.getError("Static loop reached maximum number of iterations (" + to_string(maxIterations) + ")");
   }
   return std::move(ret);
 }
@@ -2012,12 +2027,16 @@ optional<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
   auto bodyTemplateContext = Context::withParent(bodyContext);
   bodyTemplateContext.setTemplated();
   if (auto err = body->check(bodyTemplateContext))
-    return err;
+    // If it's not a templated context then we will be unrolling the loop and find errors there
+    // (it still needs to be checked to avoid replace() errors :()
+    // This may potentially accept some bad code in some corner cases.
+    if (bodyContext.isTemplated())
+      return err;
   if (!bodyContext.isTemplated()) {
     if (auto res = getUnrolled(context, counterType))
       unrolled = std::move(*res);
     else
-      return codeLoc.getError(res.get_error());
+      return res.get_error();
   }
   return none;
 }
@@ -2540,3 +2559,33 @@ optional<EvalResult> CountOfExpression::eval(const Context&) const {
     return EvalResult{CompileTimeValue::getTemplateValue(ArithmeticType::INT, "countof"), false};
 }
 
+
+VariablePackElement::VariablePackElement(CodeLoc l, string packName, vector<string> ids, SCompileTimeValue index)
+    : Expression(l), packName(std::move(packName)), ids(std::move(ids)), index(std::move(index)) {
+}
+
+WithErrorLine<SType> VariablePackElement::getTypeImpl(Context& context) {
+  if (!ids.empty())
+    return context.getTypeOfVariable(ids[0]).addCodeLoc(codeLoc);
+  else
+    return codeLoc.getError("Unable to get type of empty variable pack. If this error surfaces then it's a bug.");
+}
+
+unique_ptr<Expression> VariablePackElement::replace(SType from, SType to, ErrorLocBuffer& buf) const {
+  ErrorBuffer buf2;
+  auto newIndex = index->replace(from, to, buf2).dynamicCast<CompileTimeValue>();
+  merge(buf, buf2, codeLoc);
+  if (auto val = newIndex->value.getValueMaybe<int>()) {
+    if (*val < 0 || *val >= ids.size()) {
+      buf.push_back(codeLoc.getError("Variable pack index out of bounds: " + to_string(*val) + ", with "
+          + to_string(ids.size()) + " elements"));
+      return deepCopy();
+    }
+    return unique<Variable>(codeLoc, ids[*val]);
+  }
+  return cast<Expression>(unique<VariablePackElement>(codeLoc, packName, ids, newIndex));
+}
+
+unique_ptr<Expression> VariablePackElement::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
+  return cast<Expression>(unique<VariablePackElement>(codeLoc, packName, ids, index));
+}
