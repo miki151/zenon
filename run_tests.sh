@@ -6,6 +6,8 @@ NC='\033[0m'
 
 #CLANG_OPT="-fsanitize=address"
 
+WILDCARD=$1
+
 cd tests/
 
 function compile() {
@@ -64,11 +66,11 @@ function run_test() {
   fi
 #echo -e "$GREEN Success$NC"
 }
-for I in `ls *.znn`; do 
+for I in `ls $WILDCARD*.znn`; do 
   run_test $I
 done
 
-for I in `ls */main.znn`; do 
+for I in `ls $WILDCARD*/main.znn`; do 
   run_test $I
 done
 
