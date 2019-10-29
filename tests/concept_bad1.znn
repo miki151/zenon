@@ -1,0 +1,18 @@
+// no_compile
+
+template <T>
+concept C1 {
+};
+
+template <T> requires (T != int)
+struct X {
+};
+
+template <T> requires C1<X<T>>
+int f() {
+  return 1;
+}
+
+int main() {
+  return f<int>();
+}
