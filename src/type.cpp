@@ -251,14 +251,40 @@ string FunctionInfo::prettyString() const {
       (getParent()->definition ? getParent()->definition->codeLoc.toString() : "");
 }
 
-optional<string> FunctionInfo::getMangledName() const {
+string FunctionInfo::getMangledName() const {
+  if (isMainFunction())
+    return "zenonMain"s;
+  return id.visit(
+      [this](const string& s) {
+        return s + *getMangledSuffix();
+      },
+      [this](Operator op) {
+        if (auto opName = getCodegenName(op))
+          return opName + *getMangledSuffix();
+        else
+          return "operator "s + getString(op);
+      },
+      [this](ConstructorTag) {
+        if (type.generatedConstructor)
+          return type.retVal->getCodegenName();
+        else
+          return "construct_" + type.retVal->getCodegenName();
+      }
+  );
+}
+
+bool FunctionInfo::isMainFunction() const {
+  return id == "main"s;
+}
+
+optional<string> FunctionInfo::getMangledSuffix() const {
   string suf;
   for (auto& arg : type.templateParams)
     if (auto name = arg->getMangledName())
       suf += *name;
     else
       return none;
-  if (id != "main"s && id != "copy"s)
+  if (id != "copy"s)
     if (auto def = getParent()->definition)
       suf += to_string(def->codeLoc.line);
   return suf;

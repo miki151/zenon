@@ -75,7 +75,7 @@ void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   }
   if (functionInfo && !functionInfo->type.builtinOperator)
     if (auto opName = getCodegenName(op)) {
-      accu.add(opName + *functionInfo->getMangledName() + "("s);
+      accu.add(opName + *functionInfo->getMangledSuffix() + "("s);
       expr[0]->codegen(accu, stage);
       accu.add(", ");
       expr[1]->codegen(accu, stage);
@@ -166,42 +166,20 @@ static string getFunctionCallName(const FunctionInfo& functionInfo, bool methodC
     typePrefix = functionInfo.type.parentType->getCodegenName() + "::";
   else if (!methodCall)
     typePrefix += "::";
-  return functionInfo.id.visit(
-      [&](const string& s) {
-        if (auto name = functionInfo.getMangledName())
-          return typePrefix + s + *name;
-        else {
-          FATAL << functionInfo.prettyString();
-          fail();
-        }
-      },
-      [&](Operator op) {
-        if (op == Operator::SUBSCRIPT)
-          return "subscript_op"s;
-        else
-          return "operator "s + getString(op);
-      },
-      [&](ConstructorTag) { return functionInfo.type.retVal->getCodegenName(); }
-  );
+  return typePrefix + functionInfo.getMangledName();
 }
 
 static void genFunctionCall(Accu& accu, const FunctionInfo& functionInfo,
     vector<Expression*> arguments, optional<MethodCallType> callType) {
-  string prefix;
   string suffix;
   string id = getFunctionCallName(functionInfo, !!callType);
   if (functionInfo.type.generatedConstructor) {
-    prefix = id + "{";
+    accu.add(id + "{");
     suffix = "}";
-  } else
-  if (functionInfo.id.contains<ConstructorTag>()) {
-    prefix = "construct_" + id + "(";
-    suffix = ")";
   } else {
-    prefix = id + "(";
+    accu.add(id + "(");
     suffix = ")";
   }
-  accu.add(prefix);
   bool extractPointer = callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
   for (auto& arg : arguments) {
     if (extractPointer)
@@ -241,16 +219,7 @@ static string getFunctionSignatureName(const FunctionInfo& function) {
   string typePrefix;
   if (function.type.parentType)
     typePrefix = function.type.parentType->getName() + "::";
-  return function.id.visit(
-      [&](const string& s) { return s + *function.getMangledName(); },
-      [&](Operator op) {
-        if (auto opName = getCodegenName(op))
-          return opName + *function.getMangledName();
-        else
-          return "operator "s + getString(op);
-      },
-      [&](ConstructorTag) { return "construct_" + *function.type.retVal->getMangledName(); }
-  );
+  return function.getMangledName();
 }
 
 static string getSignature(const FunctionInfo& functionInfo) {
@@ -324,7 +293,7 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (external || stage.isTypes)
     return;
   auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body) {
-    if (functionInfo.getMangledName()) {
+    if (functionInfo.getMangledSuffix()) {
       if (!functionInfo.type.templateParams.empty())
         accu.add("inline ");
       //std::cout << "In function " << getSignature(functionInfo) << std::endl;
@@ -342,7 +311,7 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   };
   addInstance(*functionInfo, body.get());
   for (auto& instance : instances)
-    if (instance.functionInfo->getMangledName())
+    if (instance.functionInfo->getMangledSuffix())
       addInstance(*instance.functionInfo, instance.body.get());
 }
 
@@ -472,7 +441,7 @@ void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) co
 
 string codegen(const AST& ast, const Context& context, const string& codegenInclude, bool includeLineNumbers) {
   Accu accu(includeLineNumbers);
-  accu.add("#include \"" + codegenInclude + "\"");
+  accu.add("#include \"" + codegenInclude + "/all.h\"");
   accu.newLine();
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::types());
@@ -486,6 +455,15 @@ string codegen(const AST& ast, const Context& context, const string& codegenIncl
   }
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::define());
+  }
+  for (auto& elem : ast.elems) {
+    if (auto fun = dynamic_cast<const FunctionDefinition*>(elem.get()))
+      if (fun->name == "main"s) {
+        if (fun->parameters.empty())
+          accu.add("#include \"" + codegenInclude + "/main_body.h\"");
+        else
+          accu.add("#include \"" + codegenInclude + "/main_body_args.h\"");
+      }
   }
   return accu.generate();
 }
@@ -617,7 +595,7 @@ void UnaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   if (functionInfo && !functionInfo->type.builtinOperator)
     if (auto opName = getCodegenName(op)) {
-    accu.add(opName + *functionInfo->getMangledName() + "("s);
+    accu.add(opName + *functionInfo->getMangledSuffix() + "("s);
     expr->codegen(accu, stage);
     accu.add(")");
     return;

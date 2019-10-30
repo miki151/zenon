@@ -1,0 +1,20 @@
+// 2
+
+struct X {
+  int a;
+};
+
+int inc(X mutable* x) {
+  ++x->a;
+  return x->a;
+}
+
+int? get() {
+  return 1;
+}
+
+int main() {
+  mutable x = X(1);
+  const y = get() ?? x.inc();
+  return x.a + y;
+}

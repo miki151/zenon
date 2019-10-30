@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
     auto primaryContext = createPrimaryContext(&typeRegistry);
     auto context = Context::withParent(primaryContext);
     auto imported = getOrCompileError(correctness(path, ast, context, primaryContext, {installDir}, builtInModule));
-    auto cppCode = codegen(ast, context, installDir + "/codegen_includes/all.h"s, !printCpp);
+    auto cppCode = codegen(ast, context, installDir + "/codegen_includes/"s, !printCpp);
     if (printCpp) {
       cout << cppCode << endl;
       return 0;

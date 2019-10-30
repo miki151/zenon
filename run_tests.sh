@@ -58,7 +58,7 @@ function run_test() {
 #    echo -e "$GREEN Success$NC"
     return
   fi
-  $BINARY_TMP
+  $BINARY_TMP testArg1 testArg2
   RESULT=$?
   if [ "$RESULT" != "$EXPECTED" ]; then
     echo -e "$I: $RED Expected $EXPECTED, got $RESULT$NC"

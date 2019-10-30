@@ -1,0 +1,15 @@
+// no_compile
+
+template <int N>
+int get() {
+  return N;
+}
+
+int main() {
+  mutable res = 0;
+  static for (mutable i = 0; i < 6; ++i) {
+    foobar();
+    res += get<i>();
+  }
+  return res;
+}

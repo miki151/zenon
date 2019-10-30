@@ -1,0 +1,5 @@
+// no_compile
+
+string main() {
+  return "";
+}

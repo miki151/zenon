@@ -373,7 +373,9 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   const nullable<SFunctionInfo> parent;
   FunctionDefinition* const definition = nullptr;
   string prettyString() const;
-  optional<string> getMangledName() const;
+  string getMangledName() const;
+  bool isMainFunction() const;
+  optional<string> getMangledSuffix() const;
   SFunctionInfo getWithoutRequirements() const;
   FunctionInfo(Private, FunctionId, FunctionType, nullable<SFunctionInfo> parent);
   FunctionInfo(Private, FunctionId, FunctionType, FunctionDefinition*);

@@ -846,6 +846,15 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     if (name.contains<Operator>() && external)
       functionType.setBuiltin();
     functionInfo = FunctionInfo::getDefined(name, std::move(functionType), this);
+    if (functionInfo->isMainFunction()) {
+      auto expectedParam = SliceType::get(ArithmeticType::STRING);
+      if (!functionInfo->type.params.empty() && (functionInfo->type.params.size() > 1
+          || functionInfo->type.params[0].type != expectedParam))
+        return codeLoc.getError("The main() function should take no arguments or take a single argument of type "
+            + quote(expectedParam->getName()));
+      if (functionInfo->type.retVal != ArithmeticType::INT)
+        return codeLoc.getError("The main() function should return a value of type " + quote(ArithmeticType::INT->getName()));
+    }
     return none;
   } else
     return returnType1.get_error();
