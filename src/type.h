@@ -13,6 +13,7 @@ struct FunctionType;
 struct SwitchStatement;
 struct FunctionDefinition;
 struct Accu;
+struct StatementBlock;
 
 struct Type : public owned_object<Type> {
   Type();
@@ -322,16 +323,6 @@ struct SliceType : public Type {
   SType underlying;
 };
 
-struct LambdaType : public Type {
-  virtual string getName(bool withTemplateArguments = true) const override;
-  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
-  virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
-  virtual bool isBuiltinCopyable(const Context&) const override;
-  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
-  LambdaType();
-  string name;
-};
-
 struct VariablePack : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   VariablePack(SType, string);
@@ -380,6 +371,20 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   FunctionInfo(Private, FunctionId, FunctionType, nullable<SFunctionInfo> parent);
   FunctionInfo(Private, FunctionId, FunctionType, FunctionDefinition*);
   SFunctionInfo getParent() const;
+};
+
+struct LambdaType : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
+  virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual bool isBuiltinCopyable(const Context&) const override;
+  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
+  LambdaType();
+  nullable<SFunctionInfo> functionInfo;
+  unique_ptr<StatementBlock> body;
+  ~LambdaType() override;
+  private:
+  string name;
 };
 
 struct Concept : public owned_object<Concept> {

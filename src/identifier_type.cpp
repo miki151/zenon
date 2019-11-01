@@ -39,3 +39,7 @@ string IdentifierType::prettyString() const {
   }
   return ret;
 }
+
+bool IdentifierType::isSimpleString(const string& s) const {
+  return parts.size() == 1 && parts[0].name == s;
+}

@@ -1,0 +1,6 @@
+// 1
+
+int main() {
+  const f = [] (int a, int a) -> int { return a; };
+  return f.invoke(1, 2);
+}

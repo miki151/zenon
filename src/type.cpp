@@ -254,6 +254,8 @@ string FunctionInfo::prettyString() const {
 string FunctionInfo::getMangledName() const {
   if (isMainFunction())
     return "zenonMain"s;
+  if (id == "copy"s)
+    return "copy";
   return id.visit(
       [this](const string& s) {
         return s + *getMangledSuffix();
@@ -279,6 +281,8 @@ bool FunctionInfo::isMainFunction() const {
 
 optional<string> FunctionInfo::getMangledSuffix() const {
   string suf;
+  if (!type.retVal->getMangledName())
+    return none;
   for (auto& arg : type.templateParams)
     if (auto name = arg->getMangledName())
       suf += *name;
@@ -1446,8 +1450,19 @@ string LambdaType::getName(bool withTemplateArguments) const {
   return name;
 }
 
-SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer&) const {
-  return shared<LambdaType>();
+SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  ErrorLocBuffer errors2;
+  auto newBody = body->replace(from, to, errors2);
+  for (auto& e : errors2)
+    errors.push_back(e.error);
+  auto ret = shared<LambdaType>();
+  ret->body = cast<StatementBlock>(std::move(newBody));
+  auto tmpType = functionInfo->type;
+  tmpType.params = getSubsequence(tmpType.params, 1);
+  tmpType = replaceInFunction(tmpType, from, to, errors);
+  tmpType.params = concat({FunctionType::Param(ret)}, tmpType.params);
+  ret->functionInfo = FunctionInfo::getImplicit(functionInfo->id, std::move(tmpType));
+  return ret;
 }
 
 optional<string> LambdaType::getMappingError(const Context&, TypeMapping&, SType argType) const {
@@ -1462,6 +1477,9 @@ LambdaType::LambdaType() {
   static int allIds = 0;
   ++allIds;
   name = "LAMBDA" + to_string(allIds);
+}
+
+LambdaType::~LambdaType() {
 }
 
 CompileTimeValue::ReferenceValue::ReferenceValue(SCompileTimeValue v) : value(std::move(v)) {

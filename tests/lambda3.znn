@@ -1,0 +1,24 @@
+// 5
+
+template <T>
+concept can_construct {
+  T();
+};
+
+template <T> requires can_construct<T>
+T get() {
+  const f = [] () -> T { return T(); };
+  return f.invoke();
+}
+
+struct X {
+  int a;
+};
+
+X() {
+  return X::X(5);
+}
+
+int main() {
+  return get<X>().a;
+}

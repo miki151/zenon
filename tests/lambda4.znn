@@ -1,0 +1,16 @@
+// 1
+
+template <T, U>
+concept can_invoke {
+  U invoke(T*);
+};
+
+template <T, Fun> requires can_invoke<Fun, T>
+T run(Fun f) {
+  return f.invoke();
+}
+
+int main() {
+  const f = [] () -> int { return 1; };
+  return run<int>(move(f));
+}

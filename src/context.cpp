@@ -48,14 +48,6 @@ void Context::deepCopyFrom(const Context& c) {
     state->merge(*s);
 }
 
-static string getFunctionIdName(const FunctionId& id) {
-  return id.visit(
-      [&](const string& s) { return s; },
-      [&](Operator op) { return "operator "s + getString(op); },
-      [&](ConstructorTag) { return "constructor"; }
-  );
-}
-
 bool Context::areParamsEquivalent(FunctionType f1, FunctionType f2) const {
   if (f1.templateParams.size() != f2.templateParams.size() || f1.params.size() != f2.params.size())
     return false;
@@ -105,6 +97,11 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
           for (auto& myFun : getFunctions(overloads.first))
             if (isGeneralization(myFun, function, existing))
               return myFun->getWithoutRequirements();
+          if (overloads.first == "invoke"s)
+            for (auto& t : getAllTypes())
+              if (auto lambda = t.dynamicCast<LambdaType>())
+                if (isGeneralization(lambda->functionInfo.get(), function, existing))
+                  return lambda->functionInfo->getWithoutRequirements();
           return none;
         };
         if (auto res = getFunction())
@@ -163,7 +160,7 @@ void Context::State::print() const {
     cout << "Variable " << quote(varName) << " of type " << var->getName() << "\n";
   }
   for (auto& function : functions) {
-    cout << "Function " << quote(getFunctionIdName(function.first)) << " overloads: \n";
+    cout << "Function " << quote(toString(function.first)) << " overloads: \n";
     for (auto& overload : function.second)
       cout << overload->prettyString() << "\n";
   }
@@ -248,10 +245,6 @@ void Context::addType(const string& name, SType t, bool fullyDefined, bool typeP
   state->fullyDefinedTypes.insert({t.get(), fullyDefined});
   if (typePack)
     state->typePack = t;
-}
-
-void Context::addLambda(SType t) {
-  parentStates[0].removeConst()->types.insert(make_pair(t->getName(), t));
 }
 
 WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameterInfo>& ids, bool variadic) const {

@@ -175,14 +175,16 @@ struct FunctionParameter {
 };
 
 struct LambdaExpression : Expression {
-  LambdaExpression(CodeLoc, vector<FunctionParameter>, unique_ptr<StatementBlock>, optional<IdentifierInfo> returnType);
+  LambdaExpression(CodeLoc, vector<FunctionParameter>, unique_ptr<StatementBlock>, IdentifierInfo returnType);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+  virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   vector<FunctionParameter> parameters;
   unique_ptr<StatementBlock> block;
-  optional<IdentifierInfo> returnType;
-  nullable<SType> type;
+  IdentifierInfo returnType;
+  nullable<shared_ptr<LambdaType>> type;
+  bool recheck = false;
 };
 
 struct ArrayLiteral : Expression {
@@ -248,6 +250,7 @@ struct Statement : Node {
   virtual unique_ptr<Statement> replaceVar(string from, string to) const;
   virtual unique_ptr<Statement> expandVar(string from, vector<string> to) const;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const;
+  unique_ptr<Statement> deepCopy() const;
   enum class TopLevelAllowance {
     CANT,
     CAN,

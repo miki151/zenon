@@ -1,0 +1,6 @@
+// no_compile
+
+int main() {
+  const f = [](int a) -> int { return a; };
+  return f.invoke("pok");
+}

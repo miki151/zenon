@@ -227,16 +227,14 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
       }
       params.push_back({paramCodeLoc, *typeId, paramName, isParamMutable, false});
     }
-  optional<IdentifierInfo> returnType;
-  if (tokens.eatMaybe(Operator::POINTER_MEMBER_ACCESS)) {
-    if (auto retType = parseIdentifier(tokens, true))
-      returnType = *retType;
-    else
-      return retType.get_error();
-  }
+  if (auto err = tokens.eat(Operator::POINTER_MEMBER_ACCESS); !err)
+    return err.get_error();
+  auto returnType = parseIdentifier(tokens, true);
+  if (!returnType)
+    return returnType.get_error();
   if (auto block = parseBlock(tokens))
     return cast<Expression>(unique<LambdaExpression>(beginToken.codeLoc, std::move(params), std::move(*block),
-        std::move(returnType)));
+        std::move(*returnType)));
   else
     return block.get_error();
 }

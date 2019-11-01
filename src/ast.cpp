@@ -668,6 +668,10 @@ unique_ptr<Statement> Statement::transform(const StmtTransformFun&, const ExprTr
   fail();
 }
 
+unique_ptr<Statement> Statement::deepCopy() const {
+  return transform(&identityStmt, &identityExpr);
+}
+
 bool IfStatement::hasReturnStatement(const Context& context) const {
   return ifTrue->hasReturnStatement(context) && ifFalse && ifFalse->hasReturnStatement(context);
 }
@@ -874,6 +878,15 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
         errors = codeLoc.getError(errors.error + "\nCandidate: "s + overload->prettyString() + ": " +
             f.get_error().error);
   }
+  if (id.isSimpleString("invoke") && !argTypes.empty() && argTypes[0].dynamicCast<PointerType>())
+    if (auto lambda = argTypes[0]->removePointer().dynamicCast<LambdaType>()) {
+      if (auto f = context.instantiateFunctionTemplate(codeLoc, lambda->functionInfo.get(), templateArgs, argTypes, argLoc)) {
+        if (!contains(overloads, *f))
+          overloads.push_back(*f);
+      } else
+        errors = codeLoc.getError(errors.error + "\nCandidate: "s + lambda->functionInfo->prettyString() + ": " +
+            f.get_error().error);
+    }
   if (overloads.empty())
     return errors;
   filterOverloads(context, overloads, argTypes);
@@ -2497,28 +2510,65 @@ optional<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
 }
 
 LambdaExpression::LambdaExpression(CodeLoc l, vector<FunctionParameter> params, unique_ptr<StatementBlock> block,
-    optional<IdentifierInfo> returnType)
+    IdentifierInfo returnType)
   : Expression(l), parameters(std::move(params)), block(std::move(block)), returnType(std::move(returnType)) {
 }
 
 WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
-  if (!type)
-    type = (SType) shared<LambdaType>();
-  auto retType = context.getTypeFromString(*returnType);
+  if (type && !recheck)
+    return SType(type.get());
+  auto retType = recheck ? type->functionInfo->type.retVal : context.getTypeFromString(returnType);
   if (!retType)
     return retType.get_error();
-  context.addLambda(type.get());
+  recheck = false;
   auto bodyContext = Context::withParent(context);
   bodyContext.setReturnType(*retType);
-  if (auto err = block->check(bodyContext))
+  type = shared<LambdaType>();
+  vector<FunctionType::Param> params { FunctionType::Param(PointerType::get(type.get())) };
+  set<string> paramNames;
+  for (auto& param : parameters) {
+    auto type = bodyContext.getTypeFromString(param.type);
+    if (!type)
+      return type.get_error();
+    if (*type == ArithmeticType::VOID)
+      return param.codeLoc.getError("Function parameter may not have " + quote(type->get()->getName()) + " type");
+    params.push_back({param.name, *type});
+    if (param.name) {
+      bodyContext.addVariable(*param.name, *type);
+      if (paramNames.count(*param.name))
+        return param.codeLoc.getError("Duplicate function parameter name: " + quote(*param.name));
+      paramNames.insert(*param.name);
+    }
+  }
+  FunctionType functionType(*retType, params, {});
+  auto functioInfo = FunctionInfo::getImplicit("invoke"s, std::move(functionType));
+  type->functionInfo = std::move(functioInfo);
+  auto bodyContext2 = Context::withParent(bodyContext);
+  if (auto err = block->check(bodyContext2))
     return *err;
+  auto blockCopy = block->deepCopy();
+  CHECK(!blockCopy->check(bodyContext));
   if (!block->hasReturnStatement(context) && *retType != ArithmeticType::VOID)
     return block->codeLoc.getError("Not all paths lead to a return statement in a lambda expression returning non-void");
-  return type.get();
+  type->body = cast<StatementBlock>(std::move(blockCopy));
+  context.typeRegistry->addLambda(type.get());
+  context.addType(type->getName(), type.get());
+  return SType(type.get());
 }
 
 unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, const ExprTransformFun& exprFun) const {
-  return unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->transform(fun, exprFun)), returnType);
+  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->transform(fun, exprFun)), returnType);
+  ret->recheck = true;
+  return ret;
+}
+
+unique_ptr<Expression> LambdaExpression::replace(SType from, SType to, ErrorLocBuffer& errors) const {
+  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->replace(from, to, errors)), returnType);
+  ErrorBuffer errors2;
+  ret->type = type->replace(from, to, errors2).dynamicCast<LambdaType>();
+  ret->recheck = true;
+  merge(errors, errors2, codeLoc);
+  return ret;
 }
 
 CountOfExpression::CountOfExpression(CodeLoc l, string id) : Expression(l), identifier(std::move(id)) {

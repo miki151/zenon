@@ -1,0 +1,15 @@
+// 2
+
+struct X {
+  int a;
+};
+
+X copy(X* x) {
+  return X(x->a - 1);
+}
+
+int main() {
+  const x1 = array_repeat<10>(X(4));
+  const x2 = x1.copy();
+  return x2[0].a;
+}

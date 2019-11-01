@@ -5,12 +5,7 @@
 
 
 struct ConstructorTag {
-  bool operator < (ConstructorTag) const {
-    return false;
-  }
-  bool operator == (ConstructorTag) const {
-    return true;
-  }
+  COMPARABLE(ConstructorTag)
 };
 using FunctionId = variant<string, Operator, ConstructorTag>;
 

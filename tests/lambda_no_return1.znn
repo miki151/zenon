@@ -1,0 +1,6 @@
+// no_compile
+
+int main() {
+  const f = [](int a) { return 1; };
+  return f.invoke(1);
+}

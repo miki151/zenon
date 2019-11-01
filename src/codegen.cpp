@@ -2,7 +2,7 @@
 
 #include "codegen.h"
 #include "ast.h"
-
+#include "type_registry.h"
 
 struct Accu {
   public:
@@ -446,14 +446,31 @@ string codegen(const AST& ast, const Context& context, const string& codegenIncl
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::types());
   }
+  vector<unique_ptr<FunctionDefinition>> lambdas;
   set<const Type*> visitedTypes;
-  for (auto& type : context.getAllTypes())
+  for (auto& type : context.getAllTypes()) {
     if (context.isFullyDefined(type.get()))
       type->codegenDefinition(visitedTypes, accu);
+  }
+  for (auto& lambda : context.typeRegistry->getLambdas())
+    if (lambda->functionInfo->getMangledSuffix()) {
+      lambda->codegenDefinition(visitedTypes, accu);
+      auto def = unique<FunctionDefinition>(lambda->body->codeLoc, IdentifierInfo("ignore", lambda->body->codeLoc),
+          lambda->functionInfo->id);
+      def->body = std::move(lambda->body);
+      def->functionInfo = std::move(lambda->functionInfo);
+      lambdas.push_back(std::move(def));
+    }
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::declare());
   }
+  for (auto& elem : lambdas) {
+    elem->codegen(accu, CodegenStage::declare());
+  }
   for (auto& elem : ast.elems) {
+    elem->codegen(accu, CodegenStage::define());
+  }
+  for (auto& elem : lambdas) {
     elem->codegen(accu, CodegenStage::define());
   }
   for (auto& elem : ast.elems) {

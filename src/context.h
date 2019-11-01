@@ -44,7 +44,6 @@ class Context : public owned_object<Context> {
   nullable<SType> getReturnType() const;
   void setReturnType(SType);
   void addType(const string& name, SType, bool fullyDefined = true, bool typePack = false);
-  void addLambda(SType);
   WithErrorLine<SType> getTypeFromString(IdentifierInfo, bool typePack = false) const;
   nullable<SType> getType(const string&) const;
   nullable<SType> getTypePack() const;

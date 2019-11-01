@@ -17,6 +17,7 @@ class IdentifierType {
   IdentifierType getWithoutFirstPart() const;
   vector<Part> parts;
   string prettyString() const;
+  bool isSimpleString(const string&) const;
 
   private:
   IdentifierType() {}

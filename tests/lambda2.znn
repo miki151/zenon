@@ -1,0 +1,10 @@
+// 2
+
+int g() {
+  return 2;
+}
+
+int main() {
+  const f = [] (int) -> int { return g(); };
+  return f.invoke(1);
+}

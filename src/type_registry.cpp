@@ -16,3 +16,11 @@ shared_ptr<EnumType> TypeRegistry::getEnum(const string& name) {
     enums.insert(make_pair(name, shared<EnumType>(name, EnumType::Private{})));
   return enums.at(name);
 }
+
+const vector<shared_ptr<LambdaType>>& TypeRegistry::getLambdas() const {
+  return lambdas;
+}
+
+void TypeRegistry::addLambda(shared_ptr<LambdaType> l) {
+  lambdas.push_back(std::move(l));
+}
