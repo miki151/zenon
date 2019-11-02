@@ -1143,9 +1143,12 @@ optional<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
   if (isVirtual)
     if (auto err = generateVirtualDispatchBody(bodyContext))
       return err;
-  if (name == "copy"s)
+  if (name == "copy"s) {
     if (auto err = checkAndGenerateCopyFunction(bodyContext))
       return err;
+  } else
+  if (isDefault)
+    return codeLoc.getError("Cannot generate a default body for this function");
   return none;
 }
 
