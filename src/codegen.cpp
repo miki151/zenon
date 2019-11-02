@@ -612,11 +612,11 @@ void UnaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   if (functionInfo && !functionInfo->type.builtinOperator)
     if (auto opName = getCodegenName(op)) {
-    accu.add(opName + *functionInfo->getMangledSuffix() + "("s);
-    expr->codegen(accu, stage);
-    accu.add(")");
-    return;
-  }
+      accu.add(opName + *functionInfo->getMangledSuffix() + "("s);
+      expr->codegen(accu, stage);
+      accu.add(")");
+      return;
+    }
   accu.add(getString(op));
   accu.add("(");
   expr->codegen(accu, CodegenStage::define());

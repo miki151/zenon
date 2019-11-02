@@ -1,4 +1,4 @@
-// 1
+// no_compile
 
 int main() {
   const f = [] (int a, int a) -> int { return a; };

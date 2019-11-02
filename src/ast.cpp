@@ -2520,29 +2520,31 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   auto retType = recheck ? type->functionInfo->type.retVal : context.getTypeFromString(returnType);
   if (!retType)
     return retType.get_error();
-  recheck = false;
   auto bodyContext = Context::withParent(context);
   bodyContext.setReturnType(*retType);
-  type = shared<LambdaType>();
-  vector<FunctionType::Param> params { FunctionType::Param(PointerType::get(type.get())) };
-  set<string> paramNames;
-  for (auto& param : parameters) {
-    auto type = bodyContext.getTypeFromString(param.type);
-    if (!type)
-      return type.get_error();
-    if (*type == ArithmeticType::VOID)
-      return param.codeLoc.getError("Function parameter may not have " + quote(type->get()->getName()) + " type");
-    params.push_back({param.name, *type});
-    if (param.name) {
-      bodyContext.addVariable(*param.name, *type);
-      if (paramNames.count(*param.name))
-        return param.codeLoc.getError("Duplicate function parameter name: " + quote(*param.name));
-      paramNames.insert(*param.name);
+  if (!recheck) {
+    type = shared<LambdaType>();
+    vector<FunctionType::Param> params { FunctionType::Param(PointerType::get(type.get())) };
+    set<string> paramNames;
+    for (auto& param : parameters) {
+      auto type = bodyContext.getTypeFromString(param.type);
+      if (!type)
+        return type.get_error();
+      if (*type == ArithmeticType::VOID)
+        return param.codeLoc.getError("Function parameter may not have " + quote(type->get()->getName()) + " type");
+      params.push_back({param.name, *type});
+      if (param.name) {
+        bodyContext.addVariable(*param.name, *type);
+        if (paramNames.count(*param.name))
+          return param.codeLoc.getError("Duplicate function parameter name: " + quote(*param.name));
+        paramNames.insert(*param.name);
+      }
     }
+    FunctionType functionType(*retType, params, {});
+    auto functioInfo = FunctionInfo::getImplicit("invoke"s, std::move(functionType));
+    type->functionInfo = std::move(functioInfo);
   }
-  FunctionType functionType(*retType, params, {});
-  auto functioInfo = FunctionInfo::getImplicit("invoke"s, std::move(functionType));
-  type->functionInfo = std::move(functioInfo);
+  recheck = false;
   auto bodyContext2 = Context::withParent(bodyContext);
   if (auto err = block->check(bodyContext2))
     return *err;

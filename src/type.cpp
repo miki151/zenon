@@ -283,6 +283,9 @@ optional<string> FunctionInfo::getMangledSuffix() const {
   string suf;
   if (!type.retVal->getMangledName())
     return none;
+  for (auto& param : type.params)
+    if (!param.type->getMangledName())
+      return none;
   for (auto& arg : type.templateParams)
     if (auto name = arg->getMangledName())
       suf += *name;
@@ -1460,7 +1463,7 @@ SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   auto tmpType = functionInfo->type;
   tmpType.params = getSubsequence(tmpType.params, 1);
   tmpType = replaceInFunction(tmpType, from, to, errors);
-  tmpType.params = concat({FunctionType::Param(ret)}, tmpType.params);
+  tmpType.params = concat({FunctionType::Param(PointerType::get(ret))}, tmpType.params);
   ret->functionInfo = FunctionInfo::getImplicit(functionInfo->id, std::move(tmpType));
   return ret;
 }
