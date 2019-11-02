@@ -1,0 +1,35 @@
+// 3
+
+template <T>
+struct X {
+  T a;
+};
+
+template <T>
+X(T) = default;
+
+template <T>
+concept can_construct {
+  T();
+};
+
+template <T> requires can_construct<T>
+X() {
+  return X(T());
+}
+
+struct Y {
+  int a;
+};
+
+Y(int) = default;
+
+Y() {
+  return Y(1);
+}
+
+int main() {
+  const x = X<Y>();
+  const y = X(Y(2));
+  return x.a.a + y.a.a;
+}

@@ -1,0 +1,16 @@
+// no_compile
+
+export struct X {
+  int a;
+};
+
+export X(bool) = default;
+
+export X() {
+  return X::X(1);
+}
+
+int main() {
+  const x = X();
+  return x.a;
+}

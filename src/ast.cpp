@@ -1060,6 +1060,29 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
   return none;
 }
 
+optional<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const Context& context) {
+  if (!body && isDefault) {
+    auto type = context.getTypeFromString(returnType);
+    if (!type)
+      return type.get_error();
+    auto structType = type->dynamicCast<StructType>();
+    if (!structType || !structType->alternatives.empty())
+      return codeLoc.getError("Cannot generate default constructor for non-struct types");
+    if (parameters.size() != structType->members.size())
+      return codeLoc.getError("Expected exactly as many parameters as members in type " + quote(structType->getName()));
+    body = unique<StatementBlock>(codeLoc);
+    IdentifierInfo id = returnType;
+    id.parts.push_back(returnType.parts[0]);
+    id.parts.back().templateArguments.clear();
+    auto call = unique<FunctionCall>(codeLoc, std::move(id));
+    for (int i = 0; i < structType->members.size(); ++i) {
+      call->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
+    }
+    body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
+  }
+  return none;
+}
+
 optional<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody, CodeLoc codeLoc) {
   CHECK(!body);
   auto templateParams = functionInfo->parent->type.templateParams;
@@ -1145,6 +1168,10 @@ optional<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
       return err;
   if (name == "copy"s) {
     if (auto err = checkAndGenerateCopyFunction(bodyContext))
+      return err;
+  } else
+  if (name == ConstructorTag{}) {
+    if (auto err = checkAndGenerateDefaultConstructor(bodyContext))
       return err;
   } else
   if (isDefault)

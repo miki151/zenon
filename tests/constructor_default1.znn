@@ -1,0 +1,17 @@
+// 3
+
+export struct X {
+  int a;
+};
+
+export X(int) = default;
+
+export X() {
+  return X::X(1);
+}
+
+int main() {
+  const x = X();
+  const y = X(2);
+  return x.a + y.a;
+}

@@ -560,6 +560,7 @@ struct FunctionDefinition : Statement {
   WithErrorLine<unique_ptr<Expression>> getVirtualOperatorCallExpr(Context&, Operator,
       const string& alternativeName, const SType& alternativeType, int virtualIndex);
   NODISCARD optional<ErrorLoc> checkAndGenerateCopyFunction(const Context&);
+  NODISCARD optional<ErrorLoc> checkAndGenerateDefaultConstructor(const Context&);
   NODISCARD optional<ErrorLoc> addInstance(const Context& callContext, const SFunctionInfo&);
   NODISCARD optional<ErrorLoc> generateDefaultBodies(Context&);
   NODISCARD optional<ErrorLoc> checkBody(const vector<SFunctionInfo>& requirements, StatementBlock& myBody,
