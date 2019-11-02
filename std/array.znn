@@ -24,24 +24,22 @@ T operator [] (T[Size] a, int index) {
 
 export template <T, int Size> requires can_copy<T>
 T[Size] copy(T[Size]* array) {
+  const get = [](T* t) -> T { return t->copy(); };
   embed {
-    return *array;
+    std::array<T, Size> a;
+    for (int i = 0; i < Size; ++i)
+      a[i] = invoke(&get, &(*array)[i]);
+    return a;
   }
-}
-
-export embed {
-template <typename T, unsigned long Size>
-std::array<T, Size> copy(std::array<T, Size> const* array) {
-  return *array;
-}
 }
 
 export template <int Size, T> requires can_copy<T>, (Size >= 0)
 T[Size] array_repeat(T elem) {
+  const get = [](T* t) -> T { return t->copy(); };
   embed {
     std::array<T, Size> a;
     for (int i = 0; i < Size; ++i)
-      a[i] = copy(&elem);
+      a[i] = invoke(&get, &elem);
     return a;
   }
 }

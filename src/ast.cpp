@@ -2543,7 +2543,10 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
     FunctionType functionType(*retType, params, {});
     auto functioInfo = FunctionInfo::getImplicit("invoke"s, std::move(functionType));
     type->functionInfo = std::move(functioInfo);
-  }
+  } else
+    for (auto& param : type->functionInfo->type.params)
+      if (param.name)
+        bodyContext.addVariable(*param.name, param.type);
   recheck = false;
   auto bodyContext2 = Context::withParent(bodyContext);
   if (auto err = block->check(bodyContext2))

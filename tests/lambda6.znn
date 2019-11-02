@@ -1,0 +1,19 @@
+// 5
+
+template <T>
+concept can_get {
+  int get(T*);
+};
+
+template <T> requires can_get<T>
+int getFrom(T t) {
+  return [](T* t) -> int { return get(t); }.invoke(&t);
+}
+
+struct X { int a; };
+
+int get(X* x) { return x->a; }
+
+int main() {
+  return getFrom(X(5));
+}
