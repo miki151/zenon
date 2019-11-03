@@ -59,7 +59,7 @@ Constant::Constant(CodeLoc l, SCompileTimeValue v) : Expression(l), value(v) {
   INFO << "Created constant " << v->getName() << " of type " << v->getType();
 }
 
-Variable::Variable(CodeLoc l, string s) : Expression(l), identifier(std::move(s)) {
+Variable::Variable(IdentifierInfo s) : Expression(s.codeLoc), identifier(std::move(s)) {
 }
 
 FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(std::move(id)),
@@ -130,21 +130,23 @@ WithErrorLine<SType> Constant::getDotOperatorType(Expression* left, Context& cal
 }
 
 WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
-  if (auto& pack = context.getVariablePack())
-    if (pack->name == identifier)
-      return SType(shared<VariablePack>(pack->type, identifier));
   optional<string> varError;
-  if (auto varType = context.getTypeOfVariable(identifier))
-    return *varType;
-  else
-    varError = varType.get_error();
-  if (auto t = context.getType(identifier))
+  if (auto id = identifier.asBasicIdentifier()) {
+    if (auto& pack = context.getVariablePack())
+      if (pack->name == id)
+        return SType(shared<VariablePack>(pack->type, *id));
+    if (auto varType = context.getTypeOfVariable(*id))
+      return *varType;
+    else
+      varError = varType.get_error();
+  }
+  if (auto t = context.getTypeFromString(identifier))
     return t.get()->getType();
-  return codeLoc.getError(varError.value_or("Identifier not found: " + identifier));
+  return codeLoc.getError(varError.value_or("Identifier not found: " + identifier.prettyString()));
 }
 
 optional<EvalResult> Variable::eval(const Context& context) const {
-  auto res = context.getType(identifier);
+  auto res = context.getTypeFromString(identifier);
   if (res) {
     auto value = res.get().dynamicCast<CompileTimeValue>();
     bool isConstant = !value || !value->value.contains<CompileTimeValue::ReferenceValue>();
@@ -154,33 +156,37 @@ optional<EvalResult> Variable::eval(const Context& context) const {
 }
 
 unique_ptr<Expression> Variable::replaceVar(string from, string to) const {
-  if (identifier == from)
-    return unique<Variable>(codeLoc, to);
+  if (identifier.asBasicIdentifier() == from)
+    return unique<Variable>(IdentifierInfo(to, codeLoc));
   else
     return deepCopy();
 }
 
 unique_ptr<Expression> Variable::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
-  return unique<Variable>(codeLoc, identifier);
+  return unique<Variable>(identifier);
 }
 
 WithErrorLine<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
   CHECK(left);
-  if (auto leftType1 = left->getTypeImpl(callContext)) {
-    auto leftType = leftType1.get();
-    if (auto error = leftType->getSizeError(callContext))
-      return codeLoc.getError(leftType->getName() + *error);
-    if (auto member = leftType->getTypeOfMember(identifier))
-      return *member;
-    else
-      return codeLoc.getError(member.get_error());
+  if (auto id = identifier.asBasicIdentifier()) {
+    if (auto leftType1 = left->getTypeImpl(callContext)) {
+      auto leftType = leftType1.get();
+      if (auto error = leftType->getSizeError(callContext))
+        return codeLoc.getError(leftType->getName() + *error);
+      if (auto member = leftType->getTypeOfMember(*id))
+        return *member;
+      else
+        return codeLoc.getError(member.get_error());
+    } else
+      return leftType1;
   } else
-    return leftType1;
+    return codeLoc.getError("Bad use of dot operator");
 }
 
 optional<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
-  if (auto err = checker.getUsageError(identifier))
-    return codeLoc.getError(*err);
+  if (auto id = identifier.asBasicIdentifier())
+    if (auto err = checker.getUsageError(*id))
+      return codeLoc.getError(*err);
   return none;
 }
 
@@ -369,11 +375,11 @@ optional<EvalResult> BinaryExpression::eval(const Context& context) const {
 unique_ptr<Expression> BinaryExpression::expandVar(string from, vector<string> to) const {
   if (op == Operator::SUBSCRIPT)
     if (auto var = dynamic_cast<Variable*>(expr[0].get()))
-      if (var->identifier == from)
+      if (var->identifier.asBasicIdentifier() == from)
         if (auto index = dynamic_cast<Constant*>(expr[1].get())) {
           if (auto val = index->value->value.getValueMaybe<int>()){
             if (*val >= 0 && *val < to.size())
-              return unique<Variable>(codeLoc, to[*val]);
+              return unique<Variable>(IdentifierInfo(to[*val], codeLoc));
           } else
             return unique<VariablePackElement>(codeLoc, from, std::move(to), index->value);
         }
@@ -467,7 +473,7 @@ optional<ErrorLoc> IfStatement::check(Context& context, bool) {
     return unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT, std::move(expr));
   };
   if (!condition)
-    condition = negate(negate(unique<Variable>(declaration->codeLoc, declaration->identifier)));
+    condition = negate(negate(unique<Variable>(IdentifierInfo(declaration->identifier, declaration->codeLoc))));
   auto condType = getType(ifContext, condition);
   if (!condType)
     return condType.get_error();
@@ -1023,16 +1029,16 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
     if (structType->alternatives.empty()) {
       auto call = unique<FunctionCall>(codeLoc, returnType);
       for (auto elem : structType->members) {
-        auto copiedParam = unique<Variable>(codeLoc, *parameters[0].name);
+        auto copiedParam = unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc));
         auto copyCall = unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc));
         copyCall->arguments.push_back(unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
             BinaryExpression::get(codeLoc, Operator::POINTER_MEMBER_ACCESS,
-            std::move(copiedParam), unique<Variable>(codeLoc, elem.name), false)));
+            std::move(copiedParam), unique<Variable>(IdentifierInfo(elem.name, codeLoc)), false)));
         call->arguments.push_back(std::move(copyCall));
       }
       body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
     } else {
-      auto copiedParam = unique<Variable>(codeLoc, *parameters[0].name);
+      auto copiedParam = unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc));
       auto topSwitch = unique<SwitchStatement>(codeLoc,
           unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(copiedParam)));
       for (auto& alternative : structType->alternatives) {
@@ -1042,7 +1048,7 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
         auto constructorCall = unique<FunctionCall>(codeLoc, constructorName);
         if (alternative.type != ArithmeticType::VOID)
           constructorCall->arguments.push_back(unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc),
-              unique<Variable>(codeLoc, alternative.name)));
+              unique<Variable>(IdentifierInfo(alternative.name, codeLoc))));
         block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(constructorCall)));
         topSwitch->caseElems.push_back(
             SwitchStatement::CaseElem {
@@ -2349,15 +2355,15 @@ optional<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   bodyContext.addVariable(*containerName, containerType);
   containerEnd = unique<VariableDeclaration>(codeLoc, none, containerEndName,
       BinaryExpression::get(codeLoc, Operator::MEMBER_ACCESS,
-          unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("end", codeLoc)), false));
+          unique<Variable>(IdentifierInfo(*containerName, codeLoc)), unique<FunctionCall>(codeLoc, IdentifierInfo("end", codeLoc)), false));
   if (auto err = containerEnd->check(bodyContext))
     return err;
   init->initExpr = BinaryExpression::get(codeLoc, Operator::MEMBER_ACCESS,
-      unique<Variable>(codeLoc, *containerName), unique<FunctionCall>(codeLoc, IdentifierInfo("begin", codeLoc)), false);
+      unique<Variable>(IdentifierInfo(*containerName, codeLoc)), unique<FunctionCall>(codeLoc, IdentifierInfo("begin", codeLoc)), false);
   init->isMutable = true;
-  condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL, unique<Variable>(codeLoc, init->identifier),
-      unique<Variable>(codeLoc, containerEndName), false);
-  increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(codeLoc, init->identifier));
+  condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)),
+      unique<Variable>(IdentifierInfo(containerEndName, codeLoc)), false);
+  increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)));
   if (auto err = init->check(bodyContext))
     return err;
   auto condType = getType(bodyContext, condition);
@@ -2675,7 +2681,7 @@ unique_ptr<Expression> VariablePackElement::replace(SType from, SType to, ErrorL
           + to_string(ids.size()) + " elements"));
       return deepCopy();
     }
-    return unique<Variable>(codeLoc, ids[*val]);
+    return unique<Variable>(IdentifierInfo(ids[*val], codeLoc));
   }
   return cast<Expression>(unique<VariablePackElement>(codeLoc, packName, ids, newIndex));
 }

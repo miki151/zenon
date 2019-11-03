@@ -87,8 +87,7 @@ struct EnumConstant : Expression {
 };
 
 struct Variable : Expression {
-  //Variable(CodeLoc, IdentifierInfo);
-  Variable(CodeLoc, string);
+  Variable(IdentifierInfo);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual optional<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
@@ -96,7 +95,7 @@ struct Variable : Expression {
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual WithErrorLine<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
-  string identifier;
+  IdentifierInfo identifier;
 };
 
 struct BinaryExpression : Expression {
