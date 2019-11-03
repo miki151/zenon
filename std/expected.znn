@@ -1,11 +1,11 @@
 
-template <T>
+export template <T>
 variant expected {
   T value;
   string error;
 };
 
-template <T>
+export template <T>
 bool operator !(expected<T>* v) {
   switch (*v) {
     case (T* value) {
@@ -17,7 +17,7 @@ bool operator !(expected<T>* v) {
   }
 }
 
-template <T>
+export template <T>
 T* operator *(expected<T>* v) {
   switch (*v) {
     case (T* value) {
@@ -31,7 +31,7 @@ T* operator *(expected<T>* v) {
   }
 }
 
-template <T>
+export template <T>
 string get_error(expected<T>* v) {
   switch (*v) {
     case (T* value) {
@@ -46,12 +46,12 @@ string get_error(expected<T>* v) {
   }
 }
 
-template <T>
+export template <T>
 expected<T> result(mutable T v) {
   return expected<T>::value(move(v));
 }
 
-template <T>
+export template <T>
 expected<T> error(string e) {
   return expected<T>::error(e);
 }
