@@ -47,6 +47,7 @@ struct Type : public owned_object<Type> {
   virtual SType removePointer() const;
   virtual optional<string> getSizeError(const Context&) const;
   virtual bool canBeValueTemplateParam() const;
+  virtual bool canDeclareVariable() const;
   Context staticContext;
 
   protected:
@@ -58,6 +59,7 @@ struct ArithmeticType : public Type {
   virtual string getCodegenName() const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
   virtual bool canBeValueTemplateParam() const override;
+  virtual bool canDeclareVariable() const override;
   using DefType = shared_ptr<ArithmeticType>;
   static DefType INT;
   static DefType DOUBLE;

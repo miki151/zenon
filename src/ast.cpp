@@ -557,7 +557,7 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
     } else
       return codeLoc.getError("Initializing expression needed to infer variable type");
   }
-  if (realType == ArithmeticType::VOID)
+  if (!realType->canDeclareVariable())
     return codeLoc.getError("Can't declare variable of type " + quote(realType->getName()));
   if (auto error = realType.get()->getSizeError(context))
     return codeLoc.getError(*error);

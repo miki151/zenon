@@ -400,7 +400,11 @@ bool ArithmeticType::isBuiltinCopyable(const Context&) const {
 }
 
 bool ArithmeticType::canBeValueTemplateParam() const {
-  return this == INT.get() || this == BOOL.get() || this == CHAR.get() || this == STRING.get();
+  return canDeclareVariable() && this != DOUBLE.get();
+}
+
+bool ArithmeticType::canDeclareVariable() const {
+  return this == INT.get() || this == BOOL.get() || this == CHAR.get() || this == STRING.get() || this == DOUBLE.get();
 }
 
 SType Type::removePointer() const {
@@ -413,6 +417,10 @@ optional<string> Type::getSizeError(const Context&) const {
 
 bool Type::canBeValueTemplateParam() const {
   return false;
+}
+
+bool Type::canDeclareVariable() const {
+  return true;
 }
 
 bool PointerType::isBuiltinCopyable(const Context&) const {
