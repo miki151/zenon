@@ -9,10 +9,22 @@ struct destroy_helper {
 };
 
 template<typename T>
-struct CopyVisitor {
-  CopyVisitor(T& myElem) : myElem(myElem) {}
-  void operator()(const T& hisElem) {
-    new (&myElem) T(hisElem);
+struct MoveConstructorVisitor {
+  MoveConstructorVisitor(T& myElem) : myElem(myElem) {}
+  void operator()(T& hisElem) {
+    new (&myElem) T(std::move(hisElem));
+  }
+  template <typename U>
+  void operator()(const U&) {}
+
+  T& myElem;
+};
+
+template<typename T>
+struct MoveAssignmentVisitor {
+  MoveAssignmentVisitor(T& myElem) : myElem(myElem) {}
+  void operator()(T& hisElem) {
+    myElem = std::move(hisElem);
   }
   template <typename U>
   void operator()(const U&) {}
@@ -22,11 +34,22 @@ struct CopyVisitor {
 
 template <typename T>
 struct VariantHelper {
- 
-  static void copy(const T& from, T& to) {
+   static void assign(T&& from, T& to) {
+    if (from.unionElem == to.unionElem) {
+      to.visit([&](auto& myElem) {
+        from.visit(MoveAssignmentVisitor<std::remove_reference_t<decltype(myElem)>>{myElem});
+      });
+    } else {
+      to.unionElem = from.unionElem;
+      to.visit([&](auto& myElem) {
+        from.visit(MoveConstructorVisitor<std::remove_reference_t<decltype(myElem)>>{myElem});
+      });
+    }
+  }
+  static void move(T&& from, T& to) {
     to.unionElem = from.unionElem;
     to.visit([&](auto& myElem) {
-      from.visit(CopyVisitor<std::remove_reference_t<decltype(myElem)>>{myElem});
+      from.visit(MoveConstructorVisitor<std::remove_reference_t<decltype(myElem)>>{myElem});
     });
   }
   static void destroy(T& t) {

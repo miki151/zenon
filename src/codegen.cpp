@@ -335,7 +335,7 @@ static void codegenVariant(set<const Type*>& visited, Accu& accu, const StructTy
   for (auto& alternative : type->alternatives) {
     string signature = alternative.name + "(";
     if (alternative.type != ArithmeticType::VOID)
-      signature += alternative.type->getCodegenName() + " const& elem";
+      signature += alternative.type->getCodegenName() + " elem";
     signature += ")";
     accu.newLine("static " + name + " " + signature + ";");
   }
@@ -377,7 +377,8 @@ static void codegenVariant(set<const Type*>& visited, Accu& accu, const StructTy
   accu.newLine("auto visit(Visitor&& v) {");
   visitBody();
   accu.newLine("}");
-  accu.newLine(name + "(const " + name + "& o) { VariantHelper<" + name + ">::copy(o, *this);  }");
+  accu.newLine(name + "(" + name + "&& o) { VariantHelper<" + name + ">::move(std::move(o), *this);  }");
+  accu.newLine(name + "& operator = (" + name + "&& o) {VariantHelper<" + name + ">::assign(std::move(o), *this); return *this; }");
   accu.newLine("~" + name + "() { VariantHelper<" + name + ">::destroy(*this); }");
   accu.newLine("private:" + name + "() {}");
   --accu.indent;
@@ -516,7 +517,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
           auto& name = *name1;
           string signature = alternative.name + "(";
           if (alternative.type != ArithmeticType::VOID)
-            signature += alternative.type->getCodegenName() + " const& elem";
+            signature += alternative.type->getCodegenName() + " elem";
           signature += ")";
           accu.add("inline " + name + " " + name + "::" + signature + " {");
           ++accu.indent;
@@ -524,7 +525,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
           accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + alternative.name + ";");
           if (!(alternative.type == ArithmeticType::VOID))
             accu.newLine("new (&ret."s + variantUnionEntryPrefix + alternative.name + ") " +
-                alternative.type->getCodegenName() + "(elem);");
+                alternative.type->getCodegenName() + "(std::move(elem));");
           accu.newLine("return ret;");
           --accu.indent;
           accu.newLine("}");

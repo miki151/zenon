@@ -1,0 +1,20 @@
+// 1
+
+import "std/unique_ptr.znn";
+
+variant V {
+  unique_ptr<int> ptr;
+  int value;
+};
+
+int main() {
+  const v = V::ptr(make_unique(1));
+  switch (v) {
+    case (unique_ptr<int>* ptr) {
+      return **ptr;
+    }
+    case (int value) {
+      return value;
+    }
+  }
+}
