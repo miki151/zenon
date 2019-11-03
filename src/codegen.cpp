@@ -509,7 +509,7 @@ void EnumDefinition::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (stage.isDefine && (!stage.isImport || !templateInfo.params.empty()))
+  if (stage.isDefine)
     for (auto& instance : concat({type.get()}, type->instances))
       if (auto name1 = instance->getMangledName())
         for (auto& alternative : instance->alternatives) {
@@ -518,7 +518,7 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
           if (alternative.type != ArithmeticType::VOID)
             signature += alternative.type->getCodegenName() + " const& elem";
           signature += ")";
-          accu.add(name + " " + name + "::" + signature + " {");
+          accu.add("inline " + name + " " + name + "::" + signature + " {");
           ++accu.indent;
           accu.newLine(name + " ret;");
           accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + alternative.name + ";");

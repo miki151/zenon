@@ -10,3 +10,6 @@ X get(V2<T, U>* v, T t, U u, mutable X x) {
   return move(x);
 }
 
+void f() {
+  const x = V2<bool, int>::u(5);
+}
