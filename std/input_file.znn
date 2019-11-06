@@ -12,11 +12,14 @@ export extern struct input_file;
 export extern input_file(string s);
 
 export template <T>
-T read(input_file mutable* f) {
+T? read(input_file mutable* f) {
   embed {
     T t;
     f->f >> t;
-    return t;
+    if (f->f.good())
+      return t;
+    else
+      return std::nullopt;
   }
 }
 

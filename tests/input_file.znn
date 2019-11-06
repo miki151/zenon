@@ -5,7 +5,7 @@ import "std/input_file.znn";
 int main() {
   mutable file = input_file("input_file.txt");
   discard file.read<string>();
-  const v = file.read<int>();
-  return v + file.read<int>();
+  const v = *file.read<int>();
+  return v + *file.read<int>();
 }
 
