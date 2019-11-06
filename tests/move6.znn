@@ -1,0 +1,11 @@
+// 5
+
+struct X {
+  int value;
+};
+
+int main() {
+  const value = 5;
+  const x = X(move(value));
+  return x.value;
+}

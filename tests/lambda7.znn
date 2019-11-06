@@ -1,0 +1,15 @@
+// 1
+
+template <T, U>
+concept can_invoke {
+  U invoke(T*);
+};
+
+template <T, Fun> requires can_invoke<Fun, T>
+T run(Fun f) {
+  return f.invoke();
+}
+
+int main() {
+  return run<int>([] () -> int { return 1; });
+}

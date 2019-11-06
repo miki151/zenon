@@ -1,0 +1,8 @@
+// 5
+
+import "std/math.znn";
+
+int main() {
+  const i = as_int(sqrt(25));
+  return i;
+}

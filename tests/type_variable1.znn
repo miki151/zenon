@@ -1,0 +1,10 @@
+// no_compile
+
+template <T>
+struct X {
+};
+
+int main() {
+  const x = X<bool>;
+  return 0;
+}

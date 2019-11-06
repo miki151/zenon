@@ -1,0 +1,15 @@
+// 10
+
+import "std/enum.znn";
+
+enum E {
+  E1, E2, E3, E4, E5
+};
+
+int main() {
+  mutable i = 0;
+  for (mutable e : enum_range<E>()) {
+    i += e->asInt();
+  }
+  return i;
+}

@@ -1,0 +1,7 @@
+// 6
+
+int main() {
+  const f = [] (int index)->int { return index * 2;};
+  const a = array_generate<10, int>(move(f));
+  return a[3];
+}
