@@ -391,10 +391,11 @@ unique_ptr<Expression> BinaryExpression::transform(const StmtTransformFun&, cons
 }
 
 optional<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
-  for (auto& e : expr) {
-    if (auto error = e->checkMoves(checker))
-      return error;
-  }
+  if (op != Operator::MEMBER_ACCESS)
+    for (auto& e : expr) {
+      if (auto error = e->checkMoves(checker))
+        return error;
+    }
   return none;
 }
 
