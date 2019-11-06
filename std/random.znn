@@ -26,7 +26,7 @@ export int get_random(range r) {
 
 export template <T> requires is_enum<T>
 T get_random() {
-  const value = get_random(enum_size(T));
+  const value = get_random(enum_count(T));
   embed {
     return T(value);
   }
