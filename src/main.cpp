@@ -20,7 +20,8 @@ static po::parser getCommandLineFlags() {
   flags["o"].type(po::string).description("Binary output path.");
   flags["cpp"].type(po::string).fallback("g++").description("C++ compiler path (default: g++).");
   flags["c"].description("Do not link binary.");
-  flags["l"].type(po::string).description("Linking flags.");
+  flags["codegen"].type(po::string).description("Directory to output generated C++ code for the whole project.");
+  flags["l"].type(po::string).multi().description("Linking flags.");
   flags[""].type(po::string).description("Path to the input program.");
   return flags;
 }
@@ -74,9 +75,12 @@ int main(int argc, char* argv[]) {
     startLsp(installDir);
     return 0;
   }
+  optional<string> codegenAll;
+  if (flags["codegen"].was_set())
+    codegenAll = flags["codegen"].get().string;
   auto gccCmd = flags["cpp"].get().string;
-  bool fullCompile = !flags["c"].was_set();
-  bool printCpp = !flags["o"].was_set();
+  bool fullCompile = !flags["c"].was_set() || codegenAll;
+  bool printCpp = !flags["o"].was_set() && !codegenAll;
   vector<string> linkFlags;
   for (int i = 0; i < flags["l"].count(); ++i)
     linkFlags.push_back("-l" + flags["l"].get(i).string);
@@ -116,15 +120,19 @@ int main(int argc, char* argv[]) {
           toCompile.push_back(import);
           finished.insert(import.path);
         }
-    auto objFile = fullCompile
-        ? buildDir + "/"s + to_string(std::hash<string>()(cppCode + gccCmd)) + ".znn.o"
-        : flags["o"].get().string;
-    if ((!fullCompile || !fs::exists(objFile)) && compileCpp(gccCmd, cppCode, objFile)) {
-      cerr << "C++ compilation failed, which is a Zenon bug :(\n\n" << endl;
-      cerr << cppCode << endl;
-      return 2;
-    } else if (fullCompile)
-      objFiles.push_back(objFile);
+    if (codegenAll)
+      ofstream(*codegenAll + "/"s + to_string(std::hash<string>()(path)) + ".cpp") << cppCode;
+    else {
+      auto objFile = fullCompile
+          ? buildDir + "/"s + to_string(std::hash<string>()(cppCode + gccCmd)) + ".znn.o"
+          : flags["o"].get().string;
+      if ((!fullCompile || !fs::exists(objFile)) && compileCpp(gccCmd, cppCode, objFile)) {
+        cerr << "C++ compilation failed, which is a Zenon bug :(\n\n" << endl;
+        //cerr << cppCode << endl;
+        return 2;
+      } else if (fullCompile)
+        objFiles.push_back(objFile);
+    }
   }
   if (!objFiles.empty())
     if (linkObjs(gccCmd, objFiles, flags["o"].get().string, linkFlags) != 0) {
