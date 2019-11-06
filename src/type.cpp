@@ -291,7 +291,7 @@ optional<string> FunctionInfo::getMangledSuffix() const {
       suf += *name;
     else
       return none;
-  if (id != "copy"s)
+  if (id != "copy"s && !type.builtinOperator)
     if (auto def = getParent()->definition)
       suf += to_string(def->codeLoc.line);
   return suf;

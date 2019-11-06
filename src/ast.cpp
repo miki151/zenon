@@ -764,7 +764,7 @@ static SType convertReferenceToPointer(SType type) {
 
 static bool paramsAreGoodForOperator(const vector<FunctionType::Param>& params) {
   for (auto& p : params)
-    if (p.type->getUnderlying().dynamicCast<StructType>())
+    if (p.type->getUnderlying()->getType() == ArithmeticType::STRUCT_TYPE)
       return true;
   return false;
 }
@@ -853,7 +853,7 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     functionType.variadicParams = isVariadicParams;
     if (name.contains<ConstructorTag>() && external)
       functionType.generatedConstructor = true;
-    if (name.contains<Operator>() && external)
+    if (external)
       functionType.setBuiltin();
     functionInfo = FunctionInfo::getDefined(name, std::move(functionType), this);
     if (functionInfo->isMainFunction()) {
