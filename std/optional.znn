@@ -13,7 +13,7 @@ T* operator * (T?* elem) {
   if (!*elem)
     panic("Attempted to dereference a null value");
   embed {
-    return *elem;
+    return &**elem;
   }
 }
 
