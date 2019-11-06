@@ -1,4 +1,6 @@
 
+import "std/panic.znn";
+
 export template <T>
 variant expected {
   T value;
@@ -24,9 +26,19 @@ T* operator *(expected<T>* v) {
       return value;
     }
     case (string* error) {
-      embed {
-        throw error->data();
-      }
+      panic("Expected contains error {*error}");
+    }
+  }
+}
+
+export template <T>
+T operator *(expected<T> v) {
+  switch (move(v)) {
+    case (T value) {
+      return move(value);
+    }
+    case (string error) {
+      panic(move(error));
     }
   }
 }
@@ -35,10 +47,7 @@ export template <T>
 string get_error(expected<T>* v) {
   switch (*v) {
     case (T* value) {
-      embed {
-        struct NullAccessException {};
-        throw NullAccessException{};
-     }
+      panic("Expected contains valid value");
     }
     case (string* error) {
       return *error;
