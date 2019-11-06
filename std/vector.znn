@@ -11,6 +11,7 @@ using vector_mut_iterator = typename vector<T>::iterator;
 }
 
 export import "std/concepts.znn";
+export import "std/range.znn";
 
 export template <T>
 extern struct vector;
@@ -151,10 +152,38 @@ int size(vector<T>* v) {
   }
 }
 
-export template <T> requires comparable<T>
+export template <T>
+bool empty(vector<T>* v) {
+  return v->size() == 0;
+}
+
+export template <T> requires can_copy<T>
+vector<T> copy(vector<T>* v) {
+  mutable ret = vector<T>();
+  for (mutable elem : *v)
+    ret.push_back(elem->copy());
+  return move(ret);
+}
+
+export template <T> requires ordered<T>
 void sort(vector<T> mutable* v) {
   embed {
     std::sort(v->begin(), v->end());
+  }
+}
+
+export template <T> requires comparable<T>
+int? find(vector<T>* v, T* elem) {
+  for (mutable i : range(0, v->size()))
+    if ((*v)[i] == *elem)
+      return i;
+  return null;
+}
+
+export template <T>
+void remove(vector<T> mutable* v, int index) {
+  embed {
+    v->erase(v->begin() + index);
   }
 }
 
