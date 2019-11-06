@@ -44,6 +44,21 @@ T[Size] array_repeat(T elem) {
   }
 }
 
+export template <Fun, RetType>
+concept can_invoke {
+  RetType invoke(Fun*, int);
+};
+
+export template <int Size, T, Fun> requires can_copy<T>, can_invoke<Fun, T>, (Size >= 0)
+T[Size] array_generate(Fun fun) {
+  embed {
+    std::array<T, Size> a;
+    for (int i = 0; i < Size; ++i)
+      a[i] = invoke(&fun, i);
+    return a;
+  }
+}
+
 export template <int Size, T>
 int size(T[Size]* array) {
   return Size;
