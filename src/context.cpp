@@ -98,8 +98,8 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
             if (isGeneralization(myFun, function, existing))
               return myFun->getWithoutRequirements();
           if (overloads.first == "invoke"s)
-            for (auto& t : getAllTypes())
-              if (auto lambda = t.dynamicCast<LambdaType>())
+            if (!function->type.params.empty())
+              if (auto lambda = function->type.params[0].type->removePointer().dynamicCast<LambdaType>())
                 if (isGeneralization(lambda->functionInfo.get(), function, existing))
                   return lambda->functionInfo->getWithoutRequirements();
           return none;
