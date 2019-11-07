@@ -74,6 +74,7 @@ class Context : public owned_object<Context> {
   bool areParamsEquivalent(FunctionType, FunctionType) const;
   bool isTemplated() const;
   void setTemplated();
+  void setIsLambda();
 
   struct BuiltInFunctionInfo {
     vector<SType> argTypes;
@@ -96,6 +97,7 @@ class Context : public owned_object<Context> {
     optional<int> loopId;
     bool isBuiltInModule = false;
     bool templated = false;
+    bool isLambda = false;
     void merge(const State&);
     void print() const;
   };

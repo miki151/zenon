@@ -77,6 +77,10 @@ void Context::setTemplated() {
   state->templated = true;
 }
 
+void Context::setIsLambda() {
+  state->isLambda = true;
+}
+
 bool Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
     vector<FunctionType> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
@@ -121,9 +125,16 @@ Context Context::withStates(TypeRegistry* t, ConstStates states) {
 }
 
 WithError<SType> Context::getTypeOfVariable(const string& id) const {
-  for (auto& state : getReversedStates())
+  for (auto& state : getReversedStates()) {
     if (state->vars.count(id))
       return state->vars.at(id);
+    if (state->isLambda) {
+      for (auto& state : getReversedStates())
+        if (state->vars.count(id))
+          return "Variable " + quote(id) + " is not captured by lambda";
+      break;
+    }
+  }
   for (auto& state : getReversedStates())
     if (state->variablePack && state->variablePack->name == id)
       return "Parameter pack must be unpacked using the '...' operator before being used"s;

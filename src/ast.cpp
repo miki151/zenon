@@ -2559,6 +2559,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
     return retType.get_error();
   auto bodyContext = Context::withParent(context);
   bodyContext.setReturnType(*retType);
+  bodyContext.setIsLambda();
   if (!recheck) {
     type = shared<LambdaType>();
     vector<FunctionType::Param> params { FunctionType::Param(PointerType::get(type.get())) };
