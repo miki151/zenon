@@ -2572,7 +2572,8 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
         return param.codeLoc.getError("Function parameter may not have " + quote(type->get()->getName()) + " type");
       params.push_back({param.name, *type});
       if (param.name) {
-        bodyContext.addVariable(*param.name, *type);
+        auto varType = param.isMutable ? SType(MutableReferenceType::get(*type)) : SType(ReferenceType::get(*type));
+        bodyContext.addVariable(*param.name, varType);
         if (paramNames.count(*param.name))
           return param.codeLoc.getError("Duplicate function parameter name: " + quote(*param.name));
         paramNames.insert(*param.name);
@@ -2589,6 +2590,8 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   auto bodyContext2 = Context::withParent(bodyContext);
   if (auto err = block->check(bodyContext2))
     return *err;
+  if (auto err = checkBodyMoves())
+    return *err;
   auto blockCopy = block->deepCopy();
   CHECK(!blockCopy->check(bodyContext));
   if (!block->hasReturnStatement(context) && *retType != ArithmeticType::VOID)
@@ -2597,6 +2600,18 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   context.typeRegistry->addLambda(type.get());
   context.addType(type->getName(), type.get());
   return SType(type.get());
+}
+
+optional<ErrorLoc> LambdaExpression::checkBodyMoves() const {
+  MoveChecker moveChecker;
+  for (auto& p : parameters)
+    if (p.name)
+      moveChecker.addVariable(*p.name);
+  return block->checkMoves(moveChecker);
+}
+
+optional<ErrorLoc> LambdaExpression::checkMoves(MoveChecker& checker) const {
+  return none;
 }
 
 unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, const ExprTransformFun& exprFun) const {

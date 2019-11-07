@@ -179,6 +179,8 @@ struct LambdaExpression : Expression {
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
+  NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
+  optional<ErrorLoc> checkBodyMoves() const;
   vector<FunctionParameter> parameters;
   unique_ptr<StatementBlock> block;
   IdentifierInfo returnType;

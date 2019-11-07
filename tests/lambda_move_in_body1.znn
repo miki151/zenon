@@ -1,0 +1,10 @@
+// no_compile
+
+int main() {
+  const f = [] (int index)->int {
+    const x = move(index);
+    const y = 2 * x;
+    return index;
+  };
+  return f.invoke(6);
+}
