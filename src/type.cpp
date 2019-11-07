@@ -716,6 +716,26 @@ static void checkNonVoidMember(const SType& type, const SType& to, ErrorBuffer& 
           "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
 }
 
+namespace {
+struct RequirementVisitor {
+  SType from, to;
+  ErrorBuffer& errors;
+  void operator()(SConcept& concept) {
+    concept = concept->replace(from, to, errors);
+  }
+  void operator()(shared_ptr<Expression>& expr) {
+    ErrorLocBuffer errors2;
+    expr = expr->replace(from, to, errors2);
+    if (auto constant = expr.dynamicCast<Constant>())
+      if (auto value = constant->value->value.getValueMaybe<bool>())
+        if (!*value)
+          errors.push_back(expr->codeLoc.toString() + ": Requirement evaluates to false");
+    if (!errors2.empty())
+      errors.push_back(errors2[0].error);
+  }
+};
+}
+
 SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   vector<SType> newTemplateParams;
   for (auto& param : templateParams)
@@ -738,13 +758,7 @@ SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
     }
     ret->requirements = requirements;
     for (auto& req : ret->requirements)
-      req.base.visit([&](SConcept& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); },
-          [&](shared_ptr<Expression>& conceptOrExpr) {
-            ErrorLocBuffer errors2;
-            conceptOrExpr = conceptOrExpr->replace(from, to, errors2);
-            if (!errors2.empty())
-              errors.push_back(errors2[0].error);
-          });
+      req.base.visit(RequirementVisitor{from, to, errors});
     ret->staticContext.replace(from, to, errors);
   } else
     INFO << "Found instantiated: " << ret->getName();
@@ -760,13 +774,7 @@ FunctionType replaceInFunction(FunctionType type, SType from, SType to, ErrorBuf
   for (auto& param : type.templateParams)
     param = param->replace(from, to, errors);
   for (auto& req : type.requirements)
-    req.base.visit([&](SConcept& conceptOrExpr) { conceptOrExpr = conceptOrExpr->replace(from, to, errors); },
-        [&](shared_ptr<Expression>& conceptOrExpr) {
-          ErrorLocBuffer errors2;
-          conceptOrExpr = conceptOrExpr->replace(from, to, errors2);
-          if (!errors2.empty())
-            errors.push_back(errors2[0].error);
-        });
+    req.base.visit(RequirementVisitor{from, to, errors});
   return type;
 }
 
