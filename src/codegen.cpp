@@ -60,19 +60,8 @@ void MoveExpression::codegen(Accu& accu, CodegenStage) const {
   accu.add("std::move(" + identifier + ")");
 }
 
-void Expression::codegenDotOperator(Accu& accu, CodegenStage stage, Expression* leftSide) const {
-  accu.add("(");
-  leftSide->codegen(accu, stage);
-  accu.add(").");
-  codegen(accu, stage);
-}
-
 void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
-  if (op == Operator::MEMBER_ACCESS) {
-    expr[1]->codegenDotOperator(accu, stage, expr[0].get());
-    return;
-  }
   if (functionInfo && !functionInfo->type.builtinOperator)
     if (auto opName = getCodegenName(op)) {
       accu.add(opName + *functionInfo->getMangledSuffix() + "("s);
@@ -89,11 +78,9 @@ void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
     accu.add("[");
   else
     accu.add(getString(op) + " "s);
-  if (op != Operator::MEMBER_ACCESS)
-    accu.add("(");
+  accu.add("(");
   expr[1]->codegen(accu, stage);
-  if (op != Operator::MEMBER_ACCESS)
-    accu.add(")");
+  accu.add(")");
   if (op == Operator::SUBSCRIPT)
     accu.add("]");
 }
@@ -196,19 +183,6 @@ static void genFunctionCall(Accu& accu, const FunctionInfo& functionInfo,
     accu.pop_back();
   }
   accu.add(suffix);
-}
-
-void FunctionCall::codegenDotOperator(Accu& accu, CodegenStage stage, Expression* leftSide) const {
-  if (callType == MethodCallType::FUNCTION_AS_METHOD || callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
-    vector<Expression*> args {leftSide};
-    append(args, extractRefs(arguments));
-    genFunctionCall(accu, *functionInfo, args, callType);
-  } else {
-    accu.add("(");
-    leftSide->codegen(accu, stage);
-    accu.add(").");
-    codegen(accu, stage);
-  }
 }
 
 void FunctionCall::codegen(Accu& accu, CodegenStage) const {
@@ -763,4 +737,18 @@ void CountOfExpression::codegen(Accu&, CodegenStage) const {
 
 void VariablePackElement::codegen(Accu&, CodegenStage) const {
   FATAL << "Attempting to codegen variable pack element";
+}
+
+
+void MemberAccessExpression::codegen(Accu& accu, CodegenStage stage) const {
+  accu.add("(");
+  lhs->codegen(accu, stage);
+  accu.add(")." + identifier);
+}
+
+
+void MemberIndexExpression::codegen(Accu& accu, CodegenStage stage) const {
+  accu.add("(");
+  lhs->codegen(accu, stage);
+  accu.add(")." + *memberName);
 }

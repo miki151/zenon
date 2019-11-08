@@ -26,8 +26,6 @@ const static vector<pair<string, Operator>> operators {
   {"-", Operator::MINUS_UNARY},
   {"-=", Operator::DECREMENT_BY},
   {"=", Operator::ASSIGNMENT},
-  {".", Operator::MEMBER_ACCESS},
-  {"->", Operator::POINTER_MEMBER_ACCESS},
   {"&", Operator::GET_ADDRESS},
   {"[]", Operator::SUBSCRIPT},
   {"!", Operator::LOGICAL_NOT},
@@ -104,9 +102,6 @@ int getPrecedence(Operator op) {
       return 14;
     case Operator::SUBSCRIPT:
       return 15;
-    case Operator::MEMBER_ACCESS:
-    case Operator::POINTER_MEMBER_ACCESS:
-      return 16;
   }
 }
 
@@ -138,8 +133,6 @@ bool isUnary(Operator op) {
     case Operator::MULTIPLY_BY:
     case Operator::DIVIDE_BY:
     case Operator::ASSIGNMENT:
-    case Operator::MEMBER_ACCESS:
-    case Operator::POINTER_MEMBER_ACCESS:
     case Operator::LOGICAL_AND:
     case Operator::LOGICAL_OR:
     case Operator::VALUE_OR:
@@ -318,11 +311,9 @@ static nullable<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileT
     case Operator::POINTER_DEREFERENCE:
     case Operator::GET_ADDRESS:
     case Operator::SUBSCRIPT:
-    case Operator::MEMBER_ACCESS:
     case Operator::VALUE_OR:
     case Operator::MAYBE:
       return nullptr;
-    case Operator::POINTER_MEMBER_ACCESS:
     case Operator::NOT_EQUAL:
     case Operator::LESS_OR_EQUAL:
     case Operator::MORE_OR_EQUAL:

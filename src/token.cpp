@@ -45,6 +45,8 @@ static const unordered_map<string, Keyword> keywords {
   {";", Keyword::SEMICOLON},
   {":", Keyword::COLON},
   {",", Keyword::COMMA},
+  {".", Keyword::MEMBER_ACCESS},
+  {"->", Keyword::ARROW_MEMBER_ACCESS},
   {"...", Keyword::ELLIPSIS}
 };
 

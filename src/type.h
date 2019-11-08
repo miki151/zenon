@@ -31,7 +31,7 @@ struct Type : public owned_object<Type> {
     SType type;
     string name;
   };
-  virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const;
+  virtual WithError<MemberInfo> getTypeOfMember(const SType&) const;
   virtual WithError<SType> getTypeOfMember(const string& name) const;
   void codegenDefinition(set<const Type*>& visited, Accu&) const;
   virtual ~Type() {}
@@ -88,7 +88,7 @@ struct ReferenceType : public Type {
   virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
-  virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const override;
+  virtual WithError<MemberInfo> getTypeOfMember(const SType&) const override;
   virtual WithError<SType> getTypeOfMember(const string& name) const override;
   virtual SType removePointer() const override;
 
@@ -106,7 +106,7 @@ struct MutableReferenceType : public Type {
   virtual optional<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
-  virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const override;
+  virtual WithError<MemberInfo> getTypeOfMember(const SType&) const override;
   virtual WithError<SType> getTypeOfMember(const string& name) const override;
   virtual SType removePointer() const override;
 
@@ -221,7 +221,7 @@ struct TemplateParameterType : public Type {
   virtual optional<string> getMangledName() const override;
   virtual SType getType() const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
-  virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const override;
+  virtual WithError<MemberInfo> getTypeOfMember(const SType&) const override;
   virtual WithError<SType> getTypeOfMember(const string&) const override;
   virtual bool canBeValueTemplateParam() const override;
   TemplateParameterType(string name, CodeLoc);
@@ -259,7 +259,7 @@ struct StructType : public Type {
   virtual optional<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual optional<string> getSizeError(const Context&) const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
-  virtual WithError<MemberInfo> getTypeOfMember(const SCompileTimeValue&) const override;
+  virtual WithError<MemberInfo> getTypeOfMember(const SType&) const override;
   virtual SType getType() const override;
   virtual WithError<SType> getTypeOfMember(const string&) const override;
   string name;

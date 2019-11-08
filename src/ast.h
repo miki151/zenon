@@ -52,8 +52,6 @@ struct Expression : Node {
   virtual WithErrorLine<SType> getTypeImpl(Context&) = 0;
 
   virtual optional<EvalResult> eval(const Context&) const;
-  virtual WithErrorLine<SType> getDotOperatorType(Expression* left, Context& callContext);
-  virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const;
   virtual unique_ptr<Expression> expand(SType from, vector<SType> to) const;
   virtual unique_ptr<Expression> replaceVar(string from, string to) const;
@@ -69,7 +67,6 @@ struct Constant : Expression {
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual WithErrorLine<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   SCompileTimeValue value;
   optional<string> structMemberName;
 };
@@ -93,9 +90,30 @@ struct Variable : Expression {
   virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
-  virtual WithErrorLine<SType> getDotOperatorType(Expression* left, Context& callContext) override;
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
   IdentifierInfo identifier;
+};
+
+struct MemberAccessExpression : Expression {
+  static unique_ptr<MemberAccessExpression> getPointerAccess(CodeLoc, unique_ptr<Expression> lhs, string);
+  MemberAccessExpression(CodeLoc, unique_ptr<Expression> lhs, string);
+  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
+  unique_ptr<Expression> lhs;
+  string identifier;
+};
+
+struct MemberIndexExpression : Expression {
+  MemberIndexExpression(CodeLoc, unique_ptr<Expression> lhs, unique_ptr<Expression> index);
+  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
+  unique_ptr<Expression> lhs;
+  unique_ptr<Expression> index;
+  optional<string> memberName;
 };
 
 struct BinaryExpression : Expression {
@@ -202,13 +220,11 @@ struct ArrayLiteral : Expression {
 enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_POINTER };
 
 struct FunctionCall : Expression {
-  FunctionCall(CodeLoc, IdentifierInfo);
-  FunctionCall(CodeLoc, IdentifierInfo, unique_ptr<Expression> arg);
+  FunctionCall(CodeLoc, IdentifierInfo, bool methodCall);
+  FunctionCall(CodeLoc, IdentifierInfo, unique_ptr<Expression> arg, bool methodCall);
   static unique_ptr<FunctionCall> constructor(CodeLoc, SType type);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
-  virtual WithErrorLine<SType> getDotOperatorType(Expression* left, Context& callContext) override;
-  virtual void codegenDotOperator(Accu&, CodegenStage, Expression* leftSide) const override;
   virtual optional<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
   virtual unique_ptr<Expression> expand(SType from, vector<SType> to) const override;
@@ -223,15 +239,16 @@ struct FunctionCall : Expression {
   vector<unique_ptr<Expression>> arguments;
   vector<optional<string>> argNames;
   optional<MethodCallType> callType;
+  bool methodCall = false;
   bool variadicArgs = false;
   bool variadicTemplateArgs = false;
   struct Private {};
-  FunctionCall(CodeLoc, Private);
+  FunctionCall(CodeLoc, bool methodCall, Private);
 
   private:
   optional<ErrorLoc> initializeTemplateArgsAndIdentifierType(const Context&);
   optional<ErrorLoc> checkNamedArgs() const;
-  optional<ErrorLoc> checkVariadicCall(Expression* left, const Context&);
+  optional<ErrorLoc> checkVariadicCall(const Context&);
 };
 
 struct AST;

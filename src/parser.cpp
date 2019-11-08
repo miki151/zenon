@@ -94,13 +94,13 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
   return ret;
 }
 
-WithErrorLine<unique_ptr<Expression>> parseFunctionCall(IdentifierInfo id, Tokens& tokens) {
-  auto ret = unique<FunctionCall>(tokens.peek().codeLoc, id);
+WithErrorLine<unique_ptr<FunctionCall>> parseFunctionCall(IdentifierInfo id, Tokens& tokens) {
+  auto ret = unique<FunctionCall>(tokens.peek().codeLoc, id, false);
   if (auto t = tokens.eat(Keyword::OPEN_BRACKET); !t)
     return t.get_error();
   while (tokens.peek() != Keyword::CLOSE_BRACKET) {
     optional<string> argName;
-    if (tokens.eatMaybe(Operator::MEMBER_ACCESS)) {
+    if (tokens.eatMaybe(Keyword::MEMBER_ACCESS)) {
       auto idToken = tokens.popNext();
       if (!idToken.contains<IdentifierToken>())
         return idToken.codeLoc.getError("Expected function parameter name");
@@ -123,7 +123,7 @@ WithErrorLine<unique_ptr<Expression>> parseFunctionCall(IdentifierInfo id, Token
   }
   if (auto t = tokens.eat(Keyword::CLOSE_BRACKET); !t)
     return t.get_error();
-  return cast<Expression>(std::move(ret));
+  return std::move(ret);
 }
 
 static string getInputReg() {
@@ -158,8 +158,8 @@ WithErrorLine<unique_ptr<Expression>> parseStringLiteral(CodeLoc initialLoc, str
           loc = loc.plus(0, 2);
           auto tokens = lex(it->str().substr(1, it->str().size() - 2), loc, "end of expression").get();
           if (auto expr = parseExpression(tokens)) {
-            auto call = BinaryExpression::get(loc, Operator::MEMBER_ACCESS, std::move(*expr),
-                cast<Expression>(unique<FunctionCall>(loc, IdentifierInfo("to_string", loc))), false);
+            auto call = cast<Expression>(unique<FunctionCall>(loc, IdentifierInfo("to_string", loc),
+                unique<UnaryExpression>(loc, Operator::GET_ADDRESS, std::move(*expr)), false));
             addElem(std::move(call), loc);
           } else
             return expr.get_error();
@@ -227,7 +227,7 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
       }
       params.push_back({paramCodeLoc, *typeId, paramName, isParamMutable, false});
     }
-  if (auto err = tokens.eat(Operator::POINTER_MEMBER_ACCESS); !err)
+  if (auto err = tokens.eat(Keyword::ARROW_MEMBER_ACCESS); !err)
     return err.get_error();
   auto returnType = parseIdentifier(tokens, true);
   if (!returnType)
@@ -298,7 +298,10 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
         if (!identifier)
           return identifier.get_error();
         if (tokens.peek() == Keyword::OPEN_BRACKET) {
-          return parseFunctionCall(*identifier, tokens);
+          if (auto res = parseFunctionCall(*identifier, tokens))
+            return cast<Expression>(std::move(*res));
+          else
+            return res.get_error();
         } else {
           if (identifier->parts.size() == 1)
             return cast<Expression>(unique<Variable>(*identifier));
@@ -339,11 +342,30 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
   );
 }
 
+WithErrorLine<unique_ptr<Expression>> parseMemberAccess(Tokens& tokens, unique_ptr<Expression> lhs) {
+  auto token = tokens.popNext();
+  if (token == Keyword::ARROW_MEMBER_ACCESS)
+    lhs = cast<Expression>(unique<UnaryExpression>(lhs->codeLoc, Operator::POINTER_DEREFERENCE, std::move(lhs)));
+  if (auto id = parseIdentifier(tokens, false)) {
+    if (tokens.peek() == Keyword::OPEN_BRACKET) {
+      auto function = parseFunctionCall(*id, tokens);
+      function.get()->arguments = concat(makeVec(std::move(lhs)), std::move(function.get()->arguments));
+      function.get()->methodCall = true;
+      return cast<Expression>(std::move(*function));
+    } else if (auto s = id->asBasicIdentifier())
+      return cast<Expression>(unique<MemberAccessExpression>(id->codeLoc, std::move(lhs), *s));
+    else
+      return id->codeLoc.getError("Expected member name or method call");
+  } else
+  if (auto expr = parsePrimary(tokens))
+    return cast<Expression>(unique<MemberIndexExpression>(token.codeLoc, std::move(lhs), std::move(*expr)));
+  else
+    return token.codeLoc.getError("Bad use of member access operator");
+}
+
 WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression> lhs,
     int minPrecedence) {
   while (1) {
-    if (tokens.empty())
-      break;
     auto token = tokens.peek();
     if (auto op1 = token.getValueMaybe<Operator>()) {
       if (getPrecedence(*op1) < minPrecedence)
@@ -353,13 +375,12 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
       auto rhs = parsePrimary(tokens);
       if (!rhs)
         return rhs.get_error();
-      token = tokens.peek();
       while (1) {
+        token = tokens.peek();
         auto op2 = token.getValueMaybe<Operator>();
         if (token == Keyword::OPEN_SQUARE_BRACKET)
           op2 = Operator::SUBSCRIPT;
         if (op2) {
-          INFO << "Comparing operators op1 " << getString(*op1) << " and op2 " << getString(*op2);
           if (getPrecedence(*op2) <= getPrecedence(*op1) &&
               (!isRightAssociative(*op2) || getPrecedence(*op2) < getPrecedence(*op1)))
             break;
@@ -367,7 +388,12 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
           inBrackets = false;
           if (!rhs)
             return rhs.get_error();
-          token = tokens.peek();
+        } else
+        if (token == Keyword::MEMBER_ACCESS || token == Keyword::ARROW_MEMBER_ACCESS) {
+          if (auto res = parseMemberAccess(tokens, std::move(*rhs)))
+            rhs = std::move(*res);
+          else
+            return res.get_error();
         } else
           break;
       }
@@ -381,6 +407,12 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
       if (auto t = tokens.eat(Keyword::CLOSE_SQUARE_BRACKET); !t)
         return t.get_error();
       lhs = BinaryExpression::get(token.codeLoc, Operator::SUBSCRIPT, std::move(lhs), std::move(*rhs), false);
+    } else
+    if (token == Keyword::MEMBER_ACCESS || token == Keyword::ARROW_MEMBER_ACCESS) {
+      if (auto res = parseMemberAccess(tokens, std::move(lhs)))
+        lhs = std::move(*res);
+      else
+        return res.get_error();
     } else
       break;
   }

@@ -125,6 +125,19 @@ vector<T> concat(vector<T> v, const vector<T>& w) {
 }
 
 template <typename T>
+void append(vector<T>& v, vector<T>&& w) {
+  v.reserve(v.size() + w.size());
+  for (T& elem : w)
+    v.push_back(std::move(elem));
+}
+
+template <typename T>
+vector<T> concat(vector<T> v, vector<T>&& w) {
+  append(v, std::move(w));
+  return v;
+}
+
+template <typename T>
 vector<T> getSubsequence(const vector<T>& v, int start, optional<int> lengthOption = none) {
   auto length = lengthOption.value_or(v.size() - start);
   CHECK(start >= 0 && length >= 0 && start + length <= v.size());

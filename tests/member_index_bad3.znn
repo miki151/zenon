@@ -1,0 +1,10 @@
+// no_compile
+
+struct X {
+  int a;
+};
+
+int main() {
+  const s = X(1);
+  return s.(int);
+}

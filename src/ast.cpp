@@ -62,17 +62,17 @@ Constant::Constant(CodeLoc l, SCompileTimeValue v) : Expression(l), value(v) {
 Variable::Variable(IdentifierInfo s) : Expression(s.codeLoc), identifier(std::move(s)) {
 }
 
-FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id) : Expression(l), identifier(std::move(id)),
-    variadicTemplateArgs(identifier->parts.back().variadic) {
+FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id, bool methodCall) : Expression(l), identifier(std::move(id)),
+    methodCall(methodCall), variadicTemplateArgs(identifier->parts.back().variadic) {
   INFO << "Function call " << id.prettyString();;
 }
 
-FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id, unique_ptr<Expression> arg) : FunctionCall(l, id) {
+FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id, unique_ptr<Expression> arg, bool methodCall) : FunctionCall(l, id, methodCall) {
   arguments.push_back(std::move(arg));
- }
+}
 
 unique_ptr<FunctionCall> FunctionCall::constructor(CodeLoc l, SType type) {
-  auto ret = unique<FunctionCall>(l, Private{});
+  auto ret = unique<FunctionCall>(l, false, Private{});
   vector<SType> templateArgs;
   if (auto structType = type.dynamicCast<StructType>()) {
     templateArgs = structType->templateParams;
@@ -113,22 +113,6 @@ unique_ptr<Expression> Constant::transform(const StmtTransformFun&, const ExprTr
   return unique<Constant>(codeLoc, value);
 }
 
-WithErrorLine<SType> Constant::getDotOperatorType(Expression* left, Context& callContext) {
-  auto myValue = eval(callContext)->value.dynamicCast<CompileTimeValue>();
-  CHECK(myValue);
-  CHECK(left);
-  if (auto leftType = left->getTypeImpl(callContext)) {
-    if (auto error = leftType.get()->getSizeError(callContext))
-      return codeLoc.getError(leftType.get()->getName() + *error);
-    if (auto member = leftType.get()->getTypeOfMember(myValue)) {
-      structMemberName = member->name;
-      return member->type;
-    } else
-      return codeLoc.getError(member.get_error());
-  } else
-    return leftType;
-}
-
 WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
   optional<string> varError;
   if (auto id = identifier.asBasicIdentifier()) {
@@ -164,23 +148,6 @@ unique_ptr<Expression> Variable::replaceVar(string from, string to) const {
 
 unique_ptr<Expression> Variable::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
   return unique<Variable>(identifier);
-}
-
-WithErrorLine<SType> Variable::getDotOperatorType(Expression* left, Context& callContext) {
-  CHECK(left);
-  if (auto id = identifier.asBasicIdentifier()) {
-    if (auto leftType1 = left->getTypeImpl(callContext)) {
-      auto leftType = leftType1.get();
-      if (auto error = leftType->getSizeError(callContext))
-        return codeLoc.getError(leftType->getName() + *error);
-      if (auto member = leftType->getTypeOfMember(*id))
-        return *member;
-      else
-        return codeLoc.getError(member.get_error());
-    } else
-      return leftType1;
-  } else
-    return codeLoc.getError("Bad use of dot operator");
 }
 
 optional<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
@@ -294,10 +261,6 @@ unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<un
       return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::MORE_THAN, std::move(expr), rightWithBrackets));
     case Operator::MORE_OR_EQUAL:
       return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::LESS_THAN, std::move(expr), rightWithBrackets));
-    case Operator::POINTER_MEMBER_ACCESS:
-      return get(loc, Operator::MEMBER_ACCESS,
-          unique<UnaryExpression>(loc, Operator::POINTER_DEREFERENCE, std::move(expr[0])),
-          std::move(expr[1]), rightWithBrackets);
     default:
       return unique<BinaryExpression>(Private{}, loc, op, std::move(expr), rightWithBrackets);
   }
@@ -312,33 +275,13 @@ BinaryExpression::BinaryExpression(BinaryExpression::Private, CodeLoc loc, Opera
       bool rightWithBrackets)
     : Expression(loc), op(op), expr(std::move(expr)), rightWithBrackets(rightWithBrackets) {}
 
-static WithError<unique_ptr<Expression>> getCompileTimeValue(const Context& context, Expression* expr) {
-  if (auto evaled = expr->eval(context)) {
-    if (auto value = evaled->value.dynamicCast<CompileTimeValue>())
-      return cast<Expression>(unique<Constant>(expr->codeLoc, std::move(value)));
-    else
-      return "Expected a compile time value, got " + quote(evaled->value->getName());
-  }
-  return "Unable to evaluate constant expression"s;
-}
-
 WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
   switch (op) {
-    case Operator::POINTER_MEMBER_ACCESS:
     case Operator::NOT_EQUAL:
     case Operator::LESS_OR_EQUAL:
     case Operator::MORE_OR_EQUAL:
       FATAL << "This operator should have been rewritten";
       fail();
-    case Operator::MEMBER_ACCESS: {
-      if (rightWithBrackets) {
-        if (auto asConstant = getCompileTimeValue(context, expr[1].get()))
-          expr[1] = std::move(*asConstant);
-        else
-          return expr[1]->codeLoc.getError(asConstant.get_error());
-      }
-      return expr[1]->getDotOperatorType(expr[0].get(), context);
-    }
     default: {
       vector<SType> exprTypes;
       for (auto& elem : expr)
@@ -391,11 +334,10 @@ unique_ptr<Expression> BinaryExpression::transform(const StmtTransformFun&, cons
 }
 
 optional<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
-  if (op != Operator::MEMBER_ACCESS)
-    for (auto& e : expr) {
-      if (auto error = e->checkMoves(checker))
-        return error;
-    }
+  for (auto& e : expr) {
+    if (auto error = e->checkMoves(checker))
+      return error;
+  }
   return none;
 }
 
@@ -907,7 +849,7 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
     const string& funName, const string& alternativeName, const SType& alternativeType, int virtualIndex) {
-  auto functionCall = unique<FunctionCall>(codeLoc, IdentifierInfo(funName, codeLoc));
+  auto functionCall = unique<FunctionCall>(codeLoc, IdentifierInfo(funName, codeLoc), false);
   vector<SType> args;
   for (int i = 0; i < parameters.size(); ++i)
     if (i != virtualIndex) {
@@ -1028,13 +970,12 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
       return codeLoc.getError("Can only generate copy function for user-defined types");
     body = unique<StatementBlock>(codeLoc);
     if (structType->alternatives.empty()) {
-      auto call = unique<FunctionCall>(codeLoc, returnType);
+      auto call = unique<FunctionCall>(codeLoc, returnType, false);
       for (auto elem : structType->members) {
         auto copiedParam = unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc));
-        auto copyCall = unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc));
+        auto copyCall = unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc), false);
         copyCall->arguments.push_back(unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
-            BinaryExpression::get(codeLoc, Operator::POINTER_MEMBER_ACCESS,
-            std::move(copiedParam), unique<Variable>(IdentifierInfo(elem.name, codeLoc)), false)));
+            MemberAccessExpression::getPointerAccess(codeLoc, std::move(copiedParam), elem.name)));
         call->arguments.push_back(std::move(copyCall));
       }
       body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
@@ -1046,10 +987,10 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
         auto block = unique<StatementBlock>(codeLoc);
         auto constructorName = returnType;
         constructorName.parts.push_back(IdentifierInfo::IdentifierPart { alternative.name, {} });
-        auto constructorCall = unique<FunctionCall>(codeLoc, constructorName);
+        auto constructorCall = unique<FunctionCall>(codeLoc, constructorName, false);
         if (alternative.type != ArithmeticType::VOID)
           constructorCall->arguments.push_back(unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc),
-              unique<Variable>(IdentifierInfo(alternative.name, codeLoc))));
+              unique<Variable>(IdentifierInfo(alternative.name, codeLoc)), false));
         block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(constructorCall)));
         topSwitch->caseElems.push_back(
             SwitchStatement::CaseElem {
@@ -1081,7 +1022,7 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const 
     IdentifierInfo id = returnType;
     id.parts.push_back(returnType.parts[0]);
     id.parts.back().templateArguments.clear();
-    auto call = unique<FunctionCall>(codeLoc, std::move(id));
+    auto call = unique<FunctionCall>(codeLoc, std::move(id), false);
     for (int i = 0; i < structType->members.size(); ++i) {
       call->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
     }
@@ -1446,10 +1387,6 @@ bool ExpressionStatement::hasReturnStatement(const Context& context) const {
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-WithErrorLine<SType> FunctionCall::getTypeImpl(Context& context) {
-  return getDotOperatorType(nullptr, context);
-}
-
 optional<ErrorLoc> FunctionCall::initializeTemplateArgsAndIdentifierType(const Context& context) {
   if (!templateArgs) {
     if (auto res = context.getTypeList(identifier->parts.back().templateArguments, variadicTemplateArgs))
@@ -1478,7 +1415,7 @@ optional<ErrorLoc> FunctionCall::checkNamedArgs() const {
   return none;
 }
 
-optional<ErrorLoc> FunctionCall::checkVariadicCall(Expression* left, const Context& callContext) {
+optional<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) {
   if (!variadicTemplateArgs && !variadicArgs)
     return none;
   auto context = Context::withParent(callContext);
@@ -1492,7 +1429,7 @@ optional<ErrorLoc> FunctionCall::checkVariadicCall(Expression* left, const Conte
     auto& variablePack = callContext.getVariablePack();
     if (variablePack)
       call = cast<FunctionCall>(call->expandVar(variablePack->name, expandedVars));
-    if (auto type = call->getDotOperatorType(left, context)) {
+    if (auto type = call->getTypeImpl(context)) {
       if (!!returnType && returnType != type.get())
         return codeLoc.getError("Return type mismatch between called functions in variadic function call");
       returnType = type.get();
@@ -1524,7 +1461,7 @@ optional<ErrorLoc> FunctionCall::checkVariadicCall(Expression* left, const Conte
   return none;
 }
 
-WithErrorLine<SType> FunctionCall::getDotOperatorType(Expression* left, Context& callContext) {
+WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
   if (auto error = initializeTemplateArgsAndIdentifierType(callContext))
     return *error;
   optional<ErrorLoc> error;
@@ -1546,37 +1483,31 @@ WithErrorLine<SType> FunctionCall::getDotOperatorType(Expression* left, Context&
       argLocs.push_back(arguments[i]->codeLoc);
       INFO << "Function argument " << argTypes.back()->getName();
     }
-    if (!left)
-      getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs).unpack(functionInfo, error);
-    else {
-      auto leftTypeTmp = left->getTypeImpl(callContext);
-      if (!leftTypeTmp)
-        return leftTypeTmp;
-      SType leftType = *leftTypeTmp;
-      callType = MethodCallType::METHOD;
-      auto tryMethodCall = [&](MethodCallType thisCallType) {
-        auto res = getFunction(callContext, codeLoc, *identifierType, *templateArgs, concat({leftType}, argTypes),
-            concat({left->codeLoc}, argLocs));
-        if (res)
-          callType = thisCallType;
-        if (res && functionInfo) {
-          error = codeLoc.getError("Ambigous method call:\nCandidate: " + functionInfo->prettyString() +
-              "\nCandidate: " + res.get()->prettyString());
-          functionInfo = nullptr;
-        } else
-          res.unpack(functionInfo, error);
-      };
+    auto tryMethodCall = [&](MethodCallType thisCallType) {
+      auto res = getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs);
+      if (res)
+        callType = thisCallType;
+      if (res && functionInfo) {
+        error = codeLoc.getError("Ambigous method call:\nCandidate: " + functionInfo->prettyString() +
+            "\nCandidate: " + res.get()->prettyString());
+        functionInfo = nullptr;
+      } else
+        res.unpack(functionInfo, error);
+    };
+    if (methodCall) {
+      auto leftType = argTypes[0];
       if (!leftType->getUnderlying().dynamicCast<PointerType>() &&
           !leftType->getUnderlying().dynamicCast<MutablePointerType>())
         tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
-      leftType = leftType.dynamicCast<MutableReferenceType>()
+      argTypes[0] = leftType.dynamicCast<MutableReferenceType>()
           ? SType(MutablePointerType::get(leftType->getUnderlying()))
           : SType(PointerType::get(leftType->getUnderlying()));
       tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
-    }
+    } else
+      getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs).unpack(functionInfo, error);
   }
   if (functionInfo) {
-    if (auto error = checkVariadicCall(left, callContext))
+    if (auto error = checkVariadicCall(callContext))
       return *error;
     if (auto error = functionInfo->type.retVal->getSizeError(callContext))
       return codeLoc.getError(*error);
@@ -1664,7 +1595,7 @@ unique_ptr<Expression> FunctionCall::expandVar(string from, vector<string> to) c
 }
 
 unique_ptr<Expression> FunctionCall::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
-  auto ret = unique<FunctionCall>(codeLoc, Private{});
+  auto ret = unique<FunctionCall>(codeLoc, methodCall, Private{});
   ret->identifier = identifier;
   for (auto& arg : arguments)
     ret->arguments.push_back(fun(arg.get()));
@@ -1683,7 +1614,7 @@ optional<ErrorLoc> FunctionCall::checkMoves(MoveChecker& checker) const {
   return none;
 }
 
-FunctionCall::FunctionCall(CodeLoc l, Private) : Expression(l) {}
+FunctionCall::FunctionCall(CodeLoc l, bool methodCall, Private) : Expression(l), methodCall(methodCall) {}
 
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
@@ -2209,10 +2140,6 @@ optional<EvalResult> Expression::eval(const Context&) const {
   return none;
 }
 
-WithErrorLine<SType> Expression::getDotOperatorType(Expression* left, Context& callContext) {
-  return codeLoc.getError("Bad use of dot operator");
-}
-
 EnumDefinition::EnumDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
 
 optional<ErrorLoc> EnumDefinition::addToContext(Context& context) {
@@ -2355,12 +2282,12 @@ optional<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   auto containerEndName = "container_end"s + uniqueSufix;
   bodyContext.addVariable(*containerName, containerType);
   containerEnd = unique<VariableDeclaration>(codeLoc, none, containerEndName,
-      BinaryExpression::get(codeLoc, Operator::MEMBER_ACCESS,
-          unique<Variable>(IdentifierInfo(*containerName, codeLoc)), unique<FunctionCall>(codeLoc, IdentifierInfo("end", codeLoc)), false));
+      unique<FunctionCall>(codeLoc, IdentifierInfo("end", codeLoc),
+          unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, unique<Variable>(IdentifierInfo(*containerName, codeLoc))), false));
   if (auto err = containerEnd->check(bodyContext))
     return err;
-  init->initExpr = BinaryExpression::get(codeLoc, Operator::MEMBER_ACCESS,
-      unique<Variable>(IdentifierInfo(*containerName, codeLoc)), unique<FunctionCall>(codeLoc, IdentifierInfo("begin", codeLoc)), false);
+  init->initExpr = unique<FunctionCall>(codeLoc, IdentifierInfo("begin", codeLoc),
+      unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, unique<Variable>(IdentifierInfo(*containerName, codeLoc))), false);
   init->isMutable = true;
   condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)),
       unique<Variable>(IdentifierInfo(containerEndName, codeLoc)), false);
@@ -2705,4 +2632,61 @@ unique_ptr<Expression> VariablePackElement::replace(SType from, SType to, ErrorL
 
 unique_ptr<Expression> VariablePackElement::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
   return cast<Expression>(unique<VariablePackElement>(codeLoc, packName, ids, index));
+}
+
+unique_ptr<MemberAccessExpression> MemberAccessExpression::getPointerAccess(CodeLoc l, unique_ptr<Expression> lhs, string id) {
+  return unique<MemberAccessExpression>(l,
+      unique<UnaryExpression>(l, Operator::POINTER_DEREFERENCE, std::move(lhs)),
+      id);
+}
+
+MemberAccessExpression::MemberAccessExpression(CodeLoc l , unique_ptr<Expression> lhs, string id)
+  : Expression(l), lhs(std::move(lhs)), identifier(id) { }
+
+WithErrorLine<SType> MemberAccessExpression::getTypeImpl(Context& context) {
+  if (auto leftType1 = lhs->getTypeImpl(context)) {
+    auto leftType = leftType1.get();
+    if (auto error = leftType->getSizeError(context))
+      return codeLoc.getError(leftType->getName() + *error);
+    if (auto member = leftType->getTypeOfMember(identifier))
+      return *member;
+    else
+      return codeLoc.getError(member.get_error());
+  } else
+    return leftType1;
+}
+
+unique_ptr<Expression> MemberAccessExpression::transform(const StmtTransformFun& fun1, const ExprTransformFun& fun2) const {
+  return unique<MemberAccessExpression>(codeLoc, lhs->transform(fun1, fun2), identifier);
+}
+
+optional<ErrorLoc> MemberAccessExpression::checkMoves(MoveChecker& checker) const {
+  return lhs->checkMoves(checker);
+}
+
+MemberIndexExpression::MemberIndexExpression(CodeLoc l, unique_ptr<Expression> lhs, unique_ptr<Expression> index)
+  : Expression(l), lhs(std::move(lhs)), index(std::move(index)) {}
+
+WithErrorLine<SType> MemberIndexExpression::getTypeImpl(Context& context) {
+  if (auto value = index->eval(context)) {
+    if (auto leftType = lhs->getTypeImpl(context)) {
+      if (auto error = leftType.get()->getSizeError(context))
+        return codeLoc.getError(leftType.get()->getName() + *error);
+      if (auto member = leftType.get()->getTypeOfMember(value->value)) {
+        memberName = member->name;
+        return member->type;
+      } else
+        return codeLoc.getError(member.get_error());
+    } else
+      return leftType;
+  } else
+    return index->codeLoc.getError("Unable to evaluate constant expression at compile-time");
+}
+
+unique_ptr<Expression> MemberIndexExpression::transform(const StmtTransformFun& fun1, const ExprTransformFun& fun2) const {
+  return unique<MemberIndexExpression>(codeLoc, lhs->transform(fun1, fun2), index->transform(fun1, fun2));
+}
+
+optional<ErrorLoc> MemberIndexExpression::checkMoves(MoveChecker& checker) const {
+  return lhs->checkMoves(checker);
 }

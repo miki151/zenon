@@ -61,7 +61,9 @@ enum class Keyword {
   DISCARD,
   ELLIPSIS,
   STATIC,
-  COUNTOF
+  COUNTOF,
+  MEMBER_ACCESS,
+  ARROW_MEMBER_ACCESS
 };
 
 struct EmbedToken {

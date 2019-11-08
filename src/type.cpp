@@ -135,15 +135,17 @@ bool TemplateParameterType::isBuiltinCopyable(const Context&) const {
     return false;
 }
 
-WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SCompileTimeValue& value1) const {
-  auto value = value1;
-  if (auto ref = value->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
-    value = ref->value;
-  if (value->getType() != ArithmeticType::INT)
-    return "Member index must be of type: " + quote(ArithmeticType::INT->getName()) + ", got " + value->getType()->getName();
-  if (type == ArithmeticType::STRUCT_TYPE)
-    return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), value), "bad_member_name"};
-  return Type::getTypeOfMember(value);
+WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SType& value1) const {
+  if (auto value = value1.dynamicCast<CompileTimeValue>()) {
+    if (auto ref = value->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
+      value = ref->value;
+    if (value->getType() != ArithmeticType::INT)
+      return "Member index must be of type: " + quote(ArithmeticType::INT->getName()) + ", got " + value->getType()->getName();
+    if (type == ArithmeticType::STRUCT_TYPE)
+      return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), value), "bad_member_name"};
+    return Type::getTypeOfMember(value);
+  } else
+    return "Member index must be of type: " + quote(ArithmeticType::INT->getName()) + ", got " + value1->getType()->getName();
 }
 
 WithError<SType> TemplateParameterType::getTypeOfMember(const string& s) const {
@@ -474,7 +476,7 @@ optional<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& stateme
   return underlying->handleSwitchStatement(statement, context, SwitchArgument::REFERENCE);
 }
 
-WithError<Type::MemberInfo> ReferenceType::getTypeOfMember(const SCompileTimeValue& value) const {
+WithError<Type::MemberInfo> ReferenceType::getTypeOfMember(const SType& value) const {
   if (auto res = underlying->getTypeOfMember(value))
     return MemberInfo{(SType)get(res->type), res->name};
   else
@@ -496,7 +498,7 @@ optional<ErrorLoc> MutableReferenceType::handleSwitchStatement(SwitchStatement& 
   return underlying->handleSwitchStatement(statement, context, SwitchArgument::MUTABLE_REFERENCE);
 }
 
-WithError<Type::MemberInfo> MutableReferenceType::getTypeOfMember(const SCompileTimeValue& value) const {
+WithError<Type::MemberInfo> MutableReferenceType::getTypeOfMember(const SType& value) const {
   if (auto res = underlying->getTypeOfMember(value))
     return MemberInfo{(SType)get(res->type), res->name};
   else
@@ -640,20 +642,21 @@ void StructType::updateInstantations() {
   }
 }
 
-WithError<Type::MemberInfo> StructType::getTypeOfMember(const SCompileTimeValue& v1) const {
-  auto v = v1;
-  if (auto ref = v->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
-    v = ref->value;
-  if (auto intValue = v->value.getValueMaybe<int>()) {
-    if (*intValue >= 0 && *intValue < members.size())
-      return MemberInfo{members[*intValue].type, members[*intValue].name};
-    else
-      return "Member index for type " + quote(getName()) + " must be between 0 and " + to_string(members.size() - 1) +
-          ", got " + to_string(*intValue);
+WithError<Type::MemberInfo> StructType::getTypeOfMember(const SType& v1) const {
+  if (auto v = v1.dynamicCast<CompileTimeValue>()) {
+    if (auto ref = v->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
+      v = ref->value;
+    if (auto intValue = v->value.getValueMaybe<int>()) {
+      if (*intValue >= 0 && *intValue < members.size())
+        return MemberInfo{members[*intValue].type, members[*intValue].name};
+      else
+        return "Member index for type " + quote(getName()) + " must be between 0 and " + to_string(members.size() - 1) +
+            ", got " + to_string(*intValue);
+    }
+    if (v->getType() == ArithmeticType::INT)
+      return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), v), "bad_member_name"};
   }
-  if (v->getType() == ArithmeticType::INT)
-    return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), v), "bad_member_name"};
-  return "Member index must be of type: " + quote(ArithmeticType::INT->getName()) + ", got " + v->getType()->getName();
+  return "Member index must be of type: " + quote(ArithmeticType::INT->getName()) + ", got " + v1->getType()->getName();
 }
 
 SType StructType::getType() const {
@@ -685,7 +688,7 @@ SType Type::getType() const {
   return ArithmeticType::ANY_TYPE;
 }
 
-WithError<Type::MemberInfo> Type::getTypeOfMember(const SCompileTimeValue&) const {
+WithError<Type::MemberInfo> Type::getTypeOfMember(const SType&) const {
   return "Type " + quote(getName()) + " doesn't support dot operator"s;
 }
 
