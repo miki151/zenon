@@ -1,0 +1,21 @@
+// 5
+
+template <T, CArgs...>
+concept can_construct {
+  T(CArgs...);
+};
+
+template <T, Args...> requires can_construct<T, Args...>
+T make(Args... args) {
+  return T(move(args)...);
+}
+
+struct X {
+  int a;
+  bool b;
+  string s;
+};
+
+int main() {
+  return make<X>(5, true, "pok").a;
+}

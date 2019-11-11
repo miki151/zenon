@@ -41,10 +41,11 @@ class Context : public owned_object<Context> {
   const optional<VariablePackInfo>& getVariablePack() const;
   void expandVariablePack(const vector<string>&);
   void replace(SType from, SType to, ErrorBuffer&);
+  void expand(SType, vector<SType> to, ErrorBuffer&);
   nullable<SType> getReturnType() const;
   void setReturnType(SType);
   void addType(const string& name, SType, bool fullyDefined = true, bool typePack = false);
-  WithErrorLine<SType> getTypeFromString(IdentifierInfo, bool typePack = false) const;
+  WithErrorLine<SType> getTypeFromString(IdentifierInfo, optional<bool> typePack = false) const;
   nullable<SType> getType(const string&) const;
   nullable<SType> getTypePack() const;
   bool isFullyDefined(const Type*) const;

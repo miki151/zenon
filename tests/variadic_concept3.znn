@@ -1,0 +1,17 @@
+// 5
+
+template <Ret, Args...>
+concept can_call {
+  Ret f(Args...);
+};
+
+template <Ret, U> requires can_call<Ret>
+Ret g(U) {
+  return f();
+}
+
+int f() { return 5;}
+
+int main() {
+  return g<int>("pok");
+}

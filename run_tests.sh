@@ -45,7 +45,7 @@ BINARY_TMP=$(mktemp)
 function run_test() {
   I=$1
   EXPECTED=`head -n 1 $I | cut -c 4-`
-#echo -n "Running $I Expecting: $EXPECTED"
+#  echo "Running $I Expecting: $EXPECTED"
   if [ "$EXPECTED" = "" ]; then
     echo -e "$I: $RED No expected value specified$NC"
     return

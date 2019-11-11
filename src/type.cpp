@@ -985,12 +985,15 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
     }
   }
   vector<TemplateRequirement> newRequirements;
+  ErrorBuffer errors;
+  ErrorLocBuffer errors2;
   for (auto requirement : type.requirements)
-    if (!requirement.variadic)
-      newRequirements.push_back(std::move(requirement));
-    else {
-      ErrorBuffer errors;
-      ErrorLocBuffer errors2;
+    if (!requirement.variadic) {
+      newRequirements.push_back(requirement);
+      if (auto concept = newRequirements.back().base.getReferenceMaybe<SConcept>())
+        if (concept->get()->isVariadic() && concept->get()->getParams().back() == lastTemplateParam.get())
+          newRequirements.back().base = concept->get()->expand(lastTemplateParam.get(), expandedTypes, errors);
+    } else {
       for (auto& expanded : expandedTypes)
         newRequirements.push_back(requirement.base.visit(
             [&](const SConcept& r) {
@@ -1079,27 +1082,45 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
 
 EnumType::EnumType(string n, Private) : name(std::move(n)) {}
 
-Concept::Concept(const string& name, Context context) : name(name), context(std::move(context)) {
+Concept::Concept(const string& name, Context context, bool variadic) : name(name), context(std::move(context)), variadic(variadic) {
 }
 
 string Concept::getName() const {
   return name + joinTemplateParams(params);
 }
 
-SConcept Concept::translate(vector<SType> newParams, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name, Context(context.typeRegistry));
+SConcept Concept::translate(vector<SType> newParams, bool variadicParams, ErrorBuffer& errors) const {
+  auto ret = shared<Concept>(name, Context(context.typeRegistry), variadicParams);
   ret->context.deepCopyFrom(context);
   ret->params = newParams;
-  CHECK(params.size() == newParams.size());
-  for (int i = 0; i < params.size(); ++i)
-    ret->context.replace(params[i], newParams[i], errors);
+  if (!variadic || variadicParams) {
+    CHECK(params.size() == newParams.size());
+    for (int i = 0; i < params.size(); ++i)
+      ret->context.replace(params[i], newParams[i], errors);
+  } else {
+    CHECK(params.size() - 1 <= newParams.size());
+    for (int i = 0; i < params.size() - 1; ++i)
+      ret->context.replace(params[i], newParams[i], errors);
+    ret->context.expand(params.back(), getSubsequence(newParams, params.size() - 1), errors);
+  }
+  return ret;
+}
+
+SConcept Concept::expand(SType from, vector<SType> newParams, ErrorBuffer& errors) const {
+  auto ret = shared<Concept>(name, Context(context.typeRegistry), variadic);
+  ret->context.deepCopyFrom(context);
+  ret->params = params;
+  ret->variadic = false;
+  ret->context.expand(params.back(), newParams, errors);
+  ret->params.pop_back();
   return ret;
 }
 
 SConcept Concept::replace(SType from, SType to, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name, Context(context.typeRegistry));
+  auto ret = shared<Concept>(name, Context(context.typeRegistry), variadic);
   ret->context.deepCopyFrom(context);
   ret->params = params;
+  ret->variadic = variadic;
   for (auto& param : ret->params)
     param = param->replace(from, to, errors);
   ret->context.replace(from, to, errors);
@@ -1108,6 +1129,10 @@ SConcept Concept::replace(SType from, SType to, ErrorBuffer& errors) const {
 
 const vector<SType>& Concept::getParams() const {
   return params;
+}
+
+bool Concept::isVariadic() const {
+  return variadic;
 }
 
 const Context& Concept::getContext() const {

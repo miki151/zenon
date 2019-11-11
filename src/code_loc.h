@@ -8,7 +8,7 @@ struct ErrorLoc;
 struct CodeLoc {
   CodeLoc(string file, int l, int c);
   CodeLoc();
-  ErrorLoc getError(string) const;
+  NODISCARD ErrorLoc getError(string) const;
   CodeLoc plus(int numLines, int numColumns);
   string toString() const;
   bool operator < (const CodeLoc&) const;

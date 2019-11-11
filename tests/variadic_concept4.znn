@@ -1,0 +1,25 @@
+// 3
+
+template <T, CArgs...>
+concept can_construct {
+  T(CArgs...);
+};
+
+template <T, Args...> requires can_construct<T, Args...>
+T make(Args... args) {
+  return T(move(args)...);
+}
+
+struct X {
+  int a;
+  bool b;
+  string s;
+};
+
+X() {
+  return X::X(3, false, "x");
+}
+
+int main() {
+  return make<X>().a;
+}

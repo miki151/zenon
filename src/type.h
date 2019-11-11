@@ -390,11 +390,13 @@ struct LambdaType : public Type {
 };
 
 struct Concept : public owned_object<Concept> {
-  Concept(const string& name, Context emptyContext);
+  Concept(const string& name, Context emptyContext, bool variadic);
   string getName() const;
-  SConcept translate(vector<SType> params, ErrorBuffer&) const;
+  SConcept translate(vector<SType> params, bool variadicParams, ErrorBuffer&) const;
   SConcept replace(SType from, SType to, ErrorBuffer&) const;
+  SConcept expand(SType from, vector<SType> newParams, ErrorBuffer& errors) const;
   const vector<SType>& getParams() const;
+  bool isVariadic() const;
   const Context& getContext() const;
   vector<SType>& modParams();
   Context& modContext();
@@ -403,6 +405,7 @@ struct Concept : public owned_object<Concept> {
   vector<SType> params;
   string name;
   Context context;
+  bool variadic;
 };
 
 struct Expression;

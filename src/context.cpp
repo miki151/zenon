@@ -219,16 +219,46 @@ int Context::setIsInLoop() {
 }
 
 void Context::replace(SType from, SType to, ErrorBuffer& errors) {
-  for (auto& varName : state->varsList) {
+  CHECK(state->varsList.empty());
+  /*for (auto& varName : state->varsList) {
     auto& var = state->vars.at(varName);
     var = var->replace(from, to, errors);
-  }
+  }*/
   for (auto& function : state->functions) {
-    for (auto& overload : function.second)
+    for (auto& overload : function.second) {
+      //std::cout << "Replaced " << overload->prettyString() << std::endl;
       overload = replaceInFunction(overload, from, to, errors);
+      //std::cout << "To " << overload->prettyString() << std::endl;
+    }
   }
   for (auto& type : state->types)
     type.second = type.second->replace(from, to, errors);
+}
+
+void Context::expand(SType from, vector<SType> to, ErrorBuffer& errors) {
+  CHECK(state->varsList.empty());
+  /*for (auto& varName : state->varsList) {
+    auto& var = state->vars.at(varName);
+    var = var->replace(from, to, errors);
+  }*/
+  for (auto& function : state->functions) {
+    for (auto& overload : function.second)
+      if (overload->type.params.back().type == from) {
+        auto type = overload->type;
+        //std::cout << "Expanded " << overload->prettyString() << std::endl;
+        if (type.variadicParams) {
+          type.params.pop_back();
+          for (auto& t : to)
+            type.params.push_back(FunctionType::Param(none, t));
+          type.variadicParams = false;
+        }
+        overload = FunctionInfo::getInstance(overload->id, std::move(type), overload);
+        //std::cout << "To " << overload->prettyString() << std::endl;
+      }
+  }
+  CHECK(state->types.empty());
+  /*for (auto& type : state->types)
+    type.second = type.second->replace(from, to, errors);*/
 }
 
 vector<shared_ptr<const Context::State>> Context::getReversedStates() const {
@@ -357,17 +387,19 @@ nullable<SType> Context::getVariable(const string& name) const {
   return nullptr;
 }
 
-WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, bool typePack) const {
+WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool> typePack) const {
   if (id.parts.size() != 1)
     return id.codeLoc.getError("Bad type identifier: " + id.prettyString());
   auto name = id.parts.at(0).name;
   auto topType = getType(name);
   if (!topType)
     return id.codeLoc.getError("Type not found: " + quote(name));
-  if (!typePack && topType == getTypePack())
-    return id.codeLoc.getError("Type parameter pack " + quote(name) + " must be unpacked using the '...' operator");
-  if (typePack && getTypePack() != topType.get())
-    return id.codeLoc.getError("Type " + quote(name) + " is not a type parameter pack");
+  if (typePack) {
+    if (!*typePack && topType == getTypePack())
+      return id.codeLoc.getError("Type parameter pack " + quote(name) + " must be unpacked using the '...' operator");
+    if (*typePack && getTypePack() != topType.get())
+      return id.codeLoc.getError("Type " + quote(name) + " is not a type parameter pack");
+  }
   bool variadicParams = id.parts.at(0).variadic;
   auto templateArgs = getTypeList(id.parts.at(0).templateArguments, variadicParams);
   if (!templateArgs)

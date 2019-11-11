@@ -1,0 +1,35 @@
+// 10
+
+template <T, U>
+concept C1 {
+  int g(T*, U*);
+};
+
+template <T, Args...> requires C1<T, Args>...
+int f(T t, Args... args) {
+  mutable int ret = 1;
+  static for (mutable i = 0; i < countof(args); ++i)
+    ret += g(&t, &args[i]);
+  return ret;
+}
+
+struct X {
+};
+
+struct Y {
+};
+
+struct Z {
+};
+
+int g(X*, Y*) {
+  return 2;
+}
+
+int g(X*, Z*) {
+  return 3;
+}
+
+int main() {
+  return f(X(), Y(), Z()) + f(X(), Y()) + f(1);
+}

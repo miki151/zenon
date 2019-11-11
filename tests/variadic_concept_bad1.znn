@@ -1,0 +1,19 @@
+// no_compile
+
+template <Ret, T, Args...>
+concept can_call {
+  Ret f(Args...);
+};
+
+template <Ret> requires can_call<Ret>
+Ret g() {
+  return f();
+}
+
+int f() {
+  return 3;
+}
+
+int main() {
+  return g<int>();
+}
