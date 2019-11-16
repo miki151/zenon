@@ -1,0 +1,9 @@
+// 5
+
+import "std/vector.znn";
+
+int main() {
+  const v = {1, 2, 3, 4, 5}.as_vector();
+  const w = v.filter([](int* x) -> bool { return *x % 2 == 1; });
+  return w[2];
+}

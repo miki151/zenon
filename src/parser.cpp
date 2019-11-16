@@ -349,6 +349,8 @@ WithErrorLine<unique_ptr<Expression>> parseMemberAccess(Tokens& tokens, unique_p
   if (auto id = parseIdentifier(tokens, false)) {
     if (tokens.peek() == Keyword::OPEN_BRACKET) {
       auto function = parseFunctionCall(*id, tokens);
+      if (!function)
+        return function.get_error();
       function.get()->arguments = concat(makeVec(std::move(lhs)), std::move(function.get()->arguments));
       function.get()->methodCall = true;
       return cast<Expression>(std::move(*function));

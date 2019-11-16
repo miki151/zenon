@@ -1,0 +1,13 @@
+// 3
+
+import "std/vector.znn";
+
+struct X {
+  int a;
+};
+
+int main() {
+  const v = {1, 2, 3, 4, 5}.as_vector();
+  const u = v.transform<X>([](int* a) -> X { return X(*a);});
+  return u[2].a;
+}

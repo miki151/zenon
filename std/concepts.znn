@@ -15,3 +15,7 @@ concept comparable {
   bool operator == (T*, T*);
 };
 
+export template <Fun, Ret, Args...>
+concept can_invoke {
+  Ret invoke(Fun*, Args...);
+};
