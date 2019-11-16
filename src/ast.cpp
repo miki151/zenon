@@ -537,20 +537,11 @@ unique_ptr<Statement> VariableDeclaration::transform(const StmtTransformFun&,
 }
 
 optional<ErrorLoc> ReturnStatement::check(Context& context, bool) {
-  if (context.getReturnType() == ArithmeticType::NORETURN)
-    return codeLoc.getError("This function should never return");
-  if (!expr) {
-    if (context.getReturnType() != ArithmeticType::VOID)
-      return codeLoc.getError("Expected an expression in return statement in a function returning non-void");
-  } else {
-    auto returnType = getType(context, expr);
-    if (!returnType)
-      return returnType.get_error();
-    if (!context.canConvert(*returnType, context.getReturnType().get()))
-      return codeLoc.getError(
-          "Can't return value of type " + quote(returnType.get()->getName()) +
-          " from a function returning " + context.getReturnType()->getName());
-  }
+  auto returnType = getType(context, expr);
+  if (!returnType)
+    return returnType.get_error();
+  if (auto err = context.getReturnTypeChecker()->addReturnStatement(context, *returnType))
+    return codeLoc.getError(*err);
   return none;
 }
 
@@ -1183,7 +1174,7 @@ optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& re
   auto retVal = instanceInfo.type.retVal;
   if (name.contains<Operator>())
     retVal = convertReferenceToPointer(retVal);
-  bodyContext.setReturnType(retVal);
+  bodyContext.addReturnTypeChecker(retVal);
   if (auto err = myBody.check(bodyContext))
     return err;
   if (retVal == ArithmeticType::NORETURN && !myBody.hasReturnStatement(bodyContext))
@@ -2505,22 +2496,29 @@ optional<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
 }
 
 LambdaExpression::LambdaExpression(CodeLoc l, vector<FunctionParameter> params, unique_ptr<StatementBlock> block,
-    IdentifierInfo returnType)
+    optional<IdentifierInfo> returnType)
   : Expression(l), parameters(std::move(params)), block(std::move(block)), returnType(std::move(returnType)) {
 }
 
 WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   if (type && !recheck)
     return SType(type.get());
-  auto retType = recheck ? type->functionInfo->type.retVal : context.getTypeFromString(returnType);
-  if (!retType)
-    return retType.get_error();
+  nullable<SType> retType;
+  if (recheck)
+    retType = type->functionInfo->type.retVal;
+  else if (returnType) {
+    if (auto res = context.getTypeFromString(*returnType))
+      retType = *res;
+    else
+      return res.get_error();
+  }
   auto bodyContext = Context::withParent(context);
-  bodyContext.setReturnType(*retType);
+  bodyContext.addReturnTypeChecker(retType);
   bodyContext.setIsLambda();
+  vector<FunctionType::Param> params;
   if (!recheck) {
     type = shared<LambdaType>();
-    vector<FunctionType::Param> params { FunctionType::Param(PointerType::get(type.get())) };
+    params.push_back(FunctionType::Param(PointerType::get(type.get())));
     set<string> paramNames;
     for (auto& param : parameters) {
       auto type = bodyContext.getTypeFromString(param.type);
@@ -2528,18 +2526,15 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
         return type.get_error();
       if (*type == ArithmeticType::VOID)
         return param.codeLoc.getError("Function parameter may not have " + quote(type->get()->getName()) + " type");
-      params.push_back({param.name, *type});
+      auto varType = param.isMutable ? SType(MutableReferenceType::get(*type)) : SType(ReferenceType::get(*type));
+      params.push_back({param.name, varType});
       if (param.name) {
-        auto varType = param.isMutable ? SType(MutableReferenceType::get(*type)) : SType(ReferenceType::get(*type));
         bodyContext.addVariable(*param.name, varType);
         if (paramNames.count(*param.name))
           return param.codeLoc.getError("Duplicate function parameter name: " + quote(*param.name));
         paramNames.insert(*param.name);
       }
     }
-    FunctionType functionType(*retType, params, {});
-    auto functioInfo = FunctionInfo::getImplicit("invoke"s, std::move(functionType));
-    type->functionInfo = std::move(functioInfo);
   } else
     for (auto& param : type->functionInfo->type.params)
       if (param.name)
@@ -2548,11 +2543,19 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   auto bodyContext2 = Context::withParent(bodyContext);
   if (auto err = block->check(bodyContext2))
     return *err;
+  if (!returnType)
+    retType = bodyContext.getReturnTypeChecker()->getReturnType();
+  if (!type->functionInfo) {
+    FunctionType functionType(retType.get(), params, {});
+    auto functioInfo = FunctionInfo::getImplicit("invoke"s, std::move(functionType));
+    type->functionInfo = std::move(functioInfo);
+  }
   if (auto err = checkBodyMoves())
     return *err;
   auto blockCopy = block->deepCopy();
-  CHECK(!blockCopy->check(bodyContext));
-  if (!block->hasReturnStatement(context) && *retType != ArithmeticType::VOID)
+  auto err = blockCopy->check(bodyContext);
+  CHECK(!err) << err->loc.toString() << " " << err->error;
+  if (!block->hasReturnStatement(context) && retType != ArithmeticType::VOID)
     return block->codeLoc.getError("Not all paths lead to a return statement in a lambda expression returning non-void");
   type->body = cast<StatementBlock>(std::move(blockCopy));
   context.typeRegistry->addLambda(type.get());

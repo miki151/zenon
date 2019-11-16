@@ -1,0 +1,10 @@
+// 2
+
+int main() {
+  mutable a = 3;
+  const f = [](int mutable* a) {
+    *a = 2;
+  };
+  f.invoke(&a);
+  return a;
+}

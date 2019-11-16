@@ -4,6 +4,7 @@
 #include "variant.h"
 #include "identifier.h"
 #include "function_name.h"
+#include "return_type_checker.h"
 
 struct IdentifierInfo;
 struct Type;
@@ -42,8 +43,8 @@ class Context : public owned_object<Context> {
   void expandVariablePack(const vector<string>&);
   void replace(SType from, SType to, ErrorBuffer&);
   void expand(SType, vector<SType> to, ErrorBuffer&);
-  nullable<SType> getReturnType() const;
-  void setReturnType(SType);
+  ReturnTypeChecker* getReturnTypeChecker() const;
+  void addReturnTypeChecker(nullable<SType> explicitReturn);
   void addType(const string& name, SType, bool fullyDefined = true, bool typePack = false);
   WithErrorLine<SType> getTypeFromString(IdentifierInfo, optional<bool> typePack = false) const;
   nullable<SType> getType(const string&) const;
@@ -92,7 +93,7 @@ class Context : public owned_object<Context> {
     nullable<SType> typePack;
     map<const Type*, bool> fullyDefinedTypes;
     map<FunctionId, vector<SFunctionInfo>> functions;
-    nullable<SType> returnType;
+    unique_ptr<ReturnTypeChecker> returnTypeChecker;
     map<string, shared_ptr<Concept>> concepts;
     map<string, BuiltInFunctionInfo> builtInFunctions;
     optional<int> loopId;

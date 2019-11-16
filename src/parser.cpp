@@ -227,14 +227,16 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
       }
       params.push_back({paramCodeLoc, *typeId, paramName, isParamMutable, false});
     }
-  if (auto err = tokens.eat(Keyword::ARROW_MEMBER_ACCESS); !err)
-    return err.get_error();
-  auto returnType = parseIdentifier(tokens, true);
-  if (!returnType)
-    return returnType.get_error();
+  optional<IdentifierInfo> returnType;
+  if (tokens.eat(Keyword::ARROW_MEMBER_ACCESS)) {
+    if (auto res = parseIdentifier(tokens, true))
+      returnType = *res;
+    else
+      return res.get_error();
+  }
   if (auto block = parseBlock(tokens))
     return cast<Expression>(unique<LambdaExpression>(beginToken.codeLoc, std::move(params), std::move(*block),
-        std::move(*returnType)));
+        std::move(returnType)));
   else
     return block.get_error();
 }

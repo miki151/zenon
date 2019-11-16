@@ -1,0 +1,11 @@
+// no_compile
+
+int main() {
+  const f = [](bool a) {
+    if (a)
+      return 1;
+    else
+      return 2.0;
+  };
+  return f.invoke(true);
+}

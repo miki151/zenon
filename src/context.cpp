@@ -36,14 +36,14 @@ Context::Context(TypeRegistry* t) : typeRegistry(t), state(shared<State>()) {
 
 void Context::State::merge(const Context::State& o) {
   for (auto& f : o.functions) {
-    CHECK(!functions.count(f.first));
-    functions.insert(f);
+    if (!functions.count(f.first))
+      functions.insert(f);
   }
 }
 
 void Context::deepCopyFrom(const Context& c) {
   CHECK(parentStates.empty());
-  *state = *c.state;
+  state->merge(*c.state);
   for (auto s : c.parentStates)
     state->merge(*s);
 }
@@ -261,23 +261,23 @@ void Context::expand(SType from, vector<SType> to, ErrorBuffer& errors) {
     type.second = type.second->replace(from, to, errors);*/
 }
 
+ReturnTypeChecker* Context::getReturnTypeChecker() const {
+  for (auto& state : getReversedStates())
+    if (state->returnTypeChecker)
+      return state->returnTypeChecker.get();
+  return nullptr;
+}
+
+void Context::addReturnTypeChecker(nullable<SType> explicitReturn) {
+  CHECK(!state->returnTypeChecker);
+  state->returnTypeChecker = unique<ReturnTypeChecker>(std::move(explicitReturn));
+}
+
 vector<shared_ptr<const Context::State>> Context::getReversedStates() const {
   vector<shared_ptr<const Context::State>> ret { state };
   for (auto& state : reverse(parentStates))
     ret.push_back(state);
   return ret;
-}
-
-nullable<SType> Context::getReturnType() const {
-  for (auto& state : getReversedStates())
-    if (state->returnType)
-      return state->returnType;
-  return nullptr;
-}
-
-void Context::setReturnType(SType t) {
-  CHECK(!state->returnType) << "Attempted to overwrite return type";
-  state->returnType = t;
 }
 
 void Context::addType(const string& name, SType t, bool fullyDefined, bool typePack) {

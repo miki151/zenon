@@ -1,0 +1,8 @@
+// no_compile
+
+int main() {
+  const f = [](bool a) {
+  };
+  const x = f.invoke(true);
+  return 0;
+}

@@ -192,7 +192,7 @@ struct FunctionParameter {
 };
 
 struct LambdaExpression : Expression {
-  LambdaExpression(CodeLoc, vector<FunctionParameter>, unique_ptr<StatementBlock>, IdentifierInfo returnType);
+  LambdaExpression(CodeLoc, vector<FunctionParameter>, unique_ptr<StatementBlock>, optional<IdentifierInfo> returnType);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
@@ -201,7 +201,7 @@ struct LambdaExpression : Expression {
   optional<ErrorLoc> checkBodyMoves() const;
   vector<FunctionParameter> parameters;
   unique_ptr<StatementBlock> block;
-  IdentifierInfo returnType;
+  optional<IdentifierInfo> returnType;
   nullable<shared_ptr<LambdaType>> type;
   bool recheck = false;
 };

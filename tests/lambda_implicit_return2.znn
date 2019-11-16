@@ -1,0 +1,11 @@
+// 1
+
+int main() {
+  const f = [](bool a) {
+    if (a)
+      return 1;
+    else
+      return 2;
+  };
+  return f.invoke(true);
+}
