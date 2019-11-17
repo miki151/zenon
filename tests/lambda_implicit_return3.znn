@@ -1,0 +1,16 @@
+// 31
+
+template <T>
+T get(T a) {
+  const f = [](T t) { return move(t); };
+  return f.invoke(move(a));
+}
+
+struct X {
+  int a;
+};
+
+int main() {
+  const x = X(31);
+  return get(move(x)).a;
+}

@@ -44,7 +44,7 @@ class Context : public owned_object<Context> {
   void replace(SType from, SType to, ErrorBuffer&);
   void expand(SType, vector<SType> to, ErrorBuffer&);
   ReturnTypeChecker* getReturnTypeChecker() const;
-  void addReturnTypeChecker(nullable<SType> explicitReturn);
+  void addReturnTypeChecker(ReturnTypeChecker*);
   void addType(const string& name, SType, bool fullyDefined = true, bool typePack = false);
   WithErrorLine<SType> getTypeFromString(IdentifierInfo, optional<bool> typePack = false) const;
   nullable<SType> getType(const string&) const;
@@ -93,7 +93,7 @@ class Context : public owned_object<Context> {
     nullable<SType> typePack;
     map<const Type*, bool> fullyDefinedTypes;
     map<FunctionId, vector<SFunctionInfo>> functions;
-    unique_ptr<ReturnTypeChecker> returnTypeChecker;
+    ReturnTypeChecker* returnTypeChecker = nullptr;
     map<string, shared_ptr<Concept>> concepts;
     map<string, BuiltInFunctionInfo> builtInFunctions;
     optional<int> loopId;

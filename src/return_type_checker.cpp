@@ -7,22 +7,22 @@ ReturnTypeChecker::ReturnTypeChecker(nullable<SType> explicitReturn) : explicitR
 }
 
 optional<string> ReturnTypeChecker::addReturnStatement(const Context& context, SType t) {
-  t = t->getUnderlying();
+  auto underlying = t->getUnderlying();
   if (explicitReturn) {
     if (explicitReturn == ArithmeticType::NORETURN)
       return "This function should never return"s;
-    if (t == ArithmeticType::VOID) {
+    if (underlying == ArithmeticType::VOID) {
       if (explicitReturn != ArithmeticType::VOID)
         return "Expected an expression in return statement in a function returning non-void"s;
-    } else
-    if (!context.canConvert(t, explicitReturn.get()))
-      return "Can't return value of type " + quote(t->getName()) + " from a function returning " + explicitReturn->getName();
-    return none;
+    }
   } else
   if (returnStatement && returnStatement != t)
     return "Ambigous implicit return type: " + quote(returnStatement->getName()) + " and " + quote(t->getName());
   else
-    returnStatement = t;
+    returnStatement = underlying;
+  auto toConvert = explicitReturn.value_or([&] { return returnStatement.get();});
+  if (!context.canConvert(t, toConvert))
+    return "Can't return value of type " + quote(t->getName()) + " from a function returning " + toConvert->getName();
   return none;
 }
 

@@ -92,7 +92,14 @@ class nullable {
     return *elem;
   }
   T value_or(T t) const {
-    return elem.value_or(t);
+    return elem.value_or(std::move(t));
+  }
+  template <typename Fun>
+  T value_or(Fun f) const {
+    if (elem)
+      return *elem;
+    else
+      return f();
   }
   Param& operator*() const {
     return **elem;

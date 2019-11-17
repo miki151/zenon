@@ -43,7 +43,7 @@ void Context::State::merge(const Context::State& o) {
 
 void Context::deepCopyFrom(const Context& c) {
   CHECK(parentStates.empty());
-  state->merge(*c.state);
+  *state = *c.state;
   for (auto s : c.parentStates)
     state->merge(*s);
 }
@@ -264,13 +264,13 @@ void Context::expand(SType from, vector<SType> to, ErrorBuffer& errors) {
 ReturnTypeChecker* Context::getReturnTypeChecker() const {
   for (auto& state : getReversedStates())
     if (state->returnTypeChecker)
-      return state->returnTypeChecker.get();
+      return state->returnTypeChecker;
   return nullptr;
 }
 
-void Context::addReturnTypeChecker(nullable<SType> explicitReturn) {
+void Context::addReturnTypeChecker(ReturnTypeChecker* c) {
   CHECK(!state->returnTypeChecker);
-  state->returnTypeChecker = unique<ReturnTypeChecker>(std::move(explicitReturn));
+  state->returnTypeChecker = c;
 }
 
 vector<shared_ptr<const Context::State>> Context::getReversedStates() const {

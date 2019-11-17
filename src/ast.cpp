@@ -537,7 +537,12 @@ unique_ptr<Statement> VariableDeclaration::transform(const StmtTransformFun&,
 }
 
 optional<ErrorLoc> ReturnStatement::check(Context& context, bool) {
-  auto returnType = getType(context, expr);
+  auto returnType = [&]() -> WithErrorLine<SType> {
+    if (expr)
+      return getType(context, expr);
+    else
+      return SType(ArithmeticType::VOID);
+  }();
   if (!returnType)
     return returnType.get_error();
   if (auto err = context.getReturnTypeChecker()->addReturnStatement(context, *returnType))
@@ -1174,7 +1179,8 @@ optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& re
   auto retVal = instanceInfo.type.retVal;
   if (name.contains<Operator>())
     retVal = convertReferenceToPointer(retVal);
-  bodyContext.addReturnTypeChecker(retVal);
+  ReturnTypeChecker returnChecker(retVal);
+  bodyContext.addReturnTypeChecker(&returnChecker);
   if (auto err = myBody.check(bodyContext))
     return err;
   if (retVal == ArithmeticType::NORETURN && !myBody.hasReturnStatement(bodyContext))
@@ -2513,7 +2519,8 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
       return res.get_error();
   }
   auto bodyContext = Context::withParent(context);
-  bodyContext.addReturnTypeChecker(retType);
+  ReturnTypeChecker returnChecker(retType);
+  bodyContext.addReturnTypeChecker(&returnChecker);
   bodyContext.setIsLambda();
   vector<FunctionType::Param> params;
   if (!recheck) {
@@ -2544,7 +2551,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   if (auto err = block->check(bodyContext2))
     return *err;
   if (!returnType)
-    retType = bodyContext.getReturnTypeChecker()->getReturnType();
+    retType = returnChecker.getReturnType();
   if (!type->functionInfo) {
     FunctionType functionType(retType.get(), params, {});
     auto functioInfo = FunctionInfo::getImplicit("invoke"s, std::move(functionType));

@@ -1,0 +1,12 @@
+// no_compile
+
+template <T>
+T f(T a) {
+  const l = [](T a) { return a; };
+  return g(move(a));
+}
+
+int main() {
+  return f(5);
+}
+
