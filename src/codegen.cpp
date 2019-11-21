@@ -433,7 +433,7 @@ string codegen(const AST& ast, const Context& context, const string& codegenIncl
       auto def = unique<FunctionDefinition>(lambda->body->codeLoc, IdentifierInfo("ignore", lambda->body->codeLoc),
           lambda->functionInfo->id);
       def->body = std::move(lambda->body);
-      def->functionInfo = std::move(lambda->functionInfo);
+      def->functionInfo = lambda->functionInfo;
       lambdas.push_back(std::move(def));
     }
   for (auto& elem : ast.elems) {
@@ -724,11 +724,11 @@ void ArrayLiteral::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void LambdaExpression::codegen(Accu& a, CodegenStage) const {
-  a.add(type->getName() + "{}");
+  a.add(type->getCodegenName() + "{}");
 }
 
 void LambdaType::codegenDefinitionImpl(set<const Type*>& visited, Accu& a) const {
-  a.add("struct " + name + " { }; \n");
+  a.add("struct " + getCodegenName() + " { }; \n");
 }
 
 void CountOfExpression::codegen(Accu&, CodegenStage) const {

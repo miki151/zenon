@@ -377,11 +377,15 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
 
 struct LambdaType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
+  virtual optional<string> getMangledName() const override;
+  virtual string getCodegenName() const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual optional<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
   LambdaType();
+  struct Private {};
+  LambdaType(Private, string name);
   nullable<SFunctionInfo> functionInfo;
   unique_ptr<StatementBlock> body;
   ~LambdaType() override;

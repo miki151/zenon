@@ -1,0 +1,19 @@
+// 6
+
+template <T> requires can_construct<T>
+int f() {
+  const l = []() {
+    return 1;
+  };
+  return l.invoke();
+}
+
+struct X {
+};
+
+struct Y {
+};
+
+int main() {
+  return f<X>() + f<Y>();
+}

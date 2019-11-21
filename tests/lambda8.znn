@@ -1,0 +1,10 @@
+// 6
+
+template <Fun, T> requires can_invoke<Fun, int, T>
+int runFun(Fun f, T t) {
+  return f.invoke(move(t));
+}
+
+int main() {
+  return runFun([] (string s) { return s.size(); }, "foobar");
+}

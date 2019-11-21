@@ -1497,12 +1497,36 @@ string LambdaType::getName(bool withTemplateArguments) const {
   return name;
 }
 
+optional<string> LambdaType::getMangledName() const {
+  auto& functionType = functionInfo->type;
+  string suf;
+  if (auto name = functionType.retVal->getMangledName())
+    suf = *name;
+  else
+    return none;
+  for (int i = 1; i < functionType.params.size(); ++i)
+    if (auto name = functionType.params[i].type->getMangledName())
+      suf += *name;
+    else
+      return none;
+  for (auto& arg : functionType.templateParams)
+    if (auto name = arg->getMangledName())
+      suf += *name;
+    else
+      return none;
+  return name + suf;
+}
+
+string LambdaType::getCodegenName() const {
+  return *getMangledName();
+}
+
 SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   ErrorLocBuffer errors2;
   auto newBody = body->replace(from, to, errors2);
   for (auto& e : errors2)
     errors.push_back(e.error);
-  auto ret = shared<LambdaType>();
+  auto ret = shared<LambdaType>(Private{}, name);
   ret->body = cast<StatementBlock>(std::move(newBody));
   auto tmpType = functionInfo->type;
   tmpType.params = getSubsequence(tmpType.params, 1);
@@ -1520,10 +1544,15 @@ bool LambdaType::isBuiltinCopyable(const Context& c) const {
   return true;
 }
 
-LambdaType::LambdaType() {
+static int getNewLambdaId() {
   static int allIds = 0;
-  ++allIds;
-  name = "LAMBDA" + to_string(allIds);
+  return ++allIds;
+}
+
+LambdaType::LambdaType() : LambdaType(Private{}, "LAMBDA" + to_string(getNewLambdaId())) {
+}
+
+LambdaType::LambdaType(Private, string name) : name(std::move(name)) {
 }
 
 LambdaType::~LambdaType() {

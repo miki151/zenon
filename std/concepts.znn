@@ -19,3 +19,8 @@ export template <Fun, Ret, Args...>
 concept can_invoke {
   Ret invoke(Fun*, Args...);
 };
+
+export template <T, Args...>
+concept can_construct {
+  T(Args...);
+};
