@@ -16,8 +16,8 @@ optional<string> ReturnTypeChecker::addReturnStatement(const Context& context, S
         return "Expected an expression in return statement in a function returning non-void"s;
     }
   } else
-  if (returnStatement && returnStatement != t)
-    return "Ambigous implicit return type: " + quote(returnStatement->getName()) + " and " + quote(t->getName());
+  if (returnStatement && returnStatement != underlying)
+    return "Ambigous implicit return type: " + quote(returnStatement->getName()) + " and " + quote(underlying->getName());
   else
     returnStatement = underlying;
   auto toConvert = explicitReturn.value_or([&] { return returnStatement.get();});
