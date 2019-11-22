@@ -36,8 +36,6 @@ unique_ptr<Expression> Expression::expandVar(string from, vector<string> to) con
       [&](Expression* expr) { return expr->expandVar(from, to); });
 }
 
-unique_ptr<Expression> identityExpr(Expression*);
-
 unique_ptr<Statement> identityStmt(Statement* expr) {
   return expr->transform(&identityStmt, &identityExpr);
 }
@@ -119,9 +117,10 @@ WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
     if (auto& pack = context.getVariablePack())
       if (pack->name == id)
         return SType(shared<VariablePack>(pack->type, *id));
-    if (auto varType = context.getTypeOfVariable(*id))
+    if (auto varType = context.getTypeOfVariable(*id)) {
+      lambdaCapture = context.isCapturedVariable(*id);
       return *varType;
-    else
+    } else
       varError = varType.get_error();
   }
   if (auto t = context.getTypeFromString(identifier))
@@ -2502,8 +2501,9 @@ optional<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
 }
 
 LambdaExpression::LambdaExpression(CodeLoc l, vector<FunctionParameter> params, unique_ptr<StatementBlock> block,
-    optional<IdentifierInfo> returnType)
-  : Expression(l), parameters(std::move(params)), block(std::move(block)), returnType(std::move(returnType)) {
+    optional<IdentifierInfo> returnType, vector<LambdaCaptureInfo> captures)
+    : Expression(l), parameters(std::move(params)), block(std::move(block)), returnType(std::move(returnType)),
+      captures(std::move(captures)) {
 }
 
 WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
@@ -2521,10 +2521,13 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   auto bodyContext = Context::withParent(context);
   ReturnTypeChecker returnChecker(retType);
   bodyContext.addReturnTypeChecker(&returnChecker);
-  bodyContext.setIsLambda();
+  auto captureTypes = bodyContext.setLambda(captures);
+  if (!captureTypes)
+    return captureTypes.get_error();
   vector<FunctionType::Param> params;
   if (!recheck) {
     type = shared<LambdaType>();
+    type->captures = *captureTypes;
     params.push_back(FunctionType::Param(PointerType::get(type.get())));
     set<string> paramNames;
     for (auto& param : parameters) {
@@ -2583,13 +2586,13 @@ optional<ErrorLoc> LambdaExpression::checkMoves(MoveChecker& checker) const {
 }
 
 unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, const ExprTransformFun& exprFun) const {
-  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->transform(fun, exprFun)), returnType);
-  ret->recheck = true;
+  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->transform(fun, exprFun)), returnType, captures);
+  ret->recheck = !!ret->type;
   return ret;
 }
 
 unique_ptr<Expression> LambdaExpression::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->replace(from, to, errors)), returnType);
+  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->replace(from, to, errors)), returnType, captures);
   ErrorBuffer errors2;
   ret->type = type->replace(from, to, errors2).dynamicCast<LambdaType>();
   ret->recheck = true;

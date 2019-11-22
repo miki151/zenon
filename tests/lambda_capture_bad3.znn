@@ -1,0 +1,16 @@
+// no_compile
+
+struct X {
+};
+
+int main() {
+  mutable x = 5;
+  mutable y = 5;
+  const f = [x]{
+    const g = [y] {
+      return y;
+    };
+    return x;
+  };
+  return f.invoke();
+}

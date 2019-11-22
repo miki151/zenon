@@ -1,0 +1,10 @@
+// 6
+
+struct X {
+};
+
+int main() {
+  mutable x = 5;
+  const f = [x]{ return 1 + x;};
+  return f.invoke();
+}

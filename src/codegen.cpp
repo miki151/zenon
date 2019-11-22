@@ -52,7 +52,11 @@ void Constant::codegen(Accu& accu, CodegenStage) const {
     accu.add(value->getCodegenName());
 }
 
+auto constexpr lambdaArgName = "lambda_Arg";
+
 void Variable::codegen(Accu& accu, CodegenStage) const {
+  if (lambdaCapture)
+    accu.add(lambdaArgName + "->"s);
   accu.add(*identifier.asBasicIdentifier());
 }
 
@@ -433,7 +437,9 @@ string codegen(const AST& ast, const Context& context, const string& codegenIncl
       auto def = unique<FunctionDefinition>(lambda->body->codeLoc, IdentifierInfo("ignore", lambda->body->codeLoc),
           lambda->functionInfo->id);
       def->body = std::move(lambda->body);
-      def->functionInfo = lambda->functionInfo;
+      auto functionType = lambda->functionInfo->type;
+      functionType.params[0].name = string(lambdaArgName);
+      def->functionInfo = FunctionInfo::getImplicit(lambda->functionInfo->id, std::move(functionType));
       lambdas.push_back(std::move(def));
     }
   for (auto& elem : ast.elems) {
@@ -724,11 +730,19 @@ void ArrayLiteral::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void LambdaExpression::codegen(Accu& a, CodegenStage) const {
-  a.add(type->getCodegenName() + "{}");
+  a.add(type->getCodegenName() + "{");
+  for (auto& capture : captures)
+    a.add(capture.name + ",");
+  if (!captures.empty())
+    a.pop_back();
+  a.add("}");
 }
 
 void LambdaType::codegenDefinitionImpl(set<const Type*>& visited, Accu& a) const {
-  a.add("struct " + getCodegenName() + " { }; \n");
+  a.add("struct " + getCodegenName() + " {");
+  for (auto& capture : captures)
+    a.newLine(capture.type->getCodegenName() + " " + capture.name + ";");
+  a.newLine("};\n");
 }
 
 void CountOfExpression::codegen(Accu&, CodegenStage) const {

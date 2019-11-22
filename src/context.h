@@ -17,6 +17,8 @@ using SConcept = shared_ptr<Concept>;
 using SConstContext = shared_ptr<const Context>;
 class IdentifierType;
 class TypeRegistry;
+struct LambdaCaptureInfo;
+struct LambdaCaptureType;
 
 class Context : public owned_object<Context> {
   public:
@@ -32,6 +34,7 @@ class Context : public owned_object<Context> {
   WithError<vector<SFunctionInfo>> getRequiredFunctions(const Concept&, vector<FunctionType> existing) const;
   bool isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific, vector<FunctionType> existing = {}) const;
   WithError<SType> getTypeOfVariable(const string&) const;
+  bool isCapturedVariable(const string&) const;
   void addVariable(const string& ident, SType);
   void addVariablePack(const string& ident, SType);
   struct VariablePackInfo {
@@ -76,13 +79,18 @@ class Context : public owned_object<Context> {
   bool areParamsEquivalent(FunctionType, FunctionType) const;
   bool isTemplated() const;
   void setTemplated();
-  void setIsLambda();
+  NODISCARD WithErrorLine<vector<LambdaCaptureType>> setLambda(vector<LambdaCaptureInfo> captures);
 
   struct BuiltInFunctionInfo {
     vector<SType> argTypes;
     SType returnType;
     BuiltInFunction fun;
     nullable<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
+  };
+
+  struct LambdaInfo {
+    vector<LambdaCaptureInfo> captures;
+    bool contains(const string& var) const;
   };
 
   struct State : public owned_object<State> {
@@ -99,7 +107,7 @@ class Context : public owned_object<Context> {
     optional<int> loopId;
     bool isBuiltInModule = false;
     bool templated = false;
-    bool isLambda = false;
+    optional<LambdaInfo> lambdaInfo;
     void merge(const State&);
     void print() const;
   };

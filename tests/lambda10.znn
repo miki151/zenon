@@ -1,0 +1,11 @@
+// 3
+
+int main() {
+  const f = [] {
+    const g = [] {
+      return 3;
+    };
+    return g.invoke();
+  };
+  return f.invoke();
+}

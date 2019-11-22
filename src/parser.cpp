@@ -202,9 +202,17 @@ static WithErrorLine<unique_ptr<Expression>> parseArrayLiteral(Tokens& tokens) {
 WithErrorLine<unique_ptr<StatementBlock>> parseBlock(Tokens&);
 
 WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
+  vector<LambdaCaptureInfo> captures;
   auto beginToken = *tokens.eat(Keyword::OPEN_SQUARE_BRACKET);
-  if (auto err = tokens.eat(Keyword::CLOSE_SQUARE_BRACKET); !err)
-    return err.get_error();
+  while (!tokens.eatMaybe(Keyword::CLOSE_SQUARE_BRACKET)) {
+    if (auto id = tokens.eat<IdentifierToken>("Expected variable name")) {
+      captures.push_back(LambdaCaptureInfo{id->value, id->codeLoc});
+      if (tokens.peek() != Keyword::CLOSE_SQUARE_BRACKET)
+        if (auto res = tokens.eat(Keyword::COMMA); !res)
+          return res.get_error();
+    } else
+      return id.get_error();
+  }
   vector<FunctionParameter> params;
   if (!!tokens.eat(Keyword::OPEN_BRACKET))
     while (1) {
@@ -236,7 +244,7 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
   }
   if (auto block = parseBlock(tokens))
     return cast<Expression>(unique<LambdaExpression>(beginToken.codeLoc, std::move(params), std::move(*block),
-        std::move(returnType)));
+        std::move(returnType), std::move(captures)));
   else
     return block.get_error();
 }

@@ -31,6 +31,9 @@ struct Statement;
 using ExprTransformFun = function<unique_ptr<Expression>(Expression*)>;
 using StmtTransformFun = function<unique_ptr<Statement>(Statement*)>;
 
+unique_ptr<Statement> identityStmt(Statement*);
+unique_ptr<Expression> identityExpr(Expression*);
+
 struct Node {
   Node(CodeLoc);
   CodeLoc codeLoc;
@@ -92,6 +95,7 @@ struct Variable : Expression {
   virtual void codegen(Accu&, CodegenStage) const override;
   NODISCARD virtual optional<ErrorLoc> checkMoves(MoveChecker&) const override;
   IdentifierInfo identifier;
+  bool lambdaCapture = false;
 };
 
 struct MemberAccessExpression : Expression {
@@ -191,8 +195,14 @@ struct FunctionParameter {
   bool isVirtual;
 };
 
+struct LambdaCaptureInfo {
+  string name;
+  CodeLoc codeLoc;
+};
+
 struct LambdaExpression : Expression {
-  LambdaExpression(CodeLoc, vector<FunctionParameter>, unique_ptr<StatementBlock>, optional<IdentifierInfo> returnType);
+  LambdaExpression(CodeLoc, vector<FunctionParameter>, unique_ptr<StatementBlock>, optional<IdentifierInfo> returnType,
+      vector<LambdaCaptureInfo> captures);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
@@ -203,6 +213,7 @@ struct LambdaExpression : Expression {
   unique_ptr<StatementBlock> block;
   optional<IdentifierInfo> returnType;
   nullable<shared_ptr<LambdaType>> type;
+  vector<LambdaCaptureInfo> captures;
   bool recheck = false;
 };
 

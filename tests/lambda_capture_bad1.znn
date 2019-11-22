@@ -1,0 +1,10 @@
+// no_compile
+
+struct X {
+};
+
+int main() {
+  const x = X();
+  const f = [x]{ return 1;};
+  return f.invoke();
+}

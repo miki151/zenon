@@ -375,6 +375,11 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   SFunctionInfo getParent() const;
 };
 
+struct LambdaCaptureType {
+  string name;
+  SType type;
+};
+
 struct LambdaType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual optional<string> getMangledName() const override;
@@ -387,6 +392,7 @@ struct LambdaType : public Type {
   struct Private {};
   LambdaType(Private, string name);
   nullable<SFunctionInfo> functionInfo;
+  vector<LambdaCaptureType> captures;
   unique_ptr<StatementBlock> body;
   ~LambdaType() override;
   private:

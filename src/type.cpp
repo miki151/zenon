@@ -1533,6 +1533,8 @@ SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   tmpType = replaceInFunction(tmpType, from, to, errors);
   tmpType.params = concat({FunctionType::Param(PointerType::get(ret))}, tmpType.params);
   ret->functionInfo = FunctionInfo::getImplicit(functionInfo->id, std::move(tmpType));
+  for (auto& capture : captures)
+    ret->captures.push_back(LambdaCaptureType{capture.name, capture.type->replace(from, to, errors)});
   return ret;
 }
 
@@ -1541,6 +1543,9 @@ optional<string> LambdaType::getMappingError(const Context&, TypeMapping&, SType
 }
 
 bool LambdaType::isBuiltinCopyable(const Context& c) const {
+  for (auto& t : captures)
+    if (!t.type->isBuiltinCopyable(c))
+      return false;
   return true;
 }
 
