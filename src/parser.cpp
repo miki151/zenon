@@ -205,8 +205,11 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
   vector<LambdaCaptureInfo> captures;
   auto beginToken = *tokens.eat(Keyword::OPEN_SQUARE_BRACKET);
   while (!tokens.eatMaybe(Keyword::CLOSE_SQUARE_BRACKET)) {
+    auto captureType = LambdaCaptureType::IMPLICIT_COPY;
+    if (tokens.eatMaybe(Operator::GET_ADDRESS))
+      captureType = LambdaCaptureType::REFERENCE;
     if (auto id = tokens.eat<IdentifierToken>("Expected variable name")) {
-      captures.push_back(LambdaCaptureInfo{id->value, id->codeLoc});
+      captures.push_back(LambdaCaptureInfo{id->value, id->codeLoc, captureType});
       if (tokens.peek() != Keyword::CLOSE_SQUARE_BRACKET)
         if (auto res = tokens.eat(Keyword::COMMA); !res)
           return res.get_error();

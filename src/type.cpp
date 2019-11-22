@@ -1534,7 +1534,7 @@ SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   tmpType.params = concat({FunctionType::Param(PointerType::get(ret))}, tmpType.params);
   ret->functionInfo = FunctionInfo::getImplicit(functionInfo->id, std::move(tmpType));
   for (auto& capture : captures)
-    ret->captures.push_back(LambdaCaptureType{capture.name, capture.type->replace(from, to, errors)});
+    ret->captures.push_back(LambdaCapture{capture.name, capture.type->replace(from, to, errors)});
   return ret;
 }
 

@@ -85,6 +85,15 @@ bool contains(const Container& v, const V& elem) {
   return std::find(v.begin(), v.end(), elem) != v.end();
 }
 
+template <typename Container, typename T>
+optional<int> findElement(const Container& v, const T& element) {
+  for (int i = 0; i < v.size(); ++i)
+    if (v[i] == element)
+      return i;
+  return none;
+}
+
+
 extern vector<string> split(const string& s, const std::set<char>& delim);
 
 extern string getParentPath(const string&);

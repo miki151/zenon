@@ -1,0 +1,8 @@
+// 6
+
+int main() {
+  mutable x = 5;
+  const f = [&x]{ return x;};
+  x = 6;
+  return f.invoke();
+}

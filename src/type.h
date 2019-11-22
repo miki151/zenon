@@ -375,7 +375,7 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   SFunctionInfo getParent() const;
 };
 
-struct LambdaCaptureType {
+struct LambdaCapture {
   string name;
   SType type;
 };
@@ -392,7 +392,7 @@ struct LambdaType : public Type {
   struct Private {};
   LambdaType(Private, string name);
   nullable<SFunctionInfo> functionInfo;
-  vector<LambdaCaptureType> captures;
+  vector<LambdaCapture> captures;
   unique_ptr<StatementBlock> body;
   ~LambdaType() override;
   private:

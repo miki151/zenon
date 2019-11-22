@@ -18,7 +18,7 @@ using SConstContext = shared_ptr<const Context>;
 class IdentifierType;
 class TypeRegistry;
 struct LambdaCaptureInfo;
-struct LambdaCaptureType;
+struct LambdaCapture;
 
 class Context : public owned_object<Context> {
   public:
@@ -79,7 +79,7 @@ class Context : public owned_object<Context> {
   bool areParamsEquivalent(FunctionType, FunctionType) const;
   bool isTemplated() const;
   void setTemplated();
-  NODISCARD WithErrorLine<vector<LambdaCaptureType>> setLambda(vector<LambdaCaptureInfo> captures);
+  NODISCARD WithErrorLine<vector<LambdaCapture>> setLambda(vector<LambdaCaptureInfo> captures);
 
   struct BuiltInFunctionInfo {
     vector<SType> argTypes;
@@ -90,7 +90,7 @@ class Context : public owned_object<Context> {
 
   struct LambdaInfo {
     vector<LambdaCaptureInfo> captures;
-    bool contains(const string& var) const;
+    const LambdaCaptureInfo* find(const string& var) const;
   };
 
   struct State : public owned_object<State> {

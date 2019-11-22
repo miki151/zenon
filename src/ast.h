@@ -195,9 +195,15 @@ struct FunctionParameter {
   bool isVirtual;
 };
 
+enum class LambdaCaptureType {
+  IMPLICIT_COPY,
+  REFERENCE
+};
+
 struct LambdaCaptureInfo {
   string name;
   CodeLoc codeLoc;
+  LambdaCaptureType type;
 };
 
 struct LambdaExpression : Expression {

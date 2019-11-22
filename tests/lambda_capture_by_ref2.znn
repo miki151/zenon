@@ -1,0 +1,12 @@
+// 1
+
+struct X {
+  int v;
+};
+
+int main() {
+  mutable x = X(5);
+  const f = [&x]{ x.v = 1;};
+  f.invoke();
+  return x.v;
+}

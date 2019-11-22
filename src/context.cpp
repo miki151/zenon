@@ -77,13 +77,15 @@ void Context::setTemplated() {
   state->templated = true;
 }
 
-WithErrorLine<vector<LambdaCaptureType>> Context::setLambda(vector<LambdaCaptureInfo> captures) {
-  vector<LambdaCaptureType> ret;
+WithErrorLine<vector<LambdaCapture>> Context::setLambda(vector<LambdaCaptureInfo> captures) {
+  vector<LambdaCapture> ret;
   for (auto& capture : captures) {
     if (auto type = getTypeOfVariable(capture.name)) {
-      if (!canConvert(*type, type->get()->getUnderlying()))
+      if (capture.type == LambdaCaptureType::IMPLICIT_COPY && !canConvert(*type, type->get()->getUnderlying()))
         return capture.codeLoc.getError("Variable " + capture.name + " can't be captured by implicit copy");
-      ret.push_back(LambdaCaptureType{capture.name, type->get()->getUnderlying()});
+      ret.push_back(LambdaCapture{capture.name, *type});
+      if (capture.type == LambdaCaptureType::IMPLICIT_COPY)
+        ret.back().type = ret.back().type->getUnderlying();
     } else
       return capture.codeLoc.getError(type.get_error());
   }
@@ -135,21 +137,24 @@ Context Context::withStates(TypeRegistry* t, ConstStates states) {
 }
 
 WithError<SType> Context::getTypeOfVariable(const string& id) const {
-  enum CaptureStatus { NONE, CAPTURED, NOT_CAPTURED };
-  auto captureStatus = NONE;
+  optional<LambdaInfo> lambdaInfo;
   for (auto& state : getReversedStates()) {
     if (state->vars.count(id)) {
-      switch (captureStatus) {
-        case NONE:
-          return state->vars.at(id);
-        case CAPTURED:
-          return state->vars.at(id)->getUnderlying();
-        case NOT_CAPTURED:
+      if (lambdaInfo) {
+        if (auto info = lambdaInfo->find(id)) {
+          switch (info->type) {
+            case LambdaCaptureType::REFERENCE:
+              return state->vars.at(id);
+            case LambdaCaptureType::IMPLICIT_COPY:
+              return state->vars.at(id)->getUnderlying();
+          }
+        } else
           return "Variable " + quote(id) + " is not captured by lambda";
-      }
+      } else
+        return state->vars.at(id);
     }
     if (state->lambdaInfo)
-      captureStatus = state->lambdaInfo->contains(id) ? CAPTURED : NOT_CAPTURED;
+      lambdaInfo = state->lambdaInfo;
   }
   for (auto& state : getReversedStates())
     if (state->variablePack && state->variablePack->name == id)
@@ -640,9 +645,9 @@ bool Context::canDefaultInitialize(SType type) const {
   return false;
 }
 
-bool Context::LambdaInfo::contains(const string& var) const {
+const LambdaCaptureInfo* Context::LambdaInfo::find(const string& var) const {
   for (auto& elem : captures)
     if (elem.name == var)
-      return true;
-  return false;
+      return &elem;
+  return nullptr;
 }

@@ -1,0 +1,7 @@
+// no_compile
+
+int main() {
+  mutable x = 5;
+  const f = [x]{ x = 1;};
+  return x;
+}
