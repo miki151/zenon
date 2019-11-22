@@ -84,7 +84,7 @@ WithErrorLine<vector<LambdaCapture>> Context::setLambda(vector<LambdaCaptureInfo
       if (capture.type == LambdaCaptureType::IMPLICIT_COPY && !canConvert(*type, type->get()->getUnderlying()))
         return capture.codeLoc.getError("Variable " + capture.name + " can't be captured by implicit copy");
       ret.push_back(LambdaCapture{capture.name, *type});
-      if (capture.type == LambdaCaptureType::IMPLICIT_COPY)
+      if (capture.type == LambdaCaptureType::IMPLICIT_COPY || capture.type == LambdaCaptureType::MOVE)
         ret.back().type = ret.back().type->getUnderlying();
     } else
       return capture.codeLoc.getError(type.get_error());
@@ -145,6 +145,7 @@ WithError<SType> Context::getTypeOfVariable(const string& id) const {
           switch (info->type) {
             case LambdaCaptureType::REFERENCE:
               return state->vars.at(id);
+            case LambdaCaptureType::MOVE:
             case LambdaCaptureType::IMPLICIT_COPY:
               return state->vars.at(id)->getUnderlying();
           }

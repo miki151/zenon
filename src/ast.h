@@ -197,6 +197,7 @@ struct FunctionParameter {
 
 enum class LambdaCaptureType {
   IMPLICIT_COPY,
+  MOVE,
   REFERENCE
 };
 

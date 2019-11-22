@@ -731,9 +731,16 @@ void ArrayLiteral::codegen(Accu& accu, CodegenStage stage) const {
 
 void LambdaExpression::codegen(Accu& a, CodegenStage) const {
   a.add(type->getCodegenName() + "{");
-  for (auto& capture : captures)
-    a.add(capture.name + ",");
-  if (!captures.empty())
+  for (auto& capture : captures) {
+    switch (capture.type) {
+      case LambdaCaptureType::MOVE:
+        a.add("std::move(" + capture.name + "),");
+        break;
+      default:
+        a.add(capture.name + ",");
+        break;
+    }
+  } if (!captures.empty())
     a.pop_back();
   a.add("}");
 }

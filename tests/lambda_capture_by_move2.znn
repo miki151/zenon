@@ -1,0 +1,15 @@
+// 4
+
+import "std/unique_ptr.znn";
+
+struct X {
+  unique_ptr<int> u;
+};
+
+int main() {
+  const x = X(make_unique(5));
+  const y = x.u.get();
+  const f = [move(x)]{ return *x.u; };
+  *y = 4;
+  return f.invoke();
+}

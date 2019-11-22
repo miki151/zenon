@@ -22,3 +22,8 @@ T mutable* operator * (unique_ptr<T>* ptr) {
   }
 }
 
+export template <T>
+T mutable* get(unique_ptr<T>* ptr) {
+  return &**ptr;
+}
+

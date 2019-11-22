@@ -1,0 +1,14 @@
+// 1
+
+struct X {
+  int mutable* v;
+};
+
+int main() {
+  mutable a = 5;
+  const x = X(&a);
+  mutable y = 1;
+  const f = [move(x), y]{ *x.v = y;};
+  f.invoke();
+  return a;
+}
