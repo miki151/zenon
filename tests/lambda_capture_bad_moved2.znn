@@ -1,0 +1,7 @@
+// no_compile
+
+int main() {
+  mutable a = 5;
+  const f = [a]{ const u = move(a); return a;};
+  return a;
+}
