@@ -1,0 +1,8 @@
+// no_compile
+
+int main() {
+  mutable x = 5;
+  const y = move(x);
+  const f = [&x]{ x = 1;};
+  return 0;
+}

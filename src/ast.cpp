@@ -2582,6 +2582,9 @@ optional<ErrorLoc> LambdaExpression::checkBodyMoves() const {
 }
 
 optional<ErrorLoc> LambdaExpression::checkMoves(MoveChecker& checker) const {
+  for (auto& capture : captures)
+    if (auto err = checker.getUsageError(capture.name))
+      return capture.codeLoc.getError(*err);
   return none;
 }
 
