@@ -198,7 +198,8 @@ struct FunctionParameter {
 enum class LambdaCaptureType {
   IMPLICIT_COPY,
   MOVE,
-  REFERENCE
+  REFERENCE,
+  COPY
 };
 
 struct LambdaCaptureInfo {
@@ -652,3 +653,4 @@ struct ModuleInfo {
 extern WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST&, Context& context, const Context& primary,
     const vector<string>& importPaths, bool builtIn);
 extern Context createPrimaryContext(TypeRegistry*);
+extern WithErrorLine<SFunctionInfo> getCopyFunction(const Context&, CodeLoc callLoc, const SType&);

@@ -81,8 +81,17 @@ WithErrorLine<vector<LambdaCapture>> Context::setLambda(vector<LambdaCaptureInfo
   vector<LambdaCapture> ret;
   for (auto& capture : captures) {
     if (auto type = getTypeOfVariable(capture.name)) {
-      if (capture.type == LambdaCaptureType::IMPLICIT_COPY && !canConvert(*type, type->get()->getUnderlying()))
-        return capture.codeLoc.getError("Variable " + capture.name + " can't be captured by implicit copy");
+      auto underlying = type->get()->getUnderlying();
+      if (capture.type == LambdaCaptureType::IMPLICIT_COPY && !canConvert(*type, underlying))
+        return capture.codeLoc.getError("Variable " + capture.name + " of type " +
+            quote(underlying->getName()) + " can't be captured by implicit copy");
+      if (capture.type == LambdaCaptureType::COPY) {
+        if (auto f = getCopyFunction(*this, capture.codeLoc, underlying)) {
+          if (auto err = f->get()->getParent()->definition->addInstance(*this, *f))
+            return *err;
+        } else
+          return capture.codeLoc.getError("No copy function defined for type " + quote(underlying->getName())+ "\n" + f.get_error().error);
+      }
       ret.push_back(LambdaCapture{capture.name, *type});
       if (capture.type == LambdaCaptureType::IMPLICIT_COPY || capture.type == LambdaCaptureType::MOVE)
         ret.back().type = ret.back().type->getUnderlying();
@@ -146,6 +155,7 @@ WithError<SType> Context::getTypeOfVariable(const string& id) const {
             case LambdaCaptureType::REFERENCE:
               return state->vars.at(id);
             case LambdaCaptureType::MOVE:
+            case LambdaCaptureType::COPY:
             case LambdaCaptureType::IMPLICIT_COPY:
               return state->vars.at(id)->getUnderlying();
           }

@@ -214,6 +214,13 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
         return t.get_error();
       captureType = LambdaCaptureType::MOVE;
       closeBracket = true;
+    } else
+    if (tokens.peek().value == "copy") {
+      tokens.popNext();
+      if (auto t = tokens.eat(Keyword::OPEN_BRACKET); !t)
+        return t.get_error();
+      captureType = LambdaCaptureType::COPY;
+      closeBracket = true;
     }
     if (auto id = tokens.eat<IdentifierToken>("Expected variable name")) {
       if (closeBracket)

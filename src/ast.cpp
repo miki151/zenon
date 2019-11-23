@@ -868,6 +868,10 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
         combine(transform(overloads, [](const auto& o) { return o->prettyString();}), "\n"));
 }
 
+WithErrorLine<SFunctionInfo> getCopyFunction(const Context& context, CodeLoc callLoc, const SType& t) {
+  return getFunction(context, callLoc, IdentifierType("copy"), {}, {PointerType::get(t)}, {callLoc});
+}
+
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
     const string& funName, const string& alternativeName, const SType& alternativeType, int virtualIndex) {
   auto functionCall = unique<FunctionCall>(codeLoc, IdentifierInfo(funName, codeLoc), false);

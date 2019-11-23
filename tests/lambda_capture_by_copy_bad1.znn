@@ -1,0 +1,15 @@
+// no_compile
+
+template <T>
+struct X {
+  T a;
+};
+
+template <T> requires (T == bool)
+X<T> copy(X<T>* x) = default;
+
+int main() {
+  const x = X(3);
+  const f = [copy(x)]{ return x.a;};
+  return f.invoke();
+}

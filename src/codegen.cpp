@@ -736,6 +736,9 @@ void LambdaExpression::codegen(Accu& a, CodegenStage) const {
       case LambdaCaptureType::MOVE:
         a.add("std::move(" + capture.name + "),");
         break;
+      case LambdaCaptureType::COPY:
+        a.add("::copy(&" + capture.name + "),");
+        break;
       default:
         a.add(capture.name + ",");
         break;
