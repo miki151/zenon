@@ -852,13 +852,6 @@ static string getCantBindError(const SType& from, const SType& to) {
 }
 
 static optional<string> getDeductionError(const Context& context, TypeMapping& mapping, SType paramType, SType argType) {
-  if ((!paramType.dynamicCast<ReferenceType>() && !paramType.dynamicCast<MutableReferenceType>()) &&
-      (argType.dynamicCast<ReferenceType>() || argType.dynamicCast<MutableReferenceType>())) {
-    if (argType->getUnderlying()->isBuiltinCopyable(context))
-      argType = argType->getUnderlying();
-    else
-      return "Type " + quote(argType->getUnderlying()->getName()) + " cannot be copied.";
-  }
   if (auto index = mapping.getParamIndex(paramType)) {
     auto& arg = mapping.templateArgs.at(*index);
     if (arg && arg != argType)
@@ -1009,20 +1002,38 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
   return none;
 }
 
-WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo& input, CodeLoc codeLoc,
-    vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing) {
-  FunctionType type = input->type;
-  if (auto error = expandVariadicTemplate(type, codeLoc, templateArgs, argTypes))
-    return *error;
-  const vector<SType> funParams = transform(type.params, [](const FunctionType::Param& p) { return p.type; });
-  if (templateArgs.size() > type.templateParams.size())
-    return codeLoc.getError("Too many template arguments.");
-  TypeMapping mapping { type.templateParams, vector<nullable<SType>>(type.templateParams.size()) };
-  for (int i = 0; i < templateArgs.size(); ++i)
-    mapping.templateArgs[i] = templateArgs[i];
-  if (funParams.size() != argTypes.size())
-    return codeLoc.getError("Wrong number of function arguments. Expected " +
-        to_string(funParams.size()) + " got " + to_string(argTypes.size()));
+static optional<ErrorLoc> checkImplicitCopies(const Context& context, const vector<SType>& paramTypes, vector<SType>& argTypes,
+    const vector<CodeLoc>& argLoc) {
+  for (int i = 0; i < paramTypes.size(); ++i) {
+    auto& paramType = paramTypes[i];
+    auto& argType = argTypes[i];
+    if ((!paramType.dynamicCast<ReferenceType>() && !paramType.dynamicCast<MutableReferenceType>()) &&
+        (argType.dynamicCast<ReferenceType>() || argType.dynamicCast<MutableReferenceType>())) {
+      if (argType->getUnderlying()->isBuiltinCopyable(context))
+        argType = argType->getUnderlying();
+      else
+        return argLoc[i].getError("Type " + quote(argType->getUnderlying()->getName()) + " cannot be copied.");
+    }
+  }
+  return none;
+}
+
+static optional<ErrorLoc> checkRequirements(const Context& context, const vector<TemplateRequirement>& requirements, CodeLoc codeLoc,
+    vector<FunctionType> existing) {
+  for (auto& req : requirements)
+    if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
+      if (auto res = context.getRequiredFunctions(**concept, existing); !res)
+        return codeLoc.getError(res.get_error());
+    } else
+    if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
+      if (expr1->get()->eval(context)->value == CompileTimeValue::get(false))
+        return expr1->get()->codeLoc.getError("Predicate evaluates to false");
+    }
+  return none;
+}
+
+static optional<ErrorLoc> getConversionError(const Context& context, const SFunctionInfo& input, const vector<SType>& argTypes,
+    const vector<CodeLoc>& argLoc, const vector<SType>& funParams, TypeMapping& mapping) {
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
     if (argTypes[i] != ArithmeticType::NULL_TYPE)
@@ -1040,6 +1051,26 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
     if (firstError)
       return *firstError;
   }
+  return none;
+}
+
+WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo& input, CodeLoc codeLoc,
+    vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing) {
+  FunctionType type = input->type;
+  if (auto error = expandVariadicTemplate(type, codeLoc, templateArgs, argTypes))
+    return *error;
+  const vector<SType> funParams = transform(type.params, [](const FunctionType::Param& p) { return p.type; });
+  if (funParams.size() != argTypes.size())
+    return codeLoc.getError("Wrong number of function arguments. Expected " +
+        to_string(funParams.size()) + " got " + to_string(argTypes.size()));
+  auto implicitCopyError = checkImplicitCopies(context, funParams, argTypes, argLoc);
+  if (templateArgs.size() > type.templateParams.size())
+    return codeLoc.getError("Too many template arguments.");
+  TypeMapping mapping { type.templateParams, vector<nullable<SType>>(type.templateParams.size()) };
+  for (int i = 0; i < templateArgs.size(); ++i)
+    mapping.templateArgs[i] = templateArgs[i];
+  if (auto err = getConversionError(context, input, argTypes, argLoc, funParams, mapping))
+    return *err;
   for (int i = 0; i < type.templateParams.size(); ++i) {
     if (i >= templateArgs.size()) {
       if (auto deduced = mapping.templateArgs[i])
@@ -1065,18 +1096,13 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
         return FunctionInfo::getInstance(input->id, type, input);
   existing.push_back(input->type);
   //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
-  for (auto& req : type.requirements)
-    if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
-      if (auto res = context.getRequiredFunctions(**concept, existing); !res)
-        return codeLoc.getError(res.get_error());
-    } else
-    if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
-      if (expr1->get()->eval(context)->value == CompileTimeValue::get(false))
-        return expr1->get()->codeLoc.getError("Predicate evaluates to false");
-    }
+  if (auto err = checkRequirements(context, type.requirements, codeLoc, existing))
+    return *err;
   // The replace() errors need to be checked after returning potential requirement errors.
   if (!errors.empty())
     return codeLoc.getError(errors[0]);
+  if (implicitCopyError)
+    return *implicitCopyError;
   return FunctionInfo::getInstance(input->id, type, input);
 }
 

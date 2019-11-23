@@ -1,0 +1,50 @@
+
+export template <Enum> requires is_enum<Enum>
+struct enum_range {
+};
+
+export template <Enum> requires is_enum<Enum>
+struct enum_iterator {
+  int index;
+};
+
+export template <Enum> requires is_enum<Enum>
+enum_iterator<Enum> begin(enum_range<Enum>*) {
+  return enum_iterator<Enum>(0);
+}
+
+export template <Enum> requires is_enum<Enum>
+enum_iterator<Enum> end(enum_range<Enum>*) {
+  return enum_iterator<Enum>(enum_count(Enum));
+}
+
+export template <Enum> requires is_enum<Enum>
+enum_iterator<Enum>* operator ++(enum_iterator<Enum> mutable* e) {
+  ++e->index;
+  return e;
+}
+
+export template <Enum> requires is_enum<Enum>
+bool operator ==(enum_iterator<Enum>* e1, enum_iterator<Enum>* e2) {
+  return e1->index == e2->index;
+}
+
+export template <Enum> requires is_enum<Enum>
+Enum fromInt(int i) {
+  embed {
+    return Enum(i);
+  }
+}
+
+export template <Enum> requires is_enum<Enum>
+int asInt(Enum e) {
+  embed {
+    return int(e);
+  }
+}
+
+export template <Enum> requires is_enum<Enum>
+Enum operator *(enum_iterator<Enum>* e) {
+  return fromInt<Enum>(e->index);
+}
+

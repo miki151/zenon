@@ -842,7 +842,7 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
   vector<SFunctionInfo> overloads;
   if (auto templateType = context.getFunctionTemplate(id)) {
     for (auto& overload : *templateType)
-      if (auto f = context.instantiateFunctionTemplate(codeLoc, overload, templateArgs, argTypes, argLoc)) {
+      if (auto f = instantiateFunction(context, overload, codeLoc, templateArgs, argTypes, argLoc)) {
         overloads.push_back(f.get());
       } else
         errors = codeLoc.getError(errors.error + "\nCandidate: "s + overload->prettyString() + ": " +
@@ -850,7 +850,7 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
   }
   if (id.isSimpleString("invoke") && !argTypes.empty() && argTypes[0].dynamicCast<PointerType>())
     if (auto lambda = argTypes[0]->removePointer().dynamicCast<LambdaType>()) {
-      if (auto f = context.instantiateFunctionTemplate(codeLoc, lambda->functionInfo.get(), templateArgs, argTypes, argLoc)) {
+      if (auto f = instantiateFunction(context, lambda->functionInfo.get(), codeLoc, templateArgs, argTypes, argLoc)) {
         if (!contains(overloads, *f))
           overloads.push_back(*f);
       } else

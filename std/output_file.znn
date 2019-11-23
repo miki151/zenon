@@ -1,0 +1,24 @@
+
+export embed {
+  #include <fstream>
+  struct output_file {
+    output_file(lite_str<> path) : f(path.data()) {}
+    std::ofstream f;
+  };
+}
+
+export extern struct output_file;
+
+export extern output_file(string s);
+
+export template <T>
+void write(output_file mutable* f, T* elem) {
+  embed {
+    f->f << *elem << "\n";
+  }
+}
+
+export bool operator! (output_file* f) {
+  embed { return !f->f.good(); }
+}
+

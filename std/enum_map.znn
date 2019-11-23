@@ -1,0 +1,36 @@
+
+export template <Key, Value> requires is_enum<Key>
+struct enum_map {
+  Value[enum_count(Key)] values;
+};
+
+export template <Key> requires is_enum<Key>
+int asInt(Key key) {
+  embed {
+    return int(key);
+  }
+}
+
+template <Key, Value> requires is_enum<Key>, can_copy<Value>
+enum_map(Value* value) {
+  return enum_map<Key, Value>::enum_map(
+      array_repeat<(enum_count(Key))>(value->copy()));
+}
+
+// Needs capturing lambdas.
+/*export template <Fun, RetType, EnumType>
+concept can_invoke {
+  RetType invoke(Fun*, EnumType);
+};
+
+export template <Key, Value, Fun> requires is_enum<Key>, can_invoke<Fun, Value, Key>
+enum_map<Key, Value> enum_map_generate(Fun fun) {
+  return enum_map<Key, Value>::enum_map(
+      array_generate<(enum_count(Key)), Value>(move(fun)));
+}*/
+
+export template <Key, Value> requires is_enum<Key>
+Value* operator [](enum_map<Key,Value>* map, Key key) {
+  return &map->values[key.asInt()];
+}
+

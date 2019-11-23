@@ -566,11 +566,6 @@ WithError<vector<SFunctionInfo>> Context::getFunctionTemplate(IdentifierType id)
     );
 }
 
-WithErrorLine<SFunctionInfo> Context::instantiateFunctionTemplate(CodeLoc codeLoc, SFunctionInfo templateType,
-    vector<SType> templateParams, vector<SType> argTypes, vector<CodeLoc> argLoc) const {
-  return instantiateFunction(*this, templateType, codeLoc, templateParams, argTypes, argLoc, {});
-}
-
 nullable<SType> Context::BuiltInFunctionInfo::invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const {
   if (argTypes.size() != args.size())
     return nullptr;

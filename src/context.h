@@ -59,8 +59,6 @@ class Context : public owned_object<Context> {
   NODISCARD optional<string> addFunction(SFunctionInfo);
   WithError<IdentifierType> getIdentifierType(const IdentifierInfo&) const;
   WithError<vector<SFunctionInfo>> getFunctionTemplate(IdentifierType) const;
-  WithErrorLine<SFunctionInfo> instantiateFunctionTemplate(CodeLoc, SFunctionInfo, vector<SType>,
-      vector<SType> argTypes, vector<CodeLoc> argLoc) const;
   nullable<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
   using BuiltInFunction = function<WithError<SType>(vector<SType>)>;
   void addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction);
