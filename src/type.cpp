@@ -808,6 +808,20 @@ static string getCantSubstituteError(SType param, SType with) {
   return ret;
 }
 
+static optional<ErrorLoc> checkRequirements(const Context& context, const vector<TemplateRequirement>& requirements, CodeLoc codeLoc,
+    vector<FunctionType> existing) {
+  for (auto& req : requirements)
+    if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
+      if (auto res = context.getRequiredFunctions(**concept, existing); !res)
+        return codeLoc.getError(res.get_error());
+    } else
+    if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
+      if (expr1->get()->eval(context)->value == CompileTimeValue::get(false))
+        return expr1->get()->codeLoc.getError("Predicate evaluates to false");
+    }
+  return none;
+}
+
 WithErrorLine<SType> StructType::instantiate(const Context& context, vector<SType> templateArgs, CodeLoc loc) const {
   CHECK(parent == this) << "Struct instatiated a second time?";
   if (templateArgs.size() != templateParams.size())
@@ -822,15 +836,8 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
   for (auto& arg : templateArgs)
     if (arg.dynamicCast<CompileTimeValue>() && !arg->getType()->canBeValueTemplateParam())
       return loc.getError("Value template parameter cannot have type " + quote(arg->getType()->getName()));
-  for (auto& req : ret.dynamicCast<StructType>()->requirements)
-    if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
-      if (auto res = context.getRequiredFunctions(**concept, {}); !res)
-        return loc.getError(res.get_error());
-    } else
-    if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
-      if (expr1->get()->eval(context)->value == CompileTimeValue::get(false))
-        return loc.getError("Unable to insantiate " + quote(ret->getName()) + ": predicate requirement evaluates to false");
-    }
+  if (auto err = checkRequirements(context, ret.dynamicCast<StructType>()->requirements, loc, {}))
+    return *err;
   if (!errors.empty())
     return loc.getError(errors[0]);
   return (SType) ret;
@@ -1015,20 +1022,6 @@ static optional<ErrorLoc> checkImplicitCopies(const Context& context, const vect
         return argLoc[i].getError("Type " + quote(argType->getUnderlying()->getName()) + " cannot be copied.");
     }
   }
-  return none;
-}
-
-static optional<ErrorLoc> checkRequirements(const Context& context, const vector<TemplateRequirement>& requirements, CodeLoc codeLoc,
-    vector<FunctionType> existing) {
-  for (auto& req : requirements)
-    if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
-      if (auto res = context.getRequiredFunctions(**concept, existing); !res)
-        return codeLoc.getError(res.get_error());
-    } else
-    if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
-      if (expr1->get()->eval(context)->value == CompileTimeValue::get(false))
-        return expr1->get()->codeLoc.getError("Predicate evaluates to false");
-    }
   return none;
 }
 
