@@ -35,10 +35,10 @@ string IdentifierInfo::prettyString() const {
         [&](PointerType type) {
           switch (type) {
             case MUTABLE:
-              ret.append("*");
+              ret.append(" mutable*");
               break;
             case CONST:
-              ret.append(" const*");
+              ret.append(" *");
               break;
           }
         },
