@@ -161,14 +161,14 @@ static bool exactArgs(const vector<SType>& argTypes, const FunctionType& f, Comp
   if (f.params.size() != argTypes.size() || !f.templateParams.empty())
     return false;
   for (int i = 0; i < f.params.size(); ++i)
-    if (!comp(argTypes[i], f.params[i].type))
+    if (!comp(argTypes[i], f.params[i]))
       return false;
   return true;
 }
 
 template <typename Comp>
 static bool exactFirstArg(const vector<SType>& argTypes, const FunctionType& overload, Comp comp) {
-  return !argTypes.empty() && !overload.params.empty() && comp(argTypes[0], overload.params[0].type);
+  return !argTypes.empty() && !overload.params.empty() && comp(argTypes[0], overload.params[0]);
 }
 
 static bool fromConcept(const vector<SType>&, const SFunctionInfo& f) {
@@ -726,9 +726,9 @@ static SType convertReferenceToPointer(SType type) {
     return type;
 }
 
-static bool paramsAreGoodForOperator(const vector<FunctionType::Param>& params) {
+static bool paramsAreGoodForOperator(const vector<SType>& params) {
   for (auto& p : params)
-    if (p.type->getUnderlying()->getType() == ArithmeticType::STRUCT_TYPE)
+    if (p->getUnderlying()->getType() == ArithmeticType::STRUCT_TYPE)
       return true;
   return false;
 }
@@ -790,7 +790,7 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     auto returnType = *returnType1;
     if (name.contains<Operator>())
       returnType = convertPointerToReference(returnType);
-    vector<FunctionType::Param> params;
+    vector<SType> params;
     set<string> paramNames;
     for (int i = 0; i < parameters.size(); ++i) {
       auto& p = parameters[i];
@@ -801,7 +801,7 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
         return p.codeLoc.getError("Function parameter may not have " + quote(type->get()->getName()) + " type");
       if (name.contains<Operator>())
         type = convertPointerToReference(*type);
-      params.push_back({p.name, std::move(*type)});
+      params.push_back(std::move(*type));
       if (p.name) {
         if (paramNames.count(*p.name))
           return p.codeLoc.getError("Duplicate function parameter name: " + quote(*p.name));
@@ -823,7 +823,7 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     if (functionInfo->isMainFunction()) {
       auto expectedParam = SliceType::get(ArithmeticType::STRING);
       if (!functionInfo->type.params.empty() && (functionInfo->type.params.size() > 1
-          || functionInfo->type.params[0].type != expectedParam))
+          || functionInfo->type.params[0] != expectedParam))
         return codeLoc.getError("The main() function should take no arguments or take a single argument of type "
             + quote(expectedParam->getName()));
       if (functionInfo->type.retVal != ArithmeticType::INT)
@@ -879,7 +879,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
   for (int i = 0; i < parameters.size(); ++i)
     if (i != virtualIndex) {
       functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
-      args.push_back(functionInfo->type.params[i].type);
+      args.push_back(functionInfo->type.params[i]);
     } else {
       functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
       args.push_back(alternativeType);
@@ -898,7 +898,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCall
   for (int i = 0; i < parameters.size(); ++i)
     if (i != virtualIndex) {
       arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
-      argTypes.push_back(functionInfo->type.params[i].type);
+      argTypes.push_back(functionInfo->type.params[i]);
     } else {
       arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
       argTypes.push_back(alternativeType);
@@ -1175,8 +1175,7 @@ optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& re
       break;
     }
   for (int i = 0; i < instanceInfo.type.params.size(); ++i) {
-    auto& p = instanceInfo.type.params[i];
-    auto type = p.type;
+    auto type = instanceInfo.type.params[i];
     if (name.contains<Operator>())
       type = convertReferenceToPointer(type);
     if (auto name = instanceInfo.getParamName(i)) {
@@ -1204,7 +1203,7 @@ optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& re
 
 optional<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& context) {
   for (int i = 0; i < functionInfo->type.params.size(); ++i) {
-    auto paramType = functionInfo->type.params[i].type;
+    auto paramType = functionInfo->type.params[i];
     if (auto error = paramType->getSizeError(context))
       return parameters[i].codeLoc.getError(*error);
   }
@@ -1783,10 +1782,10 @@ optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
       type->alternatives.push_back({subtype.name, *t});
     else
       return t.get_error();
-    vector<FunctionType::Param> params;
+    vector<SType> params;
     if (auto subtypeInfo = membersContext.getTypeFromString(subtype.type)) {
       if (*subtypeInfo != ArithmeticType::VOID)
-        params.push_back(FunctionType::Param{*subtypeInfo});
+        params.push_back(*subtypeInfo);
     } else
       return subtypeInfo.get_error();
     auto constructor = FunctionType(type.get(), params, {});
@@ -1860,9 +1859,9 @@ void StructDefinition::addGeneratedConstructor(Context& context, const AST& ast)
         if (functionDef->name.contains<ConstructorTag>() && functionDef->returnType.parts[0].name == name)
           hasUserDefinedConstructors = true;
     if (!external) {
-      vector<FunctionType::Param> constructorParams;
+      vector<SType> constructorParams;
       for (auto& member : type->members)
-        constructorParams.push_back({member.name, member.type});
+        constructorParams.push_back(member.type);
       auto fun = FunctionType(type.get(), std::move(constructorParams), type->templateParams);
       fun.generatedConstructor = true;
       if (!hasUserDefinedConstructors)
@@ -2539,13 +2538,13 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   auto captureTypes = bodyContext.setLambda(captures);
   if (!captureTypes)
     return captureTypes.get_error();
-  vector<FunctionType::Param> params;
+  vector<SType> params;
   if (!recheck) {
     type = shared<LambdaType>();
     type->captures = *captureTypes;
     for (auto& param : parameters)
       type->parameterNames.push_back(param.name);
-    params.push_back(FunctionType::Param(PointerType::get(type.get())));
+    params.push_back(PointerType::get(type.get()));
     set<string> paramNames;
     for (auto& param : parameters) {
       auto type = bodyContext.getTypeFromString(param.type);
@@ -2554,7 +2553,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
       if (*type == ArithmeticType::VOID)
         return param.codeLoc.getError("Function parameter may not have " + quote(type->get()->getName()) + " type");
       auto varType = param.isMutable ? SType(MutableReferenceType::get(*type)) : SType(ReferenceType::get(*type));
-      params.push_back({param.name, varType});
+      params.push_back(varType);
       if (param.name) {
         bodyContext.addVariable(*param.name, varType);
         if (paramNames.count(*param.name))
@@ -2566,7 +2565,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
     for (int i = 1; i < type->functionInfo->type.params.size(); ++i) {
       auto& param = type->functionInfo->type.params[i];
       if (parameters[i - 1].name)
-        bodyContext.addVariable(*parameters[i - 1].name, param.type);
+        bodyContext.addVariable(*parameters[i - 1].name, param);
     }
   recheck = false;
   auto bodyContext2 = Context::withParent(bodyContext);

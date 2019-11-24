@@ -333,17 +333,10 @@ struct VariablePack : public Type {
 };
 
 struct FunctionType {
-  struct Param {
-    Param(optional<string> name, SType type);
-    Param(string name, SType type);
-    Param(SType type);
-    SType type;
-    COMPARABLE(FunctionType::Param, type)
-  };
-  FunctionType(SType returnType, vector<Param> params, vector<SType> templateParams);
+  FunctionType(SType returnType, vector<SType> params, vector<SType> templateParams);
   FunctionType setBuiltin();
   SType retVal;
-  vector<Param> params;
+  vector<SType> params;
   vector<SType> templateParams;
   vector<TemplateRequirement> requirements;
   nullable<SType> parentType;

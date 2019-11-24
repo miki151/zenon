@@ -208,13 +208,13 @@ static string getSignature(const FunctionInfo& functionInfo) {
   for (int i = 0; i < functionInfo.type.params.size(); ++i) {
     auto& param = functionInfo.type.params[i];
     auto paramName = functionInfo.getParamName(i);
-    string argText = param.type->getCodegenName() + " " + paramName.value_or("") + ", ";
+    string argText = param->getCodegenName() + " " + paramName.value_or("") + ", ";
     if (functionInfo.id.contains<Operator>()) {
-      if (auto p = param.type.dynamicCast<ReferenceType>()) {
+      if (auto p = param.dynamicCast<ReferenceType>()) {
         auto name = paramName ? *paramName + "_ptr" : "";
         argText = "const " + p->underlying->getCodegenName() + "& " + name + ", ";
       }
-      if (auto p = param.type.dynamicCast<MutableReferenceType>()) {
+      if (auto p = param.dynamicCast<MutableReferenceType>()) {
         auto name = paramName ? *paramName + "_ptr" : "";
         argText = p->underlying->getCodegenName() + "& " + name + ", ";
       }
@@ -235,7 +235,7 @@ void FunctionDefinition::handlePointerParamsInOperator(Accu& accu, const Stateme
     auto& param = functionInfo->type.params[i];
     auto name = functionInfo->getParamName(i);
     if (name && functionInfo->id.contains<Operator>())
-      if (param.type.dynamicCast<ReferenceType>() || param.type.dynamicCast<MutableReferenceType>())
+      if (param.dynamicCast<ReferenceType>() || param.dynamicCast<MutableReferenceType>())
         ptrInits.push_back("auto " + *name + " = &" + *name + "_ptr;");
   }
   if (!ptrInits.empty()) {

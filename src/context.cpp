@@ -58,12 +58,7 @@ bool Context::areParamsEquivalent(FunctionType f1, FunctionType f2) const {
     if (!errors.empty())
       return false;
   }
-  if (f1.requirements != f2.requirements)
-    return false;
-  for (int i = 0; i < f1.params.size(); ++i)
-    if (f1.params[i].type != f2.params[i].type)
-      return false;
-  return true;
+  return f1.requirements == f2.requirements && f1.params == f2.params;
 }
 
 bool Context::isTemplated() const {
@@ -105,7 +100,7 @@ WithErrorLine<vector<LambdaCapture>> Context::setLambda(vector<LambdaCaptureInfo
 bool Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
     vector<FunctionType> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
-  if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, transform(specific->type.params, [](const auto& param) { return param.type; }),
+  if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, specific->type.params,
       vector<CodeLoc>(specific->type.params.size(), CodeLoc()), existing)) {
     return specific->type.retVal == inst.get()->type.retVal;
   }
@@ -124,7 +119,7 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
               return myFun->getWithoutRequirements();
           if (overloads.first == "invoke"s)
             if (!function->type.params.empty())
-              if (auto lambda = function->type.params[0].type->removePointer().dynamicCast<LambdaType>())
+              if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
                 if (isGeneralization(lambda->functionInfo.get(), function, existing))
                   return lambda->functionInfo->getWithoutRequirements();
           return none;
@@ -285,13 +280,13 @@ void Context::expand(SType from, vector<SType> to, ErrorBuffer& errors) {
   }*/
   for (auto& function : state->functions) {
     for (auto& overload : function.second)
-      if (overload->type.params.back().type == from) {
+      if (overload->type.params.back() == from) {
         auto type = overload->type;
         //std::cout << "Expanded " << overload->prettyString() << std::endl;
         if (type.variadicParams) {
           type.params.pop_back();
           for (auto& t : to)
-            type.params.push_back(FunctionType::Param(none, t));
+            type.params.push_back(t);
           type.variadicParams = false;
         }
         overload = FunctionInfo::getInstance(overload->id, std::move(type), overload);
@@ -592,8 +587,7 @@ nullable<SType> Context::invokeFunction(const string& id, CodeLoc loc, vector<ST
 
 void Context::addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction fun) {
   CHECK(!state->builtInFunctions.count(id));
-  CHECK(!addImplicitFunction(id, FunctionType(returnType,
-      transform(argTypes, [](const auto& p){ return FunctionType::Param(p); }), {})));
+  CHECK(!addImplicitFunction(id, FunctionType(returnType, argTypes, {})));
   state->builtInFunctions.insert(make_pair(id, BuiltInFunctionInfo{std::move(argTypes), returnType, std::move(fun)}));
 }
 

@@ -204,7 +204,7 @@ optional<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, C
   return none;
 }
 
-FunctionType::FunctionType(SType returnType, vector<Param> p, vector<SType> tpl)
+FunctionType::FunctionType(SType returnType, vector<SType> p, vector<SType> tpl)
   : retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
 
@@ -247,7 +247,7 @@ SFunctionInfo FunctionInfo::getInstance(FunctionId id, FunctionType type, SFunct
 
 string FunctionInfo::prettyString() const {
   return type.retVal->getName() + " " + toString(id) + joinTemplateParams(type.templateParams, type.variadicTemplate) + "(" +
-      combine(transform(type.params, [](auto& t) { return t.type->getName(); }), ", ") +
+      combine(transform(type.params, [](auto& t) { return t->getName(); }), ", ") +
       (type.variadicParams ? "...)" : ")") +
       (type.fromConcept ? " [from concept]" : "") +
       (getParent()->definition ? getParent()->definition->codeLoc.toString() : "");
@@ -286,7 +286,7 @@ optional<string> FunctionInfo::getMangledSuffix() const {
   if (!type.retVal->getMangledName())
     return none;
   for (auto& param : type.params)
-    if (!param.type->getMangledName())
+    if (!param->getMangledName())
       return none;
   for (auto& arg : type.templateParams)
     if (auto name = arg->getMangledName())
@@ -783,7 +783,7 @@ FunctionType replaceInFunction(FunctionType type, SType from, SType to, ErrorBuf
     type.parentType = type.parentType->replace(from, to, errors);
   type.retVal = type.retVal->replace(from, to, errors);
   for (auto& param : type.params)
-    param.type = param.type->replace(from, to, errors);
+    param = param->replace(from, to, errors);
   for (auto& param : type.templateParams)
     param = param->replace(from, to, errors);
   for (auto& req : type.requirements)
@@ -931,7 +931,7 @@ static bool areParamsTypesEqual(const FunctionType& f1, const FunctionType& f2) 
   if (f1.params.size() != f2.params.size())
     return false;
   for (int i = 0; i < f1.params.size(); ++i)
-    if (f1.params[i].type != f2.params[i].type)
+    if (f1.params[i] != f2.params[i])
       return false;
   return true;
 }
@@ -949,7 +949,7 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
     lastTemplateParam = type.templateParams.back();
   if (type.variadicTemplate) {
     type.templateParams.pop_back();
-    optional<FunctionType::Param> lastParam;
+    nullable<SType> lastParam;
     int cnt = 0;
     while (templateArgs.size() > type.templateParams.size()) {
       type.templateParams.push_back(shared<TemplateParameterType>(lastTemplateParam->getType(),
@@ -961,8 +961,7 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
           type.params.pop_back();
         }
         ErrorBuffer errors;
-        type.params.push_back(FunctionType::Param(
-            lastParam->type->replace(lastTemplateParam.get(), type.templateParams.back(), errors)));
+        type.params.push_back(lastParam->replace(lastTemplateParam.get(), type.templateParams.back(), errors));
         if (!errors.empty())
           return codeLoc.getError(errors[0]);
       }
@@ -976,7 +975,7 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
     type.params.pop_back();
     int cnt = 0;
     while (argTypes.size() > type.params.size()) {
-      auto thisType = lastParam.type;
+      auto thisType = lastParam;
       if (type.variadicTemplate) {
         if (expandedTypes.size() <= cnt) {
           type.templateParams.push_back(shared<TemplateParameterType>(lastTemplateParam->getType(),
@@ -984,11 +983,11 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
           expandedTypes.push_back(type.templateParams.back());
         }
         ErrorBuffer errors;
-        thisType = lastParam.type->replace(lastTemplateParam.get(), type.templateParams.back(), errors);
+        thisType = lastParam->replace(lastTemplateParam.get(), type.templateParams.back(), errors);
         if (!errors.empty())
           return codeLoc.getError(errors[0]);
       }
-      type.params.push_back(FunctionType::Param(thisType));
+      type.params.push_back(thisType);
       ++cnt;
     }
     type.variadicParams = false;
@@ -1061,17 +1060,16 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
   FunctionType type = input->type;
   if (auto error = expandVariadicTemplate(type, codeLoc, templateArgs, argTypes))
     return *error;
-  const vector<SType> funParams = transform(type.params, [](const FunctionType::Param& p) { return p.type; });
-  if (funParams.size() != argTypes.size())
+  if (type.params.size() != argTypes.size())
     return codeLoc.getError("Wrong number of function arguments. Expected " +
-        to_string(funParams.size()) + " got " + to_string(argTypes.size()));
-  auto implicitCopyError = checkImplicitCopies(context, funParams, argTypes, argLoc);
+        to_string(type.params.size()) + " got " + to_string(argTypes.size()));
+  auto implicitCopyError = checkImplicitCopies(context, type.params, argTypes, argLoc);
   if (templateArgs.size() > type.templateParams.size())
     return codeLoc.getError("Too many template arguments.");
   TypeMapping mapping { type.templateParams, vector<nullable<SType>>(type.templateParams.size()) };
   for (int i = 0; i < templateArgs.size(); ++i)
     mapping.templateArgs[i] = templateArgs[i];
-  if (auto err = getConversionError(context, input, argTypes, argLoc, funParams, mapping))
+  if (auto err = getConversionError(context, input, argTypes, argLoc, type.params, mapping))
     return *err;
   for (int i = 0; i < type.templateParams.size(); ++i) {
     if (i >= templateArgs.size()) {
@@ -1201,15 +1199,6 @@ string joinTemplateParamsCodegen(const vector<SType>& params) {
     return "";
   else
     return "<" + joinTypeListCodegen(params) + ">";
-}
-
-FunctionType::Param::Param(optional<string> name, SType type) : type(type) {
-}
-
-FunctionType::Param::Param(string name, SType type) : type(type) {
-}
-
-FunctionType::Param::Param(SType type) : type(type) {
 }
 
 string ArrayType::getName(bool withTemplateArguments) const {
@@ -1533,7 +1522,7 @@ optional<string> LambdaType::getMangledName() const {
   else
     return none;
   for (int i = 1; i < functionType.params.size(); ++i)
-    if (auto name = functionType.params[i].type->getMangledName())
+    if (auto name = functionType.params[i]->getMangledName())
       suf += *name;
     else
       return none;
@@ -1559,7 +1548,7 @@ SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   auto tmpType = functionInfo->type;
   tmpType.params = getSubsequence(tmpType.params, 1);
   tmpType = replaceInFunction(tmpType, from, to, errors);
-  tmpType.params = concat({FunctionType::Param(PointerType::get(ret))}, tmpType.params);
+  tmpType.params = concat({PointerType::get(ret)}, tmpType.params);
   ret->functionInfo = FunctionInfo::getImplicit(functionInfo->id, std::move(tmpType));
   for (auto& capture : captures)
     ret->captures.push_back(LambdaCapture{capture.name, capture.type->replace(from, to, errors)});
