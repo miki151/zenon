@@ -96,7 +96,7 @@ int main(int argc, char* argv[]) {
     auto path = toCompile.begin()->path;
     bool builtInModule = toCompile.begin()->builtIn;
     cerr << "Compiling " << path << endl;
-    toCompile.erase(toCompile.begin());
+    toCompile.removeIndexPreserveOrder(0);
     finished.insert(path);
     auto program = readFromFile(path.c_str());
     if (!program)

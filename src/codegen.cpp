@@ -205,15 +205,17 @@ static string getSignature(const FunctionInfo& functionInfo) {
   //if (!name.contains<ConstructorId>())
     retVal = functionInfo.type.retVal->getCodegenName() + " ";
   string ret = retVal + getFunctionSignatureName(functionInfo) + "(";
-  for (auto& param : functionInfo.type.params) {
-    string argText = param.type->getCodegenName() + " " + param.name.value_or("") + ", ";
+  for (int i = 0; i < functionInfo.type.params.size(); ++i) {
+    auto& param = functionInfo.type.params[i];
+    auto paramName = functionInfo.getParamName(i);
+    string argText = param.type->getCodegenName() + " " + paramName.value_or("") + ", ";
     if (functionInfo.id.contains<Operator>()) {
       if (auto p = param.type.dynamicCast<ReferenceType>()) {
-        auto name = param.name ? *param.name + "_ptr" : "";
+        auto name = paramName ? *paramName + "_ptr" : "";
         argText = "const " + p->underlying->getCodegenName() + "& " + name + ", ";
       }
       if (auto p = param.type.dynamicCast<MutableReferenceType>()) {
-        auto name = param.name ? *param.name + "_ptr" : "";
+        auto name = paramName ? *paramName + "_ptr" : "";
         argText = p->underlying->getCodegenName() + "& " + name + ", ";
       }
     }
@@ -229,10 +231,13 @@ static string getSignature(const FunctionInfo& functionInfo) {
 
 void FunctionDefinition::handlePointerParamsInOperator(Accu& accu, const StatementBlock* thisBody) const {
   vector<string> ptrInits;
-  for (auto& param : functionInfo->type.params)
-    if (param.name && functionInfo->id.contains<Operator>())
+  for (int i = 0; i < functionInfo->type.params.size(); ++i) {
+    auto& param = functionInfo->type.params[i];
+    auto name = functionInfo->getParamName(i);
+    if (name && functionInfo->id.contains<Operator>())
       if (param.type.dynamicCast<ReferenceType>() || param.type.dynamicCast<MutableReferenceType>())
-        ptrInits.push_back("auto " + *param.name + " = &" + *param.name + "_ptr;");
+        ptrInits.push_back("auto " + *name + " = &" + *name + "_ptr;");
+  }
   if (!ptrInits.empty()) {
     accu.newLine("{");
     ++accu.indent;
@@ -434,12 +439,15 @@ string codegen(const AST& ast, const Context& context, const string& codegenIncl
   for (auto& lambda : context.typeRegistry->getLambdas())
     if (lambda->functionInfo->getMangledSuffix()) {
       lambda->codegenDefinition(visitedTypes, accu);
-      auto def = unique<FunctionDefinition>(lambda->body->codeLoc, IdentifierInfo("ignore", lambda->body->codeLoc),
+      auto dummyIdent = IdentifierInfo("ignore", lambda->body->codeLoc);
+      auto def = unique<FunctionDefinition>(lambda->body->codeLoc, dummyIdent,
           lambda->functionInfo->id);
       def->body = std::move(lambda->body);
       auto functionType = lambda->functionInfo->type;
-      functionType.params[0].name = string(lambdaArgName);
-      def->functionInfo = FunctionInfo::getImplicit(lambda->functionInfo->id, std::move(functionType));
+      def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, string(lambdaArgName), false, false});
+      for (int i = 1; i < functionType.params.size(); ++i)
+        def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, lambda->parameterNames[i - 1], false, false});
+      def->functionInfo = FunctionInfo::getDefined(lambda->functionInfo->id, std::move(functionType), def.get());
       lambdas.push_back(std::move(def));
     }
   for (auto& elem : ast.elems) {

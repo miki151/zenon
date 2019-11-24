@@ -337,9 +337,8 @@ struct FunctionType {
     Param(optional<string> name, SType type);
     Param(string name, SType type);
     Param(SType type);
-    optional<string> name;
     SType type;
-    COMPARABLE(FunctionType::Param, name, type)
+    COMPARABLE(FunctionType::Param, type)
   };
   FunctionType(SType returnType, vector<Param> params, vector<SType> templateParams);
   FunctionType setBuiltin();
@@ -369,6 +368,7 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   string getMangledName() const;
   bool isMainFunction() const;
   optional<string> getMangledSuffix() const;
+  optional<string> getParamName(int index) const;
   SFunctionInfo getWithoutRequirements() const;
   FunctionInfo(Private, FunctionId, FunctionType, nullable<SFunctionInfo> parent);
   FunctionInfo(Private, FunctionId, FunctionType, FunctionDefinition*);
@@ -393,6 +393,7 @@ struct LambdaType : public Type {
   LambdaType(Private, string name);
   nullable<SFunctionInfo> functionInfo;
   vector<LambdaCapture> captures;
+  vector<optional<string>> parameterNames;
   unique_ptr<StatementBlock> body;
   ~LambdaType() override;
   private:

@@ -100,7 +100,7 @@ class Token : public variant<Number, RealNumber, IdentifierToken, Keyword, Opera
 
 class Tokens {
   public:
-  Tokens(std::vector<Token>);
+  Tokens(vector<Token>);
   Token peek() const;
   Token popNext();
   const Token& peekPrevious() const;
@@ -122,6 +122,6 @@ class Tokens {
   int getSize() const;
 
   private:
-  std::vector<Token> data;
+  vector<Token> data;
   int index = 0;
 };

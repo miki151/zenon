@@ -780,7 +780,7 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     return templateTypes.get_error();
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];
-    contextWithTemplateParams.addType(param.name, templateTypes->at(i), true,
+    contextWithTemplateParams.addType(param.name, (*templateTypes)[i], true,
           i == templateInfo.params.size() - 1 && templateInfo.variadic);
   }
   auto requirements = applyConcept(contextWithTemplateParams, templateInfo);
@@ -922,14 +922,22 @@ optional<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& body
   unique_ptr<StatementBlock> defaultBlock;
   if (body)
     defaultBlock = std::move(body);
-  for (int i = 0; i < parameters.size(); ++i)
-    parameters[i].isMutable = true;
   int virtualIndex = [&]() {
     for (int i = 0; i < parameters.size(); ++i)
       if (parameters[i].isVirtual)
         return i;
     fail();
   }();
+  for (int i = 0; i < parameters.size(); ++i) {
+    parameters[i].isMutable = true;
+    if (i != virtualIndex) {
+      // we have to change the parameter names, because they could clash with variant alternative names
+      auto newName = "v_param" + *parameters[i].name;
+      if (defaultBlock)
+        defaultBlock = cast<StatementBlock>(defaultBlock->replaceVar(*parameters[i].name, newName));
+      parameters[i].name = newName;
+    }
+  }
   auto& virtualParam = parameters[virtualIndex];
   auto virtualType = bodyContext.getTypeFromString(virtualParam.type);
   unique_ptr<Expression> switchExpr = unique<MoveExpression>(codeLoc, *virtualParam.name);
@@ -1080,7 +1088,7 @@ optional<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBlock
   }
   CHECK(!!body);
   if (functionInfo->parent->type.variadicParams)
-    if (auto& lastName = functionInfo->parent->type.params.back().name) {
+    if (auto& lastName = functionInfo->parent->definition->parameters.back().name) {
       vector<string> expanded;
       for (int i = 0; i < functionInfo->type.params.size() + 1 - functionInfo->parent->type.params.size(); ++i)
         expanded.push_back(getExpandedParamName(*lastName, i));
@@ -1171,12 +1179,13 @@ optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& re
     auto type = p.type;
     if (name.contains<Operator>())
       type = convertReferenceToPointer(type);
-    if (p.name) {
-      auto varType = parameters[i].isMutable ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
+    if (auto name = instanceInfo.getParamName(i)) {
+      auto varType = parameters[min(i, parameters.size() -1)].isMutable
+          ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
       if (!isVariadicParams || i < instanceInfo.type.params.size() - 1 || !isTemplated)
-        bodyContext.addVariable(*p.name, varType);
+        bodyContext.addVariable(*name, varType);
       else
-        bodyContext.addVariablePack(*p.name, varType);
+        bodyContext.addVariablePack(*name, varType);
     }
   }
   auto retVal = instanceInfo.type.retVal;
@@ -1431,7 +1440,7 @@ optional<ErrorLoc> FunctionCall::initializeTemplateArgsAndIdentifierType(const C
 
 optional<ErrorLoc> FunctionCall::checkNamedArgs() const {
   for (int i = 0; i < argNames.size(); ++i) {
-    auto paramName = functionInfo->type.params[callType ? (i + 1) : i].name;
+    auto paramName = functionInfo->getParamName(callType ? (i + 1) : i);
     if (argNames[i] && paramName && argNames[i] != paramName) {
       return arguments[i]->codeLoc.getError("Function argument " + quote(*argNames[i]) +
           " doesn't match parameter " + quote(*paramName) + " of function " +
@@ -2534,6 +2543,8 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   if (!recheck) {
     type = shared<LambdaType>();
     type->captures = *captureTypes;
+    for (auto& param : parameters)
+      type->parameterNames.push_back(param.name);
     params.push_back(FunctionType::Param(PointerType::get(type.get())));
     set<string> paramNames;
     for (auto& param : parameters) {
@@ -2552,9 +2563,11 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
       }
     }
   } else
-    for (auto& param : type->functionInfo->type.params)
-      if (param.name)
-        bodyContext.addVariable(*param.name, param.type);
+    for (int i = 1; i < type->functionInfo->type.params.size(); ++i) {
+      auto& param = type->functionInfo->type.params[i];
+      if (parameters[i - 1].name)
+        bodyContext.addVariable(*parameters[i - 1].name, param.type);
+    }
   recheck = false;
   auto bodyContext2 = Context::withParent(bodyContext);
   if (auto err = block->check(bodyContext2))

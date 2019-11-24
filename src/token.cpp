@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include <unordered_map>
 #include "token.h"
 #include "operator.h"
@@ -101,7 +102,7 @@ string getString(Token t) {
   );
 }
 
-Tokens::Tokens(std::vector<Token> d) : data(d) {}
+Tokens::Tokens(vector<Token> d) : data(d) {}
 
 Token Tokens::peek() const {
   CHECK(index < data.size());

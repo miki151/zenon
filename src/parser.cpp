@@ -910,7 +910,7 @@ WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) 
           if (auto s = identifier->asBasicIdentifier())
             caseElem.ids.push_back(*s);
           else
-            return identifier->codeLoc.getError("Identifier " + quote(identifier->prettyString()) + " is not a variable");
+            return identifier->codeLoc.getError("Expected variant alternative name, got " + quote(identifier->prettyString()));
           if (token2 == Keyword::CLOSE_BRACKET)
             break;
           identifier = parseIdentifier(tokens, true);

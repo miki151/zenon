@@ -82,6 +82,7 @@ namespace fs = std::experimental::filesystem;
 #include <map>
 #include <set>
 #include "my_shared_ptr.h"
+#include "my_containers.h"
 using std::map;
 using std::multiset;
 using std::deque;
@@ -94,7 +95,6 @@ std::unique_ptr<T> unique(Args&&... args) { return std::unique_ptr<T>(new T(std:
 using std::default_random_engine;
 using std::function;
 using std::initializer_list;
-using std::unordered_set;
 using std::pair;
 using std::tuple;
 using std::out_of_range;
@@ -123,8 +123,6 @@ using std::uniform_real_distribution;
 using std::make_tuple;
 using std::hash;
 using std::array;
-using std::vector;
-using std::set;
 
 using std::recursive_mutex;
 typedef std::unique_lock<recursive_mutex> RecursiveLock;

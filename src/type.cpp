@@ -247,7 +247,7 @@ SFunctionInfo FunctionInfo::getInstance(FunctionId id, FunctionType type, SFunct
 
 string FunctionInfo::prettyString() const {
   return type.retVal->getName() + " " + toString(id) + joinTemplateParams(type.templateParams, type.variadicTemplate) + "(" +
-      combine(transform(type.params, [](auto& t) { return t.type->getName() + (t.name ? " " + *t.name : ""s); }), ", ") +
+      combine(transform(type.params, [](auto& t) { return t.type->getName(); }), ", ") +
       (type.variadicParams ? "...)" : ")") +
       (type.fromConcept ? " [from concept]" : "") +
       (getParent()->definition ? getParent()->definition->codeLoc.toString() : "");
@@ -293,10 +293,20 @@ optional<string> FunctionInfo::getMangledSuffix() const {
       suf += *name;
     else
       return none;
-  if (id != "copy"s && !type.builtinOperator)
+  if (id != "copy"s && id != "invoke"s && !type.builtinOperator)
     if (auto def = getParent()->definition)
       suf += to_string(def->codeLoc.line);
   return suf;
+}
+
+optional<string> FunctionInfo::getParamName(int index) const {
+  if (auto def = getParent()->definition) {
+    if ((index < def->parameters.size() && (!def->isVariadicParams || type.variadicParams)) || index < def->parameters.size() - 1)
+      return def->parameters[index].name;
+    else if (auto& name = def->parameters.back().name)
+      return getExpandedParamName(*name, index - def->parameters.size() + 1);
+  }
+    return none;
 }
 
 SFunctionInfo FunctionInfo::getWithoutRequirements() const {
@@ -860,7 +870,7 @@ static string getCantBindError(const SType& from, const SType& to) {
 
 static optional<string> getDeductionError(const Context& context, TypeMapping& mapping, SType paramType, SType argType) {
   if (auto index = mapping.getParamIndex(paramType)) {
-    auto& arg = mapping.templateArgs.at(*index);
+    auto& arg = mapping.templateArgs[*index];
     if (arg && arg != argType)
       return getCantBindError(argType, arg.get());
     arg = argType;
@@ -927,6 +937,7 @@ static bool areParamsTypesEqual(const FunctionType& f1, const FunctionType& f2) 
 }
 
 string getExpandedParamName(const string& packName, int index) {
+  CHECK(index >= 0);
   return "_" + packName + to_string(index);
 }
 
@@ -951,7 +962,6 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
         }
         ErrorBuffer errors;
         type.params.push_back(FunctionType::Param(
-            lastParam->name.map([cnt](const string& name) { return getExpandedParamName(name, cnt); }),
             lastParam->type->replace(lastTemplateParam.get(), type.templateParams.back(), errors)));
         if (!errors.empty())
           return codeLoc.getError(errors[0]);
@@ -978,11 +988,10 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
         if (!errors.empty())
           return codeLoc.getError(errors[0]);
       }
-      type.params.push_back(FunctionType::Param(
-          lastParam.name.map([cnt](const string& name) { return getExpandedParamName(name, cnt); }),
-          thisType));
+      type.params.push_back(FunctionType::Param(thisType));
       ++cnt;
     }
+    type.variadicParams = false;
   }
   vector<TemplateRequirement> newRequirements;
   ErrorBuffer errors;
@@ -1194,10 +1203,10 @@ string joinTemplateParamsCodegen(const vector<SType>& params) {
     return "<" + joinTypeListCodegen(params) + ">";
 }
 
-FunctionType::Param::Param(optional<string> name, SType type) : name(name), type(type) {
+FunctionType::Param::Param(optional<string> name, SType type) : type(type) {
 }
 
-FunctionType::Param::Param(string name, SType type) : name(name), type(type) {
+FunctionType::Param::Param(string name, SType type) : type(type) {
 }
 
 FunctionType::Param::Param(SType type) : type(type) {
@@ -1554,6 +1563,7 @@ SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   ret->functionInfo = FunctionInfo::getImplicit(functionInfo->id, std::move(tmpType));
   for (auto& capture : captures)
     ret->captures.push_back(LambdaCapture{capture.name, capture.type->replace(from, to, errors)});
+  ret->parameterNames = parameterNames;
   return ret;
 }
 

@@ -28,12 +28,12 @@ struct MoveChecker::StatementUsage {
 void MoveChecker::endBlock() {
   vector<MoveInfo> allMoved;
   while (blocks.back().type == BlockType::ALTERNATIVE) {
-    allMoved.insert(allMoved.end(), blocks.back().moves.begin(), blocks.back().moves.end());
+    allMoved.append(blocks.back().moves);
     blocks.pop_back();
   }
   auto block = blocks.back();
   blocks.pop_back();
-  block.moves.insert(block.moves.end(), allMoved.begin(), allMoved.end());
+  block.moves.append(allMoved);
   for (auto& move : block.moves)
     if (!block.variables.count(move.variable)) {
       CHECK(!blocks.empty());

@@ -432,7 +432,7 @@ nullable<SType> Context::getVariable(const string& name) const {
 WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool> typePack) const {
   if (id.parts.size() != 1)
     return id.codeLoc.getError("Bad type identifier: " + id.prettyString());
-  auto name = id.parts.at(0).name;
+  auto name = id.parts[0].name;
   auto topType = getType(name);
   if (!topType)
     return id.codeLoc.getError("Type not found: " + quote(name));
@@ -442,8 +442,8 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
     if (*typePack && getTypePack() != topType.get())
       return id.codeLoc.getError("Type " + quote(name) + " is not a type parameter pack");
   }
-  bool variadicParams = id.parts.at(0).variadic;
-  auto templateArgs = getTypeList(id.parts.at(0).templateArguments, variadicParams);
+  bool variadicParams = id.parts[0].variadic;
+  auto templateArgs = getTypeList(id.parts[0].templateArguments, variadicParams);
   if (!templateArgs)
     return templateArgs.get_error();
   if (variadicParams)
@@ -538,7 +538,7 @@ vector<SFunctionInfo> Context::getConstructorsFor(const SType& type) const {
 WithError<IdentifierType> Context::getIdentifierType(const IdentifierInfo& id) const {
   vector<FunctionInfo> ret;
   if (id.parts.size() > 1) {
-    if (auto type = getTypeFromString(IdentifierInfo(id.parts.at(0), id.codeLoc))) {
+    if (auto type = getTypeFromString(IdentifierInfo(id.parts[0], id.codeLoc))) {
       if (auto ret = type.get()->getStaticContext().getIdentifierType(id.getWithoutFirstPart())) {
         ret->parts = concat({IdentifierType::Part{{type.get()}}}, ret->parts);
         return ret;
@@ -546,7 +546,7 @@ WithError<IdentifierType> Context::getIdentifierType(const IdentifierInfo& id) c
     }
     return "Type not found: " + id.prettyString();
   } else {
-    string name = id.parts.at(0).name;
+    string name = id.parts[0].name;
     if (auto type = getType(name))
       // Should this also instantiate the type if there are template arguments?
       return IdentifierType(type.get());
@@ -560,7 +560,7 @@ WithError<vector<SFunctionInfo>> Context::getFunctionTemplate(IdentifierType id)
   if (id.parts.size() > 1)
     return (*id.parts[0].name.getReferenceMaybe<SType>())->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
   else
-    return id.parts.at(0).name.visit(
+    return id.parts[0].name.visit(
           [&](const SType& type) { return getConstructorsFor(type); },
           [&](const string& name) { return getFunctions(name);}
     );

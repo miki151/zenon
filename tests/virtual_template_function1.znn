@@ -1,0 +1,31 @@
+// 13
+
+struct Left {
+};
+
+template <T>
+T choose(Left*, T left, T right) {
+  return move(left);
+}
+
+struct Right {
+};
+
+template <T>
+T choose(Right*, T left, T right) {
+  return move(right);
+}
+
+variant LeftRight { 
+  Left left;
+  Right right;
+};
+
+template <T>
+T choose(virtual LeftRight* lr, T left, T right);
+
+int main() {
+  const lr1 = LeftRight::left(Left());
+  const lr2 = LeftRight::right(Right());
+  return 2 * lr1.choose(4, 5) + lr2.choose(4, 5);
+}
