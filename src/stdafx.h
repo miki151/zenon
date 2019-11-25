@@ -148,6 +148,8 @@ using std::atomic;
 using std::swap;
 using std::remove_if;
 
+#define TRY(expr) ({ auto&& x = expr; if (!x) return x.get_error(); std::move(*x); })
+
 using namespace std::string_literals;
 
 #include "variant.h"
