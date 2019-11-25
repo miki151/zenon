@@ -86,8 +86,14 @@ int main(int argc, char* argv[]) {
     linkFlags.push_back("-l" + flags["l"].get(i).string);
   vector<ModuleInfo> toCompile;
   set<string> finished;
-  for (auto pathElem : flags[""])
-    toCompile.push_back({fs::canonical(pathElem.string), false});
+  for (auto pathElem : flags[""]) {
+    std::error_code error;
+    toCompile.push_back({fs::canonical(pathElem.string, error), false});
+    if (error) {
+      std::cerr << "Error opening " << pathElem.string << ": " << error.message() << std::endl;
+      return -1;
+    }
+  }
   vector<string> objFiles;
   auto buildDir = ".build_cache";
   if (!fs::is_directory(buildDir))
