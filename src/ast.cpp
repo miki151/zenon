@@ -666,45 +666,56 @@ static WithErrorLine<vector<SType>> translateConceptParams(const Context& contex
   return translatedParams;
 }
 
-NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyConcept(Context& from, const TemplateInfo& requirements) {
-  vector<TemplateRequirement> ret;
-  for (auto& req : requirements.requirements)
-    if (auto requirement = req.getValueMaybe<TemplateInfo::ConceptRequirement>()) {
-      auto& reqId = requirement->identifier;
-      if (requirement->variadic && reqId.parts[0].variadic)
-        return reqId.codeLoc.getError("Requirement can't be both variadic and involving a variadic concept");
-      if (auto concept = from.getConcept(reqId.parts[0].name)) {
-        if (!concept->isVariadic() && reqId.parts[0].variadic)
-          return reqId.codeLoc.getError("Concept " + quote(concept->getName()) + " is not variadic");
-        auto& requirementArgs = reqId.parts[0].templateArguments;
-        if ((!concept->isVariadic() && requirementArgs.size() != concept->getParams().size()) ||
-            (concept->isVariadic() && requirementArgs.size() < concept->getParams().size() - 1))
-          return reqId.codeLoc.getError(
-              "Wrong number of template arguments to concept " + quote(concept->getName()) + ": " + quote(reqId.parts[0].toString()));
-        if (auto translatedParams = translateConceptParams(from, *requirement)) {
-          ErrorBuffer errors;
-          auto translated = concept->translate(*translatedParams, requirements.variadic, errors);
-          if (!errors.empty())
-            return reqId.codeLoc.getError(errors[0]);
-          from.merge(translated->getContext());
-          ret.push_back(TemplateRequirement(std::move(translated), requirement->variadic));
-        } else
-          return translatedParams.get_error();
-      } else
-        return reqId.codeLoc.getError("Uknown concept: " + reqId.parts[0].name);
+static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const TemplateInfo::ConceptRequirement& requirement,
+    bool variadicRequiements) {
+  auto& reqId = requirement.identifier;
+  if (requirement.variadic && reqId.parts[0].variadic)
+    return reqId.codeLoc.getError("Requirement can't be both variadic and involving a variadic concept");
+  if (auto concept = from.getConcept(reqId.parts[0].name)) {
+    if (!concept->isVariadic() && reqId.parts[0].variadic)
+      return reqId.codeLoc.getError("Concept " + quote(concept->getName()) + " is not variadic");
+    auto& requirementArgs = reqId.parts[0].templateArguments;
+    if ((!concept->isVariadic() && requirementArgs.size() != concept->getParams().size()) ||
+        (concept->isVariadic() && requirementArgs.size() < concept->getParams().size() - 1))
+      return reqId.codeLoc.getError(
+          "Wrong number of template arguments to concept " + quote(concept->getName()) + ": " + quote(reqId.parts[0].toString()));
+    if (auto translatedParams = translateConceptParams(from, requirement)) {
+      ErrorBuffer errors;
+      auto translated = concept->translate(*translatedParams, variadicRequiements, errors);
+      if (!errors.empty())
+        return reqId.codeLoc.getError(errors[0]);
+      from.merge(translated->getContext());
+      return TemplateRequirement(std::move(translated), requirement.variadic);
     } else
-    if (auto expr1 = req.getValueMaybe<shared_ptr<Expression>>()) {
-      auto expr = expr1->get()->deepCopy();
-      if (auto res = getType(from, expr); !res)
-        return res.get_error();
-      if (auto value = expr->eval(from)) {
-        if (value->value->getType() != ArithmeticType::BOOL)
-          return expr->codeLoc.getError("Expected expression of type " + quote(ArithmeticType::BOOL->getName()) +
-              ", got " + quote(value->value->getType()->getName()));
-        ret.push_back(TemplateRequirement(shared_ptr<Expression>(std::move(expr)), false));
-      } else
-        return expr1->get()->codeLoc.getError("Unable to evaluate expression at compile-time");
-    }
+      return translatedParams.get_error();
+  } else
+    return reqId.codeLoc.getError("Uknown concept: " + reqId.parts[0].name);
+}
+
+static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const shared_ptr<Expression>& expr1, bool variadicRequirements) {
+  auto expr = expr1->deepCopy();
+  if (auto res = getType(from, expr); !res)
+    return res.get_error();
+  if (auto value = expr->eval(from)) {
+    if (value->value->getType() != ArithmeticType::BOOL)
+      return expr->codeLoc.getError("Expected expression of type " + quote(ArithmeticType::BOOL->getName()) +
+          ", got " + quote(value->value->getType()->getName()));
+    return TemplateRequirement(shared_ptr<Expression>(std::move(expr)), false);
+  } else
+    return expr1->codeLoc.getError("Unable to evaluate expression at compile-time");
+}
+
+NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyRequirement(Context& from, const TemplateInfo& requirements) {
+  vector<TemplateRequirement> ret;
+  for (auto& req : requirements.requirements) {
+    auto res = req.visit([&](auto& req) {
+        return applyRequirement(from, req, requirements.variadic);
+    });
+    if (res)
+      ret.push_back(*res);
+    else
+      return res.get_error();
+  }
   return ret;
 }
 
@@ -783,7 +794,7 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     contextWithTemplateParams.addType(param.name, (*templateTypes)[i], true,
           i == templateInfo.params.size() - 1 && templateInfo.variadic);
   }
-  auto requirements = applyConcept(contextWithTemplateParams, templateInfo);
+  auto requirements = applyRequirement(contextWithTemplateParams, templateInfo);
   if (!requirements)
     return requirements.get_error();
   if (auto returnType1 = getReturnType(contextWithTemplateParams)) {
@@ -1141,7 +1152,7 @@ static void addTemplateParams(Context& context, vector<SType> params, bool varia
 optional<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
   Context bodyContext = Context::withParent(context);
   addTemplateParams(bodyContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
-  auto res = applyConcept(bodyContext, templateInfo);
+  auto res = applyRequirement(bodyContext, templateInfo);
   if (!res)
     return res.get_error();
   if (isVirtual)
@@ -1218,7 +1229,7 @@ optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport)
   if (body && (!templateInfo.params.empty() || notInImport)) {
     Context paramsContext = Context::withParent(context);
     addTemplateParams(paramsContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
-    auto res = applyConcept(paramsContext, templateInfo);
+    auto res = applyRequirement(paramsContext, templateInfo);
     if (!res)
       return res.get_error();
     if (auto err = checkForIncompleteTypes(paramsContext))
@@ -1769,7 +1780,7 @@ optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
     return codeLoc.getError("Number of template parameters differs from forward declaration");
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
-  if (auto res = applyConcept(membersContext, templateInfo))
+  if (auto res = applyRequirement(membersContext, templateInfo))
     type->requirements = *res;
   else
     return res.get_error();
@@ -1799,7 +1810,7 @@ optional<ErrorLoc> VariantDefinition::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   for (auto& param : type->templateParams)
     bodyContext.addType(param->getName(), param);
-  CHECK(!!applyConcept(bodyContext, templateInfo));
+  CHECK(!!applyRequirement(bodyContext, templateInfo));
   type->updateInstantations();
   return none;
 }
@@ -1819,7 +1830,7 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
           " differs from forward declaration.");
     auto membersContext = Context::withParent(context);
     addTemplateParams(membersContext, type->templateParams, false);
-    if (auto res = applyConcept(membersContext, templateInfo))
+    if (auto res = applyRequirement(membersContext, templateInfo))
       type->requirements = *res;
     else
       return res.get_error();
@@ -1843,7 +1854,7 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
 optional<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
   auto methodBodyContext = Context::withParent(context);
   addTemplateParams(methodBodyContext, type->templateParams, false);
-  CHECK(!!applyConcept(methodBodyContext, templateInfo));
+  CHECK(!!applyRequirement(methodBodyContext, templateInfo));
   type->updateInstantations();
   if (!incomplete)
     if (auto error = type->getSizeError(context))

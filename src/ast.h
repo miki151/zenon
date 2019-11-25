@@ -574,15 +574,9 @@ struct FunctionDefinition : Statement {
   nullable<SFunctionInfo> functionInfo;
   optional<Context> definitionContext;
   bool external = false;
-  struct Initializer {
-    CodeLoc codeLoc;
-    string paramName;
-    unique_ptr<Expression> expr;
-  };
   bool isVirtual = false;
   bool isDefault = false;
   bool isVariadicParams = false;
-  vector<Initializer> initializers;
   NODISCARD virtual optional<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual optional<ErrorLoc> addToContext(Context&, ImportCache&, const Context& primaryContext) override;
   virtual void codegen(Accu&, CodegenStage) const override;
