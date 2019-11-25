@@ -705,7 +705,7 @@ static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const 
     return expr1->codeLoc.getError("Unable to evaluate expression at compile-time");
 }
 
-NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyRequirement(Context& from, const TemplateInfo& requirements) {
+NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyRequirements(Context& from, const TemplateInfo& requirements) {
   vector<TemplateRequirement> ret;
   for (auto& req : requirements.requirements) {
     auto res = req.visit([&](auto& req) {
@@ -794,7 +794,7 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
     contextWithTemplateParams.addType(param.name, (*templateTypes)[i], true,
           i == templateInfo.params.size() - 1 && templateInfo.variadic);
   }
-  auto requirements = applyRequirement(contextWithTemplateParams, templateInfo);
+  auto requirements = applyRequirements(contextWithTemplateParams, templateInfo);
   if (!requirements)
     return requirements.get_error();
   if (auto returnType1 = getReturnType(contextWithTemplateParams)) {
@@ -1152,7 +1152,7 @@ static void addTemplateParams(Context& context, vector<SType> params, bool varia
 optional<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
   Context bodyContext = Context::withParent(context);
   addTemplateParams(bodyContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
-  auto res = applyRequirement(bodyContext, templateInfo);
+  auto res = applyRequirements(bodyContext, templateInfo);
   if (!res)
     return res.get_error();
   if (isVirtual)
@@ -1229,7 +1229,7 @@ optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport)
   if (body && (!templateInfo.params.empty() || notInImport)) {
     Context paramsContext = Context::withParent(context);
     addTemplateParams(paramsContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
-    auto res = applyRequirement(paramsContext, templateInfo);
+    auto res = applyRequirements(paramsContext, templateInfo);
     if (!res)
       return res.get_error();
     if (auto err = checkForIncompleteTypes(paramsContext))
@@ -1780,7 +1780,7 @@ optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
     return codeLoc.getError("Number of template parameters differs from forward declaration");
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
-  if (auto res = applyRequirement(membersContext, templateInfo))
+  if (auto res = applyRequirements(membersContext, templateInfo))
     type->requirements = *res;
   else
     return res.get_error();
@@ -1810,7 +1810,7 @@ optional<ErrorLoc> VariantDefinition::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   for (auto& param : type->templateParams)
     bodyContext.addType(param->getName(), param);
-  CHECK(!!applyRequirement(bodyContext, templateInfo));
+  CHECK(!!applyRequirements(bodyContext, templateInfo));
   type->updateInstantations();
   return none;
 }
@@ -1830,7 +1830,7 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
           " differs from forward declaration.");
     auto membersContext = Context::withParent(context);
     addTemplateParams(membersContext, type->templateParams, false);
-    if (auto res = applyRequirement(membersContext, templateInfo))
+    if (auto res = applyRequirements(membersContext, templateInfo))
       type->requirements = *res;
     else
       return res.get_error();
@@ -1854,7 +1854,7 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
 optional<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
   auto methodBodyContext = Context::withParent(context);
   addTemplateParams(methodBodyContext, type->templateParams, false);
-  CHECK(!!applyRequirement(methodBodyContext, templateInfo));
+  CHECK(!!applyRequirements(methodBodyContext, templateInfo));
   type->updateInstantations();
   if (!incomplete)
     if (auto error = type->getSizeError(context))
