@@ -1037,7 +1037,7 @@ optional<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBlock
 }
 
 optional<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
-  if (callContext.isTemplated())
+  if (callContext.getTemplateParams())
     return none;
   vector<SFunctionInfo> requirements;
   for (auto& req : instance->type.requirements)
@@ -1101,13 +1101,11 @@ optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& re
     if (!contains(bodyContext.getFunctions(f->id), f->getParent()))
       CHECK(!bodyContext.addFunction(f));
   }
-  bool isTemplated = false;
+  vector<SType> templateParams;
   for (auto& t : instanceInfo.type.templateParams)
-    if (!t->getMangledName()) {
-      bodyContext.setTemplated();
-      isTemplated = true;
-      break;
-    }
+    if (!t->getMangledName())
+      templateParams.push_back(t);
+  bodyContext.setTemplated(templateParams);
   for (int i = 0; i < instanceInfo.type.params.size(); ++i) {
     auto type = instanceInfo.type.params[i];
     if (name.contains<Operator>())
@@ -1115,7 +1113,7 @@ optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& re
     if (auto name = instanceInfo.getParamName(i)) {
       auto varType = parameters[min(i, parameters.size() -1)].isMutable
           ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
-      if (!isVariadicParams || i < instanceInfo.type.params.size() - 1 || !isTemplated)
+      if (!isVariadicParams || i < instanceInfo.type.params.size() - 1 || templateParams.empty())
         bodyContext.addVariable(*name, varType);
       else
         bodyContext.addVariablePack(*name, varType);
@@ -1918,14 +1916,14 @@ optional<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
   auto counterType = CompileTimeValue::getTemplateValue(initType, counter);
   bodyContext.addType(counter, counterType);
   auto bodyTemplateContext = Context::withParent(bodyContext);
-  bodyTemplateContext.setTemplated();
+  bodyTemplateContext.setTemplated({counterType});
   if (auto err = body->check(bodyTemplateContext))
     // If it's not a templated context then we will be unrolling the loop and find errors there
     // (it still needs to be checked to avoid replace() errors :()
     // This may potentially accept some bad code in some corner cases.
-    if (bodyContext.isTemplated())
+    if (bodyContext.getTemplateParams())
       return err;
-  if (!bodyContext.isTemplated())
+  if (!bodyContext.getTemplateParams())
     unrolled = TRY(getUnrolled(context, counterType));
   return none;
 }
@@ -2359,6 +2357,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   if (!recheck) {
     type = shared<LambdaType>();
     type->captures = captureTypes;
+    type->templateParams = context.getTemplateParams().value_or(vector<SType>());
     for (auto& param : parameters)
       type->parameterNames.push_back(param.name);
     params.push_back(PointerType::get(type.get()));

@@ -386,6 +386,7 @@ struct LambdaType : public Type {
   LambdaType(Private, string name);
   nullable<SFunctionInfo> functionInfo;
   vector<LambdaCapture> captures;
+  vector<SType> templateParams;
   vector<optional<string>> parameterNames;
   unique_ptr<StatementBlock> body;
   ~LambdaType() override;

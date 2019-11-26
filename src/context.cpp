@@ -61,15 +61,15 @@ bool Context::areParamsEquivalent(FunctionType f1, FunctionType f2) const {
   return f1.requirements == f2.requirements && f1.params == f2.params;
 }
 
-bool Context::isTemplated() const {
+optional<vector<SType>> Context::getTemplateParams() const {
   for (auto& state : getReversedStates())
-    if (state->templated)
-      return true;
-  return false;
+    if (!state->templateParams.empty())
+      return state->templateParams;
+  return none;
 }
 
-void Context::setTemplated() {
-  state->templated = true;
+void Context::setTemplated(vector<SType> v) {
+  state->templateParams = v;
 }
 
 WithErrorLine<vector<LambdaCapture>> Context::setLambda(vector<LambdaCaptureInfo> captures) {

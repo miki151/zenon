@@ -1508,18 +1508,8 @@ string LambdaType::getName(bool withTemplateArguments) const {
 }
 
 optional<string> LambdaType::getMangledName() const {
-  auto& functionType = functionInfo->type;
   string suf;
-  if (auto name = functionType.retVal->getMangledName())
-    suf = *name;
-  else
-    return none;
-  for (int i = 1; i < functionType.params.size(); ++i)
-    if (auto name = functionType.params[i]->getMangledName())
-      suf += *name;
-    else
-      return none;
-  for (auto& arg : functionType.templateParams)
+  for (auto& arg : templateParams)
     if (auto name = arg->getMangledName())
       suf += *name;
     else
@@ -1545,6 +1535,8 @@ SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   ret->functionInfo = FunctionInfo::getImplicit(functionInfo->id, std::move(tmpType));
   for (auto& capture : captures)
     ret->captures.push_back(LambdaCapture{capture.name, capture.type->replace(from, to, errors)});
+  for (auto& param : templateParams)
+    ret->templateParams.push_back(param->replace(from, to, errors));
   ret->parameterNames = parameterNames;
   return ret;
 }

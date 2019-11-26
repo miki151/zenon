@@ -75,8 +75,8 @@ class Context : public owned_object<Context> {
   optional<int> getLoopId() const;
   int setIsInLoop();
   bool areParamsEquivalent(FunctionType, FunctionType) const;
-  bool isTemplated() const;
-  void setTemplated();
+  optional<vector<SType>> getTemplateParams() const;
+  void setTemplated(vector<SType>);
   NODISCARD WithErrorLine<vector<LambdaCapture>> setLambda(vector<LambdaCaptureInfo> captures);
 
   struct BuiltInFunctionInfo {
@@ -104,7 +104,7 @@ class Context : public owned_object<Context> {
     map<string, BuiltInFunctionInfo> builtInFunctions;
     optional<int> loopId;
     bool isBuiltInModule = false;
-    bool templated = false;
+    vector<SType> templateParams;
     optional<LambdaInfo> lambdaInfo;
     void merge(const State&);
     void print() const;
