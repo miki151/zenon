@@ -1,0 +1,10 @@
+// 25
+
+int main() {
+  mutable res = 0;
+  static for (mutable i = 0; i < 5; ++i) {
+    const f = [](int a) { return i + a;};
+    res += f.invoke(3);
+  }
+  return res;
+}
