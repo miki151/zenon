@@ -239,3 +239,13 @@ bool operator == (const Type& o) const {\
 bool operator < (const Type& o) const {\
   return asTuple() < o.asTuple();\
 }
+
+class OnExit {
+  public:
+  OnExit(function<void()> f) : fun(f) {}
+
+  ~OnExit() { fun(); }
+
+  private:
+  function<void()> fun;
+};

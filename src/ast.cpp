@@ -284,22 +284,16 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
     default: {
       vector<SType> exprTypes;
       for (auto& elem : expr)
-        if (auto t = getType(context, elem))
-          exprTypes.push_back(*t);
-        else
-          return t;
+        exprTypes.push_back(TRY(getType(context, elem)));
       if (op == Operator::SUBSCRIPT && exprTypes[0].dynamicCast<VariablePack>() && !expr[1]->eval(context))
         return expr[1]->codeLoc.getError("Unable to evaluate variable pack index at compile-time");
-      if (auto fun = handleOperatorOverloads(context, codeLoc, op, exprTypes,
-          ::transform(expr, [&](auto& e) { return e->codeLoc;}))) {
-        functionInfo = *fun;
-        if (auto parent = functionInfo->parent)
-          if (parent->definition)
-            if (auto error = parent->definition->addInstance(context, functionInfo.get()))
-              return *error;
-        return functionInfo->type.retVal;
-      } else
-        return fun.get_error();
+      functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, exprTypes,
+          ::transform(expr, [&](auto& e) { return e->codeLoc;})));
+      if (auto parent = functionInfo->parent)
+        if (parent->definition)
+          if (auto error = parent->definition->addInstance(context, functionInfo.get()))
+            return *error;
+      return functionInfo->type.retVal;
     }
   }
 }
@@ -349,18 +343,12 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
   if (!right)
     return right;
   ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right.get()->getName())};
-  if (auto t = expr->getTypeImpl(context)) {
-    if (auto fun = handleOperatorOverloads(context, codeLoc, op, {*t}, {expr->codeLoc})) {
-      functionInfo = *fun;
-      if (auto parent = functionInfo->parent)
-        if (parent->definition)
-          if (auto error = parent->definition->addInstance(context, functionInfo.get()))
-            return *error;
-      return functionInfo->type.retVal;
-    } else
-      return fun.get_error();
-  } else
-    return t;
+  functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, {TRY(expr->getTypeImpl(context))}, {expr->codeLoc}));
+  if (auto parent = functionInfo->parent)
+    if (parent->definition)
+      if (auto error = parent->definition->addInstance(context, functionInfo.get()))
+        return *error;
+  return functionInfo->type.retVal;
 }
 
 optional<EvalResult> UnaryExpression::eval(const Context& context) const {
@@ -382,19 +370,15 @@ optional<ErrorLoc> UnaryExpression::checkMoves(MoveChecker& checker) const {
 optional<ErrorLoc> StatementBlock::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   for (auto& s : elems)
-    if (auto err = s->check(bodyContext))
-      return err;
+    TRY_OPTIONAL(s->check(bodyContext));
   return none;
 }
 
 optional<ErrorLoc> StatementBlock::checkMovesImpl(MoveChecker& checker) const {
   checker.startBlock();
+  OnExit onExit([&]{ checker.endBlock();});
   for (auto& elem : elems)
-    if (auto err = elem->checkMoves(checker)) {
-      checker.endBlock();
-      return err;
-    }
-  checker.endBlock();
+    TRY_OPTIONAL(elem->checkMoves(checker));
   return none;
 }
 
@@ -408,57 +392,41 @@ unique_ptr<Statement> StatementBlock::transform(const StmtTransformFun& fun, con
 optional<ErrorLoc> IfStatement::check(Context& context, bool) {
   auto ifContext = Context::withParent(context);
   if (declaration)
-    if (auto err = declaration->check(ifContext))
-      return err;
+    TRY_OPTIONAL(declaration->check(ifContext));
   auto negate = [&] (unique_ptr<Expression> expr) {
     auto codeLoc = expr->codeLoc;
     return unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT, std::move(expr));
   };
   if (!condition)
     condition = negate(negate(unique<Variable>(IdentifierInfo(declaration->identifier, declaration->codeLoc))));
-  auto condType = getType(ifContext, condition);
-  if (!condType)
-    return condType.get_error();
-  if (!ifContext.canConvert(*condType, ArithmeticType::BOOL)) {
+  auto condType = TRY(getType(ifContext, condition));
+  if (!ifContext.canConvert(condType, ArithmeticType::BOOL)) {
     condition = negate(negate(std::move(condition)));
-    condType = getType(ifContext, condition);
-    if (!condType)
-      return condType.get_error();
+    condType = TRY(getType(ifContext, condition));
   }
-  if (!ifContext.canConvert(*condType, ArithmeticType::BOOL)) {
+  if (!ifContext.canConvert(condType, ArithmeticType::BOOL)) {
     return codeLoc.getError(
         "Expected a type convertible to bool or with overloaded operator " +
         quote("!") + " inside if statement, got " + quote(condType.get()->getName()));
   }
-  if (auto err = ifTrue->check(ifContext))
-    return err;
-  if (ifFalse) {
-    if (auto err = ifFalse->check(ifContext))
-      return err;
-  }
+  TRY_OPTIONAL(ifTrue->check(ifContext));
+  if (ifFalse)
+    TRY_OPTIONAL(ifFalse->check(ifContext));
   return none;
 }
 
 optional<ErrorLoc> IfStatement::checkMovesImpl(MoveChecker& checker) const {
   if (declaration)
-    if (auto err = declaration->checkMoves(checker))
-      return err;
-  if (auto err = condition->checkMoves(checker))
-    return err;
+    TRY_OPTIONAL(declaration->checkMoves(checker));
+  TRY_OPTIONAL(condition->checkMoves(checker));
   checker.startBlock();
+  OnExit onExit([&]{ checker.endBlock();});
   checker.newAlternative();
-  if (auto err = ifTrue->checkMoves(checker)) {
-    checker.endBlock();
-    return err;
-  }
+  TRY_OPTIONAL(ifTrue->checkMoves(checker));
   if (ifFalse) {
     checker.newAlternative();
-    if (auto err = ifFalse->checkMoves(checker)){
-      checker.endBlock();
-      return err;
-    }
+    TRY_OPTIONAL(ifFalse->checkMoves(checker));
   }
-  checker.endBlock();
   return none;
 }
 
@@ -486,16 +454,10 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
     return codeLoc.getError(*err);
   if (!realType) {
     if (type) {
-      if (auto t = context.getTypeFromString(*type))
-        realType = *t;
-      else
-        return t.get_error();
+      realType = TRY(context.getTypeFromString(*type));
     } else
     if (initExpr) {
-      if (auto t = getType(context, initExpr))
-        realType = t.get()->getUnderlying();
-      else
-        return t.get_error();
+      realType = TRY(getType(context, initExpr))->getUnderlying();
     } else
       return codeLoc.getError("Initializing expression needed to infer variable type");
   }
@@ -506,13 +468,11 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (!initExpr)
     return codeLoc.getError("Variable requires initialization");
-  auto exprType = getType(context, initExpr);
-  if (!exprType)
-    return exprType.get_error();
+  auto exprType = TRY(getType(context, initExpr));
   if (!isMutable)
     if (auto value = initExpr->eval(context))
       context.addType(identifier, value->value);
-  if (auto error = getVariableInitializationError("initialize variable", context, realType.get(), *exprType))
+  if (auto error = getVariableInitializationError("initialize variable", context, realType.get(), exprType))
     return initExpr->codeLoc.getError(*error);
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
   context.addVariable(identifier, std::move(varType));
@@ -521,8 +481,7 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
 
 optional<ErrorLoc> VariableDeclaration::checkMovesImpl(MoveChecker& checker) const {
   if (initExpr)
-    if (auto err = initExpr->checkMoves(checker))
-      return err;
+    TRY_OPTIONAL(initExpr->checkMoves(checker));
   checker.addVariable(identifier);
   return none;
 }
@@ -536,23 +495,20 @@ unique_ptr<Statement> VariableDeclaration::transform(const StmtTransformFun&,
 }
 
 optional<ErrorLoc> ReturnStatement::check(Context& context, bool) {
-  auto returnType = [&]() -> WithErrorLine<SType> {
+  auto returnType = TRY([&]() -> WithErrorLine<SType> {
     if (expr)
       return getType(context, expr);
     else
       return SType(ArithmeticType::VOID);
-  }();
-  if (!returnType)
-    return returnType.get_error();
-  if (auto err = context.getReturnTypeChecker()->addReturnStatement(context, *returnType))
+  }());
+  if (auto err = context.getReturnTypeChecker()->addReturnStatement(context, returnType))
     return codeLoc.getError(*err);
   return none;
 }
 
 optional<ErrorLoc> ReturnStatement::checkMovesImpl(MoveChecker& checker) const {
   if (expr)
-    if (auto err = expr->checkMoves(checker))
-      return err;
+    TRY_OPTIONAL(expr->checkMoves(checker));
   checker.returnStatement();
   return none;
 }
@@ -647,17 +603,15 @@ static WithErrorLine<vector<SType>> translateConceptParams(const Context& contex
       // We check below that at least one type pack argument is present.
       if (requirement.variadic)
         requireTypePack = none;
-      if (auto origParam = context.getTypeFromString(*arg, requireTypePack)) {
-        missingTypePack &= (context.getTypePack() != *origParam);
-        if (auto templateParam = origParam->dynamicCast<TemplateParameterType>()) {
-          // Support is_enum concept
-          auto& conceptParams = concept->getParams();
-          if (conceptParams[min<int>(i, conceptParams.size() -1 )]->getType() != ArithmeticType::ANY_TYPE)
-            templateParam->type = conceptParams[min<int>(i, conceptParams.size() -1 )]->getType();
-        }
-        translatedParams.push_back(std::move(*origParam));
-      } else
-        return origParam.get_error();
+      auto origParam = TRY(context.getTypeFromString(*arg, requireTypePack));
+      missingTypePack &= (context.getTypePack() != origParam);
+      if (auto templateParam = origParam.dynamicCast<TemplateParameterType>()) {
+        // Support is_enum concept
+        auto& conceptParams = concept->getParams();
+        if (conceptParams[min<int>(i, conceptParams.size() -1 )]->getType() != ArithmeticType::ANY_TYPE)
+          templateParam->type = conceptParams[min<int>(i, conceptParams.size() -1 )]->getType();
+      }
+      translatedParams.push_back(std::move(origParam));
     } else
       return reqId.codeLoc.getError("Expected a type argument");
   }
@@ -679,23 +633,19 @@ static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const 
         (concept->isVariadic() && requirementArgs.size() < concept->getParams().size() - 1))
       return reqId.codeLoc.getError(
           "Wrong number of template arguments to concept " + quote(concept->getName()) + ": " + quote(reqId.parts[0].toString()));
-    if (auto translatedParams = translateConceptParams(from, requirement)) {
-      ErrorBuffer errors;
-      auto translated = concept->translate(*translatedParams, variadicRequiements, errors);
-      if (!errors.empty())
-        return reqId.codeLoc.getError(errors[0]);
-      from.merge(translated->getContext());
-      return TemplateRequirement(std::move(translated), requirement.variadic);
-    } else
-      return translatedParams.get_error();
+    ErrorBuffer errors;
+    auto translated = concept->translate(TRY(translateConceptParams(from, requirement)), variadicRequiements, errors);
+    if (!errors.empty())
+      return reqId.codeLoc.getError(errors[0]);
+    from.merge(translated->getContext());
+    return TemplateRequirement(std::move(translated), requirement.variadic);
   } else
     return reqId.codeLoc.getError("Uknown concept: " + reqId.parts[0].name);
 }
 
 static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const shared_ptr<Expression>& expr1, bool variadicRequirements) {
   auto expr = expr1->deepCopy();
-  if (auto res = getType(from, expr); !res)
-    return res.get_error();
+  TRY(getType(from, expr));
   if (auto value = expr->eval(from)) {
     if (value->value->getType() != ArithmeticType::BOOL)
       return expr->codeLoc.getError("Expected expression of type " + quote(ArithmeticType::BOOL->getName()) +
@@ -707,15 +657,10 @@ static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const 
 
 NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyRequirements(Context& from, const TemplateInfo& requirements) {
   vector<TemplateRequirement> ret;
-  for (auto& req : requirements.requirements) {
-    auto res = req.visit([&](auto& req) {
-        return applyRequirement(from, req, requirements.variadic);
-    });
-    if (res)
-      ret.push_back(*res);
-    else
-      return res.get_error();
-  }
+  for (auto& req : requirements.requirements)
+    ret.push_back(TRY(req.visit([&](auto& req) {
+      return applyRequirement(from, req, requirements.variadic);
+    })));
   return ret;
 }
 
@@ -786,63 +731,54 @@ optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, b
           " with " + to_string(parameters.size()) + " arguments.");
   }
   Context contextWithTemplateParams = Context::withParent(context);
-  auto templateTypes = getTemplateParams(templateInfo, context);
-  if (!templateTypes)
-    return templateTypes.get_error();
+  auto templateTypes = TRY(getTemplateParams(templateInfo, context));
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];
-    contextWithTemplateParams.addType(param.name, (*templateTypes)[i], true,
+    contextWithTemplateParams.addType(param.name, templateTypes[i], true,
           i == templateInfo.params.size() - 1 && templateInfo.variadic);
   }
-  auto requirements = applyRequirements(contextWithTemplateParams, templateInfo);
-  if (!requirements)
-    return requirements.get_error();
-  if (auto returnType1 = getReturnType(contextWithTemplateParams)) {
-    auto returnType = *returnType1;
+  auto requirements = TRY(applyRequirements(contextWithTemplateParams, templateInfo));
+  auto returnType = TRY(getReturnType(contextWithTemplateParams));
+  if (name.contains<Operator>())
+    returnType = convertPointerToReference(returnType);
+  vector<SType> params;
+  set<string> paramNames;
+  for (int i = 0; i < parameters.size(); ++i) {
+    auto& p = parameters[i];
+    auto type = TRY(contextWithTemplateParams.getTypeFromString(p.type, isVariadicParams && i == parameters.size() - 1));
+    if (type == ArithmeticType::VOID)
+      return p.codeLoc.getError("Function parameter may not have " + quote(type->getName()) + " type");
     if (name.contains<Operator>())
-      returnType = convertPointerToReference(returnType);
-    vector<SType> params;
-    set<string> paramNames;
-    for (int i = 0; i < parameters.size(); ++i) {
-      auto& p = parameters[i];
-      auto type = contextWithTemplateParams.getTypeFromString(p.type, isVariadicParams && i == parameters.size() - 1);
-      if (!type)
-        return type.get_error();
-      if (*type == ArithmeticType::VOID)
-        return p.codeLoc.getError("Function parameter may not have " + quote(type->get()->getName()) + " type");
-      if (name.contains<Operator>())
-        type = convertPointerToReference(*type);
-      params.push_back(std::move(*type));
-      if (p.name) {
-        if (paramNames.count(*p.name))
-          return p.codeLoc.getError("Duplicate function parameter name: " + quote(*p.name));
-        paramNames.insert(*p.name);
-      }
+      type = convertPointerToReference(type);
+    params.push_back(std::move(type));
+    if (p.name) {
+      if (paramNames.count(*p.name))
+        return p.codeLoc.getError("Duplicate function parameter name: " + quote(*p.name));
+      paramNames.insert(*p.name);
     }
-    if (!builtInImport && !concept && name.contains<Operator>() && !paramsAreGoodForOperator(params))
-      return codeLoc.getError("Operator parameters must include at least one user-defined type");
-    FunctionType functionType(returnType, params, *templateTypes);
-    functionType.fromConcept = concept;
-    functionType.requirements = *requirements;
-    functionType.variadicTemplate = templateInfo.variadic;
-    functionType.variadicParams = isVariadicParams;
-    if (name.contains<ConstructorTag>() && external)
-      functionType.generatedConstructor = true;
-    if (external)
-      functionType.setBuiltin();
-    functionInfo = FunctionInfo::getDefined(name, std::move(functionType), this);
-    if (functionInfo->isMainFunction()) {
-      auto expectedParam = SliceType::get(ArithmeticType::STRING);
-      if (!functionInfo->type.params.empty() && (functionInfo->type.params.size() > 1
-          || functionInfo->type.params[0] != expectedParam))
-        return codeLoc.getError("The main() function should take no arguments or take a single argument of type "
-            + quote(expectedParam->getName()));
-      if (functionInfo->type.retVal != ArithmeticType::INT)
-        return codeLoc.getError("The main() function should return a value of type " + quote(ArithmeticType::INT->getName()));
-    }
-    return none;
-  } else
-    return returnType1.get_error();
+  }
+  if (!builtInImport && !concept && name.contains<Operator>() && !paramsAreGoodForOperator(params))
+    return codeLoc.getError("Operator parameters must include at least one user-defined type");
+  FunctionType functionType(returnType, params, templateTypes);
+  functionType.fromConcept = concept;
+  functionType.requirements = requirements;
+  functionType.variadicTemplate = templateInfo.variadic;
+  functionType.variadicParams = isVariadicParams;
+  if (name.contains<ConstructorTag>() && external)
+    functionType.generatedConstructor = true;
+  if (external)
+    functionType.setBuiltin();
+  functionInfo = FunctionInfo::getDefined(name, std::move(functionType), this);
+  if (functionInfo->isMainFunction()) {
+    auto expectedParam = SliceType::get(ArithmeticType::STRING);
+    if (!functionInfo->type.params.empty() && (functionInfo->type.params.size() > 1
+        || functionInfo->type.params[0] != expectedParam))
+      return codeLoc.getError("The main() function should take no arguments or take a single argument of type "
+          + quote(expectedParam->getName()));
+    if (functionInfo->type.retVal != ArithmeticType::INT)
+      return codeLoc.getError("The main() function should return a value of type " + quote(ArithmeticType::INT->getName()));
+  }
+  return none;
 }
 
 static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
@@ -895,11 +831,9 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
       functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
       args.push_back(alternativeType);
     }
-  if (auto fun = getFunction(context, codeLoc, IdentifierType(funName), {}, args,
-      vector<CodeLoc>(args.size(), codeLoc)))
-    return unique_ptr<Expression>(std::move(functionCall));
-  else
-    return fun.get_error();
+  TRY(getFunction(context, codeLoc, IdentifierType(funName), {}, args,
+      vector<CodeLoc>(args.size(), codeLoc)));
+  return unique_ptr<Expression>(std::move(functionCall));
 }
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCallExpr(Context& context,
@@ -918,15 +852,13 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCall
         argTypes.back() = argTypes.back()->removePointer();
       }
     }
-  if (auto fun = handleOperatorOverloads(context, codeLoc, op, argTypes, vector<CodeLoc>(argTypes.size(), codeLoc))) {
-    if (parameters.size() == 1)
-      return unique_ptr<Expression>(unique<UnaryExpression>(codeLoc, op, std::move(arguments[0])));
-    else {
-      CHECK(parameters.size() == 2);
-      return unique_ptr<Expression>(BinaryExpression::get(codeLoc, op, std::move(arguments), false));
-    }
-  } else
-    return fun.get_error();
+  TRY(handleOperatorOverloads(context, codeLoc, op, argTypes, vector<CodeLoc>(argTypes.size(), codeLoc)));
+  if (parameters.size() == 1)
+    return unique_ptr<Expression>(unique<UnaryExpression>(codeLoc, op, std::move(arguments[0])));
+  else {
+    CHECK(parameters.size() == 2);
+    return unique_ptr<Expression>(BinaryExpression::get(codeLoc, op, std::move(arguments), false));
+  }
 }
 
 optional<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bodyContext) {
@@ -1004,12 +936,10 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
   if (!body && isDefault) {
     if (parameters.size() != 1)
       return codeLoc.getError("Expected exactly one parameter in copy function");
-    auto type = context.getTypeFromString(parameters[0].type);
-    if (!type)
-      return type.get_error();
-    if (*type != PointerType::get(context.getTypeFromString(returnType).get()))
+    auto type = TRY(context.getTypeFromString(parameters[0].type));
+    if (type != PointerType::get(context.getTypeFromString(returnType).get()))
       return codeLoc.getError("Copy function parameter type must be the same as pointer to return type");
-    auto structType = type.get()->removePointer().dynamicCast<StructType>();
+    auto structType = type->removePointer().dynamicCast<StructType>();
     if (!structType)
       return codeLoc.getError("Can only generate copy function for user-defined types");
     body = unique<StatementBlock>(codeLoc);
@@ -1054,10 +984,8 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
 
 optional<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const Context& context) {
   if (!body && isDefault) {
-    auto type = context.getTypeFromString(returnType);
-    if (!type)
-      return type.get_error();
-    auto structType = type->dynamicCast<StructType>();
+    auto type = TRY(context.getTypeFromString(returnType));
+    auto structType = type.dynamicCast<StructType>();
     if (!structType || !structType->alternatives.empty())
       return codeLoc.getError("Cannot generate default constructor for non-struct types");
     if (parameters.size() != structType->members.size())
@@ -1152,20 +1080,15 @@ static void addTemplateParams(Context& context, vector<SType> params, bool varia
 optional<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
   Context bodyContext = Context::withParent(context);
   addTemplateParams(bodyContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
-  auto res = applyRequirements(bodyContext, templateInfo);
-  if (!res)
-    return res.get_error();
+  auto res = TRY(applyRequirements(bodyContext, templateInfo));
   if (isVirtual)
-    if (auto err = generateVirtualDispatchBody(bodyContext))
-      return err;
-  if (name == "copy"s) {
-    if (auto err = checkAndGenerateCopyFunction(bodyContext))
-      return err;
-  } else
-  if (name == ConstructorTag{}) {
-    if (auto err = checkAndGenerateDefaultConstructor(bodyContext))
-      return err;
-  } else
+    TRY_OPTIONAL(generateVirtualDispatchBody(bodyContext));
+  if (name == "copy"s)
+    TRY_OPTIONAL(checkAndGenerateCopyFunction(bodyContext));
+  else
+  if (name == ConstructorTag{})
+    TRY_OPTIONAL(checkAndGenerateDefaultConstructor(bodyContext));
+  else
   if (isDefault)
     return codeLoc.getError("Cannot generate a default body for this function");
   return none;
@@ -1229,24 +1152,18 @@ optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport)
   if (body && (!templateInfo.params.empty() || notInImport)) {
     Context paramsContext = Context::withParent(context);
     addTemplateParams(paramsContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
-    auto res = applyRequirements(paramsContext, templateInfo);
-    if (!res)
-      return res.get_error();
-    if (auto err = checkForIncompleteTypes(paramsContext))
-      return err;
+    auto res = TRY(applyRequirements(paramsContext, templateInfo));
+    TRY_OPTIONAL(checkForIncompleteTypes(paramsContext));
     // For checking the template we use the Context that includes the template params.
     definitionContext.emplace(Context::withParent(paramsContext));
-    if (auto err = checkBody({}, *body, *functionInfo))
-      return err;
+    TRY_OPTIONAL(checkBody({}, *body, *functionInfo));
     // For checking instances we just use the top level context.
     definitionContext.emplace(Context::withParent(context));
     for (int i = 0; i < instances.size(); ++i)
       if (!instances[i].body) {
-        if (auto err = instances[i].generateBody(body.get(), codeLoc))
-          return *err;
-        if (auto err = checkBody(instances[i].requirements, *instances[i].body,
-            *instances[i].functionInfo))
-          return err;
+        TRY_OPTIONAL(instances[i].generateBody(body.get(), codeLoc));
+        TRY_OPTIONAL(checkBody(instances[i].requirements, *instances[i].body,
+            *instances[i].functionInfo));
       }
     MoveChecker moveChecker;
     for (auto& p : parameters)
@@ -1258,8 +1175,7 @@ optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport)
 }
 
 optional<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
-  if (auto err = setFunctionType(context, false, cache.isCurrentlyBuiltIn()))
-    return err;
+  TRY_OPTIONAL(setFunctionType(context, false, cache.isCurrentlyBuiltIn()));
   if (auto err = context.addFunction(functionInfo.get()))
     return codeLoc.getError(*err);
   return none;
@@ -1403,13 +1319,11 @@ WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST& ast, Cont
 ExpressionStatement::ExpressionStatement(unique_ptr<Expression> e) : Statement(e->codeLoc), expr(std::move(e)) {}
 
 optional<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
-  auto res = getType(context, expr);
-  if (!res)
-    return res.get_error();
-  noReturnExpr = res.get() == ArithmeticType::NORETURN;
-  if (!canDiscard && res.get() != ArithmeticType::VOID && res.get() != ArithmeticType::NORETURN)
-    return codeLoc.getError("Expression result of type " + quote(res->get()->getName()) + " discarded");
-  if (canDiscard && (res.get() == ArithmeticType::VOID || res.get() == ArithmeticType::NORETURN))
+  auto res = TRY(getType(context, expr));
+  noReturnExpr = res == ArithmeticType::NORETURN;
+  if (!canDiscard && res != ArithmeticType::VOID && res != ArithmeticType::NORETURN)
+    return codeLoc.getError("Expression result of type " + quote(res->getName()) + " discarded");
+  if (canDiscard && (res == ArithmeticType::VOID || res == ArithmeticType::NORETURN))
     return codeLoc.getError("Void expression result unnecessarily marked as discarded");
   return none;
 }
@@ -1433,12 +1347,8 @@ StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) 
 }
 
 optional<ErrorLoc> FunctionCall::initializeTemplateArgsAndIdentifierType(const Context& context) {
-  if (!templateArgs) {
-    if (auto res = context.getTypeList(identifier->parts.back().templateArguments, variadicTemplateArgs))
-      templateArgs = res.get();
-    else
-      return res.get_error();
-  }
+  if (!templateArgs)
+    templateArgs = TRY(context.getTypeList(identifier->parts.back().templateArguments, variadicTemplateArgs));
   if (!identifierType) {
     if (auto res = context.getIdentifierType(*identifier))
       identifierType = *res;
@@ -1474,17 +1384,15 @@ optional<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) {
     auto& variablePack = callContext.getVariablePack();
     if (variablePack)
       call = cast<FunctionCall>(call->expandVar(variablePack->name, expandedVars));
-    if (auto type = call->getTypeImpl(context)) {
-      if (!!returnType && returnType != type.get())
-        return codeLoc.getError("Return type mismatch between called functions in variadic function call");
-      returnType = type.get();
-      // Check if we found a function that we can call with any arguments / template arguments expansion.
-      // The condition might have to be improved if some corner cases fail
-      if (call->functionInfo->type.variadicTemplate == this->functionInfo->type.variadicTemplate &&
-          call->functionInfo->type.variadicParams == this->functionInfo->type.variadicParams)
-        break;
-    } else
-      return type.get_error();
+    auto type = TRY(call->getTypeImpl(context));
+    if (!!returnType && returnType != type)
+      return codeLoc.getError("Return type mismatch between called functions in variadic function call");
+    returnType = type;
+    // Check if we found a function that we can call with any arguments / template arguments expansion.
+    // The condition might have to be improved if some corner cases fail
+    if (call->functionInfo->type.variadicTemplate == this->functionInfo->type.variadicTemplate &&
+        call->functionInfo->type.variadicParams == this->functionInfo->type.variadicParams)
+      break;
     expanded.push_back(shared<TemplateParameterType>(getExpandedParamName(
         callContext.getTypePack()->getName(), expanded.size()), codeLoc));
     // Go through all functions coming from a concept and try to expand them from the current type pack into 'expanded'.
@@ -1524,10 +1432,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
         else
           return arguments[i]->codeLoc.getError("No parameter pack is present in this context");
       }
-      if (auto t = getType(context, arguments[i]))
-        argTypes.push_back(*t);
-      else
-        return t.get_error();
+      argTypes.push_back(TRY(getType(context, arguments[i])));
       argLocs.push_back(arguments[i]->codeLoc);
       INFO << "Function argument " << argTypes.back()->getName();
     }
@@ -1667,36 +1572,25 @@ FunctionCall::FunctionCall(CodeLoc l, bool methodCall, Private) : Expression(l),
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
 optional<ErrorLoc> SwitchStatement::check(Context& context, bool) {
-  if (auto t = getType(context, expr))
-    return t.get()->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
-  else
-    return t.get_error();
+  return TRY(getType(context, expr))->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
 }
 
 optional<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const {
-  if (auto error = expr->checkMoves(checker))
-    return error;
+  TRY_OPTIONAL(expr->checkMoves(checker));
   checker.startBlock();
+  OnExit onExit([&]{ checker.endBlock();});
   for (auto& elem : caseElems) {
     checker.newAlternative();
     checker.startBlock();
+    OnExit onExit2([&]{ checker.endBlock();});
     if (elem.declaredVar)
       checker.addVariable(*elem.declaredVar);
-    if (auto err = elem.block->checkMoves(checker)) {
-      checker.endBlock();
-      checker.endBlock();
-      return err;
-    }
-    checker.endBlock();
+    TRY_OPTIONAL(elem.block->checkMoves(checker));
   }
   if (defaultBlock) {
     checker.newAlternative();
-    if (auto err = defaultBlock->checkMoves(checker)) {
-      checker.endBlock();
-      return err;
-    }
+    TRY_OPTIONAL(defaultBlock->checkMoves(checker));
   }
-  checker.endBlock();
   return none;
 }
 
@@ -1748,10 +1642,7 @@ static WithErrorLine<shared_ptr<StructType>> getNewOrIncompleteStruct(Context& c
       return codeLoc.getError(*err);
     auto paramsContext = Context::withParent(context);
     auto returnType = context.typeRegistry->getStruct(name);
-    auto paramTypes = getTemplateParams(templateInfo, context);
-    if (!paramTypes)
-      return paramTypes.get_error();
-    for (auto& t : *paramTypes)
+    for (auto& t : TRY(getTemplateParams(templateInfo, context)))
       returnType->templateParams.push_back(std::move(t));
     context.addType(name, returnType, !incomplete);
     return returnType;
@@ -1767,10 +1658,7 @@ static optional<string> getRedefinitionError(const string& typeName, const optio
 }
 
 optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
-  auto res = getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, false);
-  if (!res)
-    return res.get_error();
-  type = *res;
+  type = TRY(getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, false));
   context.setFullyDefined(type.get().get(), true);
   if (auto err = getRedefinitionError(type->getName(), type->definition))
     return codeLoc.getError(*err);
@@ -1780,25 +1668,17 @@ optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
     return codeLoc.getError("Number of template parameters differs from forward declaration");
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
-  if (auto res = applyRequirements(membersContext, templateInfo))
-    type->requirements = *res;
-  else
-    return res.get_error();
+  type->requirements = TRY(applyRequirements(membersContext, templateInfo));
   unordered_set<string> subtypeNames;
   for (auto& subtype : elements) {
     if (subtypeNames.count(subtype.name))
       return subtype.codeLoc.getError("Duplicate variant alternative: " + quote(subtype.name));
     subtypeNames.insert(subtype.name);
-    if (auto t = membersContext.getTypeFromString(subtype.type))
-      type->alternatives.push_back({subtype.name, *t});
-    else
-      return t.get_error();
+    type->alternatives.push_back({subtype.name, TRY(membersContext.getTypeFromString(subtype.type))});
     vector<SType> params;
-    if (auto subtypeInfo = membersContext.getTypeFromString(subtype.type)) {
-      if (*subtypeInfo != ArithmeticType::VOID)
-        params.push_back(*subtypeInfo);
-    } else
-      return subtypeInfo.get_error();
+    auto subtypeInfo = TRY(membersContext.getTypeFromString(subtype.type));
+    if (subtypeInfo != ArithmeticType::VOID)
+      params.push_back(subtypeInfo);
     auto constructor = FunctionType(type.get(), params, {});
     constructor.parentType = type.get();
     CHECK(!type->staticContext.addImplicitFunction(subtype.name, constructor));
@@ -1816,10 +1696,7 @@ optional<ErrorLoc> VariantDefinition::check(Context& context, bool) {
 }
 
 optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
-  if (auto typeTmp = getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, incomplete))
-    type = *typeTmp;
-  else
-    return typeTmp.get_error();
+  type = TRY(getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, incomplete));
   if (!incomplete) {
     if (auto err = getRedefinitionError(type->getName(), type->definition))
       return codeLoc.getError(*err);
@@ -1830,15 +1707,9 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
           " differs from forward declaration.");
     auto membersContext = Context::withParent(context);
     addTemplateParams(membersContext, type->templateParams, false);
-    if (auto res = applyRequirements(membersContext, templateInfo))
-      type->requirements = *res;
-    else
-      return res.get_error();
+    type->requirements = TRY(applyRequirements(membersContext, templateInfo));
     for (auto& member : members)
-      if (auto memberType = membersContext.getTypeFromString(member.type))
-        type->members.push_back({member.name, *memberType});
-      else
-        return memberType.get_error();
+        type->members.push_back({member.name, TRY(membersContext.getTypeFromString(member.type))});
     for (auto& member : members)
       if (auto error = type->members.back().type->getSizeError(membersContext))
         return member.codeLoc.getError(*error);
@@ -1956,31 +1827,22 @@ ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<Statement> i, unique_pt
 
 optional<ErrorLoc> ForLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
-  if (auto err = init->check(bodyContext))
-    return *err;
-  auto condType = getType(bodyContext, cond);
-  if (!condType)
-    return condType.get_error();
-  if (*condType != ArithmeticType::BOOL)
+  TRY_OPTIONAL(init->check(bodyContext));
+  auto condType = TRY(getType(bodyContext, cond));
+  if (condType != ArithmeticType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
-  auto res = getType(bodyContext, iter);
-  if (!res)
-    return res.get_error();
+  TRY(getType(bodyContext, iter));
   loopId = bodyContext.setIsInLoop();
   return body->check(bodyContext);
 }
 
 optional<ErrorLoc> ForLoopStatement::checkMovesImpl(MoveChecker& checker) const {
-  if (auto err = init->checkMoves(checker))
-    return *err;
+  TRY_OPTIONAL(init->checkMoves(checker));
   checker.startLoop(loopId);
-  if (auto err = cond->checkMoves(checker))
-    return *err;
-  if (auto err = iter->checkMoves(checker))
-    return *err;
+  TRY_OPTIONAL(cond->checkMoves(checker));
+  TRY_OPTIONAL(iter->checkMoves(checker));
   if (auto err = body->checkMoves(checker)) {
-    if (auto err = checker.endLoop(loopId))
-      return err;
+    TRY_OPTIONAL(checker.endLoop(loopId));
     return *err;
   }
   return checker.endLoop(loopId);
@@ -2034,8 +1896,7 @@ WithErrorLine<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled
     ret.push_back(body->replace(counterType, currentCounter, errors));
     if (!errors.empty())
       return errors[0];
-    if (auto err = ret.back()->check(evalContext))
-      return *err;
+    TRY_OPTIONAL(ret.back()->check(evalContext));
     CHECK(iter->eval(evalContext)->value->getMangledName());
     if (++countIter >= maxIterations)
       return codeLoc.getError("Static loop reached maximum number of iterations (" + to_string(maxIterations) + ")");
@@ -2047,22 +1908,14 @@ optional<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
   if (auto err = context.checkNameConflict(counter, "variable"))
     return codeLoc.getError(*err);
   auto bodyContext = Context::withParent(context);
-  if (auto err = checkExpressions(bodyContext))
-    return *err;
-  auto initType = getType(bodyContext, init);
-  if (initType)
-    bodyContext.addVariable(counter, MutableReferenceType::get(getType(bodyContext, init).get()));
-  else
-    return initType.get_error();
-  auto condType = getType(bodyContext, cond);
-  if (!condType)
-    return condType.get_error();
-  if (*condType != ArithmeticType::BOOL)
+  TRY_OPTIONAL(checkExpressions(bodyContext));
+  auto initType = TRY(getType(bodyContext, init));
+  bodyContext.addVariable(counter, MutableReferenceType::get(getType(bodyContext, init).get()));
+  auto condType = TRY(getType(bodyContext, cond));
+  if (condType != ArithmeticType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
-  auto res = getType(bodyContext, iter);
-  if (!res)
-    return res.get_error();
-  auto counterType = CompileTimeValue::getTemplateValue(*initType, counter);
+  auto res = TRY(getType(bodyContext, iter));
+  auto counterType = CompileTimeValue::getTemplateValue(initType, counter);
   bodyContext.addType(counter, counterType);
   auto bodyTemplateContext = Context::withParent(bodyContext);
   bodyTemplateContext.setTemplated();
@@ -2072,12 +1925,8 @@ optional<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
     // This may potentially accept some bad code in some corner cases.
     if (bodyContext.isTemplated())
       return err;
-  if (!bodyContext.isTemplated()) {
-    if (auto res = getUnrolled(context, counterType))
-      unrolled = std::move(*res);
-    else
-      return res.get_error();
-  }
+  if (!bodyContext.isTemplated())
+    unrolled = TRY(getUnrolled(context, counterType));
   return none;
 }
 
@@ -2086,8 +1935,7 @@ optional<ErrorLoc> StaticForLoopStatement::checkMovesImpl(MoveChecker& checker) 
   --loopId;
   checker.startLoop(loopId);
   if (auto err = body->checkMoves(checker)) {
-    if (auto err = checker.endLoop(loopId))
-      return err;
+    TRY_OPTIONAL(checker.endLoop(loopId));
     return *err;
   }
   return checker.endLoop(loopId);
@@ -2108,10 +1956,8 @@ WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, uniq
 
 optional<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
-  auto condType = getType(bodyContext, cond);
-  if (!condType)
-    return condType.get_error();
-  if (*condType != ArithmeticType::BOOL)
+  auto condType = TRY(getType(bodyContext, cond));
+  if (condType != ArithmeticType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
   loopId = bodyContext.setIsInLoop();
   return body->check(bodyContext);
@@ -2119,15 +1965,12 @@ optional<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
 
 optional<ErrorLoc> WhileLoopStatement::checkMovesImpl(MoveChecker& checker) const {
   checker.startLoop(loopId);
-  if (auto err = cond->checkMoves(checker))
-    return *err;
+  TRY_OPTIONAL(cond->checkMoves(checker));
   if (auto err = body->checkMoves(checker)) {
-    if (auto err = checker.endLoop(loopId))
-      return err;
+    TRY_OPTIONAL(checker.endLoop(loopId));
     return *err;
   }
   return checker.endLoop(loopId);
-  return none;
 }
 
 unique_ptr<Statement> WhileLoopStatement::transform(const StmtTransformFun& fun,
@@ -2155,15 +1998,8 @@ optional<ErrorLoc> ImportStatement::processImport(const Context& primaryContext,
     return codeLoc.getError("Public import cycle: " + combine(cache.getCurrentImports(), ", "));
   if (!cache.contains(path)) {
     INFO << "Parsing import " << path;
-    if (auto tokens = lex(content, CodeLoc(path, 0, 0), "end of file")) {
-      if (auto parsed = parse(std::move(*tokens)))
-        ast = unique<AST>(std::move(*parsed));
-      else
-        return parsed.get_error();
-    } else
-      return tokens.get_error();
-    if (auto err = addExportedContext(primaryContext, cache, *ast, path, isBuiltIn, importDirs))
-      return *err;
+    ast = unique<AST>(TRY(parse(TRY(lex(content, CodeLoc(path, 0, 0), "end of file")))));
+    TRY_OPTIONAL(addExportedContext(primaryContext, cache, *ast, path, isBuiltIn, importDirs));
   } else
     INFO << "Import " << path << " already cached";
   context.merge(cache.getContext(path));
@@ -2178,8 +2014,7 @@ optional<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& 
     if (auto content = readFromFile(importPath.c_str())) {
       importPath = fs::canonical(importPath);
       INFO << "Imported file " << importPath;
-      if (auto err = processImport(primaryContext, context, cache, content->value, importPath))
-        return err;
+      TRY_OPTIONAL(processImport(primaryContext, context, cache, content->value, importPath));
       return none;
     }
   }
@@ -2221,10 +2056,8 @@ EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(
 }
 
 WithErrorLine<SType> EnumConstant::getTypeImpl(Context& context) {
-  auto type = context.getTypeFromString(IdentifierInfo(enumName, codeLoc));
-  if (!type)
-    return type.get_error();
-  if (auto enumType = type->dynamicCast<EnumType>()) {
+  auto type = TRY(context.getTypeFromString(IdentifierInfo(enumName, codeLoc)));
+  if (auto enumType = type.dynamicCast<EnumType>()) {
     if (!context.isFullyDefined(enumType.get()))
       return codeLoc.getError("Enum type " + quote(enumType->getName()) + " elements are not known in this context");
     if (!contains(enumType->elements, enumElement))
@@ -2323,10 +2156,7 @@ RangedLoopStatement::RangedLoopStatement(CodeLoc l, unique_ptr<VariableDeclarati
 
 optional<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
-  auto containerTypeTmp = getType(context, container);
-  if (!containerTypeTmp)
-    return containerTypeTmp.get_error();
-  auto containerType = containerTypeTmp.get();
+  auto containerType = TRY(getType(context, container));
   if (containerType->getUnderlying() == containerType)
     containerType = ReferenceType::get(containerType);
   auto uniqueSufix = to_string(codeLoc.line) + "_" + to_string(codeLoc.column);
@@ -2344,16 +2174,11 @@ optional<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)),
       unique<Variable>(IdentifierInfo(containerEndName, codeLoc)), false);
   increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)));
-  if (auto err = init->check(bodyContext))
-    return err;
-  auto condType = getType(bodyContext, condition);
-  if (!condType)
-    return condType.get_error();
-  if (*condType != ArithmeticType::BOOL)
+  TRY_OPTIONAL(init->check(bodyContext));
+  auto condType = TRY(getType(bodyContext, condition));
+  if (condType != ArithmeticType::BOOL)
     return codeLoc.getError("Equality comparison between iterators does not return type " + quote("bool"));
-  auto incType = getType(bodyContext, increment);
-  if (!incType)
-    return incType.get_error();
+  TRY(getType(bodyContext, increment));
   loopId = bodyContext.setIsInLoop();
   return body->check(bodyContext);
 }
@@ -2425,17 +2250,12 @@ ArrayLiteral::ArrayLiteral(CodeLoc codeLoc) : Expression(codeLoc) {
 }
 
 WithErrorLine<SType> ArrayLiteral::getTypeImpl(Context& context) {
-  auto typeTmp = typeId ? context.getTypeFromString(*typeId, false) : getType(context, contents[0]);
-  if (!typeTmp)
-    return typeTmp.get_error();
-  auto ret = typeTmp.get()->getUnderlying();
+  auto typeTmp = TRY(typeId ? context.getTypeFromString(*typeId, false) : getType(context, contents[0]));
+  auto ret = typeTmp->getUnderlying();
   for (int i = 0; i < contents.size(); ++i) {
-    if (i > 0 || !typeId) {
-      typeTmp = getType(context, contents[i]);
-      if (!typeTmp)
-        return typeTmp.get_error();
-    }
-    if (auto error = getVariableInitializationError("construct array", context, ret, typeTmp.get()))
+    if (i > 0 || !typeId)
+      typeTmp = TRY(getType(context, contents[i]));
+    if (auto error = getVariableInitializationError("construct array", context, ret, typeTmp))
       return contents[i]->codeLoc.getError(*error);
   }
   type = ret;
@@ -2451,15 +2271,12 @@ unique_ptr<Expression> ArrayLiteral::transform(const StmtTransformFun&, const Ex
 
 optional<ErrorLoc> ArrayLiteral::checkMoves(MoveChecker& checker) const {
   for (auto& e : contents)
-    if (auto error = e->checkMoves(checker))
-      return error;
+    TRY_OPTIONAL(e->checkMoves(checker));
   return none;
 }
 
 WithErrorLine<SType> getType(Context& context, unique_ptr<Expression>& expr, bool evaluateAtCompileTime) {
-  auto type = expr->getTypeImpl(context);
-  if (!type)
-    return type;
+  auto type = TRY(expr->getTypeImpl(context));
   if (evaluateAtCompileTime) {
     if (auto type = expr->eval(context)) {
       if (type->isConstant)
@@ -2473,11 +2290,9 @@ WithErrorLine<SType> getType(Context& context, unique_ptr<Expression>& expr, boo
 WithErrorLine<nullable<SType>> SwitchStatement::CaseElem::getType(const Context& context) {
   return type.visit(
       [&](const IdentifierInfo& id) -> WithErrorLine<nullable<SType>> {
-        if (auto ret = context.getTypeFromString(id)) {
-          type = ret.get();
-          return nullable<SType>(ret.get());
-        } else
-          return ret.get_error();
+        auto ret = TRY(context.getTypeFromString(id));
+        type = ret;
+        return nullable<SType>(ret);
       },
       [](const SType& t) -> WithErrorLine<nullable<SType>> { return nullable<SType>(t);},
       [](none_t) -> WithErrorLine<nullable<SType>> { return nullable<SType>(); }
@@ -2514,10 +2329,7 @@ ExternConstantDeclaration::ExternConstantDeclaration(CodeLoc l, IdentifierInfo t
 optional<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
   if (auto err = context.checkNameConflict(identifier, "Variable"))
     return codeLoc.getError(*err);
-  if (auto t = context.getTypeFromString(type))
-    realType = *t;
-  else
-    return t.get_error();
+  realType = TRY(context.getTypeFromString(type));
   if (realType == ArithmeticType::VOID)
     return codeLoc.getError("Can't declare constant of type " + quote(ArithmeticType::VOID->getName()));
   INFO << "Adding extern constant " << identifier << " of type " << realType.get()->getName();
@@ -2537,33 +2349,25 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   nullable<SType> retType;
   if (recheck)
     retType = type->functionInfo->type.retVal;
-  else if (returnType) {
-    if (auto res = context.getTypeFromString(*returnType))
-      retType = *res;
-    else
-      return res.get_error();
-  }
+  else if (returnType)
+    retType = TRY(context.getTypeFromString(*returnType));
   auto bodyContext = Context::withParent(context);
   ReturnTypeChecker returnChecker(retType);
   bodyContext.addReturnTypeChecker(&returnChecker);
-  auto captureTypes = bodyContext.setLambda(captures);
-  if (!captureTypes)
-    return captureTypes.get_error();
+  auto captureTypes = TRY(bodyContext.setLambda(captures));
   vector<SType> params;
   if (!recheck) {
     type = shared<LambdaType>();
-    type->captures = *captureTypes;
+    type->captures = captureTypes;
     for (auto& param : parameters)
       type->parameterNames.push_back(param.name);
     params.push_back(PointerType::get(type.get()));
     set<string> paramNames;
     for (auto& param : parameters) {
-      auto type = bodyContext.getTypeFromString(param.type);
-      if (!type)
-        return type.get_error();
-      if (*type == ArithmeticType::VOID)
-        return param.codeLoc.getError("Function parameter may not have " + quote(type->get()->getName()) + " type");
-      auto varType = param.isMutable ? SType(MutableReferenceType::get(*type)) : SType(ReferenceType::get(*type));
+      auto type = TRY(bodyContext.getTypeFromString(param.type));
+      if (type == ArithmeticType::VOID)
+        return param.codeLoc.getError("Function parameter may not have " + quote(type->getName()) + " type");
+      auto varType = param.isMutable ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
       params.push_back(varType);
       if (param.name) {
         bodyContext.addVariable(*param.name, varType);
@@ -2580,8 +2384,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
     }
   recheck = false;
   auto bodyContext2 = Context::withParent(bodyContext);
-  if (auto err = block->check(bodyContext2))
-    return *err;
+  TRY_OPTIONAL(block->check(bodyContext2));
   if (!returnType)
     retType = returnChecker.getReturnType();
   if (!type->functionInfo) {
@@ -2589,8 +2392,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
     auto functioInfo = FunctionInfo::getImplicit("invoke"s, std::move(functionType));
     type->functionInfo = std::move(functioInfo);
   }
-  if (auto err = checkBodyMoves())
-    return *err;
+  TRY_OPTIONAL(checkBodyMoves());
   auto blockCopy = block->deepCopy();
   auto err = blockCopy->check(bodyContext);
   CHECK(!err) << err->loc.toString() << " " << err->error;
@@ -2645,12 +2447,8 @@ WithErrorLine<SType> CountOfExpression::getTypeImpl(Context& context) {
     if (context.getTypeOfVariable(identifier))
       return codeLoc.getError("Expected variable or type pack");
     auto& variablePack = context.getVariablePack();
-    if (!variablePack || variablePack->name != identifier) {
-      if (auto t = context.getTypeFromString(IdentifierInfo(identifier, codeLoc), true))
-        type = *t;
-      else
-        return t;
-    }
+    if (!variablePack || variablePack->name != identifier)
+      type = TRY(context.getTypeFromString(IdentifierInfo(identifier, codeLoc), true));
   }
   return SType(ArithmeticType::INT);
 }
