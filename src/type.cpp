@@ -555,10 +555,7 @@ optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement,
     auto realType = getAlternativeType(caseId).get();
     if (realType != ArithmeticType::VOID)
       caseElem.varType = caseElem.VALUE;
-    auto caseTypeTmp = caseElem.getType(outsideContext);
-    if (!caseTypeTmp)
-      return caseTypeTmp.get_error();
-    if (auto caseType = caseTypeTmp.get()) {
+    if (auto caseType = TRY(caseElem.getType(outsideContext))) {
       if (caseType != realType && caseType->removePointer() != realType)
         return caseElem.codeloc.getError(
             "Can't handle variant element " + quote(caseId) + " of type " +
@@ -846,8 +843,7 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
   for (auto& arg : templateArgs)
     if (arg.dynamicCast<CompileTimeValue>() && !arg->getType()->canBeValueTemplateParam())
       return loc.getError("Value template parameter cannot have type " + quote(arg->getType()->getName()));
-  if (auto err = checkRequirements(context, ret.dynamicCast<StructType>()->requirements, loc, {}))
-    return *err;
+  TRY_OPTIONAL(checkRequirements(context, ret.dynamicCast<StructType>()->requirements, loc, {}));
   if (!errors.empty())
     return loc.getError(errors[0]);
   return (SType) ret;
@@ -1058,8 +1054,7 @@ static optional<ErrorLoc> getConversionError(const Context& context, const SFunc
 WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo& input, CodeLoc codeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing) {
   FunctionType type = input->type;
-  if (auto error = expandVariadicTemplate(type, codeLoc, templateArgs, argTypes))
-    return *error;
+  TRY_OPTIONAL(expandVariadicTemplate(type, codeLoc, templateArgs, argTypes));
   if (type.params.size() != argTypes.size())
     return codeLoc.getError("Wrong number of function arguments. Expected " +
         to_string(type.params.size()) + " got " + to_string(argTypes.size()));
@@ -1069,8 +1064,7 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
   TypeMapping mapping { type.templateParams, vector<nullable<SType>>(type.templateParams.size()) };
   for (int i = 0; i < templateArgs.size(); ++i)
     mapping.templateArgs[i] = templateArgs[i];
-  if (auto err = getConversionError(context, input, argTypes, argLoc, type.params, mapping))
-    return *err;
+  TRY_OPTIONAL(getConversionError(context, input, argTypes, argLoc, type.params, mapping));
   for (int i = 0; i < type.templateParams.size(); ++i) {
     if (i >= templateArgs.size()) {
       if (auto deduced = mapping.templateArgs[i])
@@ -1096,8 +1090,7 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
         return FunctionInfo::getInstance(input->id, type, input);
   existing.push_back(input->type);
   //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
-  if (auto err = checkRequirements(context, type.requirements, codeLoc, existing))
-    return *err;
+  TRY_OPTIONAL(checkRequirements(context, type.requirements, codeLoc, existing));
   // The replace() errors need to be checked after returning potential requirement errors.
   if (!errors.empty())
     return codeLoc.getError(errors[0]);
