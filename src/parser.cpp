@@ -127,7 +127,7 @@ WithErrorLine<unique_ptr<Expression>> parseStringLiteral(CodeLoc initialLoc, str
     if (!left)
       left = std::move(right);
     else
-      left = BinaryExpression::get(loc, Operator::PLUS, std::move(left), std::move(right), false);
+      left = BinaryExpression::get(loc, Operator::PLUS, std::move(left), std::move(right));
   };
   regex re(getInputReg());
   auto words_begin = sregex_iterator(literal.begin(), literal.end(), re);
@@ -351,7 +351,6 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
       if (getPrecedence(*op1) < minPrecedence)
         break;
       tokens.popNext();
-      bool inBrackets = tokens.peek() == Keyword::OPEN_BRACKET;
       auto rhs = TRY(parsePrimary(tokens));
       while (1) {
         token = tokens.peek();
@@ -363,20 +362,19 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
               (!isRightAssociative(*op2) || getPrecedence(*op2) < getPrecedence(*op1)))
             break;
           rhs = TRY(parseExpressionImpl(tokens, std::move(rhs), getPrecedence(*op2)));
-          inBrackets = false;
         } else
         if (token == Keyword::MEMBER_ACCESS || token == Keyword::ARROW_MEMBER_ACCESS)
           rhs = TRY(parseMemberAccess(tokens, std::move(rhs)));
         else
           break;
       }
-      lhs = BinaryExpression::get(token.codeLoc, *op1, std::move(lhs), std::move(rhs), inBrackets);
+      lhs = BinaryExpression::get(token.codeLoc, *op1, std::move(lhs), std::move(rhs));
     } else
     if (token == Keyword::OPEN_SQUARE_BRACKET) {
       tokens.popNext();
       auto rhs = TRY(parseExpression(tokens));
       TRY(tokens.eat(Keyword::CLOSE_SQUARE_BRACKET));
-      lhs = BinaryExpression::get(token.codeLoc, Operator::SUBSCRIPT, std::move(lhs), std::move(rhs), false);
+      lhs = BinaryExpression::get(token.codeLoc, Operator::SUBSCRIPT, std::move(lhs), std::move(rhs));
     } else
     if (token == Keyword::MEMBER_ACCESS || token == Keyword::ARROW_MEMBER_ACCESS) {
       lhs = TRY(parseMemberAccess(tokens, std::move(lhs)));

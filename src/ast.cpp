@@ -251,27 +251,25 @@ static WithErrorLine<SFunctionInfo> handleOperatorOverloads(Context& context, Co
   }
 }
 
-unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr, bool rightWithBrackets) {
+unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr) {
   switch (op) {
     case Operator::NOT_EQUAL:
-      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::EQUALS, std::move(expr), rightWithBrackets));
+      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::EQUALS, std::move(expr)));
     case Operator::LESS_OR_EQUAL:
-      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::MORE_THAN, std::move(expr), rightWithBrackets));
+      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::MORE_THAN, std::move(expr)));
     case Operator::MORE_OR_EQUAL:
-      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::LESS_THAN, std::move(expr), rightWithBrackets));
+      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::LESS_THAN, std::move(expr)));
     default:
-      return unique<BinaryExpression>(Private{}, loc, op, std::move(expr), rightWithBrackets);
+      return unique<BinaryExpression>(Private{}, loc, op, std::move(expr));
   }
 }
 
-unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, unique_ptr<Expression> a,
-    unique_ptr<Expression> b, bool rightWithBrackets) {
-  return get(loc, op, makeVec<unique_ptr<Expression>>(std::move(a), std::move(b)), rightWithBrackets);
+unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, unique_ptr<Expression> a, unique_ptr<Expression> b) {
+  return get(loc, op, makeVec<unique_ptr<Expression>>(std::move(a), std::move(b)));
 }
 
-BinaryExpression::BinaryExpression(BinaryExpression::Private, CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr,
-      bool rightWithBrackets)
-    : Expression(loc), op(op), expr(std::move(expr)), rightWithBrackets(rightWithBrackets) {}
+BinaryExpression::BinaryExpression(BinaryExpression::Private, CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr)
+    : Expression(loc), op(op), expr(std::move(expr)) {}
 
 WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
   switch (op) {
@@ -317,7 +315,7 @@ unique_ptr<Expression> BinaryExpression::expandVar(string from, vector<string> t
 }
 
 unique_ptr<Expression> BinaryExpression::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
-  return get(codeLoc, op, fun(expr[0].get()), fun(expr[1].get()), rightWithBrackets);
+  return get(codeLoc, op, fun(expr[0].get()), fun(expr[1].get()));
 }
 
 JustError<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
@@ -838,7 +836,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCall
     return unique_ptr<Expression>(unique<UnaryExpression>(codeLoc, op, std::move(arguments[0])));
   else {
     CHECK(parameters.size() == 2);
-    return unique_ptr<Expression>(BinaryExpression::get(codeLoc, op, std::move(arguments), false));
+    return unique_ptr<Expression>(BinaryExpression::get(codeLoc, op, std::move(arguments)));
   }
 }
 
@@ -1373,7 +1371,7 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
       expandedVars.push_back(getExpandedParamName("SomeVar", expanded.size()));
       ErrorBuffer errors;
       context.addVariable(expandedVars.back(),
-          variablePack->type->replace(callContext.getTypePack().get(), expanded.back(), errors), call->arguments.back()->codeLoc);
+          variablePack->type->replace(callContext.getTypePack().get(), expanded.back(), errors), codeLoc);
       if (!errors.empty())
         return codeLoc.getError(errors[0]);
     }
@@ -2109,7 +2107,7 @@ JustError<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
       unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, unique<Variable>(IdentifierInfo(*containerName, codeLoc))), false);
   init->isMutable = true;
   condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)),
-      unique<Variable>(IdentifierInfo(containerEndName, codeLoc)), false);
+      unique<Variable>(IdentifierInfo(containerEndName, codeLoc)));
   increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)));
   TRY(init->check(bodyContext));
   auto condType = TRY(getType(bodyContext, condition));

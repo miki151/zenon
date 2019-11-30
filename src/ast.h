@@ -121,8 +121,8 @@ struct MemberIndexExpression : Expression {
 };
 
 struct BinaryExpression : Expression {
-  static unique_ptr<Expression> get(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>, bool rightWithBrackets);
-  static unique_ptr<Expression> get(CodeLoc, Operator, vector<unique_ptr<Expression>>, bool rightWithBrackets);
+  static unique_ptr<Expression> get(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>);
+  static unique_ptr<Expression> get(CodeLoc, Operator, vector<unique_ptr<Expression>>);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual JustResult<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> expandVar(string from, vector<string> to) const override;
@@ -133,8 +133,7 @@ struct BinaryExpression : Expression {
   vector<unique_ptr<Expression>> expr;
   nullable<SFunctionInfo> functionInfo;
   struct Private {};
-  BinaryExpression(Private, CodeLoc, Operator, vector<unique_ptr<Expression>>, bool rightWithBrackets);
-  bool rightWithBrackets = false;
+  BinaryExpression(Private, CodeLoc, Operator, vector<unique_ptr<Expression>>);
 };
 
 struct UnaryExpression : Expression {
