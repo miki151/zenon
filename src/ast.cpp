@@ -96,7 +96,7 @@ WithErrorLine<SType> Constant::getTypeImpl(Context&) {
   return value->getType();
 }
 
-optional<EvalResult> Constant::eval(const Context&) const {
+JustResult<EvalResult> Constant::eval(const Context&) const {
   return EvalResult{ value, true};
 }
 
@@ -128,7 +128,7 @@ WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
   return codeLoc.getError(varError.value_or("Identifier not found: " + identifier.prettyString()));
 }
 
-optional<EvalResult> Variable::eval(const Context& context) const {
+JustResult<EvalResult> Variable::eval(const Context& context) const {
   auto res = context.getTypeFromString(identifier);
   if (res) {
     auto value = res.get().dynamicCast<CompileTimeValue>();
@@ -296,14 +296,10 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
   }
 }
 
-optional<EvalResult> BinaryExpression::eval(const Context& context) const {
-  if (auto value1 = expr[0]->eval(context)) {
-    if (auto value2 = expr[1]->eval(context)) {
-      if (auto res = ::eval(op, {value1->value, value2->value}))
-        return EvalResult{res.get(), value1->isConstant && value2->isConstant};
-    }
-  }
-  return none;
+JustResult<EvalResult> BinaryExpression::eval(const Context& context) const {
+  auto value1 = TRY(expr[0]->eval(context));
+  auto value2 = TRY(expr[1]->eval(context));
+  return EvalResult{TRY(::eval(op, {value1.value, value2.value})), value1.isConstant && value2.isConstant};
 }
 
 unique_ptr<Expression> BinaryExpression::expandVar(string from, vector<string> to) const {
@@ -346,12 +342,9 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
   return functionInfo->type.retVal;
 }
 
-optional<EvalResult> UnaryExpression::eval(const Context& context) const {
-  if (auto value = expr->eval(context)) {
-      if (auto res = ::eval(op, {value->value}))
-        return EvalResult{res.get(), value->isConstant};
-  }
-  return none;
+JustResult<EvalResult> UnaryExpression::eval(const Context& context) const {
+  auto value = TRY(expr->eval(context));
+  return EvalResult{TRY(::eval(op, {value.value})), value.isConstant};
 }
 
 unique_ptr<Expression> UnaryExpression::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
@@ -638,13 +631,11 @@ static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const 
 static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const shared_ptr<Expression>& expr1, bool variadicRequirements) {
   auto expr = expr1->deepCopy();
   TRY(getType(from, expr));
-  if (auto value = expr->eval(from)) {
-    if (value->value->getType() != ArithmeticType::BOOL)
-      return expr->codeLoc.getError("Expected expression of type " + quote(ArithmeticType::BOOL->getName()) +
-          ", got " + quote(value->value->getType()->getName()));
-    return TemplateRequirement(shared_ptr<Expression>(std::move(expr)), false);
-  } else
-    return expr1->codeLoc.getError("Unable to evaluate expression at compile-time");
+  auto value = TRY(expr->eval(from).addError(expr1->codeLoc.getError("Unable to evaluate expression at compile-time")));
+  if (value.value->getType() != ArithmeticType::BOOL)
+    return expr->codeLoc.getError("Expected expression of type " + quote(ArithmeticType::BOOL->getName()) +
+        ", got " + quote(value.value->getType()->getName()));
+  return TemplateRequirement(shared_ptr<Expression>(std::move(expr)), false);
 }
 
 NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyRequirements(Context& from, const TemplateInfo& requirements) {
@@ -1444,17 +1435,14 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
   return *error;
 }
 
-optional<EvalResult> FunctionCall::eval(const Context& context) const {
+JustResult<EvalResult> FunctionCall::eval(const Context& context) const {
   if (identifier)
     if (auto name = identifier->asBasicIdentifier()) {
       vector<SType> args;
       vector<CodeLoc> locs;
       for (auto& e : arguments) {
         locs.push_back(e->codeLoc);
-        if (auto res = e->eval(context))
-          args.push_back(res->value);
-        else
-          return res;
+        args.push_back(TRY(e->eval(context)).value);
       }
       if (auto res = context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs)))
         return EvalResult{res.get(), true};
@@ -1824,18 +1812,12 @@ StaticForLoopStatement::StaticForLoopStatement(CodeLoc l, string counter, unique
 
 JustError<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& bodyContext) const {
   auto context = Context::withParent(bodyContext);
-  auto initVal = init->eval(context);
-  if (!initVal)
-    return init->codeLoc.getError("Unable to evaluate expression at compile time");
-  context.addType(counter, CompileTimeValue::getReference(initVal->value.dynamicCast<CompileTimeValue>()));
-  auto condVal = cond->eval(context);
-  if (!condVal)
-    return cond->codeLoc.getError("Unable to evaluate expression at compile time");
-  if (condVal->value->getType()->getUnderlying() != ArithmeticType::BOOL)
+  auto initVal = TRY(init->eval(context).addError(init->codeLoc.getError("Unable to evaluate expression at compile time")));
+  context.addType(counter, CompileTimeValue::getReference(initVal.value.dynamicCast<CompileTimeValue>()));
+  auto condVal = TRY(cond->eval(context).addError(cond->codeLoc.getError("Unable to evaluate expression at compile time")));
+  if (condVal.value->getType()->getUnderlying() != ArithmeticType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote(ArithmeticType::BOOL->getName()));
-  auto iterVal = iter->eval(context);
-  if (!iterVal)
-    return iter->codeLoc.getError("Unable to evaluate expression at compile time");
+  TRY(iter->eval(context).addError(iter->codeLoc.getError("Unable to evaluate expression at compile time")));
   return none;
 }
 
@@ -1980,7 +1962,7 @@ JustError<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache&
   return codeLoc.getError("Couldn't resolve import path: " + path);
 }
 
-optional<EvalResult> Expression::eval(const Context&) const {
+JustResult<EvalResult> Expression::eval(const Context&) const {
   return none;
 }
 
@@ -2025,7 +2007,7 @@ WithErrorLine<SType> EnumConstant::getTypeImpl(Context& context) {
   return type;
 }
 
-optional<EvalResult> EnumConstant::eval(const Context& context) const {
+JustResult<EvalResult> EnumConstant::eval(const Context& context) const {
   if (auto type = context.getTypeFromString(IdentifierInfo(enumName, codeLoc))) {
     if (auto enumType = type->dynamicCast<EnumType>()) {
       for (int i = 0; i < enumType->elements.size(); ++i)
@@ -2420,7 +2402,7 @@ unique_ptr<Expression> CountOfExpression::transform(const StmtTransformFun&, con
   return unique<CountOfExpression>(codeLoc, identifier);
 }
 
-optional<EvalResult> CountOfExpression::eval(const Context&) const {
+JustResult<EvalResult> CountOfExpression::eval(const Context&) const {
   if (count)
     return EvalResult{CompileTimeValue::get(*count), true};
   else
@@ -2486,15 +2468,13 @@ MemberIndexExpression::MemberIndexExpression(CodeLoc l, unique_ptr<Expression> l
   : Expression(l), lhs(std::move(lhs)), index(std::move(index)) {}
 
 WithErrorLine<SType> MemberIndexExpression::getTypeImpl(Context& context) {
-  if (auto value = index->eval(context)) {
-    auto leftType = TRY(lhs->getTypeImpl(context));
-    if (auto res = leftType.get()->getSizeError(context); !res)
-      return codeLoc.getError(leftType.get()->getName() + res.get_error());
-    auto member = TRY(leftType->getTypeOfMember(value->value).addCodeLoc(codeLoc));
-    memberName = member.name;
-    return member.type;
-  } else
-    return index->codeLoc.getError("Unable to evaluate constant expression at compile-time");
+  auto value = TRY(index->eval(context).addError(index->codeLoc.getError("Unable to evaluate constant expression at compile-time")));
+  auto leftType = TRY(lhs->getTypeImpl(context));
+  if (auto res = leftType.get()->getSizeError(context); !res)
+    return codeLoc.getError(leftType.get()->getName() + res.get_error());
+  auto member = TRY(leftType->getTypeOfMember(value.value).addCodeLoc(codeLoc));
+  memberName = member.name;
+  return member.type;
 }
 
 unique_ptr<Expression> MemberIndexExpression::transform(const StmtTransformFun& fun1, const ExprTransformFun& fun2) const {

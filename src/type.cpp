@@ -1373,7 +1373,7 @@ SType CompileTimeValue::replaceImpl(SType from, SType to, ErrorBuffer& errors) c
       [&](const TemplateExpression& value) {
         if (auto ret = ::eval(value.op, transform(value.args,
             [&](const SType& t){ return t->replace(from, to, errors); })))
-          return ret.get();
+          return *ret;
         else {
           errors.push_back("Can't evaluate operator " + quote(getString(value.op)));
           return get_this().get();

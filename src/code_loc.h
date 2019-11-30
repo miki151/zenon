@@ -82,11 +82,33 @@ template <>
 class [[nodiscard]] JustError<string> : public expected<none_t, string> {
   public:
   using expected<none_t, string>::expected;
-  JustError<ErrorLoc> addCodeLoc(CodeLoc loc) {
+  JustError<ErrorLoc> addCodeLoc(CodeLoc loc) const {
     if (*this)
       return **this;
     else
       return JustError<ErrorLoc>(loc.getError(this->get_error()));
+  }
+};
+
+template <typename T>
+class [[nodiscard]] JustResult : public optional<T> {
+  public:
+  using optional<T>::optional;
+  WithError<T> addError(string s) const {
+    if (*this)
+      return **this;
+    else
+      return s;
+  }
+  WithErrorLine<T> addError(ErrorLoc l) const {
+    if (*this)
+      return **this;
+    else
+      return l;
+  }
+  auto get_error() const {
+    CHECK(!*this);
+    return none;
   }
 };
 
