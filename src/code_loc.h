@@ -68,7 +68,25 @@ class [[nodiscard]] WithError : public expected<T, string> {
     if (*this)
       return **this;
     else
-      return WithErrorLine<T>(ErrorLoc{loc, this->get_error()});
+      return WithErrorLine<T>(loc.getError(this->get_error()));
+  }
+};
+
+template <typename T>
+class [[nodiscard]] JustError : public expected<none_t, T> {
+  public:
+  using expected<none_t, T>::expected;
+};
+
+template <>
+class [[nodiscard]] JustError<string> : public expected<none_t, string> {
+  public:
+  using expected<none_t, string>::expected;
+  JustError<ErrorLoc> addCodeLoc(CodeLoc loc) {
+    if (*this)
+      return **this;
+    else
+      return JustError<ErrorLoc>(loc.getError(this->get_error()));
   }
 };
 

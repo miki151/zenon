@@ -55,8 +55,8 @@ class Context : public owned_object<Context> {
   bool isFullyDefined(const Type*) const;
   void setFullyDefined(const Type*, bool);
   vector<SType> getAllTypes() const;
-  NODISCARD optional<string> addImplicitFunction(FunctionId, FunctionType);
-  NODISCARD optional<string> addFunction(SFunctionInfo);
+  NODISCARD JustError<string> addImplicitFunction(FunctionId, FunctionType);
+  NODISCARD JustError<string> addFunction(SFunctionInfo);
   WithError<IdentifierType> getIdentifierType(const IdentifierInfo&) const;
   WithError<vector<SFunctionInfo>> getFunctionTemplate(IdentifierType) const;
   nullable<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
@@ -65,8 +65,8 @@ class Context : public owned_object<Context> {
   vector<SFunctionInfo> getOperatorType(Operator) const;
   nullable<SFunctionInfo> getBuiltinOperator(Operator, vector<SType> argTypes) const;
   bool canDefaultInitialize(SType) const;
-  NODISCARD optional<string> checkNameConflict(const string& name, const string& type) const;
-  NODISCARD optional<string> checkNameConflictExcludingFunctions(const string& name, const string& type) const;
+  NODISCARD JustError<string> checkNameConflict(const string& name, const string& type) const;
+  NODISCARD JustError<string> checkNameConflictExcludingFunctions(const string& name, const string& type) const;
   void addConcept(const string& name, SConcept);
   nullable<SConcept> getConcept(const string& name) const;
   void print() const;

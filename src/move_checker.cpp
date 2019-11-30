@@ -41,7 +41,7 @@ void MoveChecker::endBlock() {
     }
 }
 
-optional<ErrorLoc> MoveChecker::endLoop(int loopId) {
+JustError<ErrorLoc> MoveChecker::endLoop(int loopId) {
   auto& block = blocks.back();
   CHECK(block.type == BlockType::LOOP);
   for (auto& move : block.moves) {
@@ -63,7 +63,7 @@ void MoveChecker::breakStatement(int loopId) {
   }
 }
 
-optional<string> MoveChecker::continueStatement() {
+JustError<string> MoveChecker::continueStatement() {
   for (int i = blocks.size() - 1; i >= 0; --i) {
     for (auto& move : blocks[i].moves)
       if (!move.loopId)
@@ -98,7 +98,7 @@ void MoveChecker::clearStatementUsages() {
   statementUsages.clear();
 }
 
-optional<string> MoveChecker::moveVariable(CodeLoc loc, const string& name) {
+JustError<string> MoveChecker::moveVariable(CodeLoc loc, const string& name) {
   if (auto loc = wasMoved(name))
     return "Variable " + name + " has already been moved here: " + loc->toString();
   for (auto& usage : statementUsages)
@@ -109,7 +109,7 @@ optional<string> MoveChecker::moveVariable(CodeLoc loc, const string& name) {
   return none;
 }
 
-optional<string> MoveChecker::getUsageError(const string& name) {
+JustError<string> MoveChecker::getUsageError(const string& name) {
   if (auto loc = wasMoved(name))
     return "Variable " + name + " has been moved here:" + loc->toString();
   for (auto& usage : statementUsages)

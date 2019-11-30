@@ -7,7 +7,7 @@ class Context;
 class ReturnTypeChecker {
   public:
   ReturnTypeChecker(nullable<SType> explicitReturn);
-  optional<string> addReturnStatement(const Context&, SType);
+  JustError<string> addReturnStatement(const Context&, SType);
   SType getReturnType() const;
 
   private:

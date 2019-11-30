@@ -1,6 +1,7 @@
 #pragma once
 
 #include "util.h"
+#include "code_loc.h"
 
 class CodeLoc;
 class ErrorLoc;
@@ -11,14 +12,14 @@ class MoveChecker {
   void endBlock();
   void newAlternative();
   void startLoop(int loopId);
-  NODISCARD optional<ErrorLoc> endLoop(int loopId);
+  NODISCARD JustError<ErrorLoc> endLoop(int loopId);
   void breakStatement(int loopId);
-  NODISCARD optional<string> continueStatement();
+  NODISCARD JustError<string> continueStatement();
   void returnStatement();
   void addVariable(string name);
   void clearStatementUsages();
-  NODISCARD optional<string> moveVariable(CodeLoc, const string& name);
-  NODISCARD optional<string> getUsageError(const string& name);
+  NODISCARD JustError<string> moveVariable(CodeLoc, const string& name);
+  NODISCARD JustError<string> getUsageError(const string& name);
   ~MoveChecker();
   MoveChecker();
   MoveChecker(const MoveChecker&) = delete;

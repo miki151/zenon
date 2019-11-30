@@ -45,11 +45,11 @@ class expected {
   }
 
   const T& operator * () const {
-    return *elem.template getReferenceMaybe<T>();
+    return elem.template get<T>();
   }
 
   T& operator * () {
-    return *elem.template getReferenceMaybe<T>();
+    return elem.template get<T>();
   }
   
   const T& get_value() const {

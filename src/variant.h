@@ -181,6 +181,16 @@ class variant : public stx::variant<Arg...> {
   }
 
   template<typename T>
+  T& get() {
+    return stx::get<T>(*this);
+  }
+
+  template<typename T>
+  const T& get() const {
+    return stx::get<T>(*this);
+  }
+
+  template<typename T>
   optional<T> getValueMaybe() const {
     if (auto val = stx::get_if<T>(*this))
       return *val;

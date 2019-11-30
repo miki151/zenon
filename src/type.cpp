@@ -168,7 +168,7 @@ string EnumType::getName(bool withTemplateArguments) const {
   return name;
 }
 
-optional<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
+JustError<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
   statement.type = SwitchStatement::ENUM;
   statement.targetType = (SType)get_this();
   unordered_set<string> handledElems;
@@ -183,8 +183,7 @@ optional<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, C
             + " handled more than once in switch statement");
       handledElems.insert(id);
     }
-    if (auto err = caseElem.block->check(context))
-      return err;
+    TRY(caseElem.block->check(context));
   }
   if (!statement.defaultBlock) {
     vector<string> unhandled;
@@ -198,8 +197,7 @@ optional<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, C
     if (handledElems.size() == elements.size())
       return statement.defaultBlock->codeLoc.getError(
           "Default switch statement unnecessary when all enum elements are handled");
-    if (auto err = statement.defaultBlock->check(context))
-      return err;
+    TRY(statement.defaultBlock->check(context));
   }
   return none;
 }
@@ -423,7 +421,7 @@ SType Type::removePointer() const {
   return get_this().get();
 }
 
-optional<string> Type::getSizeError(const Context&) const {
+JustError<string> Type::getSizeError(const Context&) const {
   return none;
 }
 
@@ -459,7 +457,7 @@ bool MutableReferenceType::canAssign(SType from) const {
   return underlying == from->getUnderlying();
 }
 
-static optional<string> checkMembers(const Context& context, set<const Type*> &visited, const SType& t) {
+static JustError<string> checkMembers(const Context& context, set<const Type*> &visited, const SType& t) {
   if (auto s = t.dynamicCast<StructType>()) {
     if (visited.count(t.get()))
       return "Type " + t->getName() + " has infinite size"s;
@@ -467,22 +465,20 @@ static optional<string> checkMembers(const Context& context, set<const Type*> &v
       return "Type " + t->getName() + " is incomplete in this context"s;
     visited.insert(t.get());
     for (auto& member : s->members)
-      if (auto res = checkMembers(context, visited, member.type))
-        return res;
+      TRY(checkMembers(context, visited, member.type));
     for (auto& member : s->alternatives)
-      if (auto res = checkMembers(context, visited, member.type))
-        return res;
+      TRY(checkMembers(context, visited, member.type));
     visited.erase(t.get());
   }
   return none;
 }
 
-optional<string> StructType::getSizeError(const Context& context) const {
+JustError<string> StructType::getSizeError(const Context& context) const {
   set<const Type*> visited;
   return checkMembers(context, visited, get_this().get());
 }
 
-optional<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
+JustError<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
   return underlying->handleSwitchStatement(statement, context, SwitchArgument::REFERENCE);
 }
 
@@ -504,7 +500,7 @@ SType ReferenceType::removePointer() const {
   return underlying->removePointer();
 }
 
-optional<ErrorLoc> MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
+JustError<ErrorLoc> MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
   return underlying->handleSwitchStatement(statement, context, SwitchArgument::MUTABLE_REFERENCE);
 }
 
@@ -526,7 +522,7 @@ SType MutableReferenceType::removePointer() const {
   return underlying->removePointer();
 }
 
-optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext,
+JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext,
     SwitchArgument argumentType) const {
   if (alternatives.empty())
     return statement.codeLoc.getError("Can't switch on a struct type");
@@ -586,8 +582,7 @@ optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement,
             "Try binding to a pointer or move from the variable that you are switching on");
       caseBodyContext.addVariable(caseId, ReferenceType::get(realType));
     }
-    if (auto err = caseElem.block->check(caseBodyContext))
-      return err;
+    TRY(caseElem.block->check(caseBodyContext));
   }
   if (!statement.defaultBlock) {
     vector<string> unhandled;
@@ -601,8 +596,7 @@ optional<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement,
     if (handledTypes.size() == alternatives.size())
       return statement.defaultBlock->codeLoc.getError(
           "Default switch statement unnecessary when all variant cases are handled");
-    if (auto err = statement.defaultBlock->check(outsideContext))
-      return err;
+    TRY(statement.defaultBlock->check(outsideContext));
   }
   return none;
 }
@@ -803,7 +797,7 @@ Context& Type::getStaticContext() {
   return staticContext;
 }
 
-optional<ErrorLoc> Type::handleSwitchStatement(SwitchStatement& s, Context&, SwitchArgument) const {
+JustError<ErrorLoc> Type::handleSwitchStatement(SwitchStatement& s, Context&, SwitchArgument) const {
   return s.codeLoc.getError("Can't switch on the value of type " + quote(getName()));
 }
 
@@ -864,7 +858,7 @@ static string getCantBindError(const SType& from, const SType& to) {
   return "Can't bind type " + quote(from->getName()) + " to parameter of type " + quote(to->getName());
 }
 
-static optional<string> getDeductionError(const Context& context, TypeMapping& mapping, SType paramType, SType argType) {
+static JustError<string> getDeductionError(const Context& context, TypeMapping& mapping, SType paramType, SType argType) {
   if (auto index = mapping.getParamIndex(paramType)) {
     auto& arg = mapping.templateArgs[*index];
     if (arg && arg != argType)
@@ -875,23 +869,22 @@ static optional<string> getDeductionError(const Context& context, TypeMapping& m
     return paramType->getMappingError(context, mapping, argType);
 }
 
-optional<string> StructType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> StructType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
   auto argStruct = argType.dynamicCast<StructType>();
   if (!argStruct || parent.get() != argStruct->parent.get())
     return "Can't bind type " + quote(argType->getName()) + " to struct type " + quote(getName());
   for (int i = 0; i < templateParams.size(); ++i)
-    if (auto error = ::getDeductionError(context, mapping, templateParams[i], argStruct->templateParams[i]))
-      return error;
+    TRY(::getDeductionError(context, mapping, templateParams[i], argStruct->templateParams[i]));
   return none;
 }
 
-optional<string> PointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> PointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
   if (auto argPointer = argType.dynamicCast<PointerType>())
     return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
   return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
 }
 
-optional<string> MutablePointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> MutablePointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
   if (auto argPointer = argType.dynamicCast<MutablePointerType>())
     return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
   return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
@@ -905,18 +898,18 @@ SType MutablePointerType::removePointer() const {
   return underlying;
 }
 
-optional<string> ReferenceType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
+JustError<string> ReferenceType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
   return ::getDeductionError(context, mapping, underlying, from->getUnderlying());
 }
 
-optional<string> MutableReferenceType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
+JustError<string> MutableReferenceType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
   if (auto argRef = from.dynamicCast<MutableReferenceType>())
     return ::getDeductionError(context, mapping, underlying, argRef->underlying);
   else
     return getCantBindError(from, get_this().get());
 }
 
-optional<string> Type::getMappingError(const Context&, TypeMapping&, SType argType) const {
+JustError<string> Type::getMappingError(const Context&, TypeMapping&, SType argType) const {
   if (argType == get_this().get())
     return none;
   else
@@ -1037,9 +1030,9 @@ static optional<ErrorLoc> getConversionError(const Context& context, const SFunc
       for (auto tArg : context.getConversions(argTypes[i]))
         if (!input->id.contains<Operator>() || tArg == argTypes[i] ||
             (tArg.dynamicCast<ArithmeticType>() && argTypes[i].dynamicCast<ArithmeticType>())) {
-          if (auto error = getDeductionError(context, mapping, funParams[i], tArg)) {
+          if (auto res = getDeductionError(context, mapping, funParams[i], tArg); !res) {
             if (!firstError)
-              firstError = argLoc[i].getError(*error);
+              firstError = argLoc[i].getError(res.get_error());
           } else {
             firstError = none;
             break;
@@ -1231,17 +1224,16 @@ bool ArrayType::isBuiltinCopyable(const Context& context) const {
   return false;//underlying->isBuiltinCopyable(context);
 }
 
-optional<string> ArrayType::getSizeError(const Context& context) const {
+JustError<string> ArrayType::getSizeError(const Context& context) const {
   return underlying->getSizeError(context);
 }
 
 ArrayType::ArrayType(SType type, SCompileTimeValue size) : size(std::move(size)), underlying(type) {
 }
 
-optional<string> ArrayType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> ArrayType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
   if (auto argPointer = argType.dynamicCast<ArrayType>()) {
-    if (auto error = ::getDeductionError(context, mapping, size, argPointer->size))
-      return error;
+    TRY(::getDeductionError(context, mapping, size, argPointer->size));
     return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
   }
   return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
@@ -1358,7 +1350,7 @@ shared_ptr<CompileTimeValue> CompileTimeValue::getTemplateValue(SType type, stri
   return get(TemplateValue{std::move(type), std::move(name)});
 }
 
-optional<string> CompileTimeValue::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> CompileTimeValue::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
   if (auto argValue = argType.dynamicCast<CompileTimeValue>()) {
     auto argType = argValue->getType();
     return getDeductionError(context, mapping, getType(), argType);
@@ -1418,7 +1410,7 @@ SType SliceType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   return get(underlying->replace(from, to, errors));
 }
 
-optional<string> SliceType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> SliceType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
   if (auto argPointer = argType.dynamicCast<SliceType>())
     return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
   else
@@ -1475,7 +1467,7 @@ string OptionalType::getCodegenName() const {
   return "std::optional<" + underlying->getCodegenName() + ">";
 }
 
-optional<string> OptionalType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
+JustError<string> OptionalType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
   if (auto argPointer = from.dynamicCast<OptionalType>())
     return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
   return "Can't bind type " + quote(from->getName()) + " to type " + quote(getName());
@@ -1541,7 +1533,7 @@ SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   return ret;
 }
 
-optional<string> LambdaType::getMappingError(const Context&, TypeMapping&, SType argType) const {
+JustError<string> LambdaType::getMappingError(const Context&, TypeMapping&, SType argType) const {
   return none;
 }
 

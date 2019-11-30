@@ -803,7 +803,7 @@ WithErrorLine<unique_ptr<Statement>> parseIfStatement(Tokens& tokens) {
 WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
   auto templateInfo = TRY(parseTemplateInfo(tokens));
   auto nextToken = tokens.peek();
-  auto checkNameConflict = [&templateInfo] (const string& name, const string& type) -> optional<ErrorLoc> {
+  auto checkNameConflict = [&templateInfo] (const string& name, const string& type) -> JustError<ErrorLoc> {
     for (auto& param : templateInfo.params)
       if (param.name == name)
         return param.codeLoc.getError("Template parameter conflicts with " + type + " name");
@@ -813,8 +813,7 @@ WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
     tokens.popNext();
     if (tokens.peek() == Keyword::STRUCT) {
       auto ret = TRY(parseStructDefinition(tokens, true));
-      if (auto err = checkNameConflict(ret.get()->name, "struct"))
-        return *err;
+      TRY(checkNameConflict(ret.get()->name, "struct"));
       ret.get()->templateInfo = templateInfo;
       return cast<Statement>(std::move(ret));
     } else {
@@ -822,8 +821,7 @@ WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
       ret = TRY(parseFunctionSignature(TRY(parseIdentifier(tokens, true)), tokens));
       TRY(tokens.eat(Keyword::SEMICOLON));
       if (auto name = ret->name.getReferenceMaybe<string>())
-        if (auto err = checkNameConflict(*name, "function"))
-          return *err;
+        TRY(checkNameConflict(*name, "function"));
       ret->templateInfo = templateInfo;
       ret->external = true;
       if (ret->name.contains<ConstructorTag>())
@@ -835,8 +833,7 @@ WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
     auto addTemplate = [&] (auto structure, const char* name) -> WithErrorLine<unique_ptr<Statement>> {
       if (!structure)
         return structure.get_error();
-      if (auto err = checkNameConflict(structure.get()->name, name))
-        return *err;
+      TRY(checkNameConflict(structure.get()->name, name));
       structure.get()->templateInfo = templateInfo;
       return cast<Statement>(std::move(*structure));
     };
@@ -850,8 +847,7 @@ WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
       unique_ptr<FunctionDefinition> ret;
       ret = TRY(parseFunctionDefinition(TRY(parseIdentifier(tokens, true)), tokens));
       if (auto name = ret->name.getReferenceMaybe<string>())
-        if (auto err = checkNameConflict(*name, "function"))
-          return *err;
+        TRY(checkNameConflict(*name, "function"));
       ret->templateInfo = templateInfo;
       if (ret->name.contains<ConstructorTag>()) {
         for (auto& elem : templateInfo.params)

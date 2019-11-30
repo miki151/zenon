@@ -6,7 +6,7 @@ ReturnTypeChecker::ReturnTypeChecker(nullable<SType> explicitReturn) : explicitR
 
 }
 
-optional<string> ReturnTypeChecker::addReturnStatement(const Context& context, SType t) {
+JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, SType t) {
   auto underlying = t->getUnderlying();
   if (explicitReturn) {
     if (explicitReturn == ArithmeticType::NORETURN)

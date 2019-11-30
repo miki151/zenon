@@ -149,10 +149,9 @@ unique_ptr<Expression> Variable::transform(const StmtTransformFun&, const ExprTr
   return unique<Variable>(identifier);
 }
 
-optional<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
+JustError<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
   if (auto id = identifier.asBasicIdentifier())
-    if (auto err = checker.getUsageError(*id))
-      return codeLoc.getError(*err);
+    TRY(checker.getUsageError(*id).addCodeLoc(codeLoc));
   return none;
 }
 
@@ -291,8 +290,7 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
           ::transform(expr, [&](auto& e) { return e->codeLoc;})));
       if (auto parent = functionInfo->parent)
         if (parent->definition)
-          if (auto error = parent->definition->addInstance(context, functionInfo.get()))
-            return *error;
+          TRY(parent->definition->addInstance(context, functionInfo.get()));
       return functionInfo->type.retVal;
     }
   }
@@ -326,11 +324,9 @@ unique_ptr<Expression> BinaryExpression::transform(const StmtTransformFun&, cons
   return get(codeLoc, op, fun(expr[0].get()), fun(expr[1].get()), rightWithBrackets);
 }
 
-optional<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
-  for (auto& e : expr) {
-    if (auto error = e->checkMoves(checker))
-      return error;
-  }
+JustError<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
+  for (auto& e : expr)
+    TRY(e->checkMoves(checker));
   return none;
 }
 
@@ -346,8 +342,7 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
   functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, {TRY(expr->getTypeImpl(context))}, {expr->codeLoc}));
   if (auto parent = functionInfo->parent)
     if (parent->definition)
-      if (auto error = parent->definition->addInstance(context, functionInfo.get()))
-        return *error;
+      TRY(parent->definition->addInstance(context, functionInfo.get()));
   return functionInfo->type.retVal;
 }
 
@@ -363,22 +358,22 @@ unique_ptr<Expression> UnaryExpression::transform(const StmtTransformFun&, const
   return unique<UnaryExpression>(codeLoc, op, fun(expr.get()));
 }
 
-optional<ErrorLoc> UnaryExpression::checkMoves(MoveChecker& checker) const {
+JustError<ErrorLoc> UnaryExpression::checkMoves(MoveChecker& checker) const {
   return expr->checkMoves(checker);
 }
 
-optional<ErrorLoc> StatementBlock::check(Context& context, bool) {
+JustError<ErrorLoc> StatementBlock::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   for (auto& s : elems)
-    TRY_OPTIONAL(s->check(bodyContext));
+    TRY(s->check(bodyContext));
   return none;
 }
 
-optional<ErrorLoc> StatementBlock::checkMovesImpl(MoveChecker& checker) const {
+JustError<ErrorLoc> StatementBlock::checkMovesImpl(MoveChecker& checker) const {
   checker.startBlock();
   OnExit onExit([&]{ checker.endBlock();});
   for (auto& elem : elems)
-    TRY_OPTIONAL(elem->checkMoves(checker));
+    TRY(elem->checkMoves(checker));
   return none;
 }
 
@@ -389,10 +384,10 @@ unique_ptr<Statement> StatementBlock::transform(const StmtTransformFun& fun, con
   return ret;
 }
 
-optional<ErrorLoc> IfStatement::check(Context& context, bool) {
+JustError<ErrorLoc> IfStatement::check(Context& context, bool) {
   auto ifContext = Context::withParent(context);
   if (declaration)
-    TRY_OPTIONAL(declaration->check(ifContext));
+    TRY(declaration->check(ifContext));
   auto negate = [&] (unique_ptr<Expression> expr) {
     auto codeLoc = expr->codeLoc;
     return unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT, std::move(expr));
@@ -409,23 +404,23 @@ optional<ErrorLoc> IfStatement::check(Context& context, bool) {
         "Expected a type convertible to bool or with overloaded operator " +
         quote("!") + " inside if statement, got " + quote(condType.get()->getName()));
   }
-  TRY_OPTIONAL(ifTrue->check(ifContext));
+  TRY(ifTrue->check(ifContext));
   if (ifFalse)
-    TRY_OPTIONAL(ifFalse->check(ifContext));
+    TRY(ifFalse->check(ifContext));
   return none;
 }
 
-optional<ErrorLoc> IfStatement::checkMovesImpl(MoveChecker& checker) const {
+JustError<ErrorLoc> IfStatement::checkMovesImpl(MoveChecker& checker) const {
   if (declaration)
-    TRY_OPTIONAL(declaration->checkMoves(checker));
-  TRY_OPTIONAL(condition->checkMoves(checker));
+    TRY(declaration->checkMoves(checker));
+  TRY(condition->checkMoves(checker));
   checker.startBlock();
   OnExit onExit([&]{ checker.endBlock();});
   checker.newAlternative();
-  TRY_OPTIONAL(ifTrue->checkMoves(checker));
+  TRY(ifTrue->checkMoves(checker));
   if (ifFalse) {
     checker.newAlternative();
-    TRY_OPTIONAL(ifFalse->checkMoves(checker));
+    TRY(ifFalse->checkMoves(checker));
   }
   return none;
 }
@@ -439,32 +434,31 @@ unique_ptr<Statement> IfStatement::transform(const StmtTransformFun& fun,
       ifFalse ? fun(ifFalse.get()) : nullptr);
 }
 
-static optional<string> getVariableInitializationError(const char* action, const Context& context, const SType& varType,
+static JustError<string> getVariableInitializationError(const char* action, const Context& context, const SType& varType,
     const SType& exprType) {
   if ((exprType.dynamicCast<ReferenceType>() || exprType.dynamicCast<MutableReferenceType>()) &&
       !exprType.get()->getUnderlying()->isBuiltinCopyable(context))
     return "Type " + quote(exprType.get()->getUnderlying()->getName()) + " cannot be copied implicitly"s;
   if (!context.canConvert(exprType, varType))
     return "Can't "s + action + " of type "
-       + quote(varType->getName()) + " using a value of type " + quote(exprType->getName()); return none;
+       + quote(varType->getName()) + " using a value of type " + quote(exprType->getName());
+  return none;
 }
 
-optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
-  if (auto err = context.checkNameConflict(identifier, "Variable"))
-    return codeLoc.getError(*err);
+JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
+  TRY(context.checkNameConflict(identifier, "Variable").addCodeLoc(codeLoc));
   if (!realType) {
-    if (type) {
+    if (type)
       realType = TRY(context.getTypeFromString(*type));
-    } else
-    if (initExpr) {
+    else
+    if (initExpr)
       realType = TRY(getType(context, initExpr))->getUnderlying();
-    } else
+    else
       return codeLoc.getError("Initializing expression needed to infer variable type");
   }
   if (!realType->canDeclareVariable())
     return codeLoc.getError("Can't declare variable of type " + quote(realType->getName()));
-  if (auto error = realType.get()->getSizeError(context))
-    return codeLoc.getError(*error);
+  TRY(realType.get()->getSizeError(context).addCodeLoc(codeLoc));
   INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (!initExpr)
     return codeLoc.getError("Variable requires initialization");
@@ -472,16 +466,15 @@ optional<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   if (!isMutable)
     if (auto value = initExpr->eval(context))
       context.addType(identifier, value->value);
-  if (auto error = getVariableInitializationError("initialize variable", context, realType.get(), exprType))
-    return initExpr->codeLoc.getError(*error);
+  TRY(getVariableInitializationError("initialize variable", context, realType.get(), exprType).addCodeLoc(initExpr->codeLoc));
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
   context.addVariable(identifier, std::move(varType));
   return none;
 }
 
-optional<ErrorLoc> VariableDeclaration::checkMovesImpl(MoveChecker& checker) const {
+JustError<ErrorLoc> VariableDeclaration::checkMovesImpl(MoveChecker& checker) const {
   if (initExpr)
-    TRY_OPTIONAL(initExpr->checkMoves(checker));
+    TRY(initExpr->checkMoves(checker));
   checker.addVariable(identifier);
   return none;
 }
@@ -494,21 +487,20 @@ unique_ptr<Statement> VariableDeclaration::transform(const StmtTransformFun&,
   return ret;
 }
 
-optional<ErrorLoc> ReturnStatement::check(Context& context, bool) {
+JustError<ErrorLoc> ReturnStatement::check(Context& context, bool) {
   auto returnType = TRY([&]() -> WithErrorLine<SType> {
     if (expr)
       return getType(context, expr);
     else
       return SType(ArithmeticType::VOID);
   }());
-  if (auto err = context.getReturnTypeChecker()->addReturnStatement(context, returnType))
-    return codeLoc.getError(*err);
+  TRY(context.getReturnTypeChecker()->addReturnStatement(context, returnType).addCodeLoc(codeLoc));
   return none;
 }
 
-optional<ErrorLoc> ReturnStatement::checkMovesImpl(MoveChecker& checker) const {
+JustError<ErrorLoc> ReturnStatement::checkMovesImpl(MoveChecker& checker) const {
   if (expr)
-    TRY_OPTIONAL(expr->checkMoves(checker));
+    TRY(expr->checkMoves(checker));
   checker.returnStatement();
   return none;
 }
@@ -517,22 +509,22 @@ unique_ptr<Statement> ReturnStatement::transform(const StmtTransformFun&, const 
   return unique<ReturnStatement>(codeLoc, expr ? fun(expr.get()) : nullptr);
 }
 
-optional<ErrorLoc> Statement::addToContext(Context&) {
+JustError<ErrorLoc> Statement::addToContext(Context&) {
   return none;
 }
 
-optional<ErrorLoc> Statement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
+JustError<ErrorLoc> Statement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
   return addToContext(context);
 }
 
-optional<ErrorLoc> Statement::checkMoves(MoveChecker& checker) const {
+JustError<ErrorLoc> Statement::checkMoves(MoveChecker& checker) const {
   checker.clearStatementUsages();
   auto ret = checkMovesImpl(checker);
   checker.clearStatementUsages();
   return ret;
 }
 
-optional<ErrorLoc> Statement::checkMovesImpl(MoveChecker&) const {
+JustError<ErrorLoc> Statement::checkMovesImpl(MoveChecker&) const {
   return none;
 }
 
@@ -640,7 +632,7 @@ static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const 
     from.merge(translated->getContext());
     return TemplateRequirement(std::move(translated), requirement.variadic);
   } else
-    return reqId.codeLoc.getError("Uknown concept: " + reqId.parts[0].name);
+    return reqId.codeLoc.getError("Unknown concept: " + reqId.parts[0].name);
 }
 
 static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const shared_ptr<Expression>& expr1, bool variadicRequirements) {
@@ -708,8 +700,7 @@ static WithErrorLine<vector<SType>> getTemplateParams(const TemplateInfo& info, 
       } else
         return param.codeLoc.getError("Type not found: " + quote(*param.type));
     } else {
-      if (auto err = paramsContext.checkNameConflict(param.name, "template parameter"))
-        return param.codeLoc.getError(*err);
+      TRY(paramsContext.checkNameConflict(param.name, "template parameter").addCodeLoc(param.codeLoc));
       ret.push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
       paramsContext.addType(param.name, ret.back());
     }
@@ -717,14 +708,13 @@ static WithErrorLine<vector<SType>> getTemplateParams(const TemplateInfo& info, 
   return ret;
 }
 
-optional<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, bool concept, bool builtInImport) {
+JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, bool concept, bool builtInImport) {
   for (int i = 0; i < parameters.size(); ++i)
     if (!parameters[i].name)
       parameters[i].name = "parameter" + to_string(i);
-  if (auto s = name.getReferenceMaybe<string>()) {
-    if (auto err = context.checkNameConflictExcludingFunctions(*s, "Function"))
-      return codeLoc.getError(*err);
-  } else
+  if (auto s = name.getReferenceMaybe<string>())
+    TRY(context.checkNameConflictExcludingFunctions(*s, "Function").addCodeLoc(codeLoc));
+  else
   if (auto op = name.getValueMaybe<Operator>()) {
     if (!canOverload(*op, int(parameters.size())))
       return codeLoc.getError("Can't overload operator " + quote(getString(*op)) +
@@ -861,7 +851,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCall
   }
 }
 
-optional<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bodyContext) {
+JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bodyContext) {
   unique_ptr<StatementBlock> defaultBlock;
   if (body)
     defaultBlock = std::move(body);
@@ -932,7 +922,7 @@ optional<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& body
   return none;
 }
 
-optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Context& context) {
+JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Context& context) {
   if (!body && isDefault) {
     if (parameters.size() != 1)
       return codeLoc.getError("Expected exactly one parameter in copy function");
@@ -982,7 +972,7 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Contex
   return none;
 }
 
-optional<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const Context& context) {
+JustError<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const Context& context) {
   if (!body && isDefault) {
     auto type = TRY(context.getTypeFromString(returnType));
     auto structType = type.dynamicCast<StructType>();
@@ -1003,7 +993,7 @@ optional<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const 
   return none;
 }
 
-optional<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody, CodeLoc codeLoc) {
+JustError<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody, CodeLoc codeLoc) {
   CHECK(!body);
   auto templateParams = functionInfo->parent->type.templateParams;
   for (int i = 0; i < templateParams.size(); ++i) {
@@ -1036,7 +1026,7 @@ optional<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBlock
   return none;
 }
 
-optional<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
+JustError<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
   if (callContext.getTemplateParams())
     return none;
   vector<SFunctionInfo> requirements;
@@ -1054,8 +1044,7 @@ optional<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, c
           return none;
       instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, requirements});
       if (definitionContext) {
-        if (auto error = instances.back().generateBody(body.get(), codeLoc))
-          return *error;
+        TRY(instances.back().generateBody(body.get(), codeLoc));
         return checkBody(requirements, *instances.back().body,
             *instances.back().functionInfo);
       }
@@ -1077,29 +1066,29 @@ static void addTemplateParams(Context& context, vector<SType> params, bool varia
   }
 }
 
-optional<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
+JustError<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
   Context bodyContext = Context::withParent(context);
   addTemplateParams(bodyContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
   auto res = TRY(applyRequirements(bodyContext, templateInfo));
   if (isVirtual)
-    TRY_OPTIONAL(generateVirtualDispatchBody(bodyContext));
+    TRY(generateVirtualDispatchBody(bodyContext));
   if (name == "copy"s)
-    TRY_OPTIONAL(checkAndGenerateCopyFunction(bodyContext));
+    TRY(checkAndGenerateCopyFunction(bodyContext));
   else
   if (name == ConstructorTag{})
-    TRY_OPTIONAL(checkAndGenerateDefaultConstructor(bodyContext));
+    TRY(checkAndGenerateDefaultConstructor(bodyContext));
   else
   if (isDefault)
     return codeLoc.getError("Cannot generate a default body for this function");
   return none;
 }
 
-optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& requirements,
+JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& requirements,
     StatementBlock& myBody,  const FunctionInfo& instanceInfo) const {
   auto bodyContext = Context::withParent(*definitionContext);
   for (auto& f : requirements) {
     if (!contains(bodyContext.getFunctions(f->id), f->getParent()))
-      CHECK(!bodyContext.addFunction(f));
+      CHECK(bodyContext.addFunction(f));
   }
   vector<SType> templateParams;
   for (auto& t : instanceInfo.type.templateParams)
@@ -1124,8 +1113,7 @@ optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& re
     retVal = convertReferenceToPointer(retVal);
   ReturnTypeChecker returnChecker(retVal);
   bodyContext.addReturnTypeChecker(&returnChecker);
-  if (auto err = myBody.check(bodyContext))
-    return err;
+  TRY(myBody.check(bodyContext));
   if (retVal == ArithmeticType::NORETURN && !myBody.hasReturnStatement(bodyContext))
     return codeLoc.getError("This function should never return");
   if (retVal != ArithmeticType::VOID && !myBody.hasReturnStatement(bodyContext))
@@ -1133,34 +1121,31 @@ optional<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& re
   return none;
 }
 
-optional<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& context) {
+JustError<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& context) {
   for (int i = 0; i < functionInfo->type.params.size(); ++i) {
     auto paramType = functionInfo->type.params[i];
-    if (auto error = paramType->getSizeError(context))
-      return parameters[i].codeLoc.getError(*error);
+    TRY(paramType->getSizeError(context).addCodeLoc(parameters[i].codeLoc));
   }
-  if (auto error = functionInfo->type.retVal->getSizeError(context))
-    return returnType.codeLoc.getError(*error);
+  TRY(functionInfo->type.retVal->getSizeError(context).addCodeLoc(returnType.codeLoc));
   return none;
 }
 
-optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport) {
-  if (auto err = generateDefaultBodies(context))
-    return err;
+JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport) {
+  TRY(generateDefaultBodies(context));
   if (body && (!templateInfo.params.empty() || notInImport)) {
     Context paramsContext = Context::withParent(context);
     addTemplateParams(paramsContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
     auto res = TRY(applyRequirements(paramsContext, templateInfo));
-    TRY_OPTIONAL(checkForIncompleteTypes(paramsContext));
+    TRY(checkForIncompleteTypes(paramsContext));
     // For checking the template we use the Context that includes the template params.
     definitionContext.emplace(Context::withParent(paramsContext));
-    TRY_OPTIONAL(checkBody({}, *body, *functionInfo));
+    TRY(checkBody({}, *body, *functionInfo));
     // For checking instances we just use the top level context.
     definitionContext.emplace(Context::withParent(context));
     for (int i = 0; i < instances.size(); ++i)
       if (!instances[i].body) {
-        TRY_OPTIONAL(instances[i].generateBody(body.get(), codeLoc));
-        TRY_OPTIONAL(checkBody(instances[i].requirements, *instances[i].body,
+        TRY(instances[i].generateBody(body.get(), codeLoc));
+        TRY(checkBody(instances[i].requirements, *instances[i].body,
             *instances[i].functionInfo));
       }
     MoveChecker moveChecker;
@@ -1172,10 +1157,9 @@ optional<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport)
   return none;
 }
 
-optional<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
-  TRY_OPTIONAL(setFunctionType(context, false, cache.isCurrentlyBuiltIn()));
-  if (auto err = context.addFunction(functionInfo.get()))
-    return codeLoc.getError(*err);
+JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
+  TRY(setFunctionType(context, false, cache.isCurrentlyBuiltIn()));
+  TRY(context.addFunction(functionInfo.get()).addCodeLoc(codeLoc));
   return none;
 }
 
@@ -1194,37 +1178,37 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE, ArithmeticType::BOOL,
        ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING, ArithmeticType::NULL_TYPE})
     context.addType(type->getName(), type);
-  CHECK(!context.addImplicitFunction(Operator::PLUS, FunctionType(ArithmeticType::STRING,
+  CHECK(context.addImplicitFunction(Operator::PLUS, FunctionType(ArithmeticType::STRING,
       {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {}).setBuiltin()));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
     for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-      CHECK(!context.addImplicitFunction(op, FunctionType(type, {{type}}, {}).setBuiltin()));
+      CHECK(context.addImplicitFunction(op, FunctionType(type, {{type}}, {}).setBuiltin()));
   for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
-    CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
+    CHECK(context.addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
         {{MutableReferenceType::get(ArithmeticType::INT)}}, {}).setBuiltin()));
   for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
     for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
       if (type != ArithmeticType::DOUBLE || op != Operator::MODULO)
-        CHECK(!context.addImplicitFunction(op, FunctionType(type, {{type}, {type}}, {}).setBuiltin()));
+        CHECK(context.addImplicitFunction(op, FunctionType(type, {{type}, {type}}, {}).setBuiltin()));
   for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
     for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-      CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
+      CHECK(context.addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
           {{MutableReferenceType::get(type)}, {type}}, {}).setBuiltin()));
   for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
-    CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL,
+    CHECK(context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL,
         {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {}).setBuiltin()));
-  CHECK(!context.addImplicitFunction(Operator::LOGICAL_NOT, FunctionType(ArithmeticType::BOOL,
+  CHECK(context.addImplicitFunction(Operator::LOGICAL_NOT, FunctionType(ArithmeticType::BOOL,
       {{ArithmeticType::BOOL}}, {}).setBuiltin()));
   for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
     for (auto type : {ArithmeticType::INT, ArithmeticType::STRING, ArithmeticType::DOUBLE})
-      CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
+      CHECK(context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
   for (auto op : {Operator::EQUALS})
     for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
-      CHECK(!context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
+      CHECK(context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
   auto metaTypes = {ArithmeticType::ANY_TYPE, ArithmeticType::STRUCT_TYPE, ArithmeticType::ENUM_TYPE};
   for (auto type1 : metaTypes)
     for (auto type2 : metaTypes)
-      CHECK(!context.addImplicitFunction(Operator::EQUALS, FunctionType(ArithmeticType::BOOL, {{type1}, {type2}}, {}).setBuiltin()));
+      CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionType(ArithmeticType::BOOL, {{type1}, {type2}}, {}).setBuiltin()));
   addBuiltInConcepts(context);
   context.addBuiltInFunction("enum_count", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
       [](vector<SType> args) -> WithError<SType> {
@@ -1270,7 +1254,7 @@ static void addBuiltInImport(AST& ast) {
     ast.elems.push_back(std::move(elem));
 }
 
-static optional<ErrorLoc> addExportedContext(const Context& primaryContext, ImportCache& cache, AST& ast,
+static JustError<ErrorLoc> addExportedContext(const Context& primaryContext, ImportCache& cache, AST& ast,
     const string& path, bool isBuiltIn, const vector<string>& importDirs) {
   INFO << "Parsing import " << path;
   cache.pushCurrentImport(path, isBuiltIn);
@@ -1281,15 +1265,13 @@ static optional<ErrorLoc> addExportedContext(const Context& primaryContext, Impo
     if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
       import->setImportDirs(importDirs);
     if (elem->exported) {
-      if (auto err = elem->addToContext(importContext, cache, primaryContext))
-        return *err;
+      TRY(elem->addToContext(importContext, cache, primaryContext));
       elem->addGeneratedConstructor(importContext, ast);
     }
   }
   for (auto& elem : ast.elems)
     if (elem->exported)
-      if (auto err = elem->check(importContext))
-        return *err;
+      TRY(elem->check(importContext));
   cache.popCurrentImport(isBuiltIn);
   cache.insert(path, std::move(importContext), isBuiltIn || cache.isCurrentlyBuiltIn());
   return none;
@@ -1298,25 +1280,21 @@ static optional<ErrorLoc> addExportedContext(const Context& primaryContext, Impo
 WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST& ast, Context& context, const Context& primaryContext,
     const vector<string>& importPaths, bool isBuiltInModule) {
   ImportCache cache(isBuiltInModule);
-  if (auto err = addExportedContext(primaryContext, cache, ast, path, isBuiltInModule, importPaths))
-    return *err;
+  TRY(addExportedContext(primaryContext, cache, ast, path, isBuiltInModule, importPaths));
   context.merge(cache.getContext(path));
   for (auto& elem : ast.elems)
     if (!elem->exported) {
-      if (auto err = elem->addToContext(context, cache, primaryContext))
-        return *err;
+      TRY(elem->addToContext(context, cache, primaryContext));
       elem->addGeneratedConstructor(context, ast);
     }
-  for (auto& elem : ast.elems) {
-    if (auto err = elem->check(context, true))
-      return *err;
-  }
+  for (auto& elem : ast.elems)
+    TRY(elem->check(context, true));
   return cache.getAllImports();
 }
 
 ExpressionStatement::ExpressionStatement(unique_ptr<Expression> e) : Statement(e->codeLoc), expr(std::move(e)) {}
 
-optional<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
+JustError<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
   auto res = TRY(getType(context, expr));
   noReturnExpr = res == ArithmeticType::NORETURN;
   if (!canDiscard && res != ArithmeticType::VOID && res != ArithmeticType::NORETURN)
@@ -1333,7 +1311,7 @@ unique_ptr<Statement> ExpressionStatement::transform(const StmtTransformFun&, co
   return ret;
 }
 
-optional<ErrorLoc> ExpressionStatement::checkMovesImpl(MoveChecker& checker) const {
+JustError<ErrorLoc> ExpressionStatement::checkMovesImpl(MoveChecker& checker) const {
   return expr->checkMoves(checker);
 }
 
@@ -1344,19 +1322,15 @@ bool ExpressionStatement::hasReturnStatement(const Context& context) const {
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-optional<ErrorLoc> FunctionCall::initializeTemplateArgsAndIdentifierType(const Context& context) {
+JustError<ErrorLoc> FunctionCall::initializeTemplateArgsAndIdentifierType(const Context& context) {
   if (!templateArgs)
     templateArgs = TRY(context.getTypeList(identifier->parts.back().templateArguments, variadicTemplateArgs));
-  if (!identifierType) {
-    if (auto res = context.getIdentifierType(*identifier))
-      identifierType = *res;
-    else
-      return identifier->codeLoc.getError(res.get_error());
-  }
+  if (!identifierType)
+      identifierType = TRY(context.getIdentifierType(*identifier).addCodeLoc(identifier->codeLoc));
   return none;
 }
 
-optional<ErrorLoc> FunctionCall::checkNamedArgs() const {
+JustError<ErrorLoc> FunctionCall::checkNamedArgs() const {
   for (int i = 0; i < argNames.size(); ++i) {
     auto paramName = functionInfo->getParamName(callType ? (i + 1) : i);
     if (argNames[i] && paramName && argNames[i] != paramName) {
@@ -1368,7 +1342,7 @@ optional<ErrorLoc> FunctionCall::checkNamedArgs() const {
   return none;
 }
 
-optional<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) {
+JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) {
   if ((!variadicTemplateArgs && !variadicArgs))
     return none;
   auto context = Context::withParent(callContext);
@@ -1416,8 +1390,7 @@ optional<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) {
 }
 
 WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
-  if (auto error = initializeTemplateArgsAndIdentifierType(callContext))
-    return *error;
+  TRY(initializeTemplateArgsAndIdentifierType(callContext));
   optional<ErrorLoc> error;
   if (!functionInfo) {
     vector<SType> argTypes;
@@ -1458,17 +1431,14 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
       getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs).unpack(functionInfo, error);
   }
   if (functionInfo) {
-    if (auto error = checkVariadicCall(callContext))
-      return *error;
-    if (auto error = functionInfo->type.retVal->getSizeError(callContext))
-      return codeLoc.getError(*error);
-    if (auto error = checkNamedArgs())
-      return *error;
+    TRY(checkVariadicCall(callContext));
+    TRY(functionInfo->type.retVal->getSizeError(callContext).addCodeLoc(codeLoc));
+    TRY(checkNamedArgs());
     if (auto parent = functionInfo->parent)
       if (parent->definition)
-        if (auto error = parent->definition->addInstance(callContext, functionInfo.get()))
+        if (auto res = parent->definition->addInstance(callContext, functionInfo.get()); !res)
           return codeLoc.getError("When instantiating template " + parent->prettyString() + " as " + functionInfo->prettyString()  + ":\n"
-            + error->loc.toString() + ": " + error->error);
+            + res.get_error().loc.toString() + ": " + res.get_error().error);
     return functionInfo->type.retVal;
   }
   return *error;
@@ -1558,10 +1528,9 @@ unique_ptr<Expression> FunctionCall::transform(const StmtTransformFun&, const Ex
   return ret;
 }
 
-optional<ErrorLoc> FunctionCall::checkMoves(MoveChecker& checker) const {
+JustError<ErrorLoc> FunctionCall::checkMoves(MoveChecker& checker) const {
   for (auto& e : arguments)
-    if (auto error = e->checkMoves(checker))
-      return error;
+    TRY(e->checkMoves(checker));
   return none;
 }
 
@@ -1569,12 +1538,12 @@ FunctionCall::FunctionCall(CodeLoc l, bool methodCall, Private) : Expression(l),
 
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
-optional<ErrorLoc> SwitchStatement::check(Context& context, bool) {
+JustError<ErrorLoc> SwitchStatement::check(Context& context, bool) {
   return TRY(getType(context, expr))->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
 }
 
-optional<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const {
-  TRY_OPTIONAL(expr->checkMoves(checker));
+JustError<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const {
+  TRY(expr->checkMoves(checker));
   checker.startBlock();
   OnExit onExit([&]{ checker.endBlock();});
   for (auto& elem : caseElems) {
@@ -1583,11 +1552,11 @@ optional<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const {
     OnExit onExit2([&]{ checker.endBlock();});
     if (elem.declaredVar)
       checker.addVariable(*elem.declaredVar);
-    TRY_OPTIONAL(elem.block->checkMoves(checker));
+    TRY(elem.block->checkMoves(checker));
   }
   if (defaultBlock) {
     checker.newAlternative();
-    TRY_OPTIONAL(defaultBlock->checkMoves(checker));
+    TRY(defaultBlock->checkMoves(checker));
   }
   return none;
 }
@@ -1633,11 +1602,10 @@ static WithErrorLine<shared_ptr<StructType>> getNewOrIncompleteStruct(Context& c
     auto asStruct = existing.get().dynamicCast<StructType>();
     if (context.isFullyDefined(existing.get().get()) || !asStruct)
       // if it's not an incomplete struct type then this returns a conflict error
-      return codeLoc.getError(*context.checkNameConflict(name, "Type"));
+      return codeLoc.getError(context.checkNameConflict(name, "Type").get_error());
     return asStruct;
   } else {
-    if (auto err = context.checkNameConflict(name, "Type"))
-      return codeLoc.getError(*err);
+    TRY(context.checkNameConflict(name, "Type").addCodeLoc(codeLoc));
     auto paramsContext = Context::withParent(context);
     auto returnType = context.typeRegistry->getStruct(name);
     for (auto& t : TRY(getTemplateParams(templateInfo, context)))
@@ -1647,7 +1615,7 @@ static WithErrorLine<shared_ptr<StructType>> getNewOrIncompleteStruct(Context& c
   }
 }
 
-static optional<string> getRedefinitionError(const string& typeName, const optional<CodeLoc>& definition) {
+static JustError<string> getRedefinitionError(const string& typeName, const optional<CodeLoc>& definition) {
   if (definition)
     return "Type " + quote(typeName) + " has already been defined at " +
         definition->file + ", line " + to_string(definition->line);
@@ -1655,11 +1623,10 @@ static optional<string> getRedefinitionError(const string& typeName, const optio
     return none;
 }
 
-optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
+JustError<ErrorLoc> VariantDefinition::addToContext(Context& context) {
   type = TRY(getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, false));
   context.setFullyDefined(type.get().get(), true);
-  if (auto err = getRedefinitionError(type->getName(), type->definition))
-    return codeLoc.getError(*err);
+  TRY(getRedefinitionError(type->getName(), type->definition).addCodeLoc(codeLoc));
   type->definition = codeLoc;
   auto membersContext = Context::withParent(context);
   if (templateInfo.params.size() != type->templateParams.size())
@@ -1679,12 +1646,12 @@ optional<ErrorLoc> VariantDefinition::addToContext(Context& context) {
       params.push_back(subtypeInfo);
     auto constructor = FunctionType(type.get(), params, {});
     constructor.parentType = type.get();
-    CHECK(!type->staticContext.addImplicitFunction(subtype.name, constructor));
+    CHECK(type->staticContext.addImplicitFunction(subtype.name, constructor));
   }
   return none;
 }
 
-optional<ErrorLoc> VariantDefinition::check(Context& context, bool) {
+JustError<ErrorLoc> VariantDefinition::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   for (auto& param : type->templateParams)
     bodyContext.addType(param->getName(), param);
@@ -1693,11 +1660,10 @@ optional<ErrorLoc> VariantDefinition::check(Context& context, bool) {
   return none;
 }
 
-optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
+JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
   type = TRY(getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, incomplete));
   if (!incomplete) {
-    if (auto err = getRedefinitionError(type->getName(), type->definition))
-      return codeLoc.getError(*err);
+    TRY(getRedefinitionError(type->getName(), type->definition).addCodeLoc(codeLoc));
     type->definition = codeLoc;
     context.setFullyDefined(type.get().get(), true);
     if (templateInfo.params.size() != type->templateParams.size())
@@ -1709,8 +1675,7 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
     for (auto& member : members)
         type->members.push_back({member.name, TRY(membersContext.getTypeFromString(member.type))});
     for (auto& member : members)
-      if (auto error = type->members.back().type->getSizeError(membersContext))
-        return member.codeLoc.getError(*error);
+      TRY(type->members.back().type->getSizeError(membersContext).addCodeLoc(member.codeLoc));
     for (int i = 0; i < members.size(); ++i)
       for (int j = i + 1; j < members.size(); ++j)
         if (members[i].name == members[j].name)
@@ -1720,14 +1685,13 @@ optional<ErrorLoc> StructDefinition::addToContext(Context& context) {
   return none;
 }
 
-optional<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
+JustError<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
   auto methodBodyContext = Context::withParent(context);
   addTemplateParams(methodBodyContext, type->templateParams, false);
   CHECK(!!applyRequirements(methodBodyContext, templateInfo));
   type->updateInstantations();
   if (!incomplete)
-    if (auto error = type->getSizeError(context))
-      return codeLoc.getError(*error);
+    TRY(type->getSizeError(context).addCodeLoc(codeLoc));
   return none;
 }
 
@@ -1745,10 +1709,10 @@ void StructDefinition::addGeneratedConstructor(Context& context, const AST& ast)
       auto fun = FunctionType(type.get(), std::move(constructorParams), type->templateParams);
       fun.generatedConstructor = true;
       if (!hasUserDefinedConstructors)
-        CHECK(!context.addImplicitFunction(ConstructorTag{}, fun));
+        CHECK(context.addImplicitFunction(ConstructorTag{}, fun));
       fun.templateParams.clear();
       fun.parentType = type.get();
-      CHECK(!type->getStaticContext().addImplicitFunction(ConstructorTag{}, fun));
+      CHECK(type->getStaticContext().addImplicitFunction(ConstructorTag{}, fun));
       type->getStaticContext().addType(name, type.get());
     }
   }
@@ -1791,16 +1755,14 @@ unique_ptr<Expression> MoveExpression::transform(const StmtTransformFun&, const 
   return unique<MoveExpression>(codeLoc, identifier);
 }
 
-optional<ErrorLoc> MoveExpression::checkMoves(MoveChecker& checker) const {
-  if (auto err = checker.moveVariable(codeLoc, identifier))
-    return codeLoc.getError(*err);
-  return none;
+JustError<ErrorLoc> MoveExpression::checkMoves(MoveChecker& checker) const {
+  return checker.moveVariable(codeLoc, identifier).addCodeLoc(codeLoc);
 }
 
 EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {
 }
 
-optional<ErrorLoc> EmbedStatement::check(Context&, bool) {
+JustError<ErrorLoc> EmbedStatement::check(Context&, bool) {
   return none;
 }
 
@@ -1823,9 +1785,9 @@ ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<Statement> i, unique_pt
                                    unique_ptr<Expression> it, unique_ptr<Statement> b)
   : Statement(l), init(std::move(i)), cond(std::move(c)), iter(std::move(it)), body(std::move(b)) {}
 
-optional<ErrorLoc> ForLoopStatement::check(Context& context, bool) {
+JustError<ErrorLoc> ForLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
-  TRY_OPTIONAL(init->check(bodyContext));
+  TRY(init->check(bodyContext));
   auto condType = TRY(getType(bodyContext, cond));
   if (condType != ArithmeticType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
@@ -1834,14 +1796,14 @@ optional<ErrorLoc> ForLoopStatement::check(Context& context, bool) {
   return body->check(bodyContext);
 }
 
-optional<ErrorLoc> ForLoopStatement::checkMovesImpl(MoveChecker& checker) const {
-  TRY_OPTIONAL(init->checkMoves(checker));
+JustError<ErrorLoc> ForLoopStatement::checkMovesImpl(MoveChecker& checker) const {
+  TRY(init->checkMoves(checker));
   checker.startLoop(loopId);
-  TRY_OPTIONAL(cond->checkMoves(checker));
-  TRY_OPTIONAL(iter->checkMoves(checker));
-  if (auto err = body->checkMoves(checker)) {
-    TRY_OPTIONAL(checker.endLoop(loopId));
-    return *err;
+  TRY(cond->checkMoves(checker));
+  TRY(iter->checkMoves(checker));
+  if (auto res = body->checkMoves(checker); !res) {
+    TRY(checker.endLoop(loopId));
+    return res.get_error();
   }
   return checker.endLoop(loopId);
 }
@@ -1860,7 +1822,7 @@ StaticForLoopStatement::StaticForLoopStatement(CodeLoc l, string counter, unique
   cond(std::move(cond)), iter(std::move(iter)), body(std::move(body)) {
 }
 
-optional<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& bodyContext) const {
+JustError<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& bodyContext) const {
   auto context = Context::withParent(bodyContext);
   auto initVal = init->eval(context);
   if (!initVal)
@@ -1894,7 +1856,7 @@ WithErrorLine<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled
     ret.push_back(body->replace(counterType, currentCounter, errors));
     if (!errors.empty())
       return errors[0];
-    TRY_OPTIONAL(ret.back()->check(evalContext));
+    TRY(ret.back()->check(evalContext));
     CHECK(iter->eval(evalContext)->value->getMangledName());
     if (++countIter >= maxIterations)
       return codeLoc.getError("Static loop reached maximum number of iterations (" + to_string(maxIterations) + ")");
@@ -1902,11 +1864,10 @@ WithErrorLine<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled
   return std::move(ret);
 }
 
-optional<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
-  if (auto err = context.checkNameConflict(counter, "variable"))
-    return codeLoc.getError(*err);
+JustError<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
+  TRY(context.checkNameConflict(counter, "variable").addCodeLoc(codeLoc));
   auto bodyContext = Context::withParent(context);
-  TRY_OPTIONAL(checkExpressions(bodyContext));
+  TRY(checkExpressions(bodyContext));
   auto initType = TRY(getType(bodyContext, init));
   bodyContext.addVariable(counter, MutableReferenceType::get(getType(bodyContext, init).get()));
   auto condType = TRY(getType(bodyContext, cond));
@@ -1917,24 +1878,24 @@ optional<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
   bodyContext.addType(counter, counterType);
   auto bodyTemplateContext = Context::withParent(bodyContext);
   bodyTemplateContext.setTemplated({counterType});
-  if (auto err = body->check(bodyTemplateContext))
+  if (auto res = body->check(bodyTemplateContext); !res)
     // If it's not a templated context then we will be unrolling the loop and find errors there
     // (it still needs to be checked to avoid replace() errors :()
     // This may potentially accept some bad code in some corner cases.
     if (bodyContext.getTemplateParams())
-      return err;
+      return res.get_error();
   if (!bodyContext.getTemplateParams())
     unrolled = TRY(getUnrolled(context, counterType));
   return none;
 }
 
-optional<ErrorLoc> StaticForLoopStatement::checkMovesImpl(MoveChecker& checker) const {
+JustError<ErrorLoc> StaticForLoopStatement::checkMovesImpl(MoveChecker& checker) const {
   static int loopId = 0;
   --loopId;
   checker.startLoop(loopId);
-  if (auto err = body->checkMoves(checker)) {
-    TRY_OPTIONAL(checker.endLoop(loopId));
-    return *err;
+  if (auto res = body->checkMoves(checker); !res) {
+    TRY(checker.endLoop(loopId));
+    return res.get_error();
   }
   return checker.endLoop(loopId);
 }
@@ -1952,7 +1913,7 @@ unique_ptr<Statement> StaticForLoopStatement::transform(const StmtTransformFun& 
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
   : Statement(l), cond(std::move(c)), body(std::move(b)) {}
 
-optional<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
+JustError<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   auto condType = TRY(getType(bodyContext, cond));
   if (condType != ArithmeticType::BOOL)
@@ -1961,12 +1922,12 @@ optional<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
   return body->check(bodyContext);
 }
 
-optional<ErrorLoc> WhileLoopStatement::checkMovesImpl(MoveChecker& checker) const {
+JustError<ErrorLoc> WhileLoopStatement::checkMovesImpl(MoveChecker& checker) const {
   checker.startLoop(loopId);
-  TRY_OPTIONAL(cond->checkMoves(checker));
-  if (auto err = body->checkMoves(checker)) {
-    TRY_OPTIONAL(checker.endLoop(loopId));
-    return *err;
+  TRY(cond->checkMoves(checker));
+  if (auto res = body->checkMoves(checker); !res) {
+    TRY(checker.endLoop(loopId));
+    return res.get_error();
   }
   return checker.endLoop(loopId);
 }
@@ -1986,25 +1947,25 @@ void ImportStatement::setImportDirs(const vector<string>& p) {
   importDirs = p;
 }
 
-optional<ErrorLoc> ImportStatement::check(Context&, bool) {
+JustError<ErrorLoc> ImportStatement::check(Context&, bool) {
   return none;
 }
 
-optional<ErrorLoc> ImportStatement::processImport(const Context& primaryContext, Context& context, ImportCache& cache, const string& content,
+JustError<ErrorLoc> ImportStatement::processImport(const Context& primaryContext, Context& context, ImportCache& cache, const string& content,
     const string& path) {
   if (cache.isCurrentlyImported(path))
     return codeLoc.getError("Public import cycle: " + combine(cache.getCurrentImports(), ", "));
   if (!cache.contains(path)) {
     INFO << "Parsing import " << path;
     ast = unique<AST>(TRY(parse(TRY(lex(content, CodeLoc(path, 0, 0), "end of file")))));
-    TRY_OPTIONAL(addExportedContext(primaryContext, cache, *ast, path, isBuiltIn, importDirs));
+    TRY(addExportedContext(primaryContext, cache, *ast, path, isBuiltIn, importDirs));
   } else
     INFO << "Import " << path << " already cached";
   context.merge(cache.getContext(path));
   return none;
 }
 
-optional<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
+JustError<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
   INFO << "Resolving import " << path << " from " << codeLoc.file;
   for (auto importDir : concat({getParentPath(codeLoc.file)}, importDirs)) {
     INFO << "Trying directory " << importDir;
@@ -2012,7 +1973,7 @@ optional<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& 
     if (auto content = readFromFile(importPath.c_str())) {
       importPath = fs::canonical(importPath);
       INFO << "Imported file " << importPath;
-      TRY_OPTIONAL(processImport(primaryContext, context, cache, content->value, importPath));
+      TRY(processImport(primaryContext, context, cache, content->value, importPath));
       return none;
     }
   }
@@ -2025,14 +1986,13 @@ optional<EvalResult> Expression::eval(const Context&) const {
 
 EnumDefinition::EnumDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
 
-optional<ErrorLoc> EnumDefinition::addToContext(Context& context) {
+JustError<ErrorLoc> EnumDefinition::addToContext(Context& context) {
   auto type = context.typeRegistry->getEnum(name);
   context.setFullyDefined(type.get(), fullyDefined);
   if (fullyDefined) {
     if (elements.empty())
       return codeLoc.getError("Enum requires at least one element");
-    if (auto err = getRedefinitionError(type->getName(), type->definition))
-      return codeLoc.getError(*err);
+    TRY(getRedefinitionError(type->getName(), type->definition).addCodeLoc(codeLoc));
     type->definition = codeLoc;
     type->elements = elements;
     type->external = external;
@@ -2046,7 +2006,7 @@ optional<ErrorLoc> EnumDefinition::addToContext(Context& context) {
   return none;
 }
 
-optional<ErrorLoc> EnumDefinition::check(Context&, bool) {
+JustError<ErrorLoc> EnumDefinition::check(Context&, bool) {
   return none;
 }
 
@@ -2092,7 +2052,7 @@ unique_ptr<Expression> EnumConstant::transform(const StmtTransformFun&, const Ex
 ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
 }
 
-optional<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
+JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
   shared_ptr<Concept> concept = shared<Concept>(name, Context(context.typeRegistry), templateInfo.variadic);
   auto declarationsContext = Context::withParent(context);
   for (int i = 0; i < templateInfo.params.size(); ++i) {
@@ -2104,18 +2064,15 @@ optional<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
   for (auto& function : functions) {
     if (function->isVirtual)
       return function->codeLoc.getError("Virtual functions are not allowed here");
-    if (auto err = function->setFunctionType(declarationsContext, true))
-      return err;
-    if (auto err = function->check(declarationsContext))
-      return err;
-    if (auto err = concept->modContext().addFunction(function->functionInfo.get()))
-      return function->codeLoc.getError(*err);
+    TRY(function->setFunctionType(declarationsContext, true));
+    TRY(function->check(declarationsContext));
+    TRY(concept->modContext().addFunction(function->functionInfo.get()).addCodeLoc(function->codeLoc));
   }
   context.addConcept(name, concept);
   return none;
 }
 
-optional<ErrorLoc> ConceptDefinition::check(Context& context, bool) {
+JustError<ErrorLoc> ConceptDefinition::check(Context& context, bool) {
   return none;
 }
 
@@ -2152,7 +2109,7 @@ RangedLoopStatement::RangedLoopStatement(CodeLoc l, unique_ptr<VariableDeclarati
     unique_ptr<Expression> container, unique_ptr<Statement> body)
     : Statement(l), init(std::move(init)), container(std::move(container)), body(std::move(body)) {}
 
-optional<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
+JustError<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   auto containerType = TRY(getType(context, container));
   if (containerType->getUnderlying() == containerType)
@@ -2164,15 +2121,14 @@ optional<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   containerEnd = unique<VariableDeclaration>(codeLoc, none, containerEndName,
       unique<FunctionCall>(codeLoc, IdentifierInfo("end", codeLoc),
           unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, unique<Variable>(IdentifierInfo(*containerName, codeLoc))), false));
-  if (auto err = containerEnd->check(bodyContext))
-    return err;
+  TRY(containerEnd->check(bodyContext));
   init->initExpr = unique<FunctionCall>(codeLoc, IdentifierInfo("begin", codeLoc),
       unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, unique<Variable>(IdentifierInfo(*containerName, codeLoc))), false);
   init->isMutable = true;
   condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)),
       unique<Variable>(IdentifierInfo(containerEndName, codeLoc)), false);
   increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)));
-  TRY_OPTIONAL(init->check(bodyContext));
+  TRY(init->check(bodyContext));
   auto condType = TRY(getType(bodyContext, condition));
   if (condType != ArithmeticType::BOOL)
     return codeLoc.getError("Equality comparison between iterators does not return type " + quote("bool"));
@@ -2181,19 +2137,15 @@ optional<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   return body->check(bodyContext);
 }
 
-optional<ErrorLoc> RangedLoopStatement::checkMovesImpl(MoveChecker& checker) const {
-  if (auto err = init->checkMoves(checker))
-    return *err;
-  if (auto err = container->checkMoves(checker))
-    return *err;
+JustError<ErrorLoc> RangedLoopStatement::checkMovesImpl(MoveChecker& checker) const {
+  TRY(init->checkMoves(checker));
+  TRY(container->checkMoves(checker));
   checker.startLoop(loopId);
-  if (auto err = body->checkMoves(checker)) {
-    if (auto err = checker.endLoop(loopId))
-      return err;
-    return *err;
+  if (auto res = body->checkMoves(checker); !res) {
+    TRY(checker.endLoop(loopId));
+    return res.get_error();
   }
   return checker.endLoop(loopId);
-  return none;
 }
 
 unique_ptr<Statement> RangedLoopStatement::transform(const StmtTransformFun& fun,
@@ -2209,7 +2161,7 @@ unique_ptr<Statement> RangedLoopStatement::transform(const StmtTransformFun& fun
   return ret;
 }
 
-optional<ErrorLoc> BreakStatement::check(Context& context, bool) {
+JustError<ErrorLoc> BreakStatement::check(Context& context, bool) {
   if (auto id = context.getLoopId()) {
     loopId = *id;
     return none;
@@ -2223,12 +2175,12 @@ unique_ptr<Statement> BreakStatement::transform(const StmtTransformFun&, const E
   return ret;
 }
 
-optional<ErrorLoc> BreakStatement::checkMovesImpl(MoveChecker& checker) const {
+JustError<ErrorLoc> BreakStatement::checkMovesImpl(MoveChecker& checker) const {
   checker.breakStatement(loopId);
   return none;
 }
 
-optional<ErrorLoc> ContinueStatement::check(Context& context, bool) {
+JustError<ErrorLoc> ContinueStatement::check(Context& context, bool) {
   if (!context.getLoopId())
     return codeLoc.getError("Continue statement outside of a loop");
   return none;
@@ -2238,10 +2190,8 @@ unique_ptr<Statement> ContinueStatement::transform(const StmtTransformFun&, cons
   return unique<ContinueStatement>(codeLoc);
 }
 
-optional<ErrorLoc> ContinueStatement::checkMovesImpl(MoveChecker& checker) const {
-  if (auto err = checker.continueStatement())
-    return codeLoc.getError(*err);
-  return none;
+JustError<ErrorLoc> ContinueStatement::checkMovesImpl(MoveChecker& checker) const {
+  return checker.continueStatement().addCodeLoc(codeLoc);
 }
 
 ArrayLiteral::ArrayLiteral(CodeLoc codeLoc) : Expression(codeLoc) {
@@ -2253,8 +2203,7 @@ WithErrorLine<SType> ArrayLiteral::getTypeImpl(Context& context) {
   for (int i = 0; i < contents.size(); ++i) {
     if (i > 0 || !typeId)
       typeTmp = TRY(getType(context, contents[i]));
-    if (auto error = getVariableInitializationError("construct array", context, ret, typeTmp))
-      return contents[i]->codeLoc.getError(*error);
+    TRY(getVariableInitializationError("construct array", context, ret, typeTmp).addCodeLoc(contents[i]->codeLoc));
   }
   type = ret;
   return SType(ArrayType::get(ret, CompileTimeValue::get((int)contents.size())));
@@ -2267,9 +2216,9 @@ unique_ptr<Expression> ArrayLiteral::transform(const StmtTransformFun&, const Ex
   return ret;
 }
 
-optional<ErrorLoc> ArrayLiteral::checkMoves(MoveChecker& checker) const {
+JustError<ErrorLoc> ArrayLiteral::checkMoves(MoveChecker& checker) const {
   for (auto& e : contents)
-    TRY_OPTIONAL(e->checkMoves(checker));
+    TRY(e->checkMoves(checker));
   return none;
 }
 
@@ -2324,9 +2273,8 @@ ExternConstantDeclaration::ExternConstantDeclaration(CodeLoc l, IdentifierInfo t
   : Statement(l), type(type), identifier(identifier) {
 }
 
-optional<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
-  if (auto err = context.checkNameConflict(identifier, "Variable"))
-    return codeLoc.getError(*err);
+JustError<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
+  TRY(context.checkNameConflict(identifier, "Variable").addCodeLoc(codeLoc));
   realType = TRY(context.getTypeFromString(type));
   if (realType == ArithmeticType::VOID)
     return codeLoc.getError("Can't declare constant of type " + quote(ArithmeticType::VOID->getName()));
@@ -2383,7 +2331,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
     }
   recheck = false;
   auto bodyContext2 = Context::withParent(bodyContext);
-  TRY_OPTIONAL(block->check(bodyContext2));
+  TRY(block->check(bodyContext2));
   if (!returnType)
     retType = returnChecker.getReturnType();
   if (!type->functionInfo) {
@@ -2391,10 +2339,10 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
     auto functioInfo = FunctionInfo::getImplicit("invoke"s, std::move(functionType));
     type->functionInfo = std::move(functioInfo);
   }
-  TRY_OPTIONAL(checkBodyMoves());
+  TRY(checkBodyMoves());
   auto blockCopy = block->deepCopy();
-  auto err = blockCopy->check(bodyContext);
-  CHECK(!err) << err->loc.toString() << " " << err->error;
+  auto res = blockCopy->check(bodyContext);
+  CHECK(!!res) << res.get_error().loc.toString() << " " << res.get_error().error;
   if (!block->hasReturnStatement(context) && retType != ArithmeticType::VOID)
     return block->codeLoc.getError("Not all paths lead to a return statement in a lambda expression returning non-void");
   type->body = cast<StatementBlock>(std::move(blockCopy));
@@ -2403,7 +2351,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   return SType(type.get());
 }
 
-optional<ErrorLoc> LambdaExpression::checkBodyMoves() const {
+JustError<ErrorLoc> LambdaExpression::checkBodyMoves() const {
   MoveChecker moveChecker;
   for (auto& p : parameters)
     if (p.name)
@@ -2411,14 +2359,12 @@ optional<ErrorLoc> LambdaExpression::checkBodyMoves() const {
   return block->checkMoves(moveChecker);
 }
 
-optional<ErrorLoc> LambdaExpression::checkMoves(MoveChecker& checker) const {
+JustError<ErrorLoc> LambdaExpression::checkMoves(MoveChecker& checker) const {
   for (auto& capture : captures) {
-    if (capture.type == LambdaCaptureType::MOVE) {
-      if (auto err = checker.moveVariable(capture.codeLoc, capture.name))
-        return capture.codeLoc.getError(*err);
-    } else
-    if (auto err = checker.getUsageError(capture.name))
-      return capture.codeLoc.getError(*err);
+    if (capture.type == LambdaCaptureType::MOVE)
+      TRY(checker.moveVariable(capture.codeLoc, capture.name).addCodeLoc(capture.codeLoc));
+    else
+      TRY(checker.getUsageError(capture.name).addCodeLoc(capture.codeLoc));
   }
   return none;
 }
@@ -2522,23 +2468,17 @@ MemberAccessExpression::MemberAccessExpression(CodeLoc l , unique_ptr<Expression
   : Expression(l), lhs(std::move(lhs)), identifier(id) { }
 
 WithErrorLine<SType> MemberAccessExpression::getTypeImpl(Context& context) {
-  if (auto leftType1 = lhs->getTypeImpl(context)) {
-    auto leftType = leftType1.get();
-    if (auto error = leftType->getSizeError(context))
-      return codeLoc.getError(leftType->getName() + *error);
-    if (auto member = leftType->getTypeOfMember(identifier))
-      return *member;
-    else
-      return codeLoc.getError(member.get_error());
-  } else
-    return leftType1;
+  auto leftType = TRY(lhs->getTypeImpl(context));
+  if (auto res = leftType->getSizeError(context); !res)
+    return codeLoc.getError(leftType->getName() + res.get_error());
+  return leftType->getTypeOfMember(identifier).addCodeLoc(codeLoc);
 }
 
 unique_ptr<Expression> MemberAccessExpression::transform(const StmtTransformFun& fun1, const ExprTransformFun& fun2) const {
   return unique<MemberAccessExpression>(codeLoc, lhs->transform(fun1, fun2), identifier);
 }
 
-optional<ErrorLoc> MemberAccessExpression::checkMoves(MoveChecker& checker) const {
+JustError<ErrorLoc> MemberAccessExpression::checkMoves(MoveChecker& checker) const {
   return lhs->checkMoves(checker);
 }
 
@@ -2547,16 +2487,12 @@ MemberIndexExpression::MemberIndexExpression(CodeLoc l, unique_ptr<Expression> l
 
 WithErrorLine<SType> MemberIndexExpression::getTypeImpl(Context& context) {
   if (auto value = index->eval(context)) {
-    if (auto leftType = lhs->getTypeImpl(context)) {
-      if (auto error = leftType.get()->getSizeError(context))
-        return codeLoc.getError(leftType.get()->getName() + *error);
-      if (auto member = leftType.get()->getTypeOfMember(value->value)) {
-        memberName = member->name;
-        return member->type;
-      } else
-        return codeLoc.getError(member.get_error());
-    } else
-      return leftType;
+    auto leftType = TRY(lhs->getTypeImpl(context));
+    if (auto res = leftType.get()->getSizeError(context); !res)
+      return codeLoc.getError(leftType.get()->getName() + res.get_error());
+    auto member = TRY(leftType->getTypeOfMember(value->value).addCodeLoc(codeLoc));
+    memberName = member.name;
+    return member.type;
   } else
     return index->codeLoc.getError("Unable to evaluate constant expression at compile-time");
 }
@@ -2565,6 +2501,6 @@ unique_ptr<Expression> MemberIndexExpression::transform(const StmtTransformFun& 
   return unique<MemberIndexExpression>(codeLoc, lhs->transform(fun1, fun2), index->transform(fun1, fun2));
 }
 
-optional<ErrorLoc> MemberIndexExpression::checkMoves(MoveChecker& checker) const {
+JustError<ErrorLoc> MemberIndexExpression::checkMoves(MoveChecker& checker) const {
   return lhs->checkMoves(checker);
 }

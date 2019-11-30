@@ -81,10 +81,9 @@ WithErrorLine<vector<LambdaCapture>> Context::setLambda(vector<LambdaCaptureInfo
         return capture.codeLoc.getError("Variable " + capture.name + " of type " +
             quote(underlying->getName()) + " can't be captured by implicit copy");
       if (capture.type == LambdaCaptureType::COPY) {
-        if (auto f = getCopyFunction(*this, capture.codeLoc, underlying)) {
-          if (auto err = f->get()->getParent()->definition->addInstance(*this, *f))
-            return *err;
-        } else
+        if (auto f = getCopyFunction(*this, capture.codeLoc, underlying))
+          TRY(f->get()->getParent()->definition->addInstance(*this, *f));
+        else
           return capture.codeLoc.getError("No copy function defined for type " + quote(underlying->getName())+ "\n" + f.get_error().error);
       }
       ret.push_back(LambdaCapture{capture.name, *type});
@@ -396,7 +395,7 @@ vector<SType> Context::getAllTypes() const {
   return ret;
 }
 
-optional<string> Context::addImplicitFunction(FunctionId id, FunctionType type) {
+JustError<string> Context::addImplicitFunction(FunctionId id, FunctionType type) {
   return addFunction(FunctionInfo::getImplicit(std::move(id), std::move(type)));
 }
 
@@ -486,16 +485,15 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
   return ret;
 }
 
-optional<string> Context::checkNameConflict(const string& name, const string& type) const {
-  if (auto err = checkNameConflictExcludingFunctions(name, type))
-    return err;
+JustError<string> Context::checkNameConflict(const string& name, const string& type) const {
+  TRY(checkNameConflictExcludingFunctions(name, type));
   auto desc = type + " " + quote(name);
   if (!getFunctions(name).empty())
     return desc + " conflicts with existing function";
   return none;
 }
 
-optional<string> Context::checkNameConflictExcludingFunctions(const string& name, const string& type) const {
+JustError<std::string> Context::checkNameConflictExcludingFunctions(const string& name, const string& type) const {
   auto desc = type + " " + quote(name);
   if (getType(name))
     return desc + " conflicts with an existing type";
@@ -504,7 +502,7 @@ optional<string> Context::checkNameConflictExcludingFunctions(const string& name
   return none;
 }
 
-optional<string> Context::addFunction(SFunctionInfo info) {
+JustError<string> Context::addFunction(SFunctionInfo info) {
   auto& overloads = state->functions[info->id];
   for (auto& fun : overloads)
     if (areParamsEquivalent(fun->type, info->type) &&
@@ -587,7 +585,7 @@ nullable<SType> Context::invokeFunction(const string& id, CodeLoc loc, vector<ST
 
 void Context::addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction fun) {
   CHECK(!state->builtInFunctions.count(id));
-  CHECK(!addImplicitFunction(id, FunctionType(returnType, argTypes, {})));
+  CHECK(addImplicitFunction(id, FunctionType(returnType, argTypes, {})));
   state->builtInFunctions.insert(make_pair(id, BuiltInFunctionInfo{std::move(argTypes), returnType, std::move(fun)}));
 }
 
