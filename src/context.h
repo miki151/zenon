@@ -5,6 +5,7 @@
 #include "identifier.h"
 #include "function_name.h"
 #include "return_type_checker.h"
+#include "lambda_capture_info.h"
 
 struct IdentifierInfo;
 struct Type;
@@ -35,7 +36,7 @@ class Context : public owned_object<Context> {
   bool isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific, vector<FunctionType> existing = {}) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
-  void addVariable(const string& ident, SType);
+  void addVariable(const string& ident, SType, CodeLoc);
   void addVariablePack(const string& ident, SType);
   struct VariablePackInfo {
     string name;
@@ -43,7 +44,7 @@ class Context : public owned_object<Context> {
     bool wasExpanded = false;
   };
   const optional<VariablePackInfo>& getVariablePack() const;
-  void expandVariablePack(const vector<string>&);
+  void expandVariablePack(const vector<string>&, CodeLoc codeLoc);
   void replace(SType from, SType to, ErrorBuffer&);
   void expand(SType, vector<SType> to, ErrorBuffer&);
   ReturnTypeChecker* getReturnTypeChecker() const;
@@ -77,7 +78,7 @@ class Context : public owned_object<Context> {
   bool areParamsEquivalent(FunctionType, FunctionType) const;
   optional<vector<SType>> getTemplateParams() const;
   void setTemplated(vector<SType>);
-  NODISCARD WithErrorLine<vector<LambdaCapture>> setLambda(vector<LambdaCaptureInfo> captures);
+  NODISCARD WithErrorLine<vector<LambdaCapture>> setLambda(LambdaCaptureInfo*);
 
   struct BuiltInFunctionInfo {
     vector<SType> argTypes;
@@ -86,13 +87,13 @@ class Context : public owned_object<Context> {
     nullable<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
   };
 
-  struct LambdaInfo {
-    vector<LambdaCaptureInfo> captures;
-    const LambdaCaptureInfo* find(const string& var) const;
+  struct VariableInfo {
+    SType type;
+    CodeLoc declarationLoc;
   };
 
   struct State : public owned_object<State> {
-    map<string, SType> vars;
+    map<string, VariableInfo> vars;
     vector<string> varsList;
     optional<VariablePackInfo> variablePack;
     map<string, SType> types;
@@ -105,7 +106,7 @@ class Context : public owned_object<Context> {
     optional<int> loopId;
     bool isBuiltInModule = false;
     vector<SType> templateParams;
-    optional<LambdaInfo> lambdaInfo;
+    LambdaCaptureInfo* lambdaInfo;
     void merge(const State&);
     void print() const;
   };

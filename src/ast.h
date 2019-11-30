@@ -195,22 +195,9 @@ struct FunctionParameter {
   bool isVirtual;
 };
 
-enum class LambdaCaptureType {
-  IMPLICIT_COPY,
-  MOVE,
-  REFERENCE,
-  COPY
-};
-
-struct LambdaCaptureInfo {
-  string name;
-  CodeLoc codeLoc;
-  LambdaCaptureType type;
-};
-
 struct LambdaExpression : Expression {
   LambdaExpression(CodeLoc, vector<FunctionParameter>, unique_ptr<StatementBlock>, optional<IdentifierInfo> returnType,
-      vector<LambdaCaptureInfo> captures);
+      LambdaCaptureInfo captureInfo);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
@@ -221,8 +208,8 @@ struct LambdaExpression : Expression {
   unique_ptr<StatementBlock> block;
   optional<IdentifierInfo> returnType;
   nullable<shared_ptr<LambdaType>> type;
-  vector<LambdaCaptureInfo> captures;
   bool recheck = false;
+  LambdaCaptureInfo captureInfo;
 };
 
 struct ArrayLiteral : Expression {

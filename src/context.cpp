@@ -72,9 +72,9 @@ void Context::setTemplated(vector<SType> v) {
   state->templateParams = v;
 }
 
-WithErrorLine<vector<LambdaCapture>> Context::setLambda(vector<LambdaCaptureInfo> captures) {
+WithErrorLine<vector<LambdaCapture>> Context::setLambda(LambdaCaptureInfo* info) {
   vector<LambdaCapture> ret;
-  for (auto& capture : captures) {
+  for (auto& capture : info->captures) {
     if (auto type = getTypeOfVariable(capture.name)) {
       auto underlying = type->get()->getUnderlying();
       if (capture.type == LambdaCaptureType::IMPLICIT_COPY && !canConvert(*type, underlying))
@@ -92,7 +92,7 @@ WithErrorLine<vector<LambdaCapture>> Context::setLambda(vector<LambdaCaptureInfo
     } else
       return capture.codeLoc.getError(type.get_error());
   }
-  state->lambdaInfo = LambdaInfo { std::move(captures) };
+  state->lambdaInfo = info;
   return std::move(ret);
 }
 
@@ -140,23 +140,30 @@ Context Context::withStates(TypeRegistry* t, ConstStates states) {
 }
 
 WithError<SType> Context::getTypeOfVariable(const string& id) const {
-  optional<LambdaInfo> lambdaInfo;
+  LambdaCaptureInfo* lambdaInfo = nullptr;
   for (auto& state : getReversedStates()) {
     if (state->vars.count(id)) {
       if (lambdaInfo) {
         if (auto info = lambdaInfo->find(id)) {
           switch (info->type) {
             case LambdaCaptureType::REFERENCE:
-              return state->vars.at(id);
+              return state->vars.at(id).type;
             case LambdaCaptureType::MOVE:
             case LambdaCaptureType::COPY:
             case LambdaCaptureType::IMPLICIT_COPY:
-              return state->vars.at(id)->getUnderlying();
+              return state->vars.at(id).type->getUnderlying();
           }
-        } else
-          return "Variable " + quote(id) + " is not captured by lambda";
+        } else {
+          if (auto captureType = lambdaInfo->defaultCapture) {
+            auto& varInfo = state->vars.at(id);
+            lambdaInfo->captures.push_back(LambdaCaptureInfo::Var{id, varInfo.declarationLoc, *captureType});
+            lambdaInfo->implicitCaptures.push_back(LambdaCapture{id, varInfo.type});
+            return varInfo.type;
+          } else
+            return "Variable " + quote(id) + " is not captured by lambda";
+        }
       } else
-        return state->vars.at(id);
+        return state->vars.at(id).type;
     }
     if (state->lambdaInfo)
       lambdaInfo = state->lambdaInfo;
@@ -177,8 +184,8 @@ bool Context::isCapturedVariable(const string& id) const {
   fail();
 }
 
-void Context::addVariable(const string& ident, SType t) {
-  state->vars.insert({ident, t});
+void Context::addVariable(const string& ident, SType t, CodeLoc codeLoc) {
+  state->vars.insert({ident, VariableInfo{t, codeLoc}});
   state->varsList.push_back(ident);
 }
 
@@ -193,10 +200,10 @@ const optional<Context::VariablePackInfo>& Context::getVariablePack() const {
   return state->variablePack;
 }
 
-void Context::expandVariablePack(const vector<string>& vars) {
+void Context::expandVariablePack(const vector<string>& vars, CodeLoc codeLoc) {
   auto& pack = *getVariablePack();
   for (auto& v : vars)
-    addVariable(v, pack.type);
+    addVariable(v, pack.type, codeLoc);
   state->variablePack = pack;
   state->variablePack->wasExpanded = true;
 }
@@ -204,7 +211,7 @@ void Context::expandVariablePack(const vector<string>& vars) {
 void Context::State::print() const {
   for (auto& varName : varsList) {
     auto& var = vars.at(varName);
-    cout << "Variable " << quote(varName) << " of type " << var->getName() << "\n";
+    cout << "Variable " << quote(varName) << " of type " << var.type->getName() << "\n";
   }
   for (auto& function : functions) {
     cout << "Function " << quote(toString(function.first)) << " overloads: \n";
@@ -419,7 +426,7 @@ vector<SFunctionInfo> Context::getAllFunctions() const {
 nullable<SType> Context::getVariable(const string& name) const {
   for (auto& state : getReversedStates())
     if (state->vars.count(name))
-      return state->vars.at(name);
+      return state->vars.at(name).type;
   return nullptr;
 }
 
@@ -641,11 +648,4 @@ bool Context::canDefaultInitialize(SType type) const {
     if (f->type.params.empty())
       return true;
   return false;
-}
-
-const LambdaCaptureInfo* Context::LambdaInfo::find(const string& var) const {
-  for (auto& elem : captures)
-    if (elem.name == var)
-      return &elem;
-  return nullptr;
 }

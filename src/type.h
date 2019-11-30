@@ -368,11 +368,6 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   SFunctionInfo getParent() const;
 };
 
-struct LambdaCapture {
-  string name;
-  SType type;
-};
-
 struct LambdaType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual optional<string> getMangledName() const override;

@@ -1,0 +1,9 @@
+// 5
+
+int main() {
+  mutable x = 1;
+  mutable y = 2;
+  const f = [&] { ++x; ++y; };
+  f.invoke();
+  return y + x;
+}

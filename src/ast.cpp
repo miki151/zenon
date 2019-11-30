@@ -461,7 +461,7 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
       context.addType(identifier, value->value);
   TRY(getVariableInitializationError("initialize variable", context, realType.get(), exprType).addCodeLoc(initExpr->codeLoc));
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
-  context.addVariable(identifier, std::move(varType));
+  context.addVariable(identifier, std::move(varType), codeLoc);
   return none;
 }
 
@@ -1091,10 +1091,11 @@ JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& r
     if (name.contains<Operator>())
       type = convertReferenceToPointer(type);
     if (auto name = instanceInfo.getParamName(i)) {
-      auto varType = parameters[min(i, parameters.size() -1)].isMutable
+      auto& param = parameters[min(i, parameters.size() -1)];
+      auto varType = param.isMutable
           ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
       if (!isVariadicParams || i < instanceInfo.type.params.size() - 1 || templateParams.empty())
-        bodyContext.addVariable(*name, varType);
+        bodyContext.addVariable(*name, varType, param.codeLoc);
       else
         bodyContext.addVariablePack(*name, varType);
     }
@@ -1372,7 +1373,7 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
       expandedVars.push_back(getExpandedParamName("SomeVar", expanded.size()));
       ErrorBuffer errors;
       context.addVariable(expandedVars.back(),
-          variablePack->type->replace(callContext.getTypePack().get(), expanded.back(), errors));
+          variablePack->type->replace(callContext.getTypePack().get(), expanded.back(), errors), call->arguments.back()->codeLoc);
       if (!errors.empty())
         return codeLoc.getError(errors[0]);
     }
@@ -1390,7 +1391,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
       auto context = Context::withParent(callContext);
       if (variadicArgs && i == arguments.size() - 1) {
         if (auto& currentPack = context.getVariablePack())
-          context.expandVariablePack({currentPack->name});
+          context.expandVariablePack({currentPack->name}, arguments.back()->codeLoc);
         else
           return arguments[i]->codeLoc.getError("No parameter pack is present in this context");
       }
@@ -1851,7 +1852,7 @@ JustError<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   TRY(checkExpressions(bodyContext));
   auto initType = TRY(getType(bodyContext, init));
-  bodyContext.addVariable(counter, MutableReferenceType::get(getType(bodyContext, init).get()));
+  bodyContext.addVariable(counter, MutableReferenceType::get(getType(bodyContext, init).get()), init->codeLoc);
   auto condType = TRY(getType(bodyContext, cond));
   if (condType != ArithmeticType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
@@ -2099,7 +2100,7 @@ JustError<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   auto uniqueSufix = to_string(codeLoc.line) + "_" + to_string(codeLoc.column);
   containerName = "container"s + uniqueSufix;
   auto containerEndName = "container_end"s + uniqueSufix;
-  bodyContext.addVariable(*containerName, containerType);
+  bodyContext.addVariable(*containerName, containerType, codeLoc);
   containerEnd = unique<VariableDeclaration>(codeLoc, none, containerEndName,
       unique<FunctionCall>(codeLoc, IdentifierInfo("end", codeLoc),
           unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, unique<Variable>(IdentifierInfo(*containerName, codeLoc))), false));
@@ -2261,14 +2262,14 @@ JustError<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
   if (realType == ArithmeticType::VOID)
     return codeLoc.getError("Can't declare constant of type " + quote(ArithmeticType::VOID->getName()));
   INFO << "Adding extern constant " << identifier << " of type " << realType.get()->getName();
-  context.addVariable(identifier, ReferenceType::get(realType.get()));
+  context.addVariable(identifier, ReferenceType::get(realType.get()), codeLoc);
   return none;
 }
 
 LambdaExpression::LambdaExpression(CodeLoc l, vector<FunctionParameter> params, unique_ptr<StatementBlock> block,
-    optional<IdentifierInfo> returnType, vector<LambdaCaptureInfo> captures)
+    optional<IdentifierInfo> returnType, LambdaCaptureInfo captureInfo)
     : Expression(l), parameters(std::move(params)), block(std::move(block)), returnType(std::move(returnType)),
-      captures(std::move(captures)) {
+      captureInfo(std::move(captureInfo)) {
 }
 
 WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
@@ -2282,7 +2283,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   auto bodyContext = Context::withParent(context);
   ReturnTypeChecker returnChecker(retType);
   bodyContext.addReturnTypeChecker(&returnChecker);
-  auto captureTypes = TRY(bodyContext.setLambda(captures));
+  auto captureTypes = TRY(bodyContext.setLambda(&captureInfo));
   vector<SType> params;
   if (!recheck) {
     type = shared<LambdaType>();
@@ -2299,7 +2300,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
       auto varType = param.isMutable ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
       params.push_back(varType);
       if (param.name) {
-        bodyContext.addVariable(*param.name, varType);
+        bodyContext.addVariable(*param.name, varType, param.codeLoc);
         if (paramNames.count(*param.name))
           return param.codeLoc.getError("Duplicate function parameter name: " + quote(*param.name));
         paramNames.insert(*param.name);
@@ -2309,11 +2310,14 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
     for (int i = 1; i < type->functionInfo->type.params.size(); ++i) {
       auto& param = type->functionInfo->type.params[i];
       if (parameters[i - 1].name)
-        bodyContext.addVariable(*parameters[i - 1].name, param);
+        bodyContext.addVariable(*parameters[i - 1].name, param, parameters[i - 1].codeLoc);
     }
-  recheck = false;
   auto bodyContext2 = Context::withParent(bodyContext);
   TRY(block->check(bodyContext2));
+  if (!recheck) {
+    type->captures.append(captureInfo.implicitCaptures);
+  }
+  recheck = false;
   if (!returnType)
     retType = returnChecker.getReturnType();
   if (!type->functionInfo) {
@@ -2342,7 +2346,7 @@ JustError<ErrorLoc> LambdaExpression::checkBodyMoves() const {
 }
 
 JustError<ErrorLoc> LambdaExpression::checkMoves(MoveChecker& checker) const {
-  for (auto& capture : captures) {
+  for (auto& capture : captureInfo.captures) {
     if (capture.type == LambdaCaptureType::MOVE)
       TRY(checker.moveVariable(capture.codeLoc, capture.name).addCodeLoc(capture.codeLoc));
     else
@@ -2352,13 +2356,13 @@ JustError<ErrorLoc> LambdaExpression::checkMoves(MoveChecker& checker) const {
 }
 
 unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, const ExprTransformFun& exprFun) const {
-  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->transform(fun, exprFun)), returnType, captures);
+  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->transform(fun, exprFun)), returnType, captureInfo);
   ret->recheck = !!ret->type;
   return ret;
 }
 
 unique_ptr<Expression> LambdaExpression::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->replace(from, to, errors)), returnType, captures);
+  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->replace(from, to, errors)), returnType, captureInfo);
   ErrorBuffer errors2;
   ret->type = type->replace(from, to, errors2).dynamicCast<LambdaType>();
   ret->recheck = true;

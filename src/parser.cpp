@@ -176,13 +176,19 @@ static WithErrorLine<unique_ptr<Expression>> parseArrayLiteral(Tokens& tokens) {
 WithErrorLine<unique_ptr<StatementBlock>> parseBlock(Tokens&);
 
 WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
-  vector<LambdaCaptureInfo> captures;
+  LambdaCaptureInfo captureInfo;
   auto beginToken = *tokens.eat(Keyword::OPEN_SQUARE_BRACKET);
   while (!tokens.eatMaybe(Keyword::CLOSE_SQUARE_BRACKET)) {
     auto captureType = LambdaCaptureType::IMPLICIT_COPY;
     bool closeBracket = false;
-    if (tokens.eatMaybe(Operator::GET_ADDRESS))
+    if (tokens.eatMaybe(Operator::GET_ADDRESS)) {
+      if (tokens.peek() == Keyword::COMMA || tokens.peek() == Keyword::CLOSE_SQUARE_BRACKET) {
+        tokens.eatMaybe(Keyword::COMMA);
+        captureInfo.defaultCapture = LambdaCaptureType::REFERENCE;
+        continue;
+      }
       captureType = LambdaCaptureType::REFERENCE;
+    }
     else if (tokens.eatMaybe(Keyword::MOVE)) {
       TRY(tokens.eat(Keyword::OPEN_BRACKET));
       captureType = LambdaCaptureType::MOVE;
@@ -197,7 +203,7 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
     auto id = TRY(tokens.eat<IdentifierToken>("Expected variable name"));
     if (closeBracket)
       TRY(tokens.eat(Keyword::CLOSE_BRACKET));
-    captures.push_back(LambdaCaptureInfo{id.value, id.codeLoc, captureType});
+    captureInfo.captures.push_back(LambdaCaptureInfo::Var{id.value, id.codeLoc, captureType});
     if (tokens.peek() != Keyword::CLOSE_SQUARE_BRACKET)
       TRY(tokens.eat(Keyword::COMMA));
   }
@@ -224,7 +230,7 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
   if (tokens.eat(Keyword::ARROW_MEMBER_ACCESS))
     returnType = TRY(parseIdentifier(tokens, true));
   return cast<Expression>(unique<LambdaExpression>(beginToken.codeLoc, std::move(params), TRY(parseBlock(tokens)),
-      std::move(returnType), std::move(captures)));
+      std::move(returnType), std::move(captureInfo)));
 }
 
 WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {

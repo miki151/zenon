@@ -563,7 +563,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
               "Can only bind element to mutable pointer when switch argument is a mutable reference");
         if (realType == ArithmeticType::VOID)
           return caseElem.codeloc.getError("Can't bind void element to pointer");
-        caseBodyContext.addVariable(caseId, MutableReferenceType::get(MutablePointerType::get(realType)));
+        caseBodyContext.addVariable(caseId, MutableReferenceType::get(MutablePointerType::get(realType)), caseElem.codeloc);
       } else
       if (caseType == PointerType::get(realType)) {
         caseElem.varType = caseElem.POINTER;
@@ -572,7 +572,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
               "Can only bind element to pointer when switch argument is a reference");
         if (realType == ArithmeticType::VOID)
           return caseElem.codeloc.getError("Can't bind void element to pointer");
-        caseBodyContext.addVariable(caseId, MutableReferenceType::get(PointerType::get(realType)));
+        caseBodyContext.addVariable(caseId, MutableReferenceType::get(PointerType::get(realType)), caseElem.codeloc);
       }
     }
     if (caseElem.varType == caseElem.VALUE) {
@@ -580,7 +580,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
         return caseElem.codeloc.getError(
             "Type " + quote(realType->getName()) + " is not implicitly copyable. "
             "Try binding to a pointer or move from the variable that you are switching on");
-      caseBodyContext.addVariable(caseId, ReferenceType::get(realType));
+      caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
     }
     TRY(caseElem.block->check(caseBodyContext));
   }
