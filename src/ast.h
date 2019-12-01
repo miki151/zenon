@@ -393,6 +393,7 @@ struct StaticForLoopStatement : Statement {
   unique_ptr<Expression> cond;
   unique_ptr<Expression> iter;
   unique_ptr<Statement> body;
+  bool wasChecked = false;
   vector<unique_ptr<Statement>> unrolled;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;

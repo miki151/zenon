@@ -1877,12 +1877,14 @@ JustError<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
   bodyContext.addType(counter, counterType);
   auto bodyTemplateContext = Context::withParent(bodyContext);
   bodyTemplateContext.setTemplated({counterType});
-  if (auto res = body->check(bodyTemplateContext); !res)
+  if (!wasChecked) {
+    wasChecked = true;
+    if (auto res = body->check(bodyTemplateContext); !res)
     // If it's not a templated context then we will be unrolling the loop and find errors there
     // (it still needs to be checked to avoid replace() errors :()
     // This may potentially accept some bad code in some corner cases.
-    if (bodyContext.getTemplateParams())
       return res.get_error();
+  }
   if (!bodyContext.getTemplateParams())
     unrolled = TRY(getUnrolled(context, counterType));
   return none;
@@ -1901,12 +1903,14 @@ JustError<ErrorLoc> StaticForLoopStatement::checkMovesImpl(MoveChecker& checker)
 
 unique_ptr<Statement> StaticForLoopStatement::transform(const StmtTransformFun& fun,
     const ExprTransformFun& exprFun) const {
-  return unique<StaticForLoopStatement>(codeLoc,
+  auto ret = unique<StaticForLoopStatement>(codeLoc,
       counter,
       exprFun(init.get()),
       exprFun(cond.get()),
       exprFun(iter.get()),
       fun(body.get()));
+  ret->wasChecked = wasChecked;
+  return ret;
 }
 
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
