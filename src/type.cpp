@@ -27,7 +27,7 @@ ArithmeticType::ArithmeticType(const string& name, optional<std::string> codegen
 }
 
 string ReferenceType::getName(bool withTemplateArguments) const {
-  return underlying->getName(withTemplateArguments) + " const&";
+  return underlying->getName(withTemplateArguments) + " lvalue";
 }
 
 optional<string> ReferenceType::getMangledName() const {
@@ -43,7 +43,7 @@ string ReferenceType::getCodegenName() const {
 }
 
 string MutableReferenceType::getName(bool withTemplateArguments) const {
-  return underlying->getName(withTemplateArguments) + "&";
+  return underlying->getName(withTemplateArguments) + " mutable lvalue";
 }
 
 optional<string> MutableReferenceType::getMangledName() const {

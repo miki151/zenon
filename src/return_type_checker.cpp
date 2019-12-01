@@ -6,8 +6,8 @@ ReturnTypeChecker::ReturnTypeChecker(nullable<SType> explicitReturn) : explicitR
 
 }
 
-JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, SType t) {
-  auto underlying = t->getUnderlying();
+JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, SType returnType) {
+  auto underlying = returnType->getUnderlying();
   if (explicitReturn) {
     if (explicitReturn == ArithmeticType::NORETURN)
       return "This function should never return"s;
@@ -21,8 +21,8 @@ JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, 
   else
     returnStatement = underlying;
   auto toConvert = explicitReturn.value_or([&] { return returnStatement.get();});
-  if (!context.canConvert(t, toConvert))
-    return "Can't return value of type " + quote(t->getName()) + " from a function returning " + toConvert->getName();
+  if (!context.canConvert(returnType, toConvert))
+    return "Can't return value of type " + quote(returnType->getName()) + " from a function returning " + toConvert->getName();
   return none;
 }
 
