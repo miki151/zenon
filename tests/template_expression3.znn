@@ -11,7 +11,7 @@ int get(X<int, A>* x) {
 
 template <int A>
 int g() {
-  const y = -A;
+  static const y = -A;
   X<int, -A> x = X<int, y>();
   return get(&x);
 }

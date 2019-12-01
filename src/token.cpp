@@ -109,6 +109,11 @@ Token Tokens::peek() const {
   return data[index];
 }
 
+Token Tokens::peekNext() const {
+  CHECK(index < data.size() - 1);
+  return data[index + 1];
+}
+
 Token Tokens::popNext() {
   CHECK(index < data.size());
   return data[index++];

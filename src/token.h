@@ -102,6 +102,7 @@ class Tokens {
   public:
   Tokens(vector<Token>);
   Token peek() const;
+  Token peekNext() const;
   Token popNext();
   const Token& peekPrevious() const;
   bool empty() const;

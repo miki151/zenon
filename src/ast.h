@@ -38,7 +38,7 @@ struct Node {
   Node(CodeLoc);
   CodeLoc codeLoc;
   virtual void codegen(Accu&, CodegenStage) const {}
-  NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const { return none; }
+  NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const { return success; }
   virtual ~Node() {}
 };
 
@@ -262,7 +262,7 @@ struct Statement : Node {
   using Node::Node;
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&);
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&, ImportCache&, const Context& primaryContext);
-  NODISCARD virtual JustError<ErrorLoc> check(Context&, bool topLevelNotInImport = false) { return none; }
+  NODISCARD virtual JustError<ErrorLoc> check(Context&, bool topLevelNotInImport = false) { return success; }
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override final;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const;
   NODISCARD virtual bool hasReturnStatement(const Context&) const;
@@ -290,6 +290,7 @@ struct VariableDeclaration : Statement {
   string identifier;
   unique_ptr<Expression> initExpr;
   bool isMutable = false;
+  bool isStatic = false;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;

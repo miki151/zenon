@@ -11,7 +11,7 @@ void eat(T*, T*) {}
 
 template <T, int N> requires is_struct<T>
 void f(T* t) {
-  int i = N;
+  static const int i = N;
   eat(&t->(i - 1), &t->(i - 1));
 }
 

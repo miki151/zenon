@@ -149,7 +149,6 @@ using std::swap;
 using std::remove_if;
 
 #define TRY(expr) ({ auto&& x = expr; if (!x) return x.get_error(); std::move(*x); })
-#define TRY_OPTIONAL(expr) do { auto&& x = expr; if (!!x) return *x; } while (false)
 
 using namespace std::string_literals;
 

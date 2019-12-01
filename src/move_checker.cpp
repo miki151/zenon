@@ -51,7 +51,7 @@ JustError<ErrorLoc> MoveChecker::endLoop(int loopId) {
       move.loopId = none;
   }
   endBlock();
-  return none;
+  return success;
 }
 
 void MoveChecker::breakStatement(int loopId) {
@@ -71,7 +71,7 @@ JustError<string> MoveChecker::continueStatement() {
     if (blocks[i].type != BlockType::STANDALONE)
       break;
   }
-  return none;
+  return success;
 }
 
 void MoveChecker::returnStatement() {
@@ -106,7 +106,7 @@ JustError<string> MoveChecker::moveVariable(CodeLoc loc, const string& name) {
       return "Variable " + name + " can't be both moved and referenced within a single statement";
   blocks.back().moves.push_back(MoveInfo{name, none, loc});
   statementUsages.push_back(StatementUsage{name, true});
-  return none;
+  return success;
 }
 
 JustError<string> MoveChecker::getUsageError(const string& name) {
@@ -116,7 +116,7 @@ JustError<string> MoveChecker::getUsageError(const string& name) {
     if (usage.variable == name && usage.moved)
       return "Variable " + name + " can't be both moved and referenced within a single statement";
   statementUsages.push_back(StatementUsage{name, false});
-  return none;//"Variable not found: " + name;
+  return success;//"Variable not found: " + name;
 }
 
 MoveChecker::~MoveChecker() {

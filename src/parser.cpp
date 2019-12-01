@@ -811,7 +811,7 @@ WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
     for (auto& param : templateInfo.params)
       if (param.name == name)
         return param.codeLoc.getError("Template parameter conflicts with " + type + " name");
-    return none;
+    return success;
   };
   if (nextToken == Keyword::EXTERN) {
     tokens.popNext();
@@ -981,7 +981,14 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             return cast<Statement>(std::move(ret));
           }
           case Keyword::STATIC:
-            return cast<Statement>(parseStaticForLoopStatement(tokens));
+            if (tokens.peekNext() == Keyword::FOR) {
+              return cast<Statement>(parseStaticForLoopStatement(tokens));
+            } else {
+              tokens.popNext();
+              auto ret = TRY(parseVariableDeclaration(tokens));
+              ret->isStatic = true;
+              return cast<Statement>(std::move(ret));
+            }
           default:
             return token.codeLoc.getError("Unexpected keyword: " + quote(token.value));
         }

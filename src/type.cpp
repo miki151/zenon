@@ -199,7 +199,7 @@ JustError<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, 
           "Default switch statement unnecessary when all enum elements are handled");
     TRY(statement.defaultBlock->check(context));
   }
-  return none;
+  return success;
 }
 
 FunctionType::FunctionType(SType returnType, vector<SType> p, vector<SType> tpl)
@@ -422,7 +422,7 @@ SType Type::removePointer() const {
 }
 
 JustError<string> Type::getSizeError(const Context&) const {
-  return none;
+  return success;
 }
 
 bool Type::canBeValueTemplateParam() const {
@@ -470,7 +470,7 @@ static JustError<string> checkMembers(const Context& context, set<const Type*> &
       TRY(checkMembers(context, visited, member.type));
     visited.erase(t.get());
   }
-  return none;
+  return success;
 }
 
 JustError<string> StructType::getSizeError(const Context& context) const {
@@ -598,7 +598,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
           "Default switch statement unnecessary when all variant cases are handled");
     TRY(statement.defaultBlock->check(outsideContext));
   }
-  return none;
+  return success;
 }
 
 WithError<SType> StructType::getTypeOfMember(const string& name) const {
@@ -809,7 +809,7 @@ static string getCantSubstituteError(SType param, SType with) {
   return ret;
 }
 
-static optional<ErrorLoc> checkRequirements(const Context& context, const vector<TemplateRequirement>& requirements, CodeLoc codeLoc,
+static JustError<ErrorLoc> checkRequirements(const Context& context, const vector<TemplateRequirement>& requirements, CodeLoc codeLoc,
     vector<FunctionType> existing) {
   for (auto& req : requirements)
     if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
@@ -820,7 +820,7 @@ static optional<ErrorLoc> checkRequirements(const Context& context, const vector
       if (expr1->get()->eval(context)->value == CompileTimeValue::get(false))
         return expr1->get()->codeLoc.getError("Predicate evaluates to false");
     }
-  return none;
+  return success;
 }
 
 WithErrorLine<SType> StructType::instantiate(const Context& context, vector<SType> templateArgs, CodeLoc loc) const {
@@ -837,7 +837,7 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
   for (auto& arg : templateArgs)
     if (arg.dynamicCast<CompileTimeValue>() && !arg->getType()->canBeValueTemplateParam())
       return loc.getError("Value template parameter cannot have type " + quote(arg->getType()->getName()));
-  TRY_OPTIONAL(checkRequirements(context, ret.dynamicCast<StructType>()->requirements, loc, {}));
+  TRY(checkRequirements(context, ret.dynamicCast<StructType>()->requirements, loc, {}));
   if (!errors.empty())
     return loc.getError(errors[0]);
   return (SType) ret;
@@ -864,7 +864,7 @@ static JustError<string> getDeductionError(const Context& context, TypeMapping& 
     if (arg && arg != argType)
       return getCantBindError(argType, arg.get());
     arg = argType;
-    return none;
+    return success;
   } else
     return paramType->getMappingError(context, mapping, argType);
 }
@@ -875,7 +875,7 @@ JustError<string> StructType::getMappingError(const Context& context, TypeMappin
     return "Can't bind type " + quote(argType->getName()) + " to struct type " + quote(getName());
   for (int i = 0; i < templateParams.size(); ++i)
     TRY(::getDeductionError(context, mapping, templateParams[i], argStruct->templateParams[i]));
-  return none;
+  return success;
 }
 
 JustError<string> PointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
@@ -911,7 +911,7 @@ JustError<string> MutableReferenceType::getMappingError(const Context& context, 
 
 JustError<string> Type::getMappingError(const Context&, TypeMapping&, SType argType) const {
   if (argType == get_this().get())
-    return none;
+    return success;
   else
     return getCantBindError(argType, get_this().get());
 }
@@ -930,7 +930,7 @@ string getExpandedParamName(const string& packName, int index) {
   return "_" + packName + to_string(index);
 }
 
-static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc codeLoc, vector<SType> templateArgs,
+static JustError<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc codeLoc, vector<SType> templateArgs,
     vector<SType> argTypes) {
   vector<SType> expandedTypes;
   nullable<SType> lastTemplateParam;
@@ -1003,10 +1003,10 @@ static optional<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc cod
       break;
     }
   type.requirements = std::move(newRequirements);
-  return none;
+  return success;
 }
 
-static optional<ErrorLoc> checkImplicitCopies(const Context& context, const vector<SType>& paramTypes, vector<SType>& argTypes,
+static JustError<ErrorLoc> checkImplicitCopies(const Context& context, const vector<SType>& paramTypes, vector<SType>& argTypes,
     const vector<CodeLoc>& argLoc) {
   for (int i = 0; i < paramTypes.size(); ++i) {
     auto& paramType = paramTypes[i];
@@ -1019,10 +1019,10 @@ static optional<ErrorLoc> checkImplicitCopies(const Context& context, const vect
         return argLoc[i].getError("Type " + quote(argType->getUnderlying()->getName()) + " cannot be copied.");
     }
   }
-  return none;
+  return success;
 }
 
-static optional<ErrorLoc> getConversionError(const Context& context, const SFunctionInfo& input, const vector<SType>& argTypes,
+static JustError<ErrorLoc> getConversionError(const Context& context, const SFunctionInfo& input, const vector<SType>& argTypes,
     const vector<CodeLoc>& argLoc, const vector<SType>& funParams, TypeMapping& mapping) {
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
@@ -1041,23 +1041,23 @@ static optional<ErrorLoc> getConversionError(const Context& context, const SFunc
     if (firstError)
       return *firstError;
   }
-  return none;
+  return success;
 }
 
 WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo& input, CodeLoc codeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing) {
   FunctionType type = input->type;
-  TRY_OPTIONAL(expandVariadicTemplate(type, codeLoc, templateArgs, argTypes));
+  TRY(expandVariadicTemplate(type, codeLoc, templateArgs, argTypes));
   if (type.params.size() != argTypes.size())
     return codeLoc.getError("Wrong number of function arguments. Expected " +
         to_string(type.params.size()) + " got " + to_string(argTypes.size()));
-  auto implicitCopyError = checkImplicitCopies(context, type.params, argTypes, argLoc);
+  auto implicitCopySuccess = checkImplicitCopies(context, type.params, argTypes, argLoc);
   if (templateArgs.size() > type.templateParams.size())
     return codeLoc.getError("Too many template arguments.");
   TypeMapping mapping { type.templateParams, vector<nullable<SType>>(type.templateParams.size()) };
   for (int i = 0; i < templateArgs.size(); ++i)
     mapping.templateArgs[i] = templateArgs[i];
-  TRY_OPTIONAL(getConversionError(context, input, argTypes, argLoc, type.params, mapping));
+  TRY(getConversionError(context, input, argTypes, argLoc, type.params, mapping));
   for (int i = 0; i < type.templateParams.size(); ++i) {
     if (i >= templateArgs.size()) {
       if (auto deduced = mapping.templateArgs[i])
@@ -1083,12 +1083,12 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
         return FunctionInfo::getInstance(input->id, type, input);
   existing.push_back(input->type);
   //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
-  TRY_OPTIONAL(checkRequirements(context, type.requirements, codeLoc, existing));
+  TRY(checkRequirements(context, type.requirements, codeLoc, existing));
   // The replace() errors need to be checked after returning potential requirement errors.
   if (!errors.empty())
     return codeLoc.getError(errors[0]);
-  if (implicitCopyError)
-    return *implicitCopyError;
+  if (!implicitCopySuccess)
+    return implicitCopySuccess.get_error();
   return FunctionInfo::getInstance(input->id, type, input);
 }
 
@@ -1534,7 +1534,7 @@ SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
 }
 
 JustError<string> LambdaType::getMappingError(const Context&, TypeMapping&, SType argType) const {
-  return none;
+  return success;
 }
 
 bool LambdaType::isBuiltinCopyable(const Context& c) const {

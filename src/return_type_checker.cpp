@@ -23,7 +23,7 @@ JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, 
   auto toConvert = explicitReturn.value_or([&] { return returnStatement.get();});
   if (!context.canConvert(returnType, toConvert))
     return "Can't return value of type " + quote(returnType->getName()) + " from a function returning " + toConvert->getName();
-  return none;
+  return success;
 }
 
 SType ReturnTypeChecker::getReturnType() const {

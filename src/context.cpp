@@ -497,7 +497,7 @@ JustError<string> Context::checkNameConflict(const string& name, const string& t
   auto desc = type + " " + quote(name);
   if (!getFunctions(name).empty())
     return desc + " conflicts with existing function";
-  return none;
+  return success;
 }
 
 JustError<std::string> Context::checkNameConflictExcludingFunctions(const string& name, const string& type) const {
@@ -506,7 +506,7 @@ JustError<std::string> Context::checkNameConflictExcludingFunctions(const string
     return desc + " conflicts with an existing type";
   if (getVariable(name))
     return desc + " conflicts with an existing variable or function";
-  return none;
+  return success;
 }
 
 JustError<string> Context::addFunction(SFunctionInfo info) {
@@ -517,7 +517,7 @@ JustError<string> Context::addFunction(SFunctionInfo info) {
         fun->type.generatedConstructor == info->type.generatedConstructor)
       return "Can't overload " + info->prettyString() + " with the same argument types."s;
   overloads.push_back(info);
-  return none;
+  return success;
 }
 
 vector<SFunctionInfo> Context::getConstructorsFor(const SType& type) const {

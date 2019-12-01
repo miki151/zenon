@@ -72,16 +72,23 @@ class [[nodiscard]] WithError : public expected<T, string> {
   }
 };
 
+struct success_t
+{
+  struct init{};
+  constexpr explicit success_t(init){}
+};
+constexpr success_t success{success_t::init()};
+
 template <typename T>
-class [[nodiscard]] JustError : public expected<none_t, T> {
+class [[nodiscard]] JustError : public expected<success_t, T> {
   public:
-  using expected<none_t, T>::expected;
+  using expected<success_t, T>::expected;
 };
 
 template <>
-class [[nodiscard]] JustError<string> : public expected<none_t, string> {
+class [[nodiscard]] JustError<string> : public expected<success_t, string> {
   public:
-  using expected<none_t, string>::expected;
+  using expected<success_t, string>::expected;
   JustError<ErrorLoc> addCodeLoc(CodeLoc loc) const {
     if (*this)
       return **this;

@@ -6,7 +6,7 @@ struct X {
 
 template <int A, int B>
 int g() {
-  const y = A + B;
+  static const y = A + B;
   X<(A + B)> x = X<y>();
   return y;
 }

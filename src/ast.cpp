@@ -152,7 +152,7 @@ unique_ptr<Expression> Variable::transform(const StmtTransformFun&, const ExprTr
 JustError<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
   if (auto id = identifier.asBasicIdentifier())
     TRY(checker.getUsageError(*id).addCodeLoc(codeLoc));
-  return none;
+  return success;
 }
 
 template <typename Comp>
@@ -339,7 +339,7 @@ unique_ptr<Expression> BinaryExpression::transform(const StmtTransformFun&, cons
 JustError<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
   for (auto& e : expr)
     TRY(e->checkMoves(checker));
-  return none;
+  return success;
 }
 
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
@@ -375,7 +375,7 @@ JustError<ErrorLoc> StatementBlock::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   for (auto& s : elems)
     TRY(s->check(bodyContext));
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> StatementBlock::checkMovesImpl(MoveChecker& checker) const {
@@ -383,7 +383,7 @@ JustError<ErrorLoc> StatementBlock::checkMovesImpl(MoveChecker& checker) const {
   OnExit onExit([&]{ checker.endBlock();});
   for (auto& elem : elems)
     TRY(elem->checkMoves(checker));
-  return none;
+  return success;
 }
 
 unique_ptr<Statement> StatementBlock::transform(const StmtTransformFun& fun, const ExprTransformFun&) const {
@@ -416,7 +416,7 @@ JustError<ErrorLoc> IfStatement::check(Context& context, bool) {
   TRY(ifTrue->check(ifContext));
   if (ifFalse)
     TRY(ifFalse->check(ifContext));
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> IfStatement::checkMovesImpl(MoveChecker& checker) const {
@@ -431,7 +431,7 @@ JustError<ErrorLoc> IfStatement::checkMovesImpl(MoveChecker& checker) const {
     checker.newAlternative();
     TRY(ifFalse->checkMoves(checker));
   }
-  return none;
+  return success;
 }
 
 unique_ptr<Statement> IfStatement::transform(const StmtTransformFun& fun,
@@ -451,7 +451,7 @@ static JustError<string> getVariableInitializationError(const char* action, cons
   if (!context.canConvert(exprType, varType))
     return "Can't "s + action + " of type "
        + quote(varType->getName()) + " using a value of type " + quote(exprType->getName());
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
@@ -472,20 +472,23 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   if (!initExpr)
     return codeLoc.getError("Variable requires initialization");
   auto exprType = TRY(getType(context, initExpr));
-  if (!isMutable)
-    if (auto value = initExpr->eval(context))
-      context.addType(identifier, value->value);
+  if (isStatic) {
+    if (isMutable)
+      return codeLoc.getError("Static mutable variables are not supported");
+    context.addType(identifier, TRY(initExpr->eval(context)
+        .addError(initExpr->codeLoc.getError("Unable to evaluate expression at compile-time"))).value);
+  }
   TRY(getVariableInitializationError("initialize variable", context, realType.get(), exprType).addCodeLoc(initExpr->codeLoc));
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
   context.addVariable(identifier, std::move(varType), codeLoc);
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> VariableDeclaration::checkMovesImpl(MoveChecker& checker) const {
   if (initExpr)
     TRY(initExpr->checkMoves(checker));
   checker.addVariable(identifier);
-  return none;
+  return success;
 }
 
 unique_ptr<Statement> VariableDeclaration::transform(const StmtTransformFun&,
@@ -493,6 +496,7 @@ unique_ptr<Statement> VariableDeclaration::transform(const StmtTransformFun&,
   auto ret = unique<VariableDeclaration>(codeLoc, none, identifier,
       initExpr ? exprFun(initExpr.get()) : nullptr);
   ret->isMutable = isMutable;
+  ret->isStatic = isStatic;
   return ret;
 }
 
@@ -504,14 +508,14 @@ JustError<ErrorLoc> ReturnStatement::check(Context& context, bool) {
       return SType(ArithmeticType::VOID);
   }());
   TRY(context.getReturnTypeChecker()->addReturnStatement(context, returnType).addCodeLoc(codeLoc));
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> ReturnStatement::checkMovesImpl(MoveChecker& checker) const {
   if (expr)
     TRY(expr->checkMoves(checker));
   checker.returnStatement();
-  return none;
+  return success;
 }
 
 unique_ptr<Statement> ReturnStatement::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
@@ -519,7 +523,7 @@ unique_ptr<Statement> ReturnStatement::transform(const StmtTransformFun&, const 
 }
 
 JustError<ErrorLoc> Statement::addToContext(Context&) {
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> Statement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
@@ -534,7 +538,7 @@ JustError<ErrorLoc> Statement::checkMoves(MoveChecker& checker) const {
 }
 
 JustError<ErrorLoc> Statement::checkMovesImpl(MoveChecker&) const {
-  return none;
+  return success;
 }
 
 bool Statement::hasReturnStatement(const Context&) const {
@@ -775,7 +779,7 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
     if (functionInfo->type.retVal != ArithmeticType::INT)
       return codeLoc.getError("The main() function should return a value of type " + quote(ArithmeticType::INT->getName()));
   }
-  return none;
+  return success;
 }
 
 static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
@@ -926,7 +930,7 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
           std::move(block)
         });
   }
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Context& context) {
@@ -976,7 +980,7 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
       body->elems.push_back(std::move(topSwitch));
     }
   }
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const Context& context) {
@@ -997,7 +1001,7 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const
     }
     body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
   }
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody, CodeLoc codeLoc) {
@@ -1030,25 +1034,25 @@ JustError<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBloc
         expanded.push_back(getExpandedParamName(*lastName, i));
       body = cast<StatementBlock>(body->expandVar(*lastName, expanded));
     }
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
   if (callContext.getTemplateParams())
-    return none;
+    return success;
   vector<SFunctionInfo> requirements;
   for (auto& req : instance->type.requirements)
     if (auto concept = req.base.getValueMaybe<SConcept>())
       append(requirements, *callContext.getRequiredFunctions(**concept, {}));
   for (auto& fun : requirements)
     if (fun->type.fromConcept)
-      return none;
+      return success;
   if (instance != functionInfo.get()) {
     if (body) {
       CHECK(instance->parent == functionInfo);
       for (auto& other : instances)
         if (other.functionInfo->getWithoutRequirements() == instance->getWithoutRequirements())
-          return none;
+          return success;
       instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, requirements});
       if (definitionContext) {
         TRY(instances.back().generateBody(body.get(), codeLoc));
@@ -1058,7 +1062,7 @@ JustError<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, 
     }
   } else
     CHECK(instance->type.templateParams.empty());
-  return none;
+  return success;
 }
 
 static void addTemplateParams(Context& context, vector<SType> params, bool variadic) {
@@ -1087,7 +1091,7 @@ JustError<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) 
   else
   if (isDefault)
     return codeLoc.getError("Cannot generate a default body for this function");
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& requirements,
@@ -1126,7 +1130,7 @@ JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& r
     return codeLoc.getError("This function should never return");
   if (retVal != ArithmeticType::VOID && !myBody.hasReturnStatement(bodyContext))
     return codeLoc.getError("Not all paths lead to a return statement in a function returning non-void");
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& context) {
@@ -1135,7 +1139,7 @@ JustError<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& c
     TRY(paramType->getSizeError(context).addCodeLoc(parameters[i].codeLoc));
   }
   TRY(functionInfo->type.retVal->getSizeError(context).addCodeLoc(returnType.codeLoc));
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport) {
@@ -1162,13 +1166,13 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
         moveChecker.addVariable(*p.name);
     return body->checkMoves(moveChecker);
   }
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
   TRY(setFunctionType(context, false, cache.isCurrentlyBuiltIn()));
   TRY(context.addFunction(functionInfo.get()).addCodeLoc(codeLoc));
-  return none;
+  return success;
 }
 
 static void addBuiltInConcepts(Context& context) {
@@ -1282,7 +1286,7 @@ static JustError<ErrorLoc> addExportedContext(const Context& primaryContext, Imp
       TRY(elem->check(importContext));
   cache.popCurrentImport(isBuiltIn);
   cache.insert(path, std::move(importContext), isBuiltIn || cache.isCurrentlyBuiltIn());
-  return none;
+  return success;
 }
 
 WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST& ast, Context& context, const Context& primaryContext,
@@ -1309,7 +1313,7 @@ JustError<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
     return codeLoc.getError("Expression result of type " + quote(res->getName()) + " discarded");
   if (canDiscard && (res == ArithmeticType::VOID || res == ArithmeticType::NORETURN))
     return codeLoc.getError("Void expression result unnecessarily marked as discarded");
-  return none;
+  return success;
 }
 
 unique_ptr<Statement> ExpressionStatement::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
@@ -1335,7 +1339,7 @@ JustError<ErrorLoc> FunctionCall::initializeTemplateArgsAndIdentifierType(const 
     templateArgs = TRY(context.getTypeList(identifier->parts.back().templateArguments, variadicTemplateArgs));
   if (!identifierType)
       identifierType = TRY(context.getIdentifierType(*identifier).addCodeLoc(identifier->codeLoc));
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> FunctionCall::checkNamedArgs() const {
@@ -1347,12 +1351,12 @@ JustError<ErrorLoc> FunctionCall::checkNamedArgs() const {
           functionInfo->prettyString());
     }
   }
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) {
   if ((!variadicTemplateArgs && !variadicArgs))
-    return none;
+    return success;
   auto context = Context::withParent(callContext);
   nullable<SType> returnType;
   vector<SType> expanded;
@@ -1394,7 +1398,7 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
         return codeLoc.getError(errors[0]);
     }
   }
-  return none;
+  return success;
 }
 
 WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
@@ -1536,7 +1540,7 @@ unique_ptr<Expression> FunctionCall::transform(const StmtTransformFun&, const Ex
 JustError<ErrorLoc> FunctionCall::checkMoves(MoveChecker& checker) const {
   for (auto& e : arguments)
     TRY(e->checkMoves(checker));
-  return none;
+  return success;
 }
 
 FunctionCall::FunctionCall(CodeLoc l, bool methodCall, Private) : Expression(l), methodCall(methodCall) {}
@@ -1563,7 +1567,7 @@ JustError<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const 
     checker.newAlternative();
     TRY(defaultBlock->checkMoves(checker));
   }
-  return none;
+  return success;
 }
 
 unique_ptr<Statement> SwitchStatement::replace(SType from, SType to, ErrorLocBuffer& errors) const {
@@ -1625,7 +1629,7 @@ static JustError<string> getRedefinitionError(const string& typeName, const opti
     return "Type " + quote(typeName) + " has already been defined at " +
         definition->file + ", line " + to_string(definition->line);
   else
-    return none;
+    return success;
 }
 
 JustError<ErrorLoc> VariantDefinition::addToContext(Context& context) {
@@ -1653,7 +1657,7 @@ JustError<ErrorLoc> VariantDefinition::addToContext(Context& context) {
     constructor.parentType = type.get();
     CHECK(type->staticContext.addImplicitFunction(subtype.name, constructor));
   }
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> VariantDefinition::check(Context& context, bool) {
@@ -1662,7 +1666,7 @@ JustError<ErrorLoc> VariantDefinition::check(Context& context, bool) {
     bodyContext.addType(param->getName(), param);
   CHECK(!!applyRequirements(bodyContext, templateInfo));
   type->updateInstantations();
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
@@ -1687,7 +1691,7 @@ JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
           return members[j].codeLoc.getError("Duplicate member: " + quote(members[j].name));
     type->external = external;
   }
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
@@ -1697,7 +1701,7 @@ JustError<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) 
   type->updateInstantations();
   if (!incomplete)
     TRY(type->getSizeError(context).addCodeLoc(codeLoc));
-  return none;
+  return success;
 }
 
 void StructDefinition::addGeneratedConstructor(Context& context, const AST& ast) const {
@@ -1768,7 +1772,7 @@ EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {
 }
 
 JustError<ErrorLoc> EmbedStatement::check(Context&, bool) {
-  return none;
+  return success;
 }
 
 Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
@@ -1835,7 +1839,7 @@ JustError<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& body
   if (condVal.value->getType()->getUnderlying() != ArithmeticType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote(ArithmeticType::BOOL->getName()));
   TRY(iter->eval(context).addError(iter->codeLoc.getError("Unable to evaluate expression at compile time")));
-  return none;
+  return success;
 }
 
 WithErrorLine<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled(const Context& context, SType counterType) const {
@@ -1887,7 +1891,7 @@ JustError<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
   }
   if (!bodyContext.getTemplateParams())
     unrolled = TRY(getUnrolled(context, counterType));
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> StaticForLoopStatement::checkMovesImpl(MoveChecker& checker) const {
@@ -1951,7 +1955,7 @@ void ImportStatement::setImportDirs(const vector<string>& p) {
 }
 
 JustError<ErrorLoc> ImportStatement::check(Context&, bool) {
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> ImportStatement::processImport(const Context& primaryContext, Context& context, ImportCache& cache, const string& content,
@@ -1965,7 +1969,7 @@ JustError<ErrorLoc> ImportStatement::processImport(const Context& primaryContext
   } else
     INFO << "Import " << path << " already cached";
   context.merge(cache.getContext(path));
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
@@ -1977,7 +1981,7 @@ JustError<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache&
       importPath = fs::canonical(importPath);
       INFO << "Imported file " << importPath;
       TRY(processImport(primaryContext, context, cache, content->value, importPath));
-      return none;
+      return success;
     }
   }
   return codeLoc.getError("Couldn't resolve import path: " + path);
@@ -2006,11 +2010,11 @@ JustError<ErrorLoc> EnumDefinition::addToContext(Context& context) {
   }
   if (!context.getType(name))
     context.addType(name, std::move(type));
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> EnumDefinition::check(Context&, bool) {
-  return none;
+  return success;
 }
 
 EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(l), enumName(name), enumElement(element) {
@@ -2072,11 +2076,11 @@ JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
     TRY(concept->modContext().addFunction(function->functionInfo.get()).addCodeLoc(function->codeLoc));
   }
   context.addConcept(name, concept);
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> ConceptDefinition::check(Context& context, bool) {
-  return none;
+  return success;
 }
 
 CodegenStage CodegenStage::types() {
@@ -2167,7 +2171,7 @@ unique_ptr<Statement> RangedLoopStatement::transform(const StmtTransformFun& fun
 JustError<ErrorLoc> BreakStatement::check(Context& context, bool) {
   if (auto id = context.getLoopId()) {
     loopId = *id;
-    return none;
+    return success;
   } else
     return codeLoc.getError("Break statement outside of a loop");
 }
@@ -2180,13 +2184,13 @@ unique_ptr<Statement> BreakStatement::transform(const StmtTransformFun&, const E
 
 JustError<ErrorLoc> BreakStatement::checkMovesImpl(MoveChecker& checker) const {
   checker.breakStatement(loopId);
-  return none;
+  return success;
 }
 
 JustError<ErrorLoc> ContinueStatement::check(Context& context, bool) {
   if (!context.getLoopId())
     return codeLoc.getError("Continue statement outside of a loop");
-  return none;
+  return success;
 }
 
 unique_ptr<Statement> ContinueStatement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
@@ -2222,7 +2226,7 @@ unique_ptr<Expression> ArrayLiteral::transform(const StmtTransformFun&, const Ex
 JustError<ErrorLoc> ArrayLiteral::checkMoves(MoveChecker& checker) const {
   for (auto& e : contents)
     TRY(e->checkMoves(checker));
-  return none;
+  return success;
 }
 
 WithErrorLine<SType> getType(Context& context, unique_ptr<Expression>& expr, bool evaluateAtCompileTime) {
@@ -2283,7 +2287,7 @@ JustError<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
     return codeLoc.getError("Can't declare constant of type " + quote(ArithmeticType::VOID->getName()));
   INFO << "Adding extern constant " << identifier << " of type " << realType.get()->getName();
   context.addVariable(identifier, ReferenceType::get(realType.get()), codeLoc);
-  return none;
+  return success;
 }
 
 LambdaExpression::LambdaExpression(CodeLoc l, vector<FunctionParameter> params, unique_ptr<StatementBlock> block,
@@ -2372,7 +2376,7 @@ JustError<ErrorLoc> LambdaExpression::checkMoves(MoveChecker& checker) const {
     else
       TRY(checker.getUsageError(capture.name).addCodeLoc(capture.codeLoc));
   }
-  return none;
+  return success;
 }
 
 unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, const ExprTransformFun& exprFun) const {
