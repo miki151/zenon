@@ -1,0 +1,18 @@
+// 1
+
+struct X {
+  int a;
+};
+
+int get(X* x) {
+  return x->a;
+}
+
+int main() {
+  const X? x1 = X(1);
+  const x2 = X(2);
+  mutable cnt = 0;
+  const f = [&] (int a) { cnt += a; return &x2; };
+  const res = (x1 ?? *f.invoke(10)).get();
+  return res + cnt;
+}

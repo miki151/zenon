@@ -271,6 +271,16 @@ unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, unique_pt
 BinaryExpression::BinaryExpression(BinaryExpression::Private, CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr)
     : Expression(loc), op(op), expr(std::move(expr)) {}
 
+static vector<unique_ptr<Expression>> transformValueOrArg(vector<unique_ptr<Expression>> expr, CodeLoc codeLoc, bool usePointer) {
+  auto block = unique<StatementBlock>(codeLoc);
+  if (usePointer)
+    expr[1] = unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr[1]));
+  block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(expr[1])));
+  expr[1] = unique<LambdaExpression>(codeLoc, vector<FunctionParameter>(), std::move(block), none,
+      LambdaCaptureInfo{{}, {}, LambdaCaptureType::REFERENCE });
+  return expr;
+}
+
 WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
   switch (op) {
     case Operator::NOT_EQUAL:
@@ -279,6 +289,14 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
       FATAL << "This operator should have been rewritten";
       fail();
     default: {
+      if (!functionInfo && op == Operator::VALUE_OR) {
+        // We have to use a copy to check type of rhs, otherwise the implicit lambda might not be checked
+        // again and implicit captures won't be extracted
+        auto tmpExpr = expr[1]->deepCopy();
+        auto type = TRY(getType(context, tmpExpr));
+        expr = transformValueOrArg(std::move(expr), codeLoc,
+            !!type.dynamicCast<ReferenceType>() || !!type.dynamicCast<MutableReferenceType>());
+      }
       vector<SType> exprTypes;
       for (auto& elem : expr)
         exprTypes.push_back(TRY(getType(context, elem)));

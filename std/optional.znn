@@ -1,10 +1,28 @@
 
 export import "std/panic.znn";
+export import "std/concepts.znn";
 
 export template <T>
 bool operator ! (T?* elem) {
   embed {
     return !*elem;
+  }
+}
+
+export template <T> requires can_copy<T>
+T? copy(T?* elem) {
+  if (*elem)
+    return (*elem)->copy();
+  else
+    return null;
+}
+
+export template <T>
+T mutable* operator * (T? mutable* elem) {
+  if (!*elem)
+    panic("Attempted to dereference a null value");
+  embed {
+    return &**elem;
   }
 }
 
@@ -26,20 +44,28 @@ T operator * (T? elem) {
   }
 }
 
-export template <T>
-T* operator ?? (T?* elem, T* alt) {
+export template <T, Fun> requires can_invoke<Fun, T*>
+T* operator ?? (T?* elem, Fun f) {
   if (*elem)
     return &**elem;
   else
-    return alt;
+    return f.invoke();
 }
 
-export template <T>
-T operator ?? (T? elem, T alt) {
+export template <T, Fun> requires can_invoke<Fun, T mutable*>
+T mutable* operator ?? (T? mutable* elem, Fun f) {
+  if (*elem)
+    return &**elem;
+  else
+    return f.invoke();
+}
+
+export template <T, Fun> requires can_invoke<Fun, T>
+T operator ?? (T? elem, Fun f) {
   if (elem)
     return *move(elem);
   else
-    return move(alt);
+    return f.invoke();
 }
 
 export bool operator ! (null_type*) {
