@@ -1117,7 +1117,7 @@ JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& r
       if (!isVariadicParams || i < instanceInfo.type.params.size() - 1 || templateParams.empty())
         bodyContext.addVariable(*name, varType, param.codeLoc);
       else
-        bodyContext.addVariablePack(*name, varType);
+        bodyContext.addVariablePack(*name, varType, param.codeLoc);
     }
   }
   auto retVal = instanceInfo.type.retVal;
@@ -1409,12 +1409,8 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
     vector<CodeLoc> argLocs;
     for (int i = 0; i < arguments.size(); ++i) {
       auto context = Context::withParent(callContext);
-      if (variadicArgs && i == arguments.size() - 1) {
-        if (auto& currentPack = context.getVariablePack())
-          context.expandVariablePack({currentPack->name}, arguments.back()->codeLoc);
-        else
-          return arguments[i]->codeLoc.getError("No parameter pack is present in this context");
-      }
+      if (variadicArgs && i == arguments.size() - 1)
+        TRY(context.expandVariablePack().addCodeLoc(arguments[i]->codeLoc));
       argTypes.push_back(TRY(getType(context, arguments[i])));
       argLocs.push_back(arguments[i]->codeLoc);
       INFO << "Function argument " << argTypes.back()->getName();

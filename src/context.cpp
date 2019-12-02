@@ -189,8 +189,8 @@ void Context::addVariable(const string& ident, SType t, CodeLoc codeLoc) {
   state->varsList.push_back(ident);
 }
 
-void Context::addVariablePack(const string& ident, SType t) {
-  state->variablePack = VariablePackInfo{ident, t};
+void Context::addVariablePack(const string& ident, SType t, CodeLoc l) {
+  state->variablePack = VariablePackInfo{ident, t, l};
 }
 
 const optional<Context::VariablePackInfo>& Context::getVariablePack() const {
@@ -200,12 +200,14 @@ const optional<Context::VariablePackInfo>& Context::getVariablePack() const {
   return state->variablePack;
 }
 
-void Context::expandVariablePack(const vector<string>& vars, CodeLoc codeLoc) {
-  auto& pack = *getVariablePack();
-  for (auto& v : vars)
-    addVariable(v, pack.type, codeLoc);
-  state->variablePack = pack;
-  state->variablePack->wasExpanded = true;
+JustError<string> Context::expandVariablePack() {
+  if (auto& pack = getVariablePack()) {
+    addVariable(pack->name, pack->type, pack->codeLoc);
+    state->variablePack = pack;
+    state->variablePack->wasExpanded = true;
+    return success;
+  } else
+    return "No parameter pack is present in this context"s;
 }
 
 void Context::State::print() const {
@@ -639,13 +641,4 @@ nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> a
 
 vector<SFunctionInfo> Context::getOperatorType(Operator op) const {
   return getFunctions(op);
-}
-
-bool Context::canDefaultInitialize(SType type) const {
-  if (auto s = type.dynamicCast<StructType>())
-    type = s->parent.get();
-  for (auto& f : getConstructorsFor(type))
-    if (f->type.params.empty())
-      return true;
-  return false;
 }

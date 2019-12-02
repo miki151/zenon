@@ -37,14 +37,15 @@ class Context : public owned_object<Context> {
   WithError<SType> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
   void addVariable(const string& ident, SType, CodeLoc);
-  void addVariablePack(const string& ident, SType);
+  void addVariablePack(const string& ident, SType, CodeLoc);
   struct VariablePackInfo {
     string name;
     SType type;
+    CodeLoc codeLoc;
     bool wasExpanded = false;
   };
   const optional<VariablePackInfo>& getVariablePack() const;
-  void expandVariablePack(const vector<string>&, CodeLoc codeLoc);
+  JustError<string> expandVariablePack();
   void replace(SType from, SType to, ErrorBuffer&);
   void expand(SType, vector<SType> to, ErrorBuffer&);
   ReturnTypeChecker* getReturnTypeChecker() const;
@@ -65,7 +66,6 @@ class Context : public owned_object<Context> {
   void addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction);
   vector<SFunctionInfo> getOperatorType(Operator) const;
   nullable<SFunctionInfo> getBuiltinOperator(Operator, vector<SType> argTypes) const;
-  bool canDefaultInitialize(SType) const;
   NODISCARD JustError<string> checkNameConflict(const string& name, const string& type) const;
   NODISCARD JustError<string> checkNameConflictExcludingFunctions(const string& name, const string& type) const;
   void addConcept(const string& name, SConcept);
