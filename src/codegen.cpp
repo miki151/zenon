@@ -317,7 +317,7 @@ static void codegenVariant(set<const Type*>& visited, Accu& accu, const StructTy
       + variantUnionElem + ";");
   for (auto& alternative : type->alternatives) {
     string signature = alternative.name + "(";
-    if (alternative.type != ArithmeticType::VOID)
+    if (alternative.type != BuiltinType::VOID)
       signature += alternative.type->getCodegenName() + " elem";
     signature += ")";
     accu.newLine("static " + name + " " + signature + ";");
@@ -326,7 +326,7 @@ static void codegenVariant(set<const Type*>& visited, Accu& accu, const StructTy
   ++accu.indent;
   accu.newLine("bool dummy;");
   for (auto& alternative : type->alternatives) {
-    if (alternative.type != ArithmeticType::VOID)
+    if (alternative.type != BuiltinType::VOID)
       accu.newLine(alternative.type->getCodegenName() + " " + variantUnionEntryPrefix + alternative.name + ";");
   }
   --accu.indent;
@@ -336,7 +336,7 @@ static void codegenVariant(set<const Type*>& visited, Accu& accu, const StructTy
     accu.newLine("switch (unionElem) {");
     ++accu.indent;
     for (auto& alternative : type->alternatives) {
-      if (alternative.type != ArithmeticType::VOID) {
+      if (alternative.type != BuiltinType::VOID) {
         accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
         ++accu.indent;
         accu.newLine("return std::forward<Visitor>(v)("s + variantUnionEntryPrefix + alternative.name + ");");
@@ -504,14 +504,14 @@ void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
         for (auto& alternative : instance->alternatives) {
           auto& name = *name1;
           string signature = alternative.name + "(";
-          if (alternative.type != ArithmeticType::VOID)
+          if (alternative.type != BuiltinType::VOID)
             signature += alternative.type->getCodegenName() + " elem";
           signature += ")";
           accu.add("inline " + name + " " + name + "::" + signature + " {");
           ++accu.indent;
           accu.newLine(name + " ret;");
           accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + alternative.name + ";");
-          if (!(alternative.type == ArithmeticType::VOID))
+          if (!(alternative.type == BuiltinType::VOID))
             accu.newLine("new (&ret."s + variantUnionEntryPrefix + alternative.name + ") " +
                 alternative.type->getCodegenName() + "(std::move(elem));");
           accu.newLine("return ret;");

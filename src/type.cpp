@@ -2,27 +2,27 @@
 #include "context.h"
 #include "ast.h"
 
-ArithmeticType::DefType ArithmeticType::INT = shared<ArithmeticType>("int");
-ArithmeticType::DefType ArithmeticType::DOUBLE = shared<ArithmeticType>("double");
-ArithmeticType::DefType ArithmeticType::VOID = shared<ArithmeticType>("void");
-ArithmeticType::DefType ArithmeticType::BOOL = shared<ArithmeticType>("bool");
-ArithmeticType::DefType ArithmeticType::STRING = shared<ArithmeticType>("string", "zenon_string"s);
-ArithmeticType::DefType ArithmeticType::CHAR = shared<ArithmeticType>("char");
-ArithmeticType::DefType ArithmeticType::NORETURN = shared<ArithmeticType>("noreturn", "[[noreturn]] void"s);
-ArithmeticType::DefType ArithmeticType::ANY_TYPE = shared<ArithmeticType>("any_type");
-ArithmeticType::DefType ArithmeticType::ENUM_TYPE = shared<ArithmeticType>("enum_type");
-ArithmeticType::DefType ArithmeticType::NULL_TYPE = shared<ArithmeticType>("null_type");
-ArithmeticType::DefType ArithmeticType::STRUCT_TYPE = shared<ArithmeticType>("struct_type");
+BuiltinType::DefType BuiltinType::INT = shared<BuiltinType>("int");
+BuiltinType::DefType BuiltinType::DOUBLE = shared<BuiltinType>("double");
+BuiltinType::DefType BuiltinType::VOID = shared<BuiltinType>("void");
+BuiltinType::DefType BuiltinType::BOOL = shared<BuiltinType>("bool");
+BuiltinType::DefType BuiltinType::STRING = shared<BuiltinType>("string", "zenon_string"s);
+BuiltinType::DefType BuiltinType::CHAR = shared<BuiltinType>("char");
+BuiltinType::DefType BuiltinType::NORETURN = shared<BuiltinType>("noreturn", "[[noreturn]] void"s);
+BuiltinType::DefType BuiltinType::ANY_TYPE = shared<BuiltinType>("any_type");
+BuiltinType::DefType BuiltinType::ENUM_TYPE = shared<BuiltinType>("enum_type");
+BuiltinType::DefType BuiltinType::NULL_TYPE = shared<BuiltinType>("null_type");
+BuiltinType::DefType BuiltinType::STRUCT_TYPE = shared<BuiltinType>("struct_type");
 
-string ArithmeticType::getName(bool withTemplateArguments) const {
+string BuiltinType::getName(bool withTemplateArguments) const {
   return name;
 }
 
-string ArithmeticType::getCodegenName() const {
+string BuiltinType::getCodegenName() const {
   return codegenName;
 }
 
-ArithmeticType::ArithmeticType(const string& name, optional<std::string> codegenName)
+BuiltinType::BuiltinType(const string& name, optional<std::string> codegenName)
     : name(name), codegenName(codegenName.value_or(name)) {
 }
 
@@ -116,7 +116,7 @@ string TemplateParameterType::getName(bool withTemplateArguments) const {
 }
 
 bool TemplateParameterType::canReplaceBy(SType t) const {
-  return (type == ArithmeticType::ANY_TYPE && (t->getType() == ArithmeticType::ENUM_TYPE || t->getType() == ArithmeticType::STRUCT_TYPE)) ||
+  return (type == BuiltinType::ANY_TYPE && (t->getType() == BuiltinType::ENUM_TYPE || t->getType() == BuiltinType::STRUCT_TYPE)) ||
       t->getType() == type;
 }
 
@@ -129,7 +129,7 @@ SType TemplateParameterType::getType() const {
 }
 
 bool TemplateParameterType::isBuiltinCopyable(const Context&) const {
-  if (type == ArithmeticType::ENUM_TYPE)
+  if (type == BuiltinType::ENUM_TYPE)
     return true;
   else
     return false;
@@ -139,17 +139,17 @@ WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SType& 
   if (auto value = value1.dynamicCast<CompileTimeValue>()) {
     if (auto ref = value->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
       value = ref->value;
-    if (value->getType() != ArithmeticType::INT)
-      return "Member index must be of type: " + quote(ArithmeticType::INT->getName()) + ", got " + value->getType()->getName();
-    if (type == ArithmeticType::STRUCT_TYPE)
+    if (value->getType() != BuiltinType::INT)
+      return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + value->getType()->getName();
+    if (type == BuiltinType::STRUCT_TYPE)
       return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), value), "bad_member_name"};
     return Type::getTypeOfMember(value);
   } else
-    return "Member index must be of type: " + quote(ArithmeticType::INT->getName()) + ", got " + value1->getType()->getName();
+    return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + value1->getType()->getName();
 }
 
 WithError<SType> TemplateParameterType::getTypeOfMember(const string& s) const {
-  if (type == ArithmeticType::STRUCT_TYPE)
+  if (type == BuiltinType::STRUCT_TYPE)
     return "Can only refer to template struct type members by index"s;
   return Type::getTypeOfMember(s);
 }
@@ -158,7 +158,7 @@ bool TemplateParameterType::canBeValueTemplateParam() const {
   return true;
 }
 
-TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l), type(ArithmeticType::ANY_TYPE) {}
+TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l), type(BuiltinType::ANY_TYPE) {}
 
 TemplateParameterType::TemplateParameterType(SType type, string name, CodeLoc l)
     : name(std::move(name)), declarationLoc(l), type(std::move(type)) {
@@ -405,15 +405,15 @@ bool Type::isBuiltinCopyable(const Context&) const {
   return false;
 }
 
-bool ArithmeticType::isBuiltinCopyable(const Context&) const {
+bool BuiltinType::isBuiltinCopyable(const Context&) const {
   return true;
 }
 
-bool ArithmeticType::canBeValueTemplateParam() const {
+bool BuiltinType::canBeValueTemplateParam() const {
   return canDeclareVariable() && this != DOUBLE.get();
 }
 
-bool ArithmeticType::canDeclareVariable() const {
+bool BuiltinType::canDeclareVariable() const {
   return this == INT.get() || this == BOOL.get() || this == CHAR.get() || this == STRING.get() || this == DOUBLE.get();
 }
 
@@ -446,7 +446,7 @@ bool EnumType::isBuiltinCopyable(const Context&) const {
 }
 
 SType EnumType::getType() const {
-  return ArithmeticType::ENUM_TYPE;
+  return BuiltinType::ENUM_TYPE;
 }
 
 bool ReferenceType::canAssign(SType from) const {
@@ -549,7 +549,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
     handledTypes.insert(caseId);
     auto caseBodyContext = Context::withParent(outsideContext);
     auto realType = getAlternativeType(caseId).get();
-    if (realType != ArithmeticType::VOID)
+    if (realType != BuiltinType::VOID)
       caseElem.varType = caseElem.VALUE;
     if (auto caseType = TRY(caseElem.getType(outsideContext))) {
       if (caseType != realType && caseType->removePointer() != realType)
@@ -561,7 +561,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
         if (argumentType != SwitchArgument::MUTABLE_REFERENCE)
           return caseElem.codeloc.getError(
               "Can only bind element to mutable pointer when switch argument is a mutable reference");
-        if (realType == ArithmeticType::VOID)
+        if (realType == BuiltinType::VOID)
           return caseElem.codeloc.getError("Can't bind void element to pointer");
         caseBodyContext.addVariable(caseId, MutableReferenceType::get(MutablePointerType::get(realType)), caseElem.codeloc);
       } else
@@ -570,7 +570,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
         if (argumentType == SwitchArgument::VALUE)
           return caseElem.codeloc.getError(
               "Can only bind element to pointer when switch argument is a reference");
-        if (realType == ArithmeticType::VOID)
+        if (realType == BuiltinType::VOID)
           return caseElem.codeloc.getError("Can't bind void element to pointer");
         caseBodyContext.addVariable(caseId, MutableReferenceType::get(PointerType::get(realType)), caseElem.codeloc);
       }
@@ -654,14 +654,14 @@ WithError<Type::MemberInfo> StructType::getTypeOfMember(const SType& v1) const {
         return "Member index for type " + quote(getName()) + " must be between 0 and " + to_string(members.size() - 1) +
             ", got " + to_string(*intValue);
     }
-    if (v->getType() == ArithmeticType::INT)
+    if (v->getType() == BuiltinType::INT)
       return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), v), "bad_member_name"};
   }
-  return "Member index must be of type: " + quote(ArithmeticType::INT->getName()) + ", got " + v1->getType()->getName();
+  return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + v1->getType()->getName();
 }
 
 SType StructType::getType() const {
-  return ArithmeticType::STRUCT_TYPE;
+  return BuiltinType::STRUCT_TYPE;
 }
 
 StructType::StructType(string name, StructType::Private) : name(std::move(name)) {
@@ -686,7 +686,7 @@ SType Type::replaceImpl(SType, SType, ErrorBuffer&) const {
 }
 
 SType Type::getType() const {
-  return ArithmeticType::ANY_TYPE;
+  return BuiltinType::ANY_TYPE;
 }
 
 WithError<Type::MemberInfo> Type::getTypeOfMember(const SType&) const {
@@ -715,9 +715,9 @@ SType MutablePointerType::replaceImpl(SType from, SType to, ErrorBuffer& errors)
 
 static void checkNonVoidMember(const SType& type, const SType& to, ErrorBuffer& errors) {
   if (auto param = type.dynamicCast<TemplateParameterType>())
-    if (to == ArithmeticType::VOID)
+    if (to == BuiltinType::VOID)
       errors.push_back(
-          "Can't instantiate member type with type " + quote(ArithmeticType::VOID->getName()));
+          "Can't instantiate member type with type " + quote(BuiltinType::VOID->getName()));
 }
 
 namespace {
@@ -803,7 +803,7 @@ JustError<ErrorLoc> Type::handleSwitchStatement(SwitchStatement& s, Context&, Sw
 
 static string getCantSubstituteError(SType param, SType with) {
   auto ret = "Can't substitute template parameter " + quote(param->getName()) + " ";
-  if (param->getType() != ArithmeticType::ANY_TYPE)
+  if (param->getType() != BuiltinType::ANY_TYPE)
     ret += "of type " + quote(param->getType()->getName()) + " ";
   ret += "with type " + quote(with->getName());
   return ret;
@@ -1026,10 +1026,10 @@ static JustError<ErrorLoc> getConversionError(const Context& context, const SFun
     const vector<CodeLoc>& argLoc, const vector<SType>& funParams, TypeMapping& mapping) {
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
-    if (argTypes[i] != ArithmeticType::NULL_TYPE)
+    if (argTypes[i] != BuiltinType::NULL_TYPE)
       for (auto tArg : context.getConversions(argTypes[i]))
         if (!input->id.contains<Operator>() || tArg == argTypes[i] ||
-            (tArg.dynamicCast<ArithmeticType>() && argTypes[i].dynamicCast<ArithmeticType>())) {
+            (tArg.dynamicCast<BuiltinType>() && argTypes[i].dynamicCast<BuiltinType>())) {
           if (auto res = getDeductionError(context, mapping, funParams[i], tArg); !res) {
             if (!firstError)
               firstError = argLoc[i].getError(res.get_error());
@@ -1286,13 +1286,13 @@ string CompileTimeValue::getCodegenName() const {
 
 SType CompileTimeValue::getType() const {
   return value.visit(
-      [](int)-> SType {  return ArithmeticType::INT; },
-      [](double)-> SType {  return ArithmeticType::DOUBLE; },
-      [](bool)-> SType {  return ArithmeticType::BOOL; },
-      [](char)-> SType {  return ArithmeticType::CHAR; },
+      [](int)-> SType {  return BuiltinType::INT; },
+      [](double)-> SType {  return BuiltinType::DOUBLE; },
+      [](bool)-> SType {  return BuiltinType::BOOL; },
+      [](char)-> SType {  return BuiltinType::CHAR; },
       [](const ReferenceValue& ref)-> SType {  return MutableReferenceType::get(ref.value->getType()); },
-      [](NullValue)-> SType {  return ArithmeticType::NULL_TYPE; },
-      [](const string&)-> SType {  return ArithmeticType::STRING; },
+      [](NullValue)-> SType {  return BuiltinType::NULL_TYPE; },
+      [](const string&)-> SType {  return BuiltinType::STRING; },
       [](const EnumValue& v)-> SType {  return v.type; },
       [](const ArrayValue& v)-> SType {  return ArrayType::get(v.type, CompileTimeValue::get((int) v.values.size())); },
       [](const TemplateValue& v)-> SType {  return v.type; },

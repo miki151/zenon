@@ -404,11 +404,11 @@ JustError<ErrorLoc> IfStatement::check(Context& context, bool) {
   if (!condition)
     condition = negate(negate(unique<Variable>(IdentifierInfo(declaration->identifier, declaration->codeLoc))));
   auto condType = TRY(getType(ifContext, condition));
-  if (!ifContext.canConvert(condType, ArithmeticType::BOOL)) {
+  if (!ifContext.canConvert(condType, BuiltinType::BOOL)) {
     condition = negate(negate(std::move(condition)));
     condType = TRY(getType(ifContext, condition));
   }
-  if (!ifContext.canConvert(condType, ArithmeticType::BOOL)) {
+  if (!ifContext.canConvert(condType, BuiltinType::BOOL)) {
     return codeLoc.getError(
         "Expected a type convertible to bool or with overloaded operator " +
         quote("!") + " inside if statement, got " + quote(condType.get()->getName()));
@@ -505,7 +505,7 @@ JustError<ErrorLoc> ReturnStatement::check(Context& context, bool) {
     if (expr)
       return getType(context, expr);
     else
-      return SType(ArithmeticType::VOID);
+      return SType(BuiltinType::VOID);
   }());
   TRY(context.getReturnTypeChecker()->addReturnStatement(context, returnType).addCodeLoc(codeLoc));
   return success;
@@ -613,7 +613,7 @@ static WithErrorLine<vector<SType>> translateConceptParams(const Context& contex
       if (auto templateParam = origParam.dynamicCast<TemplateParameterType>()) {
         // Support is_enum concept
         auto& conceptParams = concept->getParams();
-        if (conceptParams[min<int>(i, conceptParams.size() -1 )]->getType() != ArithmeticType::ANY_TYPE)
+        if (conceptParams[min<int>(i, conceptParams.size() -1 )]->getType() != BuiltinType::ANY_TYPE)
           templateParam->type = conceptParams[min<int>(i, conceptParams.size() -1 )]->getType();
       }
       translatedParams.push_back(std::move(origParam));
@@ -652,8 +652,8 @@ static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const 
   auto expr = expr1->deepCopy();
   TRY(getType(from, expr));
   auto value = TRY(expr->eval(from).addError(expr1->codeLoc.getError("Unable to evaluate expression at compile-time")));
-  if (value.value->getType() != ArithmeticType::BOOL)
-    return expr->codeLoc.getError("Expected expression of type " + quote(ArithmeticType::BOOL->getName()) +
+  if (value.value->getType() != BuiltinType::BOOL)
+    return expr->codeLoc.getError("Expected expression of type " + quote(BuiltinType::BOOL->getName()) +
         ", got " + quote(value.value->getType()->getName()));
   return TemplateRequirement(shared_ptr<Expression>(std::move(expr)), false);
 }
@@ -687,14 +687,14 @@ static SType convertReferenceToPointer(SType type) {
 
 static bool paramsAreGoodForOperator(const vector<SType>& params) {
   for (auto& p : params)
-    if (p->getUnderlying()->getType() == ArithmeticType::STRUCT_TYPE)
+    if (p->getUnderlying()->getType() == BuiltinType::STRUCT_TYPE)
       return true;
   return false;
 }
 
 WithErrorLine<SType> FunctionDefinition::getReturnType(const Context& context) const {
   if (returnType.asBasicIdentifier() == "noreturn"s)
-    return (SType) ArithmeticType::NORETURN;
+    return (SType) BuiltinType::NORETURN;
   else
     return context.getTypeFromString(this->returnType);
 }
@@ -747,7 +747,7 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
   for (int i = 0; i < parameters.size(); ++i) {
     auto& p = parameters[i];
     auto type = TRY(contextWithTemplateParams.getTypeFromString(p.type, isVariadicParams && i == parameters.size() - 1));
-    if (type == ArithmeticType::VOID)
+    if (type == BuiltinType::VOID)
       return p.codeLoc.getError("Function parameter may not have " + quote(type->getName()) + " type");
     if (name.contains<Operator>())
       type = convertPointerToReference(type);
@@ -771,13 +771,13 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
     functionType.setBuiltin();
   functionInfo = FunctionInfo::getDefined(name, std::move(functionType), this);
   if (functionInfo->isMainFunction()) {
-    auto expectedParam = SliceType::get(ArithmeticType::STRING);
+    auto expectedParam = SliceType::get(BuiltinType::STRING);
     if (!functionInfo->type.params.empty() && (functionInfo->type.params.size() > 1
         || functionInfo->type.params[0] != expectedParam))
       return codeLoc.getError("The main() function should take no arguments or take a single argument of type "
           + quote(expectedParam->getName()));
-    if (functionInfo->type.retVal != ArithmeticType::INT)
-      return codeLoc.getError("The main() function should return a value of type " + quote(ArithmeticType::INT->getName()));
+    if (functionInfo->type.retVal != BuiltinType::INT)
+      return codeLoc.getError("The main() function should return a value of type " + quote(BuiltinType::INT->getName()));
   }
   return success;
 }
@@ -963,14 +963,14 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
         auto constructorName = returnType;
         constructorName.parts.push_back(IdentifierInfo::IdentifierPart { alternative.name, {} });
         auto constructorCall = unique<FunctionCall>(codeLoc, constructorName, false);
-        if (alternative.type != ArithmeticType::VOID)
+        if (alternative.type != BuiltinType::VOID)
           constructorCall->arguments.push_back(unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc),
               unique<Variable>(IdentifierInfo(alternative.name, codeLoc)), false));
         block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(constructorCall)));
         topSwitch->caseElems.push_back(
             SwitchStatement::CaseElem {
               codeLoc,
-              SType(alternative.type != ArithmeticType::VOID ? PointerType::get(alternative.type) : alternative.type),
+              SType(alternative.type != BuiltinType::VOID ? PointerType::get(alternative.type) : alternative.type),
               {alternative.name},
               alternative.name,
               std::move(block)
@@ -1126,9 +1126,9 @@ JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& r
   ReturnTypeChecker returnChecker(retVal);
   bodyContext.addReturnTypeChecker(&returnChecker);
   TRY(myBody.check(bodyContext));
-  if (retVal == ArithmeticType::NORETURN && !myBody.hasReturnStatement(bodyContext))
+  if (retVal == BuiltinType::NORETURN && !myBody.hasReturnStatement(bodyContext))
     return codeLoc.getError("This function should never return");
-  if (retVal != ArithmeticType::VOID && !myBody.hasReturnStatement(bodyContext))
+  if (retVal != BuiltinType::VOID && !myBody.hasReturnStatement(bodyContext))
     return codeLoc.getError("Not all paths lead to a return statement in a function returning non-void");
   return success;
 }
@@ -1181,76 +1181,76 @@ static void addBuiltInConcepts(Context& context) {
     concept->modParams().push_back(shared<TemplateParameterType>(type, "T", CodeLoc()));
     context.addConcept(name, concept);
   };
-  addType("is_enum", ArithmeticType::ENUM_TYPE);
-  addType("is_struct", ArithmeticType::STRUCT_TYPE);
+  addType("is_enum", BuiltinType::ENUM_TYPE);
+  addType("is_struct", BuiltinType::STRUCT_TYPE);
 }
 
 Context createPrimaryContext(TypeRegistry* typeRegistry) {
   Context context(typeRegistry);
-  for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE, ArithmeticType::BOOL,
-       ArithmeticType::VOID, ArithmeticType::CHAR, ArithmeticType::STRING, ArithmeticType::NULL_TYPE})
+  for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE, BuiltinType::BOOL,
+       BuiltinType::VOID, BuiltinType::CHAR, BuiltinType::STRING, BuiltinType::NULL_TYPE})
     context.addType(type->getName(), type);
-  CHECK(context.addImplicitFunction(Operator::PLUS, FunctionType(ArithmeticType::STRING,
-      {{ArithmeticType::STRING}, {ArithmeticType::STRING}}, {}).setBuiltin()));
+  CHECK(context.addImplicitFunction(Operator::PLUS, FunctionType(BuiltinType::STRING,
+      {{BuiltinType::STRING}, {BuiltinType::STRING}}, {}).setBuiltin()));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
-    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
+    for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE})
       CHECK(context.addImplicitFunction(op, FunctionType(type, {{type}}, {}).setBuiltin()));
   for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
-    CHECK(context.addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
-        {{MutableReferenceType::get(ArithmeticType::INT)}}, {}).setBuiltin()));
+    CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::VOID,
+        {{MutableReferenceType::get(BuiltinType::INT)}}, {}).setBuiltin()));
   for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
-    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-      if (type != ArithmeticType::DOUBLE || op != Operator::MODULO)
+    for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE})
+      if (type != BuiltinType::DOUBLE || op != Operator::MODULO)
         CHECK(context.addImplicitFunction(op, FunctionType(type, {{type}, {type}}, {}).setBuiltin()));
   for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
-    for (auto type : {ArithmeticType::INT, ArithmeticType::DOUBLE})
-      CHECK(context.addImplicitFunction(op, FunctionType(ArithmeticType::VOID,
+    for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE})
+      CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::VOID,
           {{MutableReferenceType::get(type)}, {type}}, {}).setBuiltin()));
   for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
-    CHECK(context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL,
-        {{ArithmeticType::BOOL}, {ArithmeticType::BOOL}}, {}).setBuiltin()));
-  CHECK(context.addImplicitFunction(Operator::LOGICAL_NOT, FunctionType(ArithmeticType::BOOL,
-      {{ArithmeticType::BOOL}}, {}).setBuiltin()));
+    CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL,
+        {{BuiltinType::BOOL}, {BuiltinType::BOOL}}, {}).setBuiltin()));
+  CHECK(context.addImplicitFunction(Operator::LOGICAL_NOT, FunctionType(BuiltinType::BOOL,
+      {{BuiltinType::BOOL}}, {}).setBuiltin()));
   for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
-    for (auto type : {ArithmeticType::INT, ArithmeticType::STRING, ArithmeticType::DOUBLE})
-      CHECK(context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
+    for (auto type : {BuiltinType::INT, BuiltinType::STRING, BuiltinType::DOUBLE})
+      CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL, {{type}, {type}}, {}).setBuiltin()));
   for (auto op : {Operator::EQUALS})
-    for (auto type : {ArithmeticType::BOOL, ArithmeticType::CHAR})
-      CHECK(context.addImplicitFunction(op, FunctionType(ArithmeticType::BOOL, {{type}, {type}}, {}).setBuiltin()));
-  auto metaTypes = {ArithmeticType::ANY_TYPE, ArithmeticType::STRUCT_TYPE, ArithmeticType::ENUM_TYPE};
+    for (auto type : {BuiltinType::BOOL, BuiltinType::CHAR})
+      CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL, {{type}, {type}}, {}).setBuiltin()));
+  auto metaTypes = {BuiltinType::ANY_TYPE, BuiltinType::STRUCT_TYPE, BuiltinType::ENUM_TYPE};
   for (auto type1 : metaTypes)
     for (auto type2 : metaTypes)
-      CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionType(ArithmeticType::BOOL, {{type1}, {type2}}, {}).setBuiltin()));
+      CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionType(BuiltinType::BOOL, {{type1}, {type2}}, {}).setBuiltin()));
   addBuiltInConcepts(context);
-  context.addBuiltInFunction("enum_count", ArithmeticType::INT, {SType(ArithmeticType::ENUM_TYPE)},
+  context.addBuiltInFunction("enum_count", BuiltinType::INT, {SType(BuiltinType::ENUM_TYPE)},
       [](vector<SType> args) -> WithError<SType> {
         if (auto enumType = args[0].dynamicCast<EnumType>())
           return (SType) CompileTimeValue::get((int) enumType->elements.size());
         else
           fail();
       });
-  context.addBuiltInFunction("struct_count", ArithmeticType::INT, {SType(ArithmeticType::STRUCT_TYPE)},
+  context.addBuiltInFunction("struct_count", BuiltinType::INT, {SType(BuiltinType::STRUCT_TYPE)},
       [](vector<SType> args) -> WithError<SType> {
         if (auto structType = args[0].dynamicCast<StructType>())
           return (SType) CompileTimeValue::get((int) structType->members.size());
         else
           fail();
       });
-  context.addBuiltInFunction("string_length", ArithmeticType::INT, {SType(ArithmeticType::STRING)},
+  context.addBuiltInFunction("string_length", BuiltinType::INT, {SType(BuiltinType::STRING)},
       [](vector<SType> args) -> WithError<SType> {
         if (auto value = args[0].dynamicCast<CompileTimeValue>())
           if (auto s = value->value.getReferenceMaybe<string>())
             return (SType) CompileTimeValue::get((int) s->size());
         fail();
       });
-  context.addBuiltInFunction("enum_strings", ArrayType::get(ArithmeticType::STRING, CompileTimeValue::get(0)),
-          {SType(ArithmeticType::ENUM_TYPE)},
+  context.addBuiltInFunction("enum_strings", ArrayType::get(BuiltinType::STRING, CompileTimeValue::get(0)),
+          {SType(BuiltinType::ENUM_TYPE)},
       [](vector<SType> args) -> WithError<SType> {
         auto enumType = args[0].dynamicCast<EnumType>();
         vector<SCompileTimeValue> values;
         for (auto& elem : enumType->elements)
           values.push_back(CompileTimeValue::get(elem));
-        return (SType) CompileTimeValue::get(CompileTimeValue::ArrayValue{values, ArithmeticType::STRING});
+        return (SType) CompileTimeValue::get(CompileTimeValue::ArrayValue{values, BuiltinType::STRING});
       });
   return context;
 }
@@ -1308,10 +1308,10 @@ ExpressionStatement::ExpressionStatement(unique_ptr<Expression> e) : Statement(e
 
 JustError<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
   auto res = TRY(getType(context, expr));
-  noReturnExpr = res == ArithmeticType::NORETURN;
-  if (!canDiscard && res != ArithmeticType::VOID && res != ArithmeticType::NORETURN)
+  noReturnExpr = res == BuiltinType::NORETURN;
+  if (!canDiscard && res != BuiltinType::VOID && res != BuiltinType::NORETURN)
     return codeLoc.getError("Expression result of type " + quote(res->getName()) + " discarded");
-  if (canDiscard && (res == ArithmeticType::VOID || res == ArithmeticType::NORETURN))
+  if (canDiscard && (res == BuiltinType::VOID || res == BuiltinType::NORETURN))
     return codeLoc.getError("Void expression result unnecessarily marked as discarded");
   return success;
 }
@@ -1651,7 +1651,7 @@ JustError<ErrorLoc> VariantDefinition::addToContext(Context& context) {
     type->alternatives.push_back({subtype.name, TRY(membersContext.getTypeFromString(subtype.type))});
     vector<SType> params;
     auto subtypeInfo = TRY(membersContext.getTypeFromString(subtype.type));
-    if (subtypeInfo != ArithmeticType::VOID)
+    if (subtypeInfo != BuiltinType::VOID)
       params.push_back(subtypeInfo);
     auto constructor = FunctionType(type.get(), params, {});
     constructor.parentType = type.get();
@@ -1798,7 +1798,7 @@ JustError<ErrorLoc> ForLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   TRY(init->check(bodyContext));
   auto condType = TRY(getType(bodyContext, cond));
-  if (condType != ArithmeticType::BOOL)
+  if (condType != BuiltinType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
   TRY(getType(bodyContext, iter));
   loopId = bodyContext.setIsInLoop();
@@ -1836,8 +1836,8 @@ JustError<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& body
   auto initVal = TRY(init->eval(context).addError(init->codeLoc.getError("Unable to evaluate expression at compile time")));
   context.addType(counter, CompileTimeValue::getReference(initVal.value.dynamicCast<CompileTimeValue>()));
   auto condVal = TRY(cond->eval(context).addError(cond->codeLoc.getError("Unable to evaluate expression at compile time")));
-  if (condVal.value->getType()->getUnderlying() != ArithmeticType::BOOL)
-    return cond->codeLoc.getError("Loop condition must be of type " + quote(ArithmeticType::BOOL->getName()));
+  if (condVal.value->getType()->getUnderlying() != BuiltinType::BOOL)
+    return cond->codeLoc.getError("Loop condition must be of type " + quote(BuiltinType::BOOL->getName()));
   TRY(iter->eval(context).addError(iter->codeLoc.getError("Unable to evaluate expression at compile time")));
   return success;
 }
@@ -1874,7 +1874,7 @@ JustError<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
   auto initType = TRY(getType(bodyContext, init));
   bodyContext.addVariable(counter, MutableReferenceType::get(getType(bodyContext, init).get()), init->codeLoc);
   auto condType = TRY(getType(bodyContext, cond));
-  if (condType != ArithmeticType::BOOL)
+  if (condType != BuiltinType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
   auto res = TRY(getType(bodyContext, iter));
   auto counterType = CompileTimeValue::getTemplateValue(initType, counter);
@@ -1923,7 +1923,7 @@ WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, uniq
 JustError<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   auto condType = TRY(getType(bodyContext, cond));
-  if (condType != ArithmeticType::BOOL)
+  if (condType != BuiltinType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
   loopId = bodyContext.setIsInLoop();
   return body->check(bodyContext);
@@ -2137,7 +2137,7 @@ JustError<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)));
   TRY(init->check(bodyContext));
   auto condType = TRY(getType(bodyContext, condition));
-  if (condType != ArithmeticType::BOOL)
+  if (condType != BuiltinType::BOOL)
     return codeLoc.getError("Equality comparison between iterators does not return type " + quote("bool"));
   TRY(getType(bodyContext, increment));
   loopId = bodyContext.setIsInLoop();
@@ -2283,8 +2283,8 @@ ExternConstantDeclaration::ExternConstantDeclaration(CodeLoc l, IdentifierInfo t
 JustError<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
   TRY(context.checkNameConflict(identifier, "Variable").addCodeLoc(codeLoc));
   realType = TRY(context.getTypeFromString(type));
-  if (realType == ArithmeticType::VOID)
-    return codeLoc.getError("Can't declare constant of type " + quote(ArithmeticType::VOID->getName()));
+  if (realType == BuiltinType::VOID)
+    return codeLoc.getError("Can't declare constant of type " + quote(BuiltinType::VOID->getName()));
   INFO << "Adding extern constant " << identifier << " of type " << realType.get()->getName();
   context.addVariable(identifier, ReferenceType::get(realType.get()), codeLoc);
   return success;
@@ -2319,7 +2319,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
     set<string> paramNames;
     for (auto& param : parameters) {
       auto type = TRY(bodyContext.getTypeFromString(param.type));
-      if (type == ArithmeticType::VOID)
+      if (type == BuiltinType::VOID)
         return param.codeLoc.getError("Function parameter may not have " + quote(type->getName()) + " type");
       auto varType = param.isMutable ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
       params.push_back(varType);
@@ -2353,7 +2353,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   auto blockCopy = block->deepCopy();
   auto res = blockCopy->check(bodyContext);
   CHECK(!!res) << res.get_error().loc.toString() << " " << res.get_error().error;
-  if (!block->hasReturnStatement(context) && retType != ArithmeticType::VOID)
+  if (!block->hasReturnStatement(context) && retType != BuiltinType::VOID)
     return block->codeLoc.getError("Not all paths lead to a return statement in a lambda expression returning non-void");
   type->body = cast<StatementBlock>(std::move(blockCopy));
   context.typeRegistry->addLambda(type.get());
@@ -2405,7 +2405,7 @@ WithErrorLine<SType> CountOfExpression::getTypeImpl(Context& context) {
     if (!variablePack || variablePack->name != identifier)
       type = TRY(context.getTypeFromString(IdentifierInfo(identifier, codeLoc), true));
   }
-  return SType(ArithmeticType::INT);
+  return SType(BuiltinType::INT);
 }
 
 unique_ptr<Expression> CountOfExpression::expand(SType from, vector<SType> to) const {
@@ -2434,7 +2434,7 @@ JustResult<EvalResult> CountOfExpression::eval(const Context&) const {
   if (count)
     return EvalResult{CompileTimeValue::get(*count), true};
   else
-    return EvalResult{CompileTimeValue::getTemplateValue(ArithmeticType::INT, "countof"), false};
+    return EvalResult{CompileTimeValue::getTemplateValue(BuiltinType::INT, "countof"), false};
 }
 
 

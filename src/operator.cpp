@@ -324,19 +324,19 @@ static nullable<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileT
 }
 
 static SCompileTimeValue getExampleValue(SType type) {
-  if (ArithmeticType::INT == type)
+  if (BuiltinType::INT == type)
     return CompileTimeValue::get(0);
-  if (ArithmeticType::BOOL == type)
+  if (BuiltinType::BOOL == type)
     return CompileTimeValue::get(false);
-  if (ArithmeticType::DOUBLE == type)
+  if (BuiltinType::DOUBLE == type)
     return CompileTimeValue::get(0.0);
-  if (ArithmeticType::STRING == type)
+  if (BuiltinType::STRING == type)
     return CompileTimeValue::get(""s);
-  if (ArithmeticType::CHAR == type)
+  if (BuiltinType::CHAR == type)
     return CompileTimeValue::get('a');
   if (auto ref = type.dynamicCast<MutableReferenceType>())
     return CompileTimeValue::getReference(getExampleValue(ref->getUnderlying()));
-  //if (ArithmeticType::VOID == type)
+  //if (BuiltinType::VOID == type)
   fail();
 }
 
@@ -344,7 +344,7 @@ JustResult<SType> eval(Operator op, vector<SType> args1) {
   if (op == Operator::EQUALS && args1.size() == 2) {
     auto result = args1[0]->getMangledName() && args1[1]->getMangledName()
         ? CompileTimeValue::get(args1[0] == args1[1])
-        : CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, args1, ArithmeticType::BOOL});
+        : CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, args1, BuiltinType::BOOL});
     return SType(std::move(result));
   }
   vector<SCompileTimeValue> args;

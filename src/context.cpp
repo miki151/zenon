@@ -232,19 +232,19 @@ vector<SType> Context::getConversions(SType type) const {
   vector<SType> ret = {type};
   if (type->getUnderlying()->isBuiltinCopyable(*this) && type != type->getUnderlying())
     ret.push_back(type->getUnderlying());
-  if (type->getUnderlying() == ArithmeticType::INT)
-    ret.push_back(ArithmeticType::DOUBLE);
+  if (type->getUnderlying() == BuiltinType::INT)
+    ret.push_back(BuiltinType::DOUBLE);
   if (auto ptr = type->getUnderlying().dynamicCast<MutablePointerType>())
     ret.push_back(PointerType::get(ptr->underlying));
-  if (type->getUnderlying() != ArithmeticType::NULL_TYPE)
+  if (type->getUnderlying() != BuiltinType::NULL_TYPE)
     ret.push_back(OptionalType::get(type->getUnderlying()));
   return ret;
 }
 
 bool Context::canConvert(SType from, SType to) const {
   return contains(getConversions(from), to) ||
-      (from == ArithmeticType::NULL_TYPE && to.dynamicCast<OptionalType>() &&
-          to.dynamicCast<OptionalType>()->underlying != ArithmeticType::NULL_TYPE);
+      (from == BuiltinType::NULL_TYPE && to.dynamicCast<OptionalType>() &&
+          to.dynamicCast<OptionalType>()->underlying != BuiltinType::NULL_TYPE);
 }
 
 optional<int> Context::getLoopId() const {
@@ -466,7 +466,7 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
           [&](const IdentifierInfo::ArraySize& size) {
             if (auto type = size.expr->eval(*this)) {
               if (auto value = type->value.dynamicCast<CompileTimeValue>())
-                if (value.get()->getType() == ArithmeticType::INT) {
+                if (value.get()->getType() == BuiltinType::INT) {
                   if (auto sizeInt = value->value.getValueMaybe<int>())
                     if (*sizeInt < 0) {
                       ret = size.expr->codeLoc.getError("Array size must be non-negative");
@@ -620,10 +620,10 @@ nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> a
       case Operator::ASSIGNMENT:
         if (argTypes.size() == 2 && canConvert(argTypes[1], argTypes[0]->getUnderlying()))
           if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
-            return FunctionType(ArithmeticType::VOID, {argTypes[0], referenceType->underlying}, {}).setBuiltin();
+            return FunctionType(BuiltinType::VOID, {argTypes[0], referenceType->underlying}, {}).setBuiltin();
         break;
       case Operator::SUBSCRIPT:
-        if (argTypes.size() == 2 && canConvert(argTypes[1], ArithmeticType::INT))
+        if (argTypes.size() == 2 && canConvert(argTypes[1], BuiltinType::INT))
           if (auto pack = argTypes[0].dynamicCast<VariablePack>())
             return FunctionType(pack->packType, {argTypes[0]->getUnderlying(), argTypes[0]->getUnderlying()}, {}).setBuiltin();
         break;

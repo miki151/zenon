@@ -54,13 +54,13 @@ struct Type : public owned_object<Type> {
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const;
 };
 
-struct ArithmeticType : public Type {
+struct BuiltinType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
   virtual bool isBuiltinCopyable(const Context&) const override;
   virtual bool canBeValueTemplateParam() const override;
   virtual bool canDeclareVariable() const override;
-  using DefType = shared_ptr<ArithmeticType>;
+  using DefType = shared_ptr<BuiltinType>;
   static DefType INT;
   static DefType DOUBLE;
   static DefType BOOL;
@@ -72,7 +72,7 @@ struct ArithmeticType : public Type {
   static DefType ENUM_TYPE;
   static DefType NULL_TYPE;
   static DefType STRUCT_TYPE;
-  ArithmeticType(const string& name, optional<string> codegenName = none);
+  BuiltinType(const string& name, optional<string> codegenName = none);
 
   private:
   string name;

@@ -9,10 +9,10 @@ ReturnTypeChecker::ReturnTypeChecker(nullable<SType> explicitReturn) : explicitR
 JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, SType returnType) {
   auto underlying = returnType->getUnderlying();
   if (explicitReturn) {
-    if (explicitReturn == ArithmeticType::NORETURN)
+    if (explicitReturn == BuiltinType::NORETURN)
       return "This function should never return"s;
-    if (underlying == ArithmeticType::VOID) {
-      if (explicitReturn != ArithmeticType::VOID)
+    if (underlying == BuiltinType::VOID) {
+      if (explicitReturn != BuiltinType::VOID)
         return "Expected an expression in return statement in a function returning non-void"s;
     }
   } else
@@ -31,5 +31,5 @@ SType ReturnTypeChecker::getReturnType() const {
     return explicitReturn.get();
   if (returnStatement)
     return returnStatement.get();
-  return ArithmeticType::VOID;
+  return BuiltinType::VOID;
 }
