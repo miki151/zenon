@@ -45,7 +45,7 @@ BINARY_TMP=$(mktemp)
 function run_test() {
   I=$1
   EXPECTED=`head -n 1 $I | cut -c 4-`
-#  echo "Running $I Expecting: $EXPECTED"
+  echo -ne "\033[2KRunning $I"\\r
   if [ "$EXPECTED" = "" ]; then
     echo -e "$I: $RED No expected value specified$NC"
     return
@@ -74,4 +74,5 @@ for I in `ls $WILDCARD*/main.znn`; do
   run_test $I
 done
 
+echo -ne "\033[2K"\\r
 rm $BINARY_TMP
