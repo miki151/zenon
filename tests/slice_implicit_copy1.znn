@@ -1,0 +1,7 @@
+// 4
+
+int main() {
+  const a = {1, 2, 3, 4};
+  const int[]? s = a.slice();
+  return (*s)[3];
+}

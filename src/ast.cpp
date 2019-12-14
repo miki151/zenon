@@ -189,6 +189,9 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
     if (!better.empty())
       overloads = better;
   };
+  auto isExactArg = [] (SType arg, SType param) {
+    return param == arg;
+  };
   auto isExactValueArg = [] (SType arg, SType param) {
     return param == arg->getUnderlying();
   };
@@ -196,8 +199,7 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
     bool byConstRef = param.dynamicCast<ReferenceType>() &&
         !arg.dynamicCast<MutableReferenceType>() &&
         param->getUnderlying() == arg->getUnderlying();
-    bool byRef = param == arg;
-    return byConstRef || byRef;
+    return byConstRef;
   };
   auto isConstToMutableReferenceArg = [] (SType arg, SType param) {
     bool byConstRef = param.dynamicCast<ReferenceType>() &&
@@ -211,6 +213,8 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
         return false;
     return true;
   };
+  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isExactArg);}, "all args exact");
+  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isExactArg);}, "first arg exact");
   filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isExactValueArg);}, "all args exact");
   filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isExactValueArg);}, "first arg exact");
   filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isExactReferenceArg);}, "all args exact");
@@ -226,19 +230,19 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
 
 
 static WithErrorLine<SFunctionInfo> handleOperatorOverloads(Context& context, CodeLoc codeLoc, Operator op,
-    vector<SType> types, vector<CodeLoc> argLocs) {
+    vector<SType> types, vector<CodeLoc> argLocs, vector<unique_ptr<Expression>>& expr) {
   vector<SFunctionInfo> overloads;
   if (auto fun = context.getBuiltinOperator(op, types))
     overloads.push_back(fun.get());
   vector<string> errors;
   for (auto fun : context.getOperatorType(op))
-    if (auto inst = instantiateFunction(context, fun, codeLoc, {}, types, argLocs, {}))
+    if (auto inst = instantiateFunction(context, fun, codeLoc, {}, types, argLocs))
       overloads.push_back(inst.get());
     else
       errors.push_back("Candidate: " + fun->prettyString() + ": " + inst.get_error().error);
   filterOverloads(context, overloads, types);
   if (overloads.size() == 1) {
-    //cout << "Chosen overload " << overloads[0].toString() << endl;
+    generateConversions(context, overloads[0]->type.params, types, expr);
     return overloads[0];
   } else {
       string error = (overloads.empty() ? "No overload" : "Multiple overloads") + " found for operator: "s +
@@ -303,7 +307,7 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
       if (op == Operator::SUBSCRIPT && exprTypes[0].dynamicCast<VariablePack>() && !expr[1]->eval(context))
         return expr[1]->codeLoc.getError("Unable to evaluate variable pack index at compile-time");
       functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, exprTypes,
-          ::transform(expr, [&](auto& e) { return e->codeLoc;})));
+          ::transform(expr, [&](auto& e) { return e->codeLoc;}), expr));
       if (auto parent = functionInfo->parent)
         if (parent->definition)
           TRY(parent->definition->addInstance(context, functionInfo.get()));
@@ -351,7 +355,9 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
   if (!right)
     return right;
   ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right.get()->getName())};
-  functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, {TRY(expr->getTypeImpl(context))}, {expr->codeLoc}));
+  auto exprTmp = makeVec(std::move(expr));
+  functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, {TRY(exprTmp[0]->getTypeImpl(context))}, {exprTmp[0]->codeLoc}, exprTmp));
+  expr = std::move(exprTmp[0]);
   if (auto parent = functionInfo->parent)
     if (parent->definition)
       TRY(parent->definition->addInstance(context, functionInfo.get()));
@@ -444,11 +450,8 @@ unique_ptr<Statement> IfStatement::transform(const StmtTransformFun& fun,
 }
 
 static JustError<string> getVariableInitializationError(const char* action, const Context& context, const SType& varType,
-    const SType& exprType) {
-  if ((exprType.dynamicCast<ReferenceType>() || exprType.dynamicCast<MutableReferenceType>()) &&
-      !exprType.get()->getUnderlying()->isBuiltinCopyable(context))
-    return "Type " + quote(exprType.get()->getUnderlying()->getName()) + " cannot be copied implicitly"s;
-  if (!context.canConvert(exprType, varType))
+    const SType& exprType, unique_ptr<Expression>& expr) {
+  if (!context.canConvert(exprType, varType, expr))
     return "Can't "s + action + " of type "
        + quote(varType->getName()) + " using a value of type " + quote(exprType->getName());
   return success;
@@ -478,7 +481,8 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
     context.addType(identifier, TRY(initExpr->eval(context)
         .addError(initExpr->codeLoc.getError("Unable to evaluate expression at compile-time"))).value);
   }
-  TRY(getVariableInitializationError("initialize variable", context, realType.get(), exprType).addCodeLoc(initExpr->codeLoc));
+  TRY(getVariableInitializationError("initialize variable", context, realType.get(), exprType, initExpr).addCodeLoc(initExpr->codeLoc));
+  TRY(getType(context, initExpr));
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
   context.addVariable(identifier, std::move(varType), codeLoc);
   return success;
@@ -507,7 +511,7 @@ JustError<ErrorLoc> ReturnStatement::check(Context& context, bool) {
     else
       return SType(BuiltinType::VOID);
   }());
-  TRY(context.getReturnTypeChecker()->addReturnStatement(context, returnType).addCodeLoc(codeLoc));
+  TRY(context.getReturnTypeChecker()->addReturnStatement(context, returnType, expr).addCodeLoc(codeLoc));
   return success;
 }
 
@@ -816,8 +820,20 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
         combine(transform(overloads, [](const auto& o) { return o->prettyString();}), "\n"));
 }
 
+static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
+    CodeLoc codeLoc, IdentifierType id, vector<SType> templateArgs, const vector<SType>& argTypes,
+    const vector<CodeLoc>& argLoc, vector<unique_ptr<Expression>>& expr) {
+  auto fun = TRY(getFunction(context, codeLoc, std::move(id), std::move(templateArgs), std::move(argTypes), std::move(argLoc)));
+  generateConversions(context, fun->type.params, argTypes, expr);
+  return fun;
+}
+
 WithErrorLine<SFunctionInfo> getCopyFunction(const Context& context, CodeLoc callLoc, const SType& t) {
   return getFunction(context, callLoc, IdentifierType("copy"), {}, {PointerType::get(t)}, {callLoc});
+}
+
+WithErrorLine<SFunctionInfo> getImplicitCopyFunction(const Context& context, CodeLoc callLoc, const SType& t) {
+  return getFunction(context, callLoc, IdentifierType("implicit_copy"), {}, {PointerType::get(t)}, {callLoc});
 }
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
@@ -853,7 +869,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCall
         argTypes.back() = argTypes.back()->removePointer();
       }
     }
-  TRY(handleOperatorOverloads(context, codeLoc, op, argTypes, vector<CodeLoc>(argTypes.size(), codeLoc)));
+  TRY(handleOperatorOverloads(context, codeLoc, op, argTypes, vector<CodeLoc>(argTypes.size(), codeLoc), arguments));
   if (parameters.size() == 1)
     return unique_ptr<Expression>(unique<UnaryExpression>(codeLoc, op, std::move(arguments[0])));
   else {
@@ -933,7 +949,7 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
   return success;
 }
 
-JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Context& context) {
+JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Context& context, const string& functionName) {
   if (!body && isDefault) {
     if (parameters.size() != 1)
       return codeLoc.getError("Expected exactly one parameter in copy function");
@@ -948,7 +964,7 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
       auto call = unique<FunctionCall>(codeLoc, returnType, false);
       for (auto elem : structType->members) {
         auto copiedParam = unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc));
-        auto copyCall = unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc), false);
+        auto copyCall = unique<FunctionCall>(codeLoc, IdentifierInfo(functionName, codeLoc), false);
         copyCall->arguments.push_back(unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
             MemberAccessExpression::getPointerAccess(codeLoc, std::move(copiedParam), elem.name)));
         call->arguments.push_back(std::move(copyCall));
@@ -964,7 +980,7 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
         constructorName.parts.push_back(IdentifierInfo::IdentifierPart { alternative.name, {} });
         auto constructorCall = unique<FunctionCall>(codeLoc, constructorName, false);
         if (alternative.type != BuiltinType::VOID)
-          constructorCall->arguments.push_back(unique<FunctionCall>(codeLoc, IdentifierInfo("copy", codeLoc),
+          constructorCall->arguments.push_back(unique<FunctionCall>(codeLoc, IdentifierInfo(functionName, codeLoc),
               unique<Variable>(IdentifierInfo(alternative.name, codeLoc)), false));
         block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(constructorCall)));
         topSwitch->caseElems.push_back(
@@ -1083,8 +1099,8 @@ JustError<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) 
   auto res = TRY(applyRequirements(bodyContext, templateInfo));
   if (isVirtual)
     TRY(generateVirtualDispatchBody(bodyContext));
-  if (name == "copy"s)
-    TRY(checkAndGenerateCopyFunction(bodyContext));
+  if (name == "copy"s || name == "implicit_copy"s)
+    TRY(checkAndGenerateCopyFunction(bodyContext, name.get<string>()));
   else
   if (name == ConstructorTag{})
     TRY(checkAndGenerateDefaultConstructor(bodyContext));
@@ -1416,7 +1432,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
       INFO << "Function argument " << argTypes.back()->getName();
     }
     auto tryMethodCall = [&](MethodCallType thisCallType) {
-      auto res = getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs);
+      auto res = getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs, arguments);
       if (res)
         callType = thisCallType;
       if (res && functionInfo) {
@@ -1436,7 +1452,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
           : SType(PointerType::get(leftType->getUnderlying()));
       tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
     } else
-      getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs).unpack(functionInfo, error);
+      getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs, arguments).unpack(functionInfo, error);
   }
   if (functionInfo) {
     TRY(checkVariadicCall(callContext));
@@ -2206,7 +2222,7 @@ WithErrorLine<SType> ArrayLiteral::getTypeImpl(Context& context) {
   for (int i = 0; i < contents.size(); ++i) {
     if (i > 0 || !typeId)
       typeTmp = TRY(getType(context, contents[i]));
-    TRY(getVariableInitializationError("construct array", context, ret, typeTmp).addCodeLoc(contents[i]->codeLoc));
+    TRY(getVariableInitializationError("construct array", context, ret, typeTmp, contents[i]).addCodeLoc(contents[i]->codeLoc));
   }
   type = ret;
   return SType(ArrayType::get(ret, CompileTimeValue::get((int)contents.size())));

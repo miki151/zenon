@@ -6,7 +6,7 @@ ReturnTypeChecker::ReturnTypeChecker(nullable<SType> explicitReturn) : explicitR
 
 }
 
-JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, SType returnType) {
+JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, SType returnType, unique_ptr<Expression>& expr) {
   auto underlying = returnType->getUnderlying();
   if (explicitReturn) {
     if (explicitReturn == BuiltinType::NORETURN)
@@ -21,9 +21,10 @@ JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, 
   else
     returnStatement = underlying;
   auto toConvert = explicitReturn.value_or([&] { return returnStatement.get();});
-  if (!context.canConvert(returnType, toConvert))
+  if (context.canConvert(returnType, toConvert, expr))
+    return success;
+  else
     return "Can't return value of type " + quote(returnType->getName()) + " from a function returning " + toConvert->getName();
-  return success;
 }
 
 SType ReturnTypeChecker::getReturnType() const {

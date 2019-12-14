@@ -3,11 +3,12 @@
 #include "operator.h"
 
 class Context;
+class Expression;
 
 class ReturnTypeChecker {
   public:
   ReturnTypeChecker(nullable<SType> explicitReturn);
-  JustError<string> addReturnStatement(const Context&, SType);
+  JustError<string> addReturnStatement(const Context&, SType, unique_ptr<Expression>& expr);
   SType getReturnType() const;
 
   private:

@@ -128,7 +128,7 @@ SType TemplateParameterType::getType() const {
   return type;
 }
 
-bool TemplateParameterType::isBuiltinCopyable(const Context&) const {
+bool TemplateParameterType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {
   if (type == BuiltinType::ENUM_TYPE)
     return true;
   else
@@ -254,8 +254,8 @@ string FunctionInfo::prettyString() const {
 string FunctionInfo::getMangledName() const {
   if (isMainFunction())
     return "zenonMain"s;
-  if (id == "copy"s)
-    return "copy";
+  if (id == "copy"s || id == "implicit_copy"s)
+    return id.get<string>();
   return id.visit(
       [this](const string& s) {
         return s + *getMangledSuffix();
@@ -401,11 +401,11 @@ bool Type::canAssign(SType from) const{
   return false;
 }
 
-bool Type::isBuiltinCopyable(const Context&) const {
+bool Type::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {
   return false;
 }
 
-bool BuiltinType::isBuiltinCopyable(const Context&) const {
+bool BuiltinType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {
   return true;
 }
 
@@ -433,7 +433,30 @@ bool Type::canDeclareVariable() const {
   return true;
 }
 
-bool PointerType::isBuiltinCopyable(const Context&) const {
+bool Type::isBuiltinCopyable(const Context& context, unique_ptr<Expression>& expr) const {
+  if (isBuiltinCopyableImpl(context, expr))
+    return true;
+  else
+  if (auto fun = getImplicitCopyFunction(context, CodeLoc(), get_this().get())) {
+    if (expr) {
+      auto tmpContext = Context::withParent(context);
+      auto codeLoc = expr->codeLoc;
+      expr = unique<FunctionCall>(expr->codeLoc, IdentifierInfo("implicit_copy", expr->codeLoc),
+          unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false);
+      auto err = expr->getTypeImpl(tmpContext);
+      CHECK(!!err) << err.get_error();
+    }
+    return true;
+  }
+  return false;
+}
+
+bool Type::isBuiltinCopyable(const Context& context) const {
+  unique_ptr<Expression> expr;
+  return isBuiltinCopyable(context, expr);
+}
+
+bool PointerType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {
   return true;
 }
 
@@ -441,7 +464,7 @@ SType PointerType::removePointer() const {
   return underlying;
 }
 
-bool EnumType::isBuiltinCopyable(const Context&) const {
+bool EnumType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {
   return true;
 }
 
@@ -890,7 +913,7 @@ JustError<string> MutablePointerType::getMappingError(const Context& context, Ty
   return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
 }
 
-bool MutablePointerType::isBuiltinCopyable(const Context&) const {
+bool MutablePointerType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {
   return true;
 }
 
@@ -1004,6 +1027,19 @@ static JustError<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc co
     }
   type.requirements = std::move(newRequirements);
   return success;
+}
+
+void generateConversions(const Context& context, const vector<SType>& paramTypes, const vector<SType>& argTypes,
+    vector<unique_ptr<Expression>>& expr) {
+  for (int i = 0; i < paramTypes.size(); ++i) {
+    auto& paramType = paramTypes[i];
+    auto& argType = argTypes[i];
+    if ((!paramType.dynamicCast<ReferenceType>() && !paramType.dynamicCast<MutableReferenceType>()) &&
+        (argType.dynamicCast<ReferenceType>() || argType.dynamicCast<MutableReferenceType>())) {
+      unique_ptr<Expression> emptyExpr;
+      CHECK(argType->getUnderlying()->isBuiltinCopyable(context, expr[i]));
+    }
+  }
 }
 
 static JustError<ErrorLoc> checkImplicitCopies(const Context& context, const vector<SType>& paramTypes, vector<SType>& argTypes,
@@ -1220,10 +1256,6 @@ shared_ptr<ArrayType> ArrayType::get(SType type, SCompileTimeValue size) {
   return generated.at({type, size});
 }
 
-bool ArrayType::isBuiltinCopyable(const Context& context) const {
-  return false;//underlying->isBuiltinCopyable(context);
-}
-
 JustError<string> ArrayType::getSizeError(const Context& context) const {
   return underlying->getSizeError(context);
 }
@@ -1426,7 +1458,7 @@ shared_ptr<SliceType> SliceType::get(SType type) {
   return generated.at(type);
 }
 
-bool SliceType::isBuiltinCopyable(const Context&) const {
+bool SliceType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {
   return true;
 }
 
@@ -1475,10 +1507,6 @@ JustError<string> OptionalType::getMappingError(const Context& context, TypeMapp
 
 SType OptionalType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   return OptionalType::get(underlying->replace(from, to, errors));
-}
-
-bool OptionalType::isBuiltinCopyable(const Context& context) const {
-  return underlying->isBuiltinCopyable(context);
 }
 
 shared_ptr<OptionalType> OptionalType::get(SType type) {
@@ -1535,13 +1563,6 @@ SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
 
 JustError<string> LambdaType::getMappingError(const Context&, TypeMapping&, SType argType) const {
   return success;
-}
-
-bool LambdaType::isBuiltinCopyable(const Context& c) const {
-  for (auto& t : captures)
-    if (!t.type->isBuiltinCopyable(c))
-      return false;
-  return true;
 }
 
 static int getNewLambdaId() {

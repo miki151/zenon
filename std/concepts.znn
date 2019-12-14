@@ -5,6 +5,11 @@ concept can_copy {
 };
 
 export template <T>
+concept can_implicit_copy {
+  T implicit_copy(T*);
+};
+
+export template <T>
 concept ordered {
   bool operator < (T*, T*);
   bool operator > (T*, T*);

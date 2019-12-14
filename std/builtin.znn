@@ -6,15 +6,43 @@ export import "std/string.znn";
 export import "std/optional.znn";
 
 export template <T>
-T* copy(T** p) {
+T* implicit_copy(T** p) {
   return *p;
 }
 
-export template <T> requires (T == bool || T == int || T == char || T == double)
-T copy(T* b) {
+export int implicit_copy(int* b) {
   embed {
     return *b;
   }
+}
+
+export string implicit_copy(string* b) {
+  embed {
+    return *b;
+  }
+}
+
+export bool implicit_copy(bool* b) {
+  embed {
+    return *b;
+  }
+}
+
+export char implicit_copy(char* b) {
+  embed {
+    return *b;
+  }
+}
+
+export double implicit_copy(double* b) {
+  embed {
+    return *b;
+  }
+}
+
+export template <T> requires can_implicit_copy<T>
+T copy(T* b) {
+  return *b;
 }
 
 export template <Enum> requires is_enum<Enum>
@@ -22,5 +50,10 @@ bool operator == (Enum e1, Enum e2) {
   embed {
     return e1 == e2;
   }
+}
+
+export template <Enum> requires is_enum<Enum>
+Enum implicit_copy(Enum* e) {
+  return *e;
 }
 

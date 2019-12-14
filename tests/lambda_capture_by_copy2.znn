@@ -5,7 +5,7 @@ struct X {
   T a;
 };
 
-template <T>
+template <T> requires can_copy<T>
 X<T> copy(X<T>* x) = default;
 
 int main() {

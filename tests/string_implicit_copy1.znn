@@ -1,0 +1,7 @@
+// 3
+
+int main() {
+  const string? s = "pok";
+  const u = s;
+  return u->size();
+}

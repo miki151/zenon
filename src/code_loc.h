@@ -23,6 +23,11 @@ struct ErrorLoc {
   string error;
 };
 
+inline std::ostream& operator<<(std::ostream& d, const ErrorLoc& error) {
+  d << error.loc.toString() << ": " << error.error;
+  return d;
+}
+
 template <typename T>
 class [[nodiscard]] WithErrorLine : public expected<T, ErrorLoc> {
   public:

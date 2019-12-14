@@ -17,6 +17,14 @@ T? copy(T?* elem) {
     return null;
 }
 
+export template <T> requires can_implicit_copy<T>
+T? implicit_copy(T?* elem) {
+  if (*elem)
+    return implicit_copy(&**elem);
+  else
+    return null;
+}
+
 export template <T>
 T mutable* operator * (T? mutable* elem) {
   if (!*elem)

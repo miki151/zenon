@@ -1,5 +1,6 @@
 
 import "std/print.znn";
+import "std/string.znn";
 
 export noreturn panic() {
   embed {

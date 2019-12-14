@@ -1,0 +1,16 @@
+// 2
+
+import "std/enum.znn";
+
+enum E {
+  E1,
+  E2,
+  E3
+};
+
+int main() {
+  const x = E::E3;
+  const E? s = x;
+  const u = s;
+  return u->asInt();
+}

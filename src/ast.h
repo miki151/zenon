@@ -578,7 +578,7 @@ struct FunctionDefinition : Statement {
       const string& alternativeName, const SType& alternativeType, int virtualIndex);
   WithErrorLine<unique_ptr<Expression>> getVirtualOperatorCallExpr(Context&, Operator,
       const string& alternativeName, const SType& alternativeType, int virtualIndex);
-  NODISCARD JustError<ErrorLoc> checkAndGenerateCopyFunction(const Context&);
+  NODISCARD JustError<ErrorLoc> checkAndGenerateCopyFunction(const Context&, const string&);
   NODISCARD JustError<ErrorLoc> checkAndGenerateDefaultConstructor(const Context&);
   NODISCARD JustError<ErrorLoc> addInstance(const Context& callContext, const SFunctionInfo&);
   NODISCARD JustError<ErrorLoc> generateDefaultBodies(Context&);
@@ -636,3 +636,4 @@ extern WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST&, C
     const vector<string>& importPaths, bool builtIn);
 extern Context createPrimaryContext(TypeRegistry*);
 extern WithErrorLine<SFunctionInfo> getCopyFunction(const Context&, CodeLoc callLoc, const SType&);
+extern WithErrorLine<SFunctionInfo> getImplicitCopyFunction(const Context&, CodeLoc callLoc, const SType&);

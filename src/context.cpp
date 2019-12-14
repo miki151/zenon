@@ -232,21 +232,30 @@ void Context::print() const {
 
 vector<SType> Context::getConversions(SType type) const {
   vector<SType> ret = {type};
-  if (type->getUnderlying()->isBuiltinCopyable(*this) && type != type->getUnderlying())
-    ret.push_back(type->getUnderlying());
-  if (type->getUnderlying() == BuiltinType::INT)
+  auto underlying = type->getUnderlying();
+  if (underlying == BuiltinType::INT)
     ret.push_back(BuiltinType::DOUBLE);
-  if (auto ptr = type->getUnderlying().dynamicCast<MutablePointerType>())
+  if (auto ptr = underlying.dynamicCast<MutablePointerType>())
     ret.push_back(PointerType::get(ptr->underlying));
-  if (type->getUnderlying() != BuiltinType::NULL_TYPE)
-    ret.push_back(OptionalType::get(type->getUnderlying()));
+  if (underlying != BuiltinType::NULL_TYPE)
+    ret.push_back(OptionalType::get(underlying));
   return ret;
 }
 
-bool Context::canConvert(SType from, SType to) const {
-  return contains(getConversions(from), to) ||
+JustError<string> Context::canConvert(SType from, SType to) const {
+  unique_ptr<Expression> expr;
+  return canConvert(std::move(from), std::move(to), expr);
+}
+
+JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expression>& expr) const {
+  auto underlying = from->getUnderlying();
+  if (from != underlying && to->getUnderlying() == underlying && underlying->isBuiltinCopyable(*this, expr))
+    return success;
+  if (contains(getConversions(from), to) ||
       (from == BuiltinType::NULL_TYPE && to.dynamicCast<OptionalType>() &&
-          to.dynamicCast<OptionalType>()->underlying != BuiltinType::NULL_TYPE);
+          to.dynamicCast<OptionalType>()->underlying != BuiltinType::NULL_TYPE))
+    return success;
+  return "Can't convert type " + quote(from->getName()) + " to type " + quote(to->getName());
 }
 
 optional<int> Context::getLoopId() const {

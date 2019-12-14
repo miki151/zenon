@@ -72,7 +72,8 @@ class Context : public owned_object<Context> {
   nullable<SConcept> getConcept(const string& name) const;
   void print() const;
   vector<SType> getConversions(SType) const;
-  bool canConvert(SType from, SType to) const;
+  JustError<string> canConvert(SType from, SType to, unique_ptr<Expression>&) const;
+  JustError<string> canConvert(SType from, SType to) const;
   optional<int> getLoopId() const;
   int setIsInLoop();
   bool areParamsEquivalent(FunctionType, FunctionType) const;

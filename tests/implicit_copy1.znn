@@ -1,0 +1,38 @@
+// 20
+
+import "std/unique_ptr.znn";
+
+struct X {
+  unique_ptr<int> a;
+};
+
+X(int a) {
+  return X::X(make_unique(a));
+}
+
+int get(X x, X y) {
+  return *x.a + *y.a;
+}
+
+X implicit_copy(X* x) {
+  return X(*x->a);
+}
+
+X operator + (X x, X y) {
+  return X(*x.a + *y.a);
+}
+
+X f(X* x) {
+  return *x;
+}
+
+int main() {
+  mutable counter = 0;
+  const x = X(5);
+  const y = x;
+  const z = get(y, x);
+  const u = x + y;
+  const v = f(&u);
+  return *v.a + z;
+}
+

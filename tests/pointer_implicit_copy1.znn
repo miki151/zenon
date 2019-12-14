@@ -1,0 +1,8 @@
+// 5
+
+int main() {
+  const x = 5;
+  const int*? s = &x;
+  const u = s;
+  return **u;
+}

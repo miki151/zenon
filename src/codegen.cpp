@@ -747,7 +747,10 @@ void LambdaExpression::codegen(Accu& a, CodegenStage) const {
       case LambdaCaptureType::COPY:
         a.add("::copy(&" + capture.name + "),");
         break;
-      default:
+      case LambdaCaptureType::IMPLICIT_COPY:
+        a.add("::implicit_copy(&" + capture.name + "),");
+        break;
+      case LambdaCaptureType::REFERENCE:
         a.add(capture.name + ",");
         break;
     }
