@@ -417,6 +417,10 @@ void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) co
     ++accu.indent;
     for (auto& member : members)
       accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
+    accu.newLine(*name + "() = default;");
+    accu.newLine("~" + *name + "() { destructor_impl(this); }");
+    accu.newLine(*name + "(" + *name + "&&) = default;");
+    accu.newLine(*name + "& operator =(" + *name + "&&) = default;");
     --accu.indent;
     accu.newLine("};");
     accu.newLine();

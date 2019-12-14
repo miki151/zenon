@@ -2334,7 +2334,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
       if (type == BuiltinType::VOID)
         return param.codeLoc.getError("Function parameter may not have " + quote(type->getName()) + " type");
       auto varType = param.isMutable ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
-      params.push_back(varType);
+      params.push_back(type);
       if (param.name) {
         bodyContext.addVariable(*param.name, varType, param.codeLoc);
         if (paramNames.count(*param.name))
@@ -2345,8 +2345,9 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   } else
     for (int i = 1; i < type->functionInfo->type.params.size(); ++i) {
       auto& param = type->functionInfo->type.params[i];
+      auto varType = parameters[i - 1].isMutable ? SType(MutableReferenceType::get(param)) : SType(ReferenceType::get(param));
       if (parameters[i - 1].name)
-        bodyContext.addVariable(*parameters[i - 1].name, param, parameters[i - 1].codeLoc);
+        bodyContext.addVariable(*parameters[i - 1].name, varType, parameters[i - 1].codeLoc);
     }
   auto bodyContext2 = Context::withParent(bodyContext);
   TRY(block->check(bodyContext2));
@@ -2364,7 +2365,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   TRY(checkBodyMoves());
   auto blockCopy = block->deepCopy();
   auto res = blockCopy->check(bodyContext);
-  CHECK(!!res) << res.get_error().loc.toString() << " " << res.get_error().error;
+  CHECK(!!res) << res.get_error();
   if (!block->hasReturnStatement(context) && retType != BuiltinType::VOID)
     return block->codeLoc.getError("Not all paths lead to a return statement in a lambda expression returning non-void");
   type->body = cast<StatementBlock>(std::move(blockCopy));

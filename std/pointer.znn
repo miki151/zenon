@@ -1,0 +1,7 @@
+
+export template <T>
+T* implicit_copy(T** p) {
+  return *p;
+}
+
+

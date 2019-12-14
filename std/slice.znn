@@ -1,3 +1,4 @@
+export import "std/pointer.znn";
 
 export embed {
 template <typename T>
@@ -15,6 +16,13 @@ int size(T[]* s) {
 }
 
 export template <T>
+T[] implicit_copy(T[]* s) {
+  embed {
+    return *s;
+  }
+}
+
+export template <T>
 T* operator[](T[]* s, int index) {
   embed {
     return &s->begin[index];
@@ -25,6 +33,9 @@ export template <T>
 struct slice_iterator {
   T* elem;
 };
+
+export template <T>
+slice_iterator<T> implicit_copy(slice_iterator<T>*) = default;
 
 export template <T>
 slice_iterator<T> begin(T[]* v) {
@@ -51,8 +62,8 @@ export template <T>
 slice_iterator<T> operator ++(slice_iterator<T> mutable* it) {
   embed {
     ++it->elem;
-    return *it;
   }
+  return implicit_copy(it);
 }
 
 export template <T>
