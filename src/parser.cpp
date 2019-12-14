@@ -966,10 +966,7 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
           case Keyword::OPEN_BRACKET:
             return cast<Statement>(parseExpressionAndSemicolon());
           case Keyword::MUTABLE:
-            if (topLevel) {
-              return cast<Statement>(parseFunctionDefinition(TRY(parseIdentifier(tokens, true)), tokens));
-            } else
-              return cast<Statement>(parseVariableDeclaration(tokens));
+            return cast<Statement>(parseVariableDeclaration(tokens));
           case Keyword::CONST:
             return cast<Statement>(parseVariableDeclaration(tokens));
           case Keyword::MOVE:
