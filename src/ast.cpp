@@ -351,7 +351,7 @@ UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e
 
 WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
   nullable<SType> ret;
-  auto right = getType(context, expr, op != Operator::GET_ADDRESS);
+  auto right = getType(context, expr);
   if (!right)
     return right;
   ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right.get()->getName())};
