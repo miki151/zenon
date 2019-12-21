@@ -1,0 +1,11 @@
+// no_compile
+
+export struct X {
+};
+
+void destruct(X*) {
+}
+
+int main() {
+  return 0;
+}

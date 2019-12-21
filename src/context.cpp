@@ -231,7 +231,7 @@ void Context::print() const {
 }
 
 vector<SType> Context::getConversions(SType type) const {
-  vector<SType> ret = {type};
+  vector<SType> ret = {type, BuiltinType::ANY_TYPE};
   auto underlying = type->getUnderlying();
   if (underlying == BuiltinType::INT)
     ret.push_back(BuiltinType::DOUBLE);
@@ -576,14 +576,7 @@ WithError<vector<SFunctionInfo>> Context::getFunctionTemplate(IdentifierType id)
 }
 
 nullable<SType> Context::BuiltInFunctionInfo::invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const {
-  if (argTypes.size() != args.size())
-    return nullptr;
-    //loc.error("Expected " + to_string(argTypes.size()) + " arguments to built-in function " + quote(id));
-  for (int i = 0; i < args.size(); ++i)
-    if (argTypes[i] != args[i]->getType())
-      return nullptr;
-      /*argLoc[i].error("Expected argument of type " + quote(argTypes[i]->getName()) + ", got "
-          + quote(args[i]->getName()) + " of type " + quote(args[i]->getType()->getName()));*/
+  CHECK(argTypes.size() == args.size());
   for (auto t : args)
     if (!t->getMangledName()) {
       return SType(CompileTimeValue::get(

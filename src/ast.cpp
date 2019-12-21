@@ -1287,6 +1287,21 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
         else
           fail();
       });
+  context.addBuiltInFunction("get_name", BuiltinType::STRING, {SType(BuiltinType::ANY_TYPE)},
+      [](vector<SType> args) -> WithError<SType> {
+        return (SType) CompileTimeValue::get(args[0]->getName());
+      });
+  context.addBuiltInFunction("get_member_name", BuiltinType::STRING, {SType(BuiltinType::STRUCT_TYPE), SType(BuiltinType::INT)},
+      [](vector<SType> args) -> WithError<SType> {
+        if (auto structType = args[0].dynamicCast<StructType>())
+          if (auto value = args[1].dynamicCast<CompileTimeValue>())
+            if (auto intValue = value->value.getReferenceMaybe<int>()) {
+              if (*intValue < 0 || *intValue >= structType->members.size())
+                return "Struct member index out of range: "s + to_string(*intValue);
+              return (SType) CompileTimeValue::get(structType->members[*intValue].name);
+            }
+        fail();
+      });
   context.addBuiltInFunction("string_length", BuiltinType::INT, {SType(BuiltinType::STRING)},
       [](vector<SType> args) -> WithError<SType> {
         if (auto value = args[0].dynamicCast<CompileTimeValue>())

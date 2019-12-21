@@ -1,0 +1,6 @@
+// no_compile
+
+int main() {
+  const a = get_member_name(int, 0);
+  return 0;
+}

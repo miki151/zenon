@@ -1,0 +1,11 @@
+// no_compile
+
+struct X {
+  int xyz;
+  string abcdefg;
+};
+
+int main() {
+  const a = get_member_name(X, 2);
+  return 0;
+}

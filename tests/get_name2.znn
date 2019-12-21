@@ -1,0 +1,17 @@
+// 11
+
+struct X {
+};
+
+template <T>
+struct Y {
+};
+
+template <T>
+int get() {
+  return get_name(T).size();
+}
+
+int main() {
+  return get<X>() + get<Y<bool>>() + get<int>();
+}

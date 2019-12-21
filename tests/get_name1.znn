@@ -1,0 +1,18 @@
+// 1
+struct X {
+};
+
+template <T>
+struct Y {
+};
+
+int main() {
+  const s = get_name(int)
+      + get_name(double)
+      + get_name(X)
+      + get_name(Y<int>);
+  if (s == "intdoubleXY<int>")
+    return 1;
+  else
+    return 2;
+}
