@@ -419,7 +419,7 @@ void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) co
       accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
     if (destructor) {
       accu.newLine(*name + "() = default;");
-      accu.newLine("~" + *name + "();");
+      accu.newLine("inline ~" + *name + "();");
       accu.newLine(*name + "(" + *name + "&&) = default;");
       accu.newLine(*name + "& operator =(" + *name + "&&) = default;");
     }
