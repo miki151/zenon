@@ -310,7 +310,7 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
           ::transform(expr, [&](auto& e) { return e->codeLoc;}), expr));
       if (auto parent = functionInfo->parent)
         if (parent->definition)
-          TRY(parent->definition->addInstance(context, functionInfo.get()));
+          TRY(parent->definition->addInstance(&context, functionInfo.get()));
       return functionInfo->type.retVal;
     }
   }
@@ -360,7 +360,7 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
   expr = std::move(exprTmp[0]);
   if (auto parent = functionInfo->parent)
     if (parent->definition)
-      TRY(parent->definition->addInstance(context, functionInfo.get()));
+      TRY(parent->definition->addInstance(&context, functionInfo.get()));
   return functionInfo->type.retVal;
 }
 
@@ -1053,13 +1053,14 @@ JustError<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBloc
   return success;
 }
 
-JustError<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
-  if (callContext.getTemplateParams())
+JustError<ErrorLoc> FunctionDefinition::addInstance(const Context* callContext, const SFunctionInfo& instance) {
+  if (callContext && callContext->getTemplateParams())
     return success;
   vector<SFunctionInfo> requirements;
-  for (auto& req : instance->type.requirements)
-    if (auto concept = req.base.getValueMaybe<SConcept>())
-      append(requirements, *callContext.getRequiredFunctions(**concept, {}));
+  if (callContext)
+    for (auto& req : instance->type.requirements)
+      if (auto concept = req.base.getValueMaybe<SConcept>())
+        append(requirements, *callContext->getRequiredFunctions(**concept, {}));
   for (auto& fun : requirements)
     if (fun->type.fromConcept)
       return success;
@@ -1158,6 +1159,18 @@ JustError<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& c
   return success;
 }
 
+static WithError<shared_ptr<StructType>> getDestructedType(const vector<SType>& params) {
+  if (params.size() != 1)
+    return "Destructor function should take exactly one argument"s;
+  auto& param = params[0];
+  auto ret = param->removePointer();
+  if (ret == param)
+    return "Destructor function parameter should be a pointer to the destructed type"s;
+  if (auto ret1 = ret.dynamicCast<StructType>())
+    return ret1;
+  return "User-defined destructor is allowed only for struct types"s;
+}
+
 JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport) {
   TRY(generateDefaultBodies(context));
   if (body && (!templateInfo.params.empty() || notInImport)) {
@@ -1180,6 +1193,11 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
     for (auto& p : parameters)
       if (p.name)
         moveChecker.addVariable(*p.name);
+    if (name == "destruct"s) {
+      auto destructedType = TRY(getDestructedType(functionInfo->type.params).addCodeLoc(codeLoc));
+      if (!destructedType->definition || destructedType->definition->file != codeLoc.file)
+        return codeLoc.getError("Destructor function must be defined in the same file as the destructed type");
+    }
     return body->checkMoves(moveChecker);
   }
   return success;
@@ -1188,6 +1206,23 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
 JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
   TRY(setFunctionType(context, false, cache.isCurrentlyBuiltIn()));
   TRY(context.addFunction(functionInfo.get()).addCodeLoc(codeLoc));
+  if (name == "destruct"s) {
+    auto destructedType = TRY(getDestructedType(functionInfo->type.params).addCodeLoc(codeLoc));
+    if (destructedType->destructor)
+      return codeLoc.getError("Destructor function for type " + quote(destructedType->getName()) + " already defined here: "
+          + destructedType->destructor->definition->codeLoc.toString());
+    auto adjusted = functionInfo.get();
+    if (functionInfo->type.templateParams.size() != destructedType->templateParams.size())
+      return codeLoc.getError("Number of template parameters of destructor function must match destructed type");
+    for (auto& param : functionInfo->type.templateParams)
+      if (!destructedType->templateParams.contains(param))
+        return codeLoc.getError("Template parameters of destructor function must match destructed type");
+    ErrorBuffer errors;
+    for (int i = 0; i < destructedType->parent->templateParams.size(); ++i)
+      adjusted = replaceInFunction(adjusted, functionInfo->type.templateParams[i], destructedType->parent->templateParams[i], errors);
+    CHECK(errors.empty());
+    destructedType->parent->destructor = adjusted;
+  }
   return success;
 }
 
@@ -1460,7 +1495,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
     TRY(checkNamedArgs());
     if (auto parent = functionInfo->parent)
       if (parent->definition)
-        if (auto res = parent->definition->addInstance(callContext, functionInfo.get()); !res)
+        if (auto res = parent->definition->addInstance(&callContext, functionInfo.get()); !res)
           return codeLoc.getError("When instantiating template " + parent->prettyString() + " as " + functionInfo->prettyString()  + ":\n"
             + res.get_error().loc.toString() + ": " + res.get_error().error);
     return functionInfo->type.retVal;

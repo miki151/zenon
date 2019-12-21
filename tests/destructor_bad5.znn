@@ -1,0 +1,13 @@
+// no_compile
+
+template <T>
+struct X {
+};
+
+template <T>
+void destruct(X<int>* x) {
+}
+
+int main() {
+  return 0;
+}

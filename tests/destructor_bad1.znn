@@ -1,0 +1,11 @@
+// no_compile
+
+struct X {
+};
+
+void destruct(int* x) {
+}
+
+int main() {
+  return 0;
+}

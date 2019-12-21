@@ -82,7 +82,7 @@ WithErrorLine<vector<LambdaCapture>> Context::setLambda(LambdaCaptureInfo* info)
             quote(underlying->getName()) + " can't be captured by implicit copy");
       if (capture.type == LambdaCaptureType::COPY) {
         if (auto f = getCopyFunction(*this, capture.codeLoc, underlying))
-          TRY(f->get()->getParent()->definition->addInstance(*this, *f));
+          TRY(f->get()->getParent()->definition->addInstance(this, *f));
         else
           return capture.codeLoc.getError("No copy function defined for type " + quote(underlying->getName())+ "\n" + f.get_error().error);
       }
@@ -455,12 +455,10 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
       return id.codeLoc.getError("Type " + quote(name) + " is not a type parameter pack");
   }
   bool variadicParams = id.parts[0].variadic;
-  auto templateArgs = getTypeList(id.parts[0].templateArguments, variadicParams);
-  if (!templateArgs)
-    return templateArgs.get_error();
+  auto templateArgs = TRY(getTypeList(id.parts[0].templateArguments, variadicParams));
   if (variadicParams)
     return id.codeLoc.getError("Type " + quote(name) + " is not a variadic template");
-  WithErrorLine<SType> ret = topType->instantiate(*this, *templateArgs, id.codeLoc);
+  WithErrorLine<SType> ret = topType->instantiate(*this, templateArgs, id.codeLoc);
   if (ret)
     for (auto& elem : id.typeOperator) {
       elem.visit(

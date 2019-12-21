@@ -1,0 +1,10 @@
+// no_compile
+
+import "struct1.znn";
+
+void destruct(X*) {
+}
+
+int main() {
+  return 0;
+}

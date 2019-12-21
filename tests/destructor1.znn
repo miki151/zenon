@@ -1,0 +1,17 @@
+// 2
+
+struct X {
+  int mutable* a;
+};
+
+void destruct(X* x) {
+  ++*x->a;
+}
+
+int main() {
+  mutable cnt = 1;
+  {
+    const x = X(&cnt);
+  }
+  return cnt;
+}

@@ -632,6 +632,7 @@ WithError<SType> StructType::getTypeOfMember(const string& name) const {
 }
 
 shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) {
+  CHECK(newTemplateParams.size() == templateParams.size());
   auto self = get_this().get().dynamicCast<StructType>();
   if (templateParams == newTemplateParams)
     return self;
@@ -644,6 +645,7 @@ shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) 
   type->members = members;
   type->parent = self;
   type->external = external;
+  type->definition = definition;
   instances.push_back(type);
   return type;
 }
@@ -654,6 +656,7 @@ void StructType::updateInstantations() {
     type->staticContext.deepCopyFrom(staticContext);
     type->alternatives = alternatives;
     type->members = members;
+    type->destructor = destructor;
     ErrorBuffer errors;
     for (int i = 0; i < templateParams.size(); ++i) {
       type->staticContext.replace(templateParams[i], type->templateParams[i], errors);
@@ -661,6 +664,11 @@ void StructType::updateInstantations() {
         alternative.type = alternative.type->replace(templateParams[i], type->templateParams[i], errors);
       for (auto& member : type->members)
         member.type = member.type->replace(templateParams[i], type->templateParams[i], errors);
+      if (destructor) {
+        type->destructor = replaceInFunction(type->destructor.get(), templateParams[i], type->templateParams[i], errors);
+        auto res = type->destructor->getParent()->definition->addInstance(nullptr, type->destructor.get());
+        CHECK(!!res) << res.get_error();
+      }
     }
     CHECK(errors.empty());
   }
@@ -787,6 +795,14 @@ SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
     for (auto& req : ret->requirements)
       req.base.visit(RequirementVisitor{from, to, errors});
     ret->staticContext.replace(from, to, errors);
+    if (destructor) {
+      ret->destructor = destructor;
+      ErrorBuffer errors;
+      ret->destructor = replaceInFunction(ret->destructor.get(), from, to, errors);
+      auto res = ret->destructor->getParent()->definition->addInstance(nullptr, ret->destructor.get());
+      CHECK(!!res) << res.get_error();
+      CHECK(errors.empty());
+    }
   } else
     INFO << "Found instantiated: " << ret->getName();
   return ret;

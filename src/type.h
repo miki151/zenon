@@ -268,6 +268,7 @@ struct StructType : public Type {
   vector<SType> templateParams;
   vector<shared_ptr<StructType>> instances;
   nullable<shared_ptr<StructType>> parent;
+  nullable<SFunctionInfo> destructor;
   vector<TemplateRequirement> requirements;
   struct Variable {
     string name;
@@ -278,7 +279,6 @@ struct StructType : public Type {
   bool external = false;
   optional<CodeLoc> definition;
   void updateInstantations();
-  SType getInstantiated(vector<SType> templateParams);
   struct Private {};
   StructType(string name, Private);
 };

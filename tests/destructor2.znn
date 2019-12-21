@@ -1,0 +1,23 @@
+// 4
+
+template <T>
+struct X {
+  int mutable* a;
+};
+
+template <T>
+void destruct(X<T>* x) {
+  ++*x->a;
+}
+
+int main() {
+  mutable cnt = 1;
+  {
+    const x = X<bool>(&cnt);
+    const y = X<bool>(&cnt);
+  }
+  {
+    const x = X<int>(&cnt);
+  }
+  return cnt;
+}

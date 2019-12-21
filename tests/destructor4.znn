@@ -1,0 +1,21 @@
+// 2
+
+template <T>
+struct X {
+  int mutable* a;
+};
+
+void f(X<int>) {}
+
+template <T>
+void destruct(X<T>* x) {
+  ++*x->a;
+}
+
+int main() {
+  mutable cnt = 1;
+  {
+    const x = X<int>(&cnt);
+  }
+  return cnt;
+}

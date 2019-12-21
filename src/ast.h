@@ -580,7 +580,7 @@ struct FunctionDefinition : Statement {
       const string& alternativeName, const SType& alternativeType, int virtualIndex);
   NODISCARD JustError<ErrorLoc> checkAndGenerateCopyFunction(const Context&, const string&);
   NODISCARD JustError<ErrorLoc> checkAndGenerateDefaultConstructor(const Context&);
-  NODISCARD JustError<ErrorLoc> addInstance(const Context& callContext, const SFunctionInfo&);
+  NODISCARD JustError<ErrorLoc> addInstance(const Context* callContext, const SFunctionInfo&);
   NODISCARD JustError<ErrorLoc> generateDefaultBodies(Context&);
   NODISCARD JustError<ErrorLoc> checkBody(const vector<SFunctionInfo>& requirements, StatementBlock& myBody,
       const FunctionInfo& instanceInfo) const;

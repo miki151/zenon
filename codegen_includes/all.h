@@ -20,7 +20,4 @@ T* op_get_address(T& t) {
   return &t;
 }
 
-template <typename T>
-void destructor_impl(T*) noexcept {}
-
 #endif

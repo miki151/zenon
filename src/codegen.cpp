@@ -417,10 +417,12 @@ void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) co
     ++accu.indent;
     for (auto& member : members)
       accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
-    accu.newLine(*name + "() = default;");
-    accu.newLine("~" + *name + "() { destructor_impl(this); }");
-    accu.newLine(*name + "(" + *name + "&&) = default;");
-    accu.newLine(*name + "& operator =(" + *name + "&&) = default;");
+    if (destructor) {
+      accu.newLine(*name + "() = default;");
+      accu.newLine("~" + *name + "();");
+      accu.newLine(*name + "(" + *name + "&&) = default;");
+      accu.newLine(*name + "& operator =(" + *name + "&&) = default;");
+    }
     --accu.indent;
     accu.newLine("};");
     accu.newLine();
@@ -485,6 +487,14 @@ void ExpressionStatement::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
+  if (stage.isDefine && !external && !incomplete) {
+    for (auto& instance : concat({type.get()}, type->instances))
+      if (auto name = instance->getMangledName()) {
+        if (auto fun = instance->destructor)
+          accu.newLine(*name + "::~" + *name + "() { " + getFunctionCallName(*fun, false) + "(this);}");
+        accu.newLine();
+      }
+  }
   if (type->external || !stage.isTypes)
     return;
   for (auto& instantation : concat({type.get()}, type->instances))
