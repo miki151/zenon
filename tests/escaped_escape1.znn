@@ -1,0 +1,6 @@
+// 5
+
+int main() {
+  const s = "\\\\\\"; const t = "\"\\";
+  return s.size() + t.size();
+}
