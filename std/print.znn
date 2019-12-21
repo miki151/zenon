@@ -38,6 +38,6 @@ concept can_print {
 
 export void print(string s) {
   embed {
-    printf("%s\n", s.data());
+    printf("%s", s.data());
   }
 }

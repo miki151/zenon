@@ -12,7 +12,7 @@ export noreturn panic() {
 }
 
 export noreturn panic(string message) {
-  print("The program panicked with the message: " + message);
+  print("The program panicked with the message: " + message + "\n");
   panic();
 }
 
