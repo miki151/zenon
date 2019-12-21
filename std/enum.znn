@@ -44,6 +44,11 @@ int asInt(Enum e) {
 }
 
 export template <Enum> requires is_enum<Enum>
+string asString(Enum e) {
+  return enum_strings(Enum)[asInt(e)];
+}
+
+export template <Enum> requires is_enum<Enum>
 Enum operator *(enum_iterator<Enum>* e) {
   return fromInt<Enum>(e->index);
 }
