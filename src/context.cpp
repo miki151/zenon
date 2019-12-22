@@ -575,21 +575,25 @@ WithError<vector<SFunctionInfo>> Context::getFunctionTemplate(IdentifierType id)
     );
 }
 
-nullable<SType> Context::BuiltInFunctionInfo::invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const {
+WithEvalError<SType> Context::BuiltInFunctionInfo::invokeFunction(const string& id, CodeLoc loc, vector<SType> args,
+    vector<CodeLoc> argLoc) const {
   CHECK(argTypes.size() == args.size());
   for (auto t : args)
     if (!t->getMangledName()) {
       return SType(CompileTimeValue::get(
           CompileTimeValue::TemplateFunctionCall{id, args,  returnType, loc, argLoc, *this}));
     }
-  return fun(args).addCodeLoc(loc).get();
+  if (auto res = fun(args))
+    return *res;
+  else
+    return EvalError::withError(res.get_error());
 }
 
-nullable<SType> Context::invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const {
+WithEvalError<SType> Context::invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const {
   for (auto& state : getReversedStates())
     if (auto f = getReferenceMaybe(state->builtInFunctions, id))
       return f->invokeFunction(id, loc, args, argLoc);
-  return nullptr;
+  return EvalError::noEval();
 }
 
 void Context::addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction fun) {

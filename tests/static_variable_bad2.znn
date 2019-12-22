@@ -1,0 +1,8 @@
+// no_compile
+
+struct X {};
+
+int main() {
+  static const a = get_member_name(X, 0);
+  return 0;
+}

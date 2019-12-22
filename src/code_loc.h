@@ -124,6 +124,33 @@ class [[nodiscard]] JustResult : public optional<T> {
   }
 };
 
+struct EvalError {
+  // The case when expression can't be evaluated at compile time
+  static EvalError noEval();
+  // Expression can be evaluated, but caused a compile error
+  static EvalError withError(string error);
+  bool canEval;
+  string error;
+};
+
+template <typename T>
+class [[nodiscard]] WithEvalError : public expected<T, EvalError> {
+  public:
+  using expected<T, EvalError>::expected;
+
+  WithErrorLine<T> addNoEvalError(const ErrorLoc& error) const {
+    return addNoEvalError(error.error).addCodeLoc(error.loc);
+  }
+
+  WithError<T> addNoEvalError(const string& error) const {
+    if (*this)
+      return **this;
+    if (!this->get_error().canEval)
+      return error;
+    return this->get_error().error;
+  }
+};
+
 using ErrorLocBuffer = vector<ErrorLoc>;
 using ErrorBuffer = vector<string>;
 void merge(ErrorLocBuffer&, const ErrorBuffer&, CodeLoc);

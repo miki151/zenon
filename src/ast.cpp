@@ -96,7 +96,7 @@ WithErrorLine<SType> Constant::getTypeImpl(Context&) {
   return value->getType();
 }
 
-JustResult<EvalResult> Constant::eval(const Context&) const {
+WithEvalError<EvalResult> Constant::eval(const Context&) const {
   return EvalResult{ value, true};
 }
 
@@ -128,14 +128,14 @@ WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
   return codeLoc.getError(varError.value_or("Identifier not found: " + identifier.prettyString()));
 }
 
-JustResult<EvalResult> Variable::eval(const Context& context) const {
+WithEvalError<EvalResult> Variable::eval(const Context& context) const {
   auto res = context.getTypeFromString(identifier);
   if (res) {
     auto value = res.get().dynamicCast<CompileTimeValue>();
     bool isConstant = !value || !value->value.contains<CompileTimeValue::ReferenceValue>();
     return EvalResult { res.get(), isConstant};
   }
-  return none;
+  return EvalError::noEval();
 }
 
 unique_ptr<Expression> Variable::replaceVar(string from, string to) const {
@@ -316,7 +316,7 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
   }
 }
 
-JustResult<EvalResult> BinaryExpression::eval(const Context& context) const {
+WithEvalError<EvalResult> BinaryExpression::eval(const Context& context) const {
   auto value1 = TRY(expr[0]->eval(context));
   auto value2 = TRY(expr[1]->eval(context));
   return EvalResult{TRY(::eval(op, {value1.value, value2.value})), value1.isConstant && value2.isConstant};
@@ -364,7 +364,7 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
   return functionInfo->type.retVal;
 }
 
-JustResult<EvalResult> UnaryExpression::eval(const Context& context) const {
+WithEvalError<EvalResult> UnaryExpression::eval(const Context& context) const {
   auto value = TRY(expr->eval(context));
   return EvalResult{TRY(::eval(op, {value.value})), value.isConstant};
 }
@@ -479,7 +479,7 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
     if (isMutable)
       return codeLoc.getError("Static mutable variables are not supported");
     context.addType(identifier, TRY(initExpr->eval(context)
-        .addError(initExpr->codeLoc.getError("Unable to evaluate expression at compile-time"))).value);
+        .addNoEvalError(initExpr->codeLoc.getError("Unable to evaluate expression at compile-time"))).value);
   }
   TRY(getVariableInitializationError("initialize variable", context, realType.get(), exprType, initExpr).addCodeLoc(initExpr->codeLoc));
   TRY(getType(context, initExpr));
@@ -655,7 +655,7 @@ static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const 
 static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const shared_ptr<Expression>& expr1, bool variadicRequirements) {
   auto expr = expr1->deepCopy();
   TRY(getType(from, expr));
-  auto value = TRY(expr->eval(from).addError(expr1->codeLoc.getError("Unable to evaluate expression at compile-time")));
+  auto value = TRY(expr->eval(from).addNoEvalError(expr1->codeLoc.getError("Unable to evaluate expression at compile-time")));
   if (value.value->getType() != BuiltinType::BOOL)
     return expr->codeLoc.getError("Expected expression of type " + quote(BuiltinType::BOOL->getName()) +
         ", got " + quote(value.value->getType()->getName()));
@@ -1518,7 +1518,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
   return *error;
 }
 
-JustResult<EvalResult> FunctionCall::eval(const Context& context) const {
+WithEvalError<EvalResult> FunctionCall::eval(const Context& context) const {
   if (identifier)
     if (auto name = identifier->asBasicIdentifier()) {
       vector<SType> args;
@@ -1527,10 +1527,9 @@ JustResult<EvalResult> FunctionCall::eval(const Context& context) const {
         locs.push_back(e->codeLoc);
         args.push_back(TRY(e->eval(context)).value);
       }
-      if (auto res = context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs)))
-        return EvalResult{res.get(), true};
+      return EvalResult{TRY(context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs))), true};
     }
-  return none;
+  return EvalError::noEval();
 }
 
 unique_ptr<Expression> FunctionCall::replace(SType from, SType to, ErrorLocBuffer& errors) const {
@@ -1895,12 +1894,12 @@ StaticForLoopStatement::StaticForLoopStatement(CodeLoc l, string counter, unique
 
 JustError<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& bodyContext) const {
   auto context = Context::withParent(bodyContext);
-  auto initVal = TRY(init->eval(context).addError(init->codeLoc.getError("Unable to evaluate expression at compile time")));
+  auto initVal = TRY(init->eval(context).addNoEvalError(init->codeLoc.getError("Unable to evaluate expression at compile time")));
   context.addType(counter, CompileTimeValue::getReference(initVal.value.dynamicCast<CompileTimeValue>()));
-  auto condVal = TRY(cond->eval(context).addError(cond->codeLoc.getError("Unable to evaluate expression at compile time")));
+  auto condVal = TRY(cond->eval(context).addNoEvalError(cond->codeLoc.getError("Unable to evaluate expression at compile time")));
   if (condVal.value->getType()->getUnderlying() != BuiltinType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote(BuiltinType::BOOL->getName()));
-  TRY(iter->eval(context).addError(iter->codeLoc.getError("Unable to evaluate expression at compile time")));
+  TRY(iter->eval(context).addNoEvalError(iter->codeLoc.getError("Unable to evaluate expression at compile time")));
   return success;
 }
 
@@ -2049,8 +2048,8 @@ JustError<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache&
   return codeLoc.getError("Couldn't resolve import path: " + path);
 }
 
-JustResult<EvalResult> Expression::eval(const Context&) const {
-  return none;
+WithEvalError<EvalResult> Expression::eval(const Context&) const {
+  return EvalError::noEval();
 }
 
 EnumDefinition::EnumDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
@@ -2094,7 +2093,7 @@ WithErrorLine<SType> EnumConstant::getTypeImpl(Context& context) {
   return type;
 }
 
-JustResult<EvalResult> EnumConstant::eval(const Context& context) const {
+WithEvalError<EvalResult> EnumConstant::eval(const Context& context) const {
   if (auto type = context.getTypeFromString(IdentifierInfo(enumName, codeLoc))) {
     if (auto enumType = type->dynamicCast<EnumType>()) {
       for (int i = 0; i < enumType->elements.size(); ++i)
@@ -2298,7 +2297,9 @@ WithErrorLine<SType> getType(Context& context, unique_ptr<Expression>& expr, boo
       if (type->isConstant)
         if (auto value = type->value.dynamicCast<CompileTimeValue>())
           expr = unique<Constant>(expr->codeLoc, value);
-    }
+    } else
+    if (type.get_error().canEval)
+      return expr->codeLoc.getError(type.get_error().error);
   }
   return type;
 }
@@ -2493,7 +2494,7 @@ unique_ptr<Expression> CountOfExpression::transform(const StmtTransformFun&, con
   return unique<CountOfExpression>(codeLoc, identifier);
 }
 
-JustResult<EvalResult> CountOfExpression::eval(const Context&) const {
+WithEvalError<EvalResult> CountOfExpression::eval(const Context&) const {
   if (count)
     return EvalResult{CompileTimeValue::get(*count), true};
   else
@@ -2559,7 +2560,7 @@ MemberIndexExpression::MemberIndexExpression(CodeLoc l, unique_ptr<Expression> l
   : Expression(l), lhs(std::move(lhs)), index(std::move(index)) {}
 
 WithErrorLine<SType> MemberIndexExpression::getTypeImpl(Context& context) {
-  auto value = TRY(index->eval(context).addError(index->codeLoc.getError("Unable to evaluate constant expression at compile-time")));
+  auto value = TRY(index->eval(context).addNoEvalError(index->codeLoc.getError("Unable to evaluate constant expression at compile-time")));
   auto leftType = TRY(lhs->getTypeImpl(context));
   if (auto res = leftType.get()->getSizeError(context); !res)
     return codeLoc.getError(leftType.get()->getName() + res.get_error());

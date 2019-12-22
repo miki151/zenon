@@ -340,7 +340,7 @@ static SCompileTimeValue getExampleValue(SType type) {
   fail();
 }
 
-JustResult<SType> eval(Operator op, vector<SType> args1) {
+WithEvalError<SType> eval(Operator op, vector<SType> args1) {
   if (op == Operator::EQUALS && args1.size() == 2) {
     auto result = args1[0]->getMangledName() && args1[1]->getMangledName()
         ? CompileTimeValue::get(args1[0] == args1[1])
@@ -352,7 +352,7 @@ JustResult<SType> eval(Operator op, vector<SType> args1) {
     if (auto arg = arg1.dynamicCast<CompileTimeValue>())
       args.push_back(arg);
     else
-      return none;
+      return EvalError::noEval();
   }
   auto argsOrig = args;
   bool wasTemplate = false;
@@ -363,7 +363,7 @@ JustResult<SType> eval(Operator op, vector<SType> args1) {
     }
   auto ret = evalNonTemplate(op, args);
   if (!ret)
-    return none;
+    return EvalError::noEval();
   if (wasTemplate)
     ret = CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, args1, ret->getType()});
   return (SType) ret.get();

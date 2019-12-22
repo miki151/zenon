@@ -1,0 +1,10 @@
+// no_compile
+
+int get() {
+  return 5;
+}
+
+int main() {
+  static const a = get();
+  return 0;
+}

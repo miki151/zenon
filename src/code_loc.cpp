@@ -25,3 +25,11 @@ void merge(ErrorLocBuffer& errors, const ErrorBuffer& errors2, CodeLoc l) {
   for (auto& e : errors2)
     errors.push_back(l.getError(e));
 }
+
+EvalError EvalError::noEval() {
+  return EvalError{false, ""};
+}
+
+EvalError EvalError::withError(string error) {
+  return EvalError{true, error};
+}

@@ -1430,7 +1430,7 @@ SType CompileTimeValue::replaceImpl(SType from, SType to, ErrorBuffer& errors) c
       [&](const TemplateFunctionCall& value) {
         if (auto ret = value.functionInfo.invokeFunction(value.name, value.loc, transform(value.args,
             [&](const SType& t){ return t->replace(from, to, errors); }), value.argLoc))
-          return ret.get();
+          return *ret;
         else {
           errors.push_back("Bad arguments to function " + quote(value.name));
           return get_this().get();
