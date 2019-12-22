@@ -1573,21 +1573,23 @@ string LambdaType::getCodegenName() const {
 
 SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   ErrorLocBuffer errors2;
-  auto newBody = body->replace(from, to, errors2);
-  for (auto& e : errors2)
-    errors.push_back(e.error);
-  auto ret = shared<LambdaType>(Private{}, name);
-  ret->body = cast<StatementBlock>(std::move(newBody));
-  auto tmpType = functionInfo->type;
-  tmpType.params = getSubsequence(tmpType.params, 1);
-  tmpType = replaceInFunction(tmpType, from, to, errors);
-  tmpType.params = concat({PointerType::get(ret)}, tmpType.params);
-  ret->functionInfo = FunctionInfo::getImplicit(functionInfo->id, std::move(tmpType));
-  for (auto& capture : captures)
-    ret->captures.push_back(LambdaCapture{capture.name, capture.type->replace(from, to, errors)});
+  vector<SType> newTemplateParams;
   for (auto& param : templateParams)
-    ret->templateParams.push_back(param->replace(from, to, errors));
-  ret->parameterNames = parameterNames;
+    newTemplateParams.push_back(param->replace(from, to, errors));
+  auto ret = get(name, newTemplateParams);
+  if (!ret->body) { // this is how we check that this is a newly created lambda
+    ret->body = cast<StatementBlock>(body->replace(from, to, errors2));
+    for (auto& e : errors2)
+      errors.push_back(e.error);
+    auto tmpType = functionInfo->type;
+    tmpType.params = getSubsequence(tmpType.params, 1);
+    tmpType = replaceInFunction(tmpType, from, to, errors);
+    tmpType.params = concat({PointerType::get(ret)}, tmpType.params);
+    ret->functionInfo = FunctionInfo::getImplicit(functionInfo->id, std::move(tmpType));
+    for (auto& capture : captures)
+      ret->captures.push_back(LambdaCapture{capture.name, capture.type->replace(from, to, errors)});
+    ret->parameterNames = parameterNames;
+  }
   return ret;
 }
 
@@ -1600,13 +1602,23 @@ static int getNewLambdaId() {
   return ++allIds;
 }
 
-LambdaType::LambdaType() : LambdaType(Private{}, "LAMBDA" + to_string(getNewLambdaId())) {
+shared_ptr<LambdaType> LambdaType::get(string name, vector<SType> templateParams) {
+  auto key = make_pair(std::move(name), std::move(templateParams));
+  static map<decltype(key), shared_ptr<LambdaType>> generated;
+  if (!generated.count(key)) {
+    auto ret = shared<LambdaType>(Private{});
+    ret->name = key.first;
+    ret->templateParams = key.second;
+    generated.insert({key, ret});
+  }
+  return generated.at(key);
 }
 
-LambdaType::LambdaType(Private, string name) : name(std::move(name)) {
+shared_ptr<LambdaType> LambdaType::get(vector<SType> templateParams) {
+  return get("LAMBDA" + to_string(getNewLambdaId()), std::move(templateParams));
 }
 
-LambdaType::~LambdaType() {
+LambdaType::LambdaType(Private) {
 }
 
 CompileTimeValue::ReferenceValue::ReferenceValue(SCompileTimeValue v) : value(std::move(v)) {

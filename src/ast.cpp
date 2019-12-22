@@ -2393,9 +2393,8 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   auto captureTypes = TRY(bodyContext.setLambda(&captureInfo));
   vector<SType> params;
   if (!recheck) {
-    type = shared<LambdaType>();
+    type = LambdaType::get(context.getTemplateParams().value_or(vector<SType>()));
     type->captures = captureTypes;
-    type->templateParams = context.getTemplateParams().value_or(vector<SType>());
     for (auto& param : parameters)
       type->parameterNames.push_back(param.name);
     params.push_back(PointerType::get(type.get()));

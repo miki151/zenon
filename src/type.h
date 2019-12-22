@@ -379,15 +379,15 @@ struct LambdaType : public Type {
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
-  LambdaType();
+  static shared_ptr<LambdaType> get(string name, vector<SType> templateParams);
+  static shared_ptr<LambdaType> get(vector<SType> templateParams);
   struct Private {};
-  LambdaType(Private, string name);
+  LambdaType(Private);
   nullable<SFunctionInfo> functionInfo;
   vector<LambdaCapture> captures;
   vector<SType> templateParams;
   vector<optional<string>> parameterNames;
   unique_ptr<StatementBlock> body;
-  ~LambdaType() override;
   private:
   string name;
 };

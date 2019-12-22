@@ -1,0 +1,16 @@
+// 1
+
+template <Output>
+struct TextArchive {
+  Output output;
+};
+
+template <Output, T>
+T print(TextArchive<Output>* ar, T a) {
+  return move(a);
+}
+
+int main() {
+  mutable ar = TextArchive([](){});
+  return ar.print(1);
+}
