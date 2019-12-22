@@ -1535,6 +1535,10 @@ SType OptionalType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const
   return OptionalType::get(underlying->replace(from, to, errors));
 }
 
+void OptionalType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const {
+  underlying->codegenDefinition(visited, accu);
+}
+
 shared_ptr<OptionalType> OptionalType::get(SType type) {
   static map<SType, shared_ptr<OptionalType>> generated;
   if (!generated.count(type)) {

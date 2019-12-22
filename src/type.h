@@ -155,6 +155,7 @@ struct OptionalType : public Type {
   //virtual bool canAssign(SType from) const override;
   virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
+  void codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const override;
 
   static shared_ptr<OptionalType> get(SType);
   SType underlying;
