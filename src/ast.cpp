@@ -1782,6 +1782,9 @@ JustError<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) 
   type->updateInstantations();
   if (!incomplete)
     TRY(type->getSizeError(context).addCodeLoc(codeLoc));
+  if (exported && type->destructor && !type->destructor->definition->exported)
+    return type->destructor->definition->codeLoc.getError(
+        "Destuctor function of an exported type must also be exported");
   return success;
 }
 
