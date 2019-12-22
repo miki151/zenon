@@ -792,12 +792,12 @@ void VariablePackElement::codegen(Accu&, CodegenStage) const {
 void MemberAccessExpression::codegen(Accu& accu, CodegenStage stage) const {
   accu.add("(");
   lhs->codegen(accu, stage);
-  accu.add(")." + identifier);
+  accu.add(")."s + (isVariant ? variantUnionEntryPrefix : "") + identifier);
 }
 
 
 void MemberIndexExpression::codegen(Accu& accu, CodegenStage stage) const {
   accu.add("(");
   lhs->codegen(accu, stage);
-  accu.add(")." + *memberName);
+  accu.add(")."s + (isVariant ? variantUnionEntryPrefix : "") + *memberName);
 }

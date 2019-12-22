@@ -1,0 +1,11 @@
+// no_compile
+
+variant V {
+  int a;
+  string s;
+};
+
+int main() {
+  const v = V::a(4);
+  return v.2;
+}

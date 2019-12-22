@@ -141,7 +141,7 @@ WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SType& 
       value = ref->value;
     if (value->getType() != BuiltinType::INT)
       return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + value->getType()->getName();
-    if (type == BuiltinType::STRUCT_TYPE)
+    if (type == BuiltinType::STRUCT_TYPE || type == BuiltinType::VARIANT_TYPE)
       return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), value), "bad_member_name"};
     return Type::getTypeOfMember(value);
   } else
@@ -633,10 +633,10 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
 }
 
 WithError<SType> StructType::getTypeOfMember(const string& name) const {
-  for (auto& member : members)
+  for (auto& member : (alternatives.empty() ? members : alternatives))
     if (member.name == name)
       return member.type;
-  return "No member named " + quote(name) + " in struct " + quote(getName());
+  return "No " + (alternatives.empty() ? "member"s : "alternative"s) + " named " + quote(name) + " in type " + quote(getName());
 }
 
 shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) {
@@ -687,10 +687,12 @@ WithError<Type::MemberInfo> StructType::getTypeOfMember(const SType& v1) const {
     if (auto ref = v->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
       v = ref->value;
     if (auto intValue = v->value.getValueMaybe<int>()) {
-      if (*intValue >= 0 && *intValue < members.size())
-        return MemberInfo{members[*intValue].type, members[*intValue].name};
+      auto& membersOrAlt = (alternatives.empty() ? members : alternatives);
+      if (*intValue >= 0 && *intValue < membersOrAlt.size())
+        return MemberInfo{membersOrAlt[*intValue].type, membersOrAlt[*intValue].name};
       else
-        return "Member index for type " + quote(getName()) + " must be between 0 and " + to_string(members.size() - 1) +
+        return (alternatives.empty() ? "Member"s : "Alternative"s) + " index for type "
+            + quote(getName()) + " must be between 0 and " + to_string(alternatives.size() - 1) +
             ", got " + to_string(*intValue);
     }
     if (v->getType() == BuiltinType::INT)

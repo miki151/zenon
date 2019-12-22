@@ -2558,6 +2558,7 @@ WithErrorLine<SType> MemberAccessExpression::getTypeImpl(Context& context) {
   auto leftType = TRY(lhs->getTypeImpl(context));
   if (auto res = leftType->getSizeError(context); !res)
     return codeLoc.getError(leftType->getName() + res.get_error());
+  isVariant = leftType->getUnderlying()->getType() == BuiltinType::VARIANT_TYPE;
   return leftType->getTypeOfMember(identifier).addCodeLoc(codeLoc);
 }
 
@@ -2573,12 +2574,14 @@ MemberIndexExpression::MemberIndexExpression(CodeLoc l, unique_ptr<Expression> l
   : Expression(l), lhs(std::move(lhs)), index(std::move(index)) {}
 
 WithErrorLine<SType> MemberIndexExpression::getTypeImpl(Context& context) {
-  auto value = TRY(index->eval(context).addNoEvalError(index->codeLoc.getError("Unable to evaluate constant expression at compile-time")));
+  auto value = TRY(index->eval(context).addNoEvalError(
+      index->codeLoc.getError("Unable to evaluate constant expression at compile-time")));
   auto leftType = TRY(lhs->getTypeImpl(context));
   if (auto res = leftType.get()->getSizeError(context); !res)
     return codeLoc.getError(leftType.get()->getName() + res.get_error());
   auto member = TRY(leftType->getTypeOfMember(value.value).addCodeLoc(codeLoc));
   memberName = member.name;
+  isVariant = leftType->getUnderlying()->getType() == BuiltinType::VARIANT_TYPE;
   return member.type;
 }
 

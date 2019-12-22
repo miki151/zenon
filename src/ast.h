@@ -107,6 +107,7 @@ struct MemberAccessExpression : Expression {
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   unique_ptr<Expression> lhs;
   string identifier;
+  bool isVariant = false;
 };
 
 struct MemberIndexExpression : Expression {
@@ -118,6 +119,7 @@ struct MemberIndexExpression : Expression {
   unique_ptr<Expression> lhs;
   unique_ptr<Expression> index;
   optional<string> memberName;
+  bool isVariant = false;
 };
 
 struct BinaryExpression : Expression {

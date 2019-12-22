@@ -1,0 +1,11 @@
+// 8
+
+variant V {
+  int a;
+  string s;
+};
+
+int main() {
+  const v = V::a(4);
+  return v.0 + v.a;
+}
