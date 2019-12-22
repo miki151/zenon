@@ -53,3 +53,10 @@ Enum implicit_copy(Enum* e) {
   return *e;
 }
 
+export template <T> requires is_variant<T>
+int get_index(T* t) {
+  embed {
+    return int(t->unionElem);
+  }
+}
+

@@ -1289,6 +1289,13 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
         else
           fail();
       });
+  context.addBuiltInFunction("variant_count", BuiltinType::INT, {SType(BuiltinType::VARIANT_TYPE)},
+      [](vector<SType> args) -> WithError<SType> {
+        if (auto structType = args[0].dynamicCast<StructType>())
+          return (SType) CompileTimeValue::get((int) structType->alternatives.size());
+        else
+          fail();
+      });
   context.addBuiltInFunction("get_name", BuiltinType::STRING, {SType(BuiltinType::ANY_TYPE)},
       [](vector<SType> args) -> WithError<SType> {
         return (SType) CompileTimeValue::get(args[0]->getName());
