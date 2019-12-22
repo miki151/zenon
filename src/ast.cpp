@@ -691,7 +691,8 @@ static SType convertReferenceToPointer(SType type) {
 
 static bool paramsAreGoodForOperator(const vector<SType>& params) {
   for (auto& p : params)
-    if (p->getUnderlying()->getType() == BuiltinType::STRUCT_TYPE)
+    if (p->getUnderlying()->getType() == BuiltinType::STRUCT_TYPE ||
+        p->getUnderlying()->getType() == BuiltinType::VARIANT_TYPE)
       return true;
   return false;
 }
@@ -1234,6 +1235,7 @@ static void addBuiltInConcepts(Context& context) {
   };
   addType("is_enum", BuiltinType::ENUM_TYPE);
   addType("is_struct", BuiltinType::STRUCT_TYPE);
+  addType("is_variant", BuiltinType::VARIANT_TYPE);
 }
 
 Context createPrimaryContext(TypeRegistry* typeRegistry) {
@@ -1268,7 +1270,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   for (auto op : {Operator::EQUALS})
     for (auto type : {BuiltinType::BOOL, BuiltinType::CHAR})
       CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL, {{type}, {type}}, {}).setBuiltin()));
-  auto metaTypes = {BuiltinType::ANY_TYPE, BuiltinType::STRUCT_TYPE, BuiltinType::ENUM_TYPE};
+  auto metaTypes = {BuiltinType::ANY_TYPE, BuiltinType::STRUCT_TYPE, BuiltinType::ENUM_TYPE, BuiltinType::VARIANT_TYPE};
   for (auto type1 : metaTypes)
     for (auto type2 : metaTypes)
       CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionType(BuiltinType::BOOL, {{type1}, {type2}}, {}).setBuiltin()));
@@ -1299,6 +1301,17 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
               if (*intValue < 0 || *intValue >= structType->members.size())
                 return "Struct member index out of range: "s + to_string(*intValue);
               return (SType) CompileTimeValue::get(structType->members[*intValue].name);
+            }
+        fail();
+      });
+  context.addBuiltInFunction("get_alternative_name", BuiltinType::STRING, {SType(BuiltinType::VARIANT_TYPE), SType(BuiltinType::INT)},
+      [](vector<SType> args) -> WithError<SType> {
+        if (auto structType = args[0].dynamicCast<StructType>())
+          if (auto value = args[1].dynamicCast<CompileTimeValue>())
+            if (auto intValue = value->value.getReferenceMaybe<int>()) {
+              if (*intValue < 0 || *intValue >= structType->alternatives.size())
+                return "Variant member index out of range: "s + to_string(*intValue);
+              return (SType) CompileTimeValue::get(structType->alternatives[*intValue].name);
             }
         fail();
       });

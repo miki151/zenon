@@ -13,6 +13,7 @@ BuiltinType::DefType BuiltinType::ANY_TYPE = shared<BuiltinType>("any_type");
 BuiltinType::DefType BuiltinType::ENUM_TYPE = shared<BuiltinType>("enum_type");
 BuiltinType::DefType BuiltinType::NULL_TYPE = shared<BuiltinType>("null_type");
 BuiltinType::DefType BuiltinType::STRUCT_TYPE = shared<BuiltinType>("struct_type");
+BuiltinType::DefType BuiltinType::VARIANT_TYPE = shared<BuiltinType>("variant_type");
 
 string BuiltinType::getName(bool withTemplateArguments) const {
   return name;
@@ -116,8 +117,7 @@ string TemplateParameterType::getName(bool withTemplateArguments) const {
 }
 
 bool TemplateParameterType::canReplaceBy(SType t) const {
-  return (type == BuiltinType::ANY_TYPE && (t->getType() == BuiltinType::ENUM_TYPE || t->getType() == BuiltinType::STRUCT_TYPE)) ||
-      t->getType() == type;
+  return (type == BuiltinType::ANY_TYPE && t->getType()->isMetaType()) || t->getType() == type;
 }
 
 optional<string> TemplateParameterType::getMangledName() const {
@@ -410,11 +410,15 @@ bool BuiltinType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&)
 }
 
 bool BuiltinType::canBeValueTemplateParam() const {
-  return canDeclareVariable() && this != DOUBLE.get();
+  return canDeclareVariable() && DOUBLE != this;
 }
 
 bool BuiltinType::canDeclareVariable() const {
-  return this == INT.get() || this == BOOL.get() || this == CHAR.get() || this == STRING.get() || this == DOUBLE.get();
+  return INT == this  || BOOL == this || CHAR == this || STRING == this || DOUBLE == this;
+}
+
+bool BuiltinType::isMetaType() const {
+  return ANY_TYPE == this || STRUCT_TYPE == this || VARIANT_TYPE == this|| ENUM_TYPE == this;
 }
 
 SType Type::removePointer() const {
@@ -431,6 +435,10 @@ bool Type::canBeValueTemplateParam() const {
 
 bool Type::canDeclareVariable() const {
   return true;
+}
+
+bool Type::isMetaType() const {
+  return false;
 }
 
 bool Type::isBuiltinCopyable(const Context& context, unique_ptr<Expression>& expr) const {
@@ -692,7 +700,7 @@ WithError<Type::MemberInfo> StructType::getTypeOfMember(const SType& v1) const {
 }
 
 SType StructType::getType() const {
-  return BuiltinType::STRUCT_TYPE;
+  return alternatives.empty() ? BuiltinType::STRUCT_TYPE : BuiltinType::VARIANT_TYPE;
 }
 
 StructType::StructType(string name, StructType::Private) : name(std::move(name)) {
@@ -1432,7 +1440,7 @@ SType CompileTimeValue::replaceImpl(SType from, SType to, ErrorBuffer& errors) c
             [&](const SType& t){ return t->replace(from, to, errors); }), value.argLoc))
           return *ret;
         else {
-          errors.push_back("Bad arguments to function " + quote(value.name));
+          errors.push_back(ret.get_error().error);
           return get_this().get();
         }
       },

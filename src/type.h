@@ -47,6 +47,7 @@ struct Type : public owned_object<Type> {
   virtual JustError<string> getSizeError(const Context&) const;
   virtual bool canBeValueTemplateParam() const;
   virtual bool canDeclareVariable() const;
+  virtual bool isMetaType() const;
   bool isBuiltinCopyable(const Context&, unique_ptr<Expression>&) const;
   bool isBuiltinCopyable(const Context&) const;
   Context staticContext;
@@ -62,6 +63,7 @@ struct BuiltinType : public Type {
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual bool canBeValueTemplateParam() const override;
   virtual bool canDeclareVariable() const override;
+  virtual bool isMetaType() const override;
   using DefType = shared_ptr<BuiltinType>;
   static DefType INT;
   static DefType DOUBLE;
@@ -70,10 +72,11 @@ struct BuiltinType : public Type {
   static DefType CHAR;
   static DefType STRING;
   static DefType NORETURN;
+  static DefType NULL_TYPE;
   static DefType ANY_TYPE;
   static DefType ENUM_TYPE;
-  static DefType NULL_TYPE;
   static DefType STRUCT_TYPE;
+  static DefType VARIANT_TYPE;
   BuiltinType(const string& name, optional<string> codegenName = none);
 
   private:

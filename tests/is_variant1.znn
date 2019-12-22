@@ -1,0 +1,22 @@
+// 3
+
+struct S {
+};
+
+variant V {
+  int a;
+};
+
+template <T> requires is_struct<T>
+int g() {
+  return 1;
+}
+
+template <T> requires is_variant<T>
+int g() {
+  return 2;
+}
+
+int main() {
+  return g<S>() + g<V>();
+}

@@ -1,0 +1,14 @@
+// no_compile
+
+variant V {
+  int uvwxyz;
+};
+
+template <T> requires is_variant<T>
+int g() {
+  return get_alternative_name(T, 1).size();
+}
+
+int main() {
+  return g<V>();
+}
