@@ -1,0 +1,8 @@
+// no_compile
+
+void f(string s) {}
+
+int main() {
+  f(null);
+  return 0;
+}

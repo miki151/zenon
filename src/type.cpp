@@ -1078,7 +1078,7 @@ static JustError<ErrorLoc> getConversionError(const Context& context, const SFun
     const vector<CodeLoc>& argLoc, const vector<SType>& funParams, TypeMapping& mapping) {
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
-    if (argTypes[i] != BuiltinType::NULL_TYPE)
+    if (argTypes[i] != BuiltinType::NULL_TYPE || !funParams[i].dynamicCast<OptionalType>())
       for (auto tArg : context.getConversions(argTypes[i]))
         if (!input->id.contains<Operator>() || tArg == argTypes[i] ||
             (tArg.dynamicCast<BuiltinType>() && argTypes[i].dynamicCast<BuiltinType>())) {
