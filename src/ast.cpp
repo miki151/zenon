@@ -209,7 +209,7 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
   };
   auto isSpecialized = [&] (const auto& args, const auto& overload) {
     for (auto& other : overloads)
-      if (other != overload && context.isGeneralization(overload->parent.value_or(overload), other->parent.value_or(other)))
+      if (other != overload && context.isGeneralization(overload->getParent(), other->getParent()))
         return false;
     return true;
   };
@@ -308,9 +308,8 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
         return expr[1]->codeLoc.getError("Unable to evaluate variable pack index at compile-time");
       functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, exprTypes,
           ::transform(expr, [&](auto& e) { return e->codeLoc;}), expr));
-      if (auto parent = functionInfo->parent)
-        if (parent->definition)
-          TRY(parent->definition->addInstance(&context, functionInfo.get()));
+      if (auto definition = functionInfo->getDefinition())
+        TRY(definition->addInstance(&context, functionInfo.get()));
       return functionInfo->type.retVal;
     }
   }
@@ -358,9 +357,8 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
   auto exprTmp = makeVec(std::move(expr));
   functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, {TRY(exprTmp[0]->getTypeImpl(context))}, {exprTmp[0]->codeLoc}, exprTmp));
   expr = std::move(exprTmp[0]);
-  if (auto parent = functionInfo->parent)
-    if (parent->definition)
-      TRY(parent->definition->addInstance(&context, functionInfo.get()));
+  if (auto definition = functionInfo->getDefinition())
+    TRY(definition->addInstance(&context, functionInfo.get()));
   return functionInfo->type.retVal;
 }
 
@@ -1023,11 +1021,12 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const
 
 JustError<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody, CodeLoc codeLoc) {
   CHECK(!body);
-  auto templateParams = functionInfo->parent->type.templateParams;
+  auto& parentType = functionInfo->getParent()->type;
+  auto templateParams = parentType.templateParams;
   for (int i = 0; i < templateParams.size(); ++i) {
     StatementBlock* useBody = (i == 0) ? parentBody : body.get();
     ErrorLocBuffer errors;
-    if (functionInfo->parent->type.variadicTemplate && i == templateParams.size() - 1) {
+    if (parentType.variadicTemplate && i == templateParams.size() - 1) {
       vector<SType> expanded;
       for (int j = i; j < functionInfo->type.templateParams.size(); ++j)
         expanded.push_back(functionInfo->type.templateParams[j]);
@@ -1044,10 +1043,10 @@ JustError<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBloc
       return errors[0];
   }
   CHECK(!!body);
-  if (functionInfo->parent->type.variadicParams)
-    if (auto& lastName = functionInfo->parent->definition->parameters.back().name) {
+  if (parentType.variadicParams)
+    if (auto& lastName = functionInfo->getDefinition()->parameters.back().name) {
       vector<string> expanded;
-      for (int i = 0; i < functionInfo->type.params.size() + 1 - functionInfo->parent->type.params.size(); ++i)
+      for (int i = 0; i < functionInfo->type.params.size() + 1 - parentType.params.size(); ++i)
         expanded.push_back(getExpandedParamName(*lastName, i));
       body = cast<StatementBlock>(body->expandVar(*lastName, expanded));
     }
@@ -1067,7 +1066,7 @@ JustError<ErrorLoc> FunctionDefinition::addInstance(const Context* callContext, 
       return success;
   if (instance != functionInfo.get()) {
     if (body) {
-      CHECK(instance->parent == functionInfo);
+      CHECK(functionInfo == instance->getParent());
       for (auto& other : instances)
         if (other.functionInfo->getWithoutRequirements() == instance->getWithoutRequirements())
           return success;
@@ -1211,7 +1210,7 @@ JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCac
     auto destructedType = TRY(getDestructedType(functionInfo->type.params).addCodeLoc(codeLoc));
     if (destructedType->destructor)
       return codeLoc.getError("Destructor function for type " + quote(destructedType->getName()) + " already defined here: "
-          + destructedType->destructor->definition->codeLoc.toString());
+          + destructedType->destructor->getDefinition()->codeLoc.toString());
     auto adjusted = functionInfo.get();
     if (functionInfo->type.templateParams.size() != destructedType->templateParams.size())
       return codeLoc.getError("Number of template parameters of destructor function must match destructed type");
@@ -1528,11 +1527,10 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
     TRY(checkVariadicCall(callContext));
     TRY(functionInfo->type.retVal->getSizeError(callContext).addCodeLoc(codeLoc));
     TRY(checkNamedArgs());
-    if (auto parent = functionInfo->parent)
-      if (parent->definition)
-        if (auto res = parent->definition->addInstance(&callContext, functionInfo.get()); !res)
-          return codeLoc.getError("When instantiating template " + parent->prettyString() + " as " + functionInfo->prettyString()  + ":\n"
-            + res.get_error().loc.toString() + ": " + res.get_error().error);
+    if (auto definition = functionInfo->getDefinition())
+      if (auto res = definition->addInstance(&callContext, functionInfo.get()); !res)
+        return codeLoc.getError("When instantiating template " + functionInfo->getParent()->prettyString() + " as " + functionInfo->prettyString()  + ":\n"
+          + res.get_error().loc.toString() + ": " + res.get_error().error);
     return functionInfo->type.retVal;
   }
   return *error;
@@ -1782,8 +1780,8 @@ JustError<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) 
   type->updateInstantations();
   if (!incomplete)
     TRY(type->getSizeError(context).addCodeLoc(codeLoc));
-  if (exported && type->destructor && !type->destructor->definition->exported)
-    return type->destructor->definition->codeLoc.getError(
+  if (exported && type->destructor && !type->destructor->getDefinition()->exported)
+    return type->destructor->getDefinition()->codeLoc.getError(
         "Destuctor function of an exported type must also be exported");
   return success;
 }

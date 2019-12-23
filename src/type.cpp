@@ -320,6 +320,10 @@ SFunctionInfo FunctionInfo::getParent() const {
     return get_this().get();
 }
 
+FunctionDefinition* FunctionInfo::getDefinition() const {
+  return getParent()->definition;
+}
+
 FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionType type, nullable<SFunctionInfo> parent)
   : id(std::move(id)), type(std::move(type)), parent(std::move(parent)) {}
 
@@ -674,7 +678,7 @@ void StructType::updateInstantations() {
         member.type = member.type->replace(templateParams[i], type->templateParams[i], errors);
       if (destructor) {
         type->destructor = replaceInFunction(type->destructor.get(), templateParams[i], type->templateParams[i], errors);
-        auto res = type->destructor->getParent()->definition->addInstance(nullptr, type->destructor.get());
+        auto res = type->destructor->getDefinition()->addInstance(nullptr, type->destructor.get());
         CHECK(!!res) << res.get_error();
       }
     }
@@ -809,7 +813,7 @@ SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
       ret->destructor = destructor;
       ErrorBuffer errors;
       ret->destructor = replaceInFunction(ret->destructor.get(), from, to, errors);
-      auto res = ret->destructor->getParent()->definition->addInstance(nullptr, ret->destructor.get());
+      auto res = ret->destructor->getDefinition()->addInstance(nullptr, ret->destructor.get());
       CHECK(!!res) << res.get_error();
       CHECK(errors.empty());
     }

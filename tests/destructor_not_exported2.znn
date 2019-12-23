@@ -1,0 +1,12 @@
+// no_compile
+
+export template <T>
+struct X {
+};
+
+template <T>
+void destruct(X<T>*) {}
+
+int main() {
+  return 0;
+}

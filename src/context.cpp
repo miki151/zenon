@@ -82,7 +82,7 @@ WithErrorLine<vector<LambdaCapture>> Context::setLambda(LambdaCaptureInfo* info)
             quote(underlying->getName()) + " can't be captured by implicit copy");
       if (capture.type == LambdaCaptureType::COPY) {
         if (auto f = getCopyFunction(*this, capture.codeLoc, underlying))
-          TRY(f->get()->getParent()->definition->addInstance(this, *f));
+          TRY(f->get()->getDefinition()->addInstance(this, *f));
         else
           return capture.codeLoc.getError("No copy function defined for type " + quote(underlying->getName())+ "\n" + f.get_error().error);
       }

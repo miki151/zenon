@@ -359,8 +359,6 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   static SFunctionInfo getDefined(FunctionId, FunctionType, FunctionDefinition*);
   const FunctionId id;
   const FunctionType type;
-  const nullable<SFunctionInfo> parent;
-  FunctionDefinition* const definition = nullptr;
   string prettyString() const;
   string getMangledName() const;
   bool isMainFunction() const;
@@ -370,6 +368,11 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   FunctionInfo(Private, FunctionId, FunctionType, nullable<SFunctionInfo> parent);
   FunctionInfo(Private, FunctionId, FunctionType, FunctionDefinition*);
   SFunctionInfo getParent() const;
+  FunctionDefinition* getDefinition() const;
+
+  private:
+  const nullable<SFunctionInfo> parent;
+  FunctionDefinition* const definition = nullptr;
 };
 
 struct LambdaType : public Type {
