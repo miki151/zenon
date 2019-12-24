@@ -811,11 +811,12 @@ SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
     ret->staticContext.replace(from, to, errors);
     if (destructor) {
       ret->destructor = destructor;
-      ErrorBuffer errors;
       ret->destructor = replaceInFunction(ret->destructor.get(), from, to, errors);
       auto res = ret->destructor->getDefinition()->addInstance(nullptr, ret->destructor.get());
-      CHECK(!!res) << res.get_error();
-      CHECK(errors.empty());
+      if (!res)
+        errors.push_back(
+            //ret->destructor->getDefinition()->codeLoc.toString() + ": Error instantiating destructor: " +
+            res.get_error().toString());
     }
   } else
     INFO << "Found instantiated: " << ret->getName();

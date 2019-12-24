@@ -33,3 +33,7 @@ EvalError EvalError::noEval() {
 EvalError EvalError::withError(string error) {
   return EvalError{true, error};
 }
+
+string ErrorLoc::toString() const {
+  return loc.toString() + ": " + error;
+}

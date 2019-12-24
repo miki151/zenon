@@ -21,10 +21,11 @@ struct CodeLoc {
 struct ErrorLoc {
   CodeLoc loc;
   string error;
+  string toString() const;
 };
 
 inline std::ostream& operator<<(std::ostream& d, const ErrorLoc& error) {
-  d << error.loc.toString() << ": " << error.error;
+  d << error.toString();
   return d;
 }
 
