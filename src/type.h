@@ -430,3 +430,8 @@ extern string joinTypeListCodegen(const vector<SType>&);
 extern string getExpandedParamName(const string& packName, int index);
 void generateConversions(const Context&, const vector<SType>& paramTypes, const vector<SType>& argTypes,
     vector<unique_ptr<Expression>>&);
+
+SType convertPointerToReference(SType);
+SType convertReferenceToPointer(SType);
+nullable<SType> convertPointerToReferenceStrict(SType);
+nullable<SType> convertReferenceToPointerStrict(SType);

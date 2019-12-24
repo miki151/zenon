@@ -72,6 +72,17 @@ void Context::setTemplated(vector<SType> v) {
   state->templateParams = v;
 }
 
+static SType getCapturedType(SType input, LambdaCaptureType type) {
+  switch (type) {
+    case LambdaCaptureType::REFERENCE:
+      return convertReferenceToPointer(input);
+    case LambdaCaptureType::COPY:
+    case LambdaCaptureType::IMPLICIT_COPY:
+    case LambdaCaptureType::MOVE:
+      return input->getUnderlying();
+  }
+}
+
 WithErrorLine<vector<LambdaCapture>> Context::setLambda(LambdaCaptureInfo* info) {
   vector<LambdaCapture> ret;
   for (auto& capture : info->captures) {
@@ -86,9 +97,7 @@ WithErrorLine<vector<LambdaCapture>> Context::setLambda(LambdaCaptureInfo* info)
         else
           return capture.codeLoc.getError("No copy function defined for type " + quote(underlying->getName())+ "\n" + f.get_error().error);
       }
-      ret.push_back(LambdaCapture{capture.name, *type});
-      if (capture.type == LambdaCaptureType::IMPLICIT_COPY || capture.type == LambdaCaptureType::MOVE)
-        ret.back().type = ret.back().type->getUnderlying();
+      ret.push_back(LambdaCapture{capture.name, getCapturedType(*type, capture.type), capture.type});
     } else
       return capture.codeLoc.getError(type.get_error());
   }
@@ -157,7 +166,7 @@ WithError<SType> Context::getTypeOfVariable(const string& id) const {
           if (auto captureType = lambdaInfo->defaultCapture) {
             auto& varInfo = state->vars.at(id);
             lambdaInfo->captures.push_back(LambdaCaptureInfo::Var{id, varInfo.declarationLoc, *captureType});
-            lambdaInfo->implicitCaptures.push_back(LambdaCapture{id, varInfo.type});
+            lambdaInfo->implicitCaptures.push_back(LambdaCapture{id, getCapturedType(varInfo.type, *captureType), *captureType});
             return varInfo.type;
           } else
             return "Variable " + quote(id) + " is not captured by lambda";
@@ -607,20 +616,16 @@ nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> a
     switch (op) {
       case Operator::GET_ADDRESS:
         if (argTypes.size() == 1) {
-          if (auto referenceType = argTypes[0].dynamicCast<ReferenceType>())
-            return FunctionType(PointerType::get(referenceType->underlying), {argTypes[0]}, {}).setBuiltin();
-          else if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
-            return FunctionType(MutablePointerType::get(referenceType->underlying), {argTypes[0]}, {}).setBuiltin();
+          if (auto pointerType = convertReferenceToPointerStrict(argTypes[0]))
+            return FunctionType(pointerType.get(), {argTypes[0]}, {}).setBuiltin();
           else // this codegens a call to the op_get_address function, which returns the address of a temporary object
             return FunctionType(PointerType::get(argTypes[0]), {argTypes[0]}, {});
         }
         break;
       case Operator::POINTER_DEREFERENCE:
         if (argTypes.size() == 1) {
-          if (auto pointerType = argTypes[0]->getUnderlying().dynamicCast<PointerType>())
-            return FunctionType(ReferenceType::get(pointerType->underlying), {argTypes[0]}, {}).setBuiltin();
-          else if (auto pointerType = argTypes[0]->getUnderlying().dynamicCast<MutablePointerType>())
-            return FunctionType(MutableReferenceType::get(pointerType->underlying), {argTypes[0]}, {}).setBuiltin();
+          if (auto referenceType = convertPointerToReferenceStrict(argTypes[0]->getUnderlying()))
+            return FunctionType(referenceType.get(), {argTypes[0]}, {}).setBuiltin();
         }
         break;
       case Operator::ASSIGNMENT:

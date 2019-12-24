@@ -1636,3 +1636,35 @@ string VariablePack::getName(bool withTemplateArguments) const {
 
 VariablePack::VariablePack(SType p, string id) : identifier(id), packType(std::move(p)) {
 }
+
+nullable<SType> convertPointerToReferenceStrict(SType type) {
+  if (auto p = type.dynamicCast<PointerType>())
+    return SType(ReferenceType::get(p->underlying));
+  else if (auto p = type.dynamicCast<MutablePointerType>())
+    return SType(MutableReferenceType::get(p->underlying));
+  else
+    return nullptr;
+}
+
+nullable<SType> convertReferenceToPointerStrict(SType type) {
+  if (auto p = type.dynamicCast<ReferenceType>())
+    return SType(PointerType::get(p->underlying));
+  else if (auto p = type.dynamicCast<MutableReferenceType>())
+    return SType(MutablePointerType::get(p->underlying));
+  else
+    return nullptr;
+}
+
+SType convertPointerToReference(SType type) {
+  if (auto p = convertPointerToReferenceStrict(type))
+    return p.get();
+  else
+    return type;
+}
+
+SType convertReferenceToPointer(SType type) {
+  if (auto p = convertReferenceToPointerStrict(type))
+    return p.get();
+  else
+    return type;
+}

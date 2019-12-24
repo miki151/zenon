@@ -55,8 +55,6 @@ void Constant::codegen(Accu& accu, CodegenStage) const {
 auto constexpr lambdaArgName = "lambda_Arg";
 
 void Variable::codegen(Accu& accu, CodegenStage) const {
-  if (lambdaCapture)
-    accu.add(lambdaArgName + "->"s);
   accu.add(*identifier.asBasicIdentifier());
 }
 
@@ -429,6 +427,25 @@ void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) co
   }
 }
 
+static unique_ptr<StatementBlock> generateLambdaBody(unique_ptr<StatementBlock> body, const LambdaType& type) {
+  auto ret = unique<StatementBlock>(body->codeLoc);
+  for (auto& capture : type.captures) {
+    auto memberExpr = cast<Expression>(MemberAccessExpression::getPointerAccess(body->codeLoc,
+        unique<Variable>(IdentifierInfo(lambdaArgName, body->codeLoc)), capture.name));
+    auto type = capture.type;
+    if (capture.captureType == LambdaCaptureType::REFERENCE) {
+      type = convertPointerToReference(type->getUnderlying());
+      memberExpr = unique<UnaryExpression>(body->codeLoc, Operator::POINTER_DEREFERENCE, std::move(memberExpr));
+    } else
+      type = ReferenceType::get(type);
+    auto decl = unique<VariableDeclaration>(body->codeLoc, none, capture.name, std::move(memberExpr));
+    decl->realType = type;
+    ret->elems.push_back(std::move(decl));
+  }
+  ret->elems.push_back(std::move(body));
+  return ret;
+}
+
 string codegen(const AST& ast, const Context& context, const string& codegenInclude, bool includeLineNumbers) {
   Accu accu(includeLineNumbers);
   accu.add("#include \"" + codegenInclude + "/all.h\"");
@@ -448,7 +465,7 @@ string codegen(const AST& ast, const Context& context, const string& codegenIncl
       auto dummyIdent = IdentifierInfo("ignore", lambda->body->codeLoc);
       auto def = unique<FunctionDefinition>(lambda->body->codeLoc, dummyIdent,
           lambda->functionInfo->id);
-      def->body = std::move(lambda->body);
+      def->body = generateLambdaBody(std::move(lambda->body), *lambda);
       auto functionType = lambda->functionInfo->type;
       def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, string(lambdaArgName), false, false});
       for (int i = 1; i < functionType.params.size(); ++i)
@@ -765,7 +782,7 @@ void LambdaExpression::codegen(Accu& a, CodegenStage) const {
         a.add("::implicit_copy(&" + capture.name + "),");
         break;
       case LambdaCaptureType::REFERENCE:
-        a.add(capture.name + ",");
+        a.add("&" + capture.name + ",");
         break;
     }
   } if (!captureInfo.captures.empty())

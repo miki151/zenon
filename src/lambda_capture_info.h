@@ -13,6 +13,7 @@ enum class LambdaCaptureType {
 struct LambdaCapture {
   string name;
   SType type;
+  LambdaCaptureType captureType;
 };
 
 struct LambdaCaptureInfo {

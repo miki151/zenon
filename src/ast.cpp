@@ -117,10 +117,9 @@ WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
     if (auto& pack = context.getVariablePack())
       if (pack->name == id)
         return SType(shared<VariablePack>(pack->type, *id));
-    if (auto varType = context.getTypeOfVariable(*id)) {
-      lambdaCapture = context.isCapturedVariable(*id);
+    if (auto varType = context.getTypeOfVariable(*id))
       return *varType;
-    } else
+    else
       varError = varType.get_error();
   }
   if (auto t = context.getTypeFromString(identifier))
@@ -667,24 +666,6 @@ NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyRequirements(Co
       return applyRequirement(from, req, requirements.variadic);
     })));
   return ret;
-}
-
-static SType convertPointerToReference(SType type) {
-  if (auto p = type.dynamicCast<PointerType>())
-    return ReferenceType::get(p->underlying);
-  else if (auto p = type.dynamicCast<MutablePointerType>())
-    return MutableReferenceType::get(p->underlying);
-  else
-    return type;
-}
-
-static SType convertReferenceToPointer(SType type) {
-  if (auto p = type.dynamicCast<ReferenceType>())
-    return PointerType::get(p->underlying);
-  else if (auto p = type.dynamicCast<MutableReferenceType>())
-    return MutablePointerType::get(p->underlying);
-  else
-    return type;
 }
 
 static bool paramsAreGoodForOperator(const vector<SType>& params) {

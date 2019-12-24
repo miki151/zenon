@@ -95,7 +95,6 @@ struct Variable : Expression {
   virtual void codegen(Accu&, CodegenStage) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   IdentifierInfo identifier;
-  bool lambdaCapture = false;
 };
 
 struct MemberAccessExpression : Expression {
