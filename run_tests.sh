@@ -17,7 +17,7 @@ function compile() {
   else
     EXPECTED_RET="0"
   fi
-  ../zenon $1 -o $OUTPUT --cpp "clang++ $CLANG_OPT" 2> /dev/null
+  ../zenon $1 -o $OUTPUT 2> /dev/null
   RESULT=$?
   if [ "$RESULT" = "2" ]; then
     echo -e "$1: $RED C++ compilation failed$NC"
