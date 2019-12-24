@@ -723,6 +723,7 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
           i == templateInfo.params.size() - 1 && templateInfo.variadic);
   }
   auto requirements = TRY(applyRequirements(contextWithTemplateParams, templateInfo));
+  definitionContext.emplace(Context::withParent(contextWithTemplateParams));
   auto returnType = TRY(getReturnType(contextWithTemplateParams));
   if (name.contains<Operator>())
     returnType = convertPointerToReference(returnType);
@@ -1038,10 +1039,10 @@ JustError<ErrorLoc> FunctionDefinition::addInstance(const Context* callContext, 
   if (callContext && callContext->getTemplateParams())
     return success;
   vector<SFunctionInfo> requirements;
-  if (callContext)
-    for (auto& req : instance->type.requirements)
-      if (auto concept = req.base.getValueMaybe<SConcept>())
-        append(requirements, *callContext->getRequiredFunctions(**concept, {}));
+  for (auto& req : instance->type.requirements)
+    if (auto concept = req.base.getValueMaybe<SConcept>())
+      append(requirements, TRY((callContext ? callContext : &*definitionContext)
+          ->getRequiredFunctions(**concept, {}).addCodeLoc(codeLoc)));
   for (auto& fun : requirements)
     if (fun->type.fromConcept)
       return success;

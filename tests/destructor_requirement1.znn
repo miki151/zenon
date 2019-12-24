@@ -1,0 +1,20 @@
+// 6
+// 6
+
+template <T> requires can_invoke<T, void>
+struct X {
+  T elem;
+};
+
+template <T> requires can_invoke<T, void>
+void destruct(X<T>* x) {
+  x->elem.invoke();
+}
+
+int main() {
+  mutable x = 5;
+  {
+    const a = X([&]{ ++x;});
+  }
+  return x;
+}

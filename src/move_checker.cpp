@@ -17,7 +17,7 @@ struct MoveChecker::Block {
 };
 
 void MoveChecker::startBlock() {
-  blocks.push_back(Block{ BlockType::STANDALONE, {} });
+  blocks.push_back(Block{ BlockType::STANDALONE, {}, {} });
 }
 
 struct MoveChecker::StatementUsage {
@@ -83,11 +83,11 @@ void MoveChecker::returnStatement() {
 }
 
 void MoveChecker::newAlternative() {
-  blocks.push_back(Block{ BlockType::ALTERNATIVE, {} });
+  blocks.push_back(Block{ BlockType::ALTERNATIVE, {}, {} });
 }
 
 void MoveChecker::startLoop(int loopId) {
-  blocks.push_back(Block{ BlockType::LOOP, {} });
+  blocks.push_back(Block{ BlockType::LOOP, {}, {} });
 }
 
 void MoveChecker::addVariable(string name) {

@@ -1,0 +1,28 @@
+// 6
+// 6
+
+template <T> requires can_invoke<T, void>
+struct X {
+  T elem;
+};
+
+template <T> requires can_invoke<T, void>
+void destruct(X<T>* x) {
+  x->elem.invoke();
+}
+
+template <T>
+concept can_plusplus {
+  void operator++(T mutable*);
+};
+
+template <T> requires can_plusplus<T>
+void f(T mutable* elem) {
+  const a = X([&]{ ++(*elem);});
+}
+
+int main() {
+  mutable x = 5;
+  f(&x);
+  return x;
+}
