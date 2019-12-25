@@ -562,6 +562,7 @@ struct FunctionDefinition : Statement {
   TemplateInfo templateInfo;
   nullable<SFunctionInfo> functionInfo;
   optional<Context> definitionContext;
+  bool wasChecked = false;
   bool external = false;
   bool isVirtual = false;
   bool isDefault = false;

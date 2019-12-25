@@ -1053,7 +1053,7 @@ JustError<ErrorLoc> FunctionDefinition::addInstance(const Context* callContext, 
         if (other.functionInfo->getWithoutRequirements() == instance->getWithoutRequirements())
           return success;
       instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, requirements});
-      if (definitionContext) {
+      if (wasChecked) {
         TRY(instances.back().generateBody(body.get(), codeLoc));
         return checkBody(requirements, *instances.back().body,
             *instances.back().functionInfo);
@@ -1165,6 +1165,7 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
     TRY(checkBody({}, *body, *functionInfo));
     // For checking instances we just use the top level context.
     definitionContext.emplace(Context::withParent(context));
+    wasChecked = true;
     for (int i = 0; i < instances.size(); ++i)
       if (!instances[i].body) {
         TRY(instances[i].generateBody(body.get(), codeLoc));

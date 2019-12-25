@@ -1,0 +1,23 @@
+// 6
+
+template <T>
+struct X {
+  T elem;
+};
+
+template <T>
+int u(T*) { return 1; }
+
+int f(X<int>* x) {
+  return g(x);
+}
+
+template <T>
+int g(X<T>* x) {
+  return u<X<T>>(x);
+}
+
+int main() {
+  mutable x = X(5);
+  return f(&x);
+}

@@ -1,0 +1,24 @@
+// no_compile
+
+template <T>
+struct X {
+  T elem;
+};
+
+template <T>
+void destruct(X<T>* x) {
+  x->elem.invoke();
+}
+
+template <T> requires can_invoke<T, void>
+void destruct(X<T>* x) {
+  x->elem.invoke();
+}
+
+int main() {
+  mutable x = 5;
+  {
+    const a = X(5);
+  }
+  return x;
+}
