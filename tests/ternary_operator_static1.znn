@@ -1,0 +1,8 @@
+// 2
+
+int main() {
+  static const b = true;
+  static const y = b ? 2 : 3;
+  const a = array_repeat<y>(5);
+  return a.size();
+}

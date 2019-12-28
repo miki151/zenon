@@ -65,21 +65,21 @@ int getPrecedence(Operator op) {
     case Operator::MULTIPLY_BY:
     case Operator::DIVIDE_BY:
       return 1;
-    case Operator::LOGICAL_OR:
+    case Operator::MAYBE:
       return 2;
-    case Operator::LOGICAL_AND:
+    case Operator::LOGICAL_OR:
       return 3;
+    case Operator::LOGICAL_AND:
+      return 4;
     case Operator::NOT_EQUAL:
     case Operator::EQUALS:
-      return 4;
-    case Operator::LOGICAL_NOT:
       return 5;
+    case Operator::LOGICAL_NOT:
+      return 6;
     case Operator::LESS_THAN:
     case Operator::MORE_THAN:
     case Operator::LESS_OR_EQUAL:
     case Operator::MORE_OR_EQUAL:
-      return 6;
-    case Operator::MAYBE:
       return 7;
     case Operator::PLUS:
     case Operator::PLUS_UNARY:
@@ -107,6 +107,7 @@ int getPrecedence(Operator op) {
 
 bool isRightAssociative(Operator op) {
   switch (op) {
+    case Operator::MAYBE:
     case Operator::ASSIGNMENT:
       return true;
     default:

@@ -1,0 +1,15 @@
+// 3
+
+template <T, T value>
+T getValue() {
+  return value;
+}
+
+template <T...>
+int get(T... args) {
+  return getValue<int, (countof(args))>();
+}
+
+int main() {
+  return get(true, "pok", 1);
+}

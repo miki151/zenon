@@ -149,6 +149,18 @@ struct UnaryExpression : Expression {
   nullable<SFunctionInfo> functionInfo;
 };
 
+struct TernaryExpression : Expression {
+  TernaryExpression(CodeLoc, unique_ptr<Expression>, unique_ptr<Expression>, unique_ptr<Expression>);
+  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithEvalError<EvalResult> eval(const Context&) const override;
+  virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
+  unique_ptr<Expression> condExpr;
+  unique_ptr<Expression> e1;
+  unique_ptr<Expression> e2;
+};
+
 struct MoveExpression : Expression {
   MoveExpression(CodeLoc, string);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;

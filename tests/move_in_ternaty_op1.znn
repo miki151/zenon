@@ -1,0 +1,21 @@
+// 4
+
+template <T>
+T f(T t) {
+  return move(t);
+}
+
+template <T>
+T g(T t) {
+  return move(t);
+}
+
+struct X {
+  int a;
+};
+
+int main() {
+  const x = X(4);
+  const b = true;
+  return (b ? f(move(x)) : g(move(x))).a;
+}

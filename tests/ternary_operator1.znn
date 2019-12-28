@@ -1,0 +1,5 @@
+// 1
+
+int main() {
+  return true ? 1 : 2;
+}

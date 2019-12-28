@@ -240,7 +240,9 @@ void Context::print() const {
 }
 
 vector<SType> Context::getConversions(SType type) const {
-  vector<SType> ret = {type, BuiltinType::ANY_TYPE};
+  vector<SType> ret = {type};
+  if (type->isMetaType() && type != BuiltinType::ANY_TYPE)
+    ret.push_back(BuiltinType::ANY_TYPE);
   auto underlying = type->getUnderlying();
   if (underlying == BuiltinType::INT)
     ret.push_back(BuiltinType::DOUBLE);

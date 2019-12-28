@@ -1,0 +1,11 @@
+// no_compile
+
+int main() {
+  const b = false;
+  const c = false;
+  const x = 5;
+  if (x == b ? x : 4)
+    return 1;
+  else
+    return 2;
+}

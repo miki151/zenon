@@ -1,0 +1,8 @@
+// no_compile
+
+int main() {
+  const x = 4;
+  const b = true;
+  const r = (b ? move(x) : 4);
+  return x;
+}

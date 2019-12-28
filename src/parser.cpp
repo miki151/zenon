@@ -350,7 +350,12 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
     if (auto op1 = token.getValueMaybe<Operator>()) {
       if (getPrecedence(*op1) < minPrecedence)
         break;
+      unique_ptr<Expression> mhs;
       tokens.popNext();
+      if (op1 == Operator::MAYBE) {
+        mhs = TRY(parseExpression(tokens));
+        TRY(tokens.eat(Keyword::COLON));
+      }
       auto rhs = TRY(parsePrimary(tokens));
       while (1) {
         token = tokens.peek();
@@ -368,7 +373,10 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
         else
           break;
       }
-      lhs = BinaryExpression::get(token.codeLoc, *op1, std::move(lhs), std::move(rhs));
+      if (mhs)
+        lhs = cast<Expression>(unique<TernaryExpression>(token.codeLoc, std::move(lhs), std::move(mhs), std::move(rhs)));
+      else
+        lhs = BinaryExpression::get(token.codeLoc, *op1, std::move(lhs), std::move(rhs));
     } else
     if (token == Keyword::OPEN_SQUARE_BRACKET) {
       tokens.popNext();

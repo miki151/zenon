@@ -1253,9 +1253,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
     for (auto type : {BuiltinType::BOOL, BuiltinType::CHAR})
       CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL, {{type}, {type}}, {}).setBuiltin()));
   auto metaTypes = {BuiltinType::ANY_TYPE, BuiltinType::STRUCT_TYPE, BuiltinType::ENUM_TYPE, BuiltinType::VARIANT_TYPE};
-  for (auto type1 : metaTypes)
-    for (auto type2 : metaTypes)
-      CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionType(BuiltinType::BOOL, {{type1}, {type2}}, {}).setBuiltin()));
+  CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionType(BuiltinType::BOOL, {{BuiltinType::ANY_TYPE}, {BuiltinType::ANY_TYPE}}, {}).setBuiltin()));
   addBuiltInConcepts(context);
   context.addBuiltInFunction("enum_count", BuiltinType::INT, {SType(BuiltinType::ENUM_TYPE)},
       [](vector<SType> args) -> WithError<SType> {
@@ -2581,4 +2579,53 @@ unique_ptr<Expression> MemberIndexExpression::transform(const StmtTransformFun& 
 
 JustError<ErrorLoc> MemberIndexExpression::checkMoves(MoveChecker& checker) const {
   return lhs->checkMoves(checker);
+}
+
+TernaryExpression::TernaryExpression(CodeLoc l, unique_ptr<Expression> cond, unique_ptr<Expression> e1, unique_ptr<Expression> e2)
+  : Expression(l), condExpr(std::move(cond)), e1(std::move(e1)), e2(std::move(e2)) {
+}
+
+WithErrorLine<SType> TernaryExpression::getTypeImpl(Context& context) {
+  auto condType = TRY(getType(context, condExpr));
+  if (!context.canConvert(condType, BuiltinType::BOOL))
+    return condExpr->codeLoc.getError("Expected expression of type " + quote(BuiltinType::BOOL->getName()) +
+        ", got " + quote(condType->getName()));
+  auto t1 = TRY(getType(context, e1));
+  auto t2 = TRY(getType(context, e2));
+  if (context.canConvert(t1, t2, e1))
+    return t2;
+  else
+  if (context.canConvert(t2, t1, e2))
+    return t1;
+  else
+    return e1->codeLoc.getError("Ternary operator operands have incompatible types: "
+        + quote(t1->getName()) + " and " + quote(t2->getName()));
+}
+
+WithEvalError<EvalResult> TernaryExpression::eval(const Context& context) const {
+  auto cond = TRY(condExpr->eval(context));
+  if (auto value = cond.value.dynamicCast<CompileTimeValue>()) {
+    auto res1 = TRY(e1->eval(context));
+    auto res2 = TRY(e2->eval(context));
+    if (auto boolValue = value->value.getValueMaybe<bool>())
+      return *boolValue ? res1 : res2;
+    return EvalResult{CompileTimeValue::getTemplateValue(res1.value->getType(), "ternary_result"), false};
+  }
+  return EvalError::noEval();
+}
+
+unique_ptr<Expression> TernaryExpression::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
+  return unique<TernaryExpression>(codeLoc, f2(condExpr.get()), f2(e1.get()), f2(e2.get()));
+}
+
+JustError<ErrorLoc> TernaryExpression::checkMoves(MoveChecker& checker) const {
+  TRY(condExpr->checkMoves(checker));
+  checker.startBlock();
+  checker.newAlternative();
+  TRY(e1->checkMoves(checker));
+  checker.clearStatementUsages();
+  checker.newAlternative();
+  TRY(e2->checkMoves(checker));
+  checker.endBlock();
+  return success;
 }

@@ -1,0 +1,8 @@
+// 3
+
+int main() {
+  mutable x = 1;
+  bool b = false;
+  mutable y = b ? x : 3;
+  return y;
+}

@@ -1,0 +1,8 @@
+// no_compile
+
+int main() {
+  if (5 == true)
+    return 1;
+  else
+    return 2;
+}

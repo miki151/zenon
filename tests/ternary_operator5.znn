@@ -1,0 +1,9 @@
+// 3
+
+import "std/math.znn";
+
+int main() {
+  bool b = false;
+  const y = b ? 1 : 1.5;
+  return as_int(2 * y);
+}

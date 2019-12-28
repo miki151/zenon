@@ -1,0 +1,8 @@
+// 3
+
+int main() {
+  mutable x = 0;
+  mutable y = 0;
+  (true ? x : y) = 3;
+  return x + 2 * y;
+}

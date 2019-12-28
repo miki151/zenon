@@ -818,3 +818,14 @@ void MemberIndexExpression::codegen(Accu& accu, CodegenStage stage) const {
   lhs->codegen(accu, stage);
   accu.add(")."s + (isVariant ? variantUnionEntryPrefix : "") + *memberName);
 }
+
+
+void TernaryExpression::codegen(Accu& accu, CodegenStage stage) const {
+  accu.add("(");
+  condExpr->codegen(accu, stage);
+  accu.add(")?(");
+  e1->codegen(accu, stage);
+  accu.add("):(");
+  e2->codegen(accu, stage);
+  accu.add(")");
+}
