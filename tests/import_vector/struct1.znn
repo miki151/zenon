@@ -1,0 +1,15 @@
+
+export import "std/vector.znn";
+
+struct X {
+};
+
+export struct X;
+
+export struct Y {
+  vector<X> v;
+};
+
+export Y get() {
+  return Y({X()}.as_vector());
+}

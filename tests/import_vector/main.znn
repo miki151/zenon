@@ -1,0 +1,8 @@
+// no_compile
+
+import "struct1.znn";
+
+int main() {
+  const s = get();
+  return 0;
+}
