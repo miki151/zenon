@@ -48,6 +48,13 @@ bool operator == (Enum e1, Enum e2) {
   }
 }
 
+export template <T>
+bool operator == (T** t1, T** t2) {
+  embed {
+    return *t1 == *t2;
+  }
+}
+
 export template <Enum> requires is_enum<Enum>
 Enum implicit_copy(Enum* e) {
   return *e;

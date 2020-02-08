@@ -210,7 +210,7 @@ static string getSignature(const FunctionInfo& functionInfo) {
     if (functionInfo.id.contains<Operator>()) {
       if (auto p = param.dynamicCast<ReferenceType>()) {
         auto name = paramName ? *paramName + "_ptr" : "";
-        argText = "const " + p->underlying->getCodegenName() + "& " + name + ", ";
+        argText = p->underlying->getCodegenName() + " const& " + name + ", ";
       }
       if (auto p = param.dynamicCast<MutableReferenceType>()) {
         auto name = paramName ? *paramName + "_ptr" : "";

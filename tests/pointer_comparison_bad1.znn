@@ -1,0 +1,10 @@
+// no_compile
+
+int main() {
+  int x = 1;
+  const y = 2.2;
+  if (&x == &y)
+    return 3;
+  else
+    return 5;
+}
