@@ -494,17 +494,21 @@ bool MutableReferenceType::canAssign(SType from) const {
   return underlying == from->getUnderlying();
 }
 
-static JustError<string> checkMembers(const Context& context, set<const Type*> &visited, const SType& t) {
+static JustError<string> checkMembers(const Context& context, set<const Type*> &visited, const SType& t, bool onlyIncomplete) {
   if (auto s = t.dynamicCast<StructType>()) {
-    if (visited.count(t.get()))
-      return "Type " + t->getName() + " has infinite size"s;
+    if (!onlyIncomplete && visited.count(t.get()))
+      return "Type " + quote(t->getName()) + " has infinite size"s;
     if (!context.isFullyDefined(t.get()))
-      return "Type " + t->getName() + " is incomplete in this context"s;
+      return "Type " + quote(t->getName()) + " is incomplete in this context"s;
     visited.insert(t.get());
     for (auto& member : s->members)
-      TRY(checkMembers(context, visited, member.type));
+      TRY(checkMembers(context, visited, member.type, onlyIncomplete));
     for (auto& member : s->alternatives)
-      TRY(checkMembers(context, visited, member.type));
+      TRY(checkMembers(context, visited, member.type, onlyIncomplete));
+    if (s->external)
+      for (auto& param : s->templateParams)
+        if (!visited.count(param.get()))
+          TRY(checkMembers(context, visited, param, true));
     visited.erase(t.get());
   }
   return success;
@@ -512,7 +516,7 @@ static JustError<string> checkMembers(const Context& context, set<const Type*> &
 
 JustError<string> StructType::getSizeError(const Context& context) const {
   set<const Type*> visited;
-  return checkMembers(context, visited, get_this().get());
+  return checkMembers(context, visited, get_this().get(), false);
 }
 
 JustError<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
