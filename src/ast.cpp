@@ -1718,6 +1718,8 @@ JustError<ErrorLoc> SwitchStatement::check(Context& context, bool) {
     if (auto definition = destructorCall->getDefinition())
       TRY(definition->addInstance(&context, destructorCall.get()));
   }
+  if (!context.isFullyDefined(type->getUnderlying().get()))
+    return codeLoc.getError("Type " + quote(type->getName()) + " is incomplete in this context");
   return type->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
 }
 
