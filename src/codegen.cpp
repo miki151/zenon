@@ -862,7 +862,7 @@ void MemberAccessExpression::codegen(Accu& accu, CodegenStage stage) const {
   if (destructorCall) {
     accu.add(";" + destructorCall->getMangledName() + "(&tmp); std::move(tmp)." + identifier +";})");
   } else
-    accu.add(")."s + (isVariant ? variantUnionEntryPrefix : "") + identifier);
+    accu.add(")."s + (isUnion ? variantUnionEntryPrefix : "") + identifier);
 }
 
 
@@ -875,7 +875,7 @@ void MemberIndexExpression::codegen(Accu& accu, CodegenStage stage) const {
   if (destructorCall) {
     accu.add(";" + destructorCall->getMangledName() + "(&tmp); std::move(tmp)." + *memberName +";})");
   } else
-    accu.add(")."s + (isVariant ? variantUnionEntryPrefix : "") + *memberName);
+    accu.add(")."s + (isUnion ? variantUnionEntryPrefix : "") + *memberName);
 }
 
 

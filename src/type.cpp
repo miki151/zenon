@@ -13,7 +13,7 @@ BuiltinType::DefType BuiltinType::ANY_TYPE = shared<BuiltinType>("any_type");
 BuiltinType::DefType BuiltinType::ENUM_TYPE = shared<BuiltinType>("enum_type");
 BuiltinType::DefType BuiltinType::NULL_TYPE = shared<BuiltinType>("null_type");
 BuiltinType::DefType BuiltinType::STRUCT_TYPE = shared<BuiltinType>("struct_type");
-BuiltinType::DefType BuiltinType::VARIANT_TYPE = shared<BuiltinType>("variant_type");
+BuiltinType::DefType BuiltinType::UNION_TYPE = shared<BuiltinType>("variant_type");
 
 string BuiltinType::getName(bool withTemplateArguments) const {
   return name;
@@ -141,7 +141,7 @@ WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SType& 
       value = ref->value;
     if (value->getType() != BuiltinType::INT)
       return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + value->getType()->getName();
-    if (type == BuiltinType::STRUCT_TYPE || type == BuiltinType::VARIANT_TYPE)
+    if (type == BuiltinType::STRUCT_TYPE || type == BuiltinType::UNION_TYPE)
       return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), value), "bad_member_name"};
     return Type::getTypeOfMember(value);
   } else
@@ -424,7 +424,7 @@ bool BuiltinType::canDeclareVariable() const {
 }
 
 bool BuiltinType::isMetaType() const {
-  return ANY_TYPE == this || STRUCT_TYPE == this || VARIANT_TYPE == this|| ENUM_TYPE == this;
+  return ANY_TYPE == this || STRUCT_TYPE == this || UNION_TYPE == this|| ENUM_TYPE == this;
 }
 
 SType Type::removePointer() const {
@@ -722,7 +722,7 @@ WithError<Type::MemberInfo> StructType::getTypeOfMember(const SType& v1) const {
 }
 
 SType StructType::getType() const {
-  return alternatives.empty() ? BuiltinType::STRUCT_TYPE : BuiltinType::VARIANT_TYPE;
+  return alternatives.empty() ? BuiltinType::STRUCT_TYPE : BuiltinType::UNION_TYPE;
 }
 
 StructType::StructType(string name, StructType::Private) : name(std::move(name)) {

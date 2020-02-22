@@ -12,7 +12,7 @@ int g() {
   return 1;
 }
 
-template <T> requires is_variant<T>
+template <T> requires is_union<T>
 int g() {
   return 2;
 }

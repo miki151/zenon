@@ -78,7 +78,7 @@ struct BuiltinType : public Type {
   static DefType ANY_TYPE;
   static DefType ENUM_TYPE;
   static DefType STRUCT_TYPE;
-  static DefType VARIANT_TYPE;
+  static DefType UNION_TYPE;
   BuiltinType(const string& name, optional<string> codegenName = none);
 
   private:

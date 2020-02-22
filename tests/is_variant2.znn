@@ -13,7 +13,7 @@ int g() {
   return get_member_name(T, 0).size();
 }
 
-template <T> requires is_variant<T>
+template <T> requires is_union<T>
 int g() {
   return get_alternative_name(T, 0).size();
 }

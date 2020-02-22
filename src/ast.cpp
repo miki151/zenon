@@ -720,7 +720,7 @@ NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyRequirements(Co
 static bool paramsAreGoodForOperator(const vector<SType>& params) {
   for (auto& p : params)
     if (p->getUnderlying()->getType() == BuiltinType::STRUCT_TYPE ||
-        p->getUnderlying()->getType() == BuiltinType::VARIANT_TYPE)
+        p->getUnderlying()->getType() == BuiltinType::UNION_TYPE)
       return true;
   return false;
 }
@@ -939,7 +939,7 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
   for (int i = 0; i < parameters.size(); ++i) {
     parameters[i].isMutable = true;
     if (i != virtualIndex) {
-      // we have to change the parameter names, because they could clash with variant alternative names
+      // we have to change the parameter names, because they could clash with union member names
       auto newName = "v_param" + *parameters[i].name;
       if (defaultBlock)
         defaultBlock = cast<StatementBlock>(defaultBlock->replaceVar(*parameters[i].name, newName));
@@ -950,19 +950,19 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
   auto virtualType = bodyContext.getTypeFromString(virtualParam.type);
   unique_ptr<Expression> switchExpr = unique<MoveExpression>(codeLoc, *virtualParam.name);
   body = unique<StatementBlock>(codeLoc);
-  auto variantType = virtualType->dynamicCast<StructType>();
+  auto unionType = virtualType->dynamicCast<StructType>();
   bool isPointerParam = false;
-  if (!variantType) {
-    variantType = virtualType.get()->removePointer().dynamicCast<StructType>();
+  if (!unionType) {
+    unionType = virtualType.get()->removePointer().dynamicCast<StructType>();
     switchExpr = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(switchExpr));
     isPointerParam = true;
   }
-  if (!variantType || variantType->alternatives.empty())
-    return codeLoc.getError("Virtual parameter must be of a variant type or a pointer to one");
+  if (!unionType || unionType->alternatives.empty())
+    return codeLoc.getError("Virtual parameter must be of a union type or a pointer to one");
   auto switchStatementPtr = unique<SwitchStatement>(codeLoc, std::move(switchExpr));
   auto& switchStatement = *switchStatementPtr;
   body->elems.push_back(std::move(switchStatementPtr));
-  for (auto& alternative : variantType->alternatives) {
+  for (auto& alternative : unionType->alternatives) {
     auto alternativeType = alternative.type;
     if (virtualType->dynamicCast<MutablePointerType>())
       alternativeType = MutablePointerType::get(std::move(alternativeType));
@@ -1285,7 +1285,7 @@ JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCac
     auto destructedType = TRY(getDestructedType(functionInfo->type.params).addCodeLoc(codeLoc));
     if (auto structType = destructedType.dynamicCast<StructType>()) {
       if (!structType->alternatives.empty())
-        return codeLoc.getError("User-defined destructors for variant types are not supported");
+        return codeLoc.getError("User-defined destructors for union types are not supported");
       if (structType->destructor)
         return codeLoc.getError("Destructor function for type " + quote(destructedType->getName()) + " already defined here: "
             + structType->destructor->getDefinition()->codeLoc.toString());
@@ -1315,7 +1315,7 @@ static void addBuiltInConcepts(Context& context) {
   };
   addType("is_enum", BuiltinType::ENUM_TYPE);
   addType("is_struct", BuiltinType::STRUCT_TYPE);
-  addType("is_variant", BuiltinType::VARIANT_TYPE);
+  addType("is_union", BuiltinType::UNION_TYPE);
 }
 
 Context createPrimaryContext(TypeRegistry* typeRegistry) {
@@ -1350,7 +1350,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   for (auto op : {Operator::EQUALS})
     for (auto type : {BuiltinType::BOOL, BuiltinType::CHAR})
       CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL, {{type}, {type}}, {}).setBuiltin()));
-  auto metaTypes = {BuiltinType::ANY_TYPE, BuiltinType::STRUCT_TYPE, BuiltinType::ENUM_TYPE, BuiltinType::VARIANT_TYPE};
+  auto metaTypes = {BuiltinType::ANY_TYPE, BuiltinType::STRUCT_TYPE, BuiltinType::ENUM_TYPE, BuiltinType::UNION_TYPE};
   CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionType(BuiltinType::BOOL, {{BuiltinType::ANY_TYPE}, {BuiltinType::ANY_TYPE}}, {}).setBuiltin()));
   addBuiltInConcepts(context);
   context.addBuiltInFunction("enum_count", BuiltinType::INT, {SType(BuiltinType::ENUM_TYPE)},
@@ -1367,7 +1367,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
         else
           fail();
       });
-  context.addBuiltInFunction("variant_count", BuiltinType::INT, {SType(BuiltinType::VARIANT_TYPE)},
+  context.addBuiltInFunction("union_count", BuiltinType::INT, {SType(BuiltinType::UNION_TYPE)},
       [](vector<SType> args) -> WithError<SType> {
         if (auto structType = args[0].dynamicCast<StructType>())
           return (SType) CompileTimeValue::get((int) structType->alternatives.size());
@@ -1389,13 +1389,13 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
             }
         fail();
       });
-  context.addBuiltInFunction("get_alternative_name", BuiltinType::STRING, {SType(BuiltinType::VARIANT_TYPE), SType(BuiltinType::INT)},
+  context.addBuiltInFunction("get_alternative_name", BuiltinType::STRING, {SType(BuiltinType::UNION_TYPE), SType(BuiltinType::INT)},
       [](vector<SType> args) -> WithError<SType> {
         if (auto structType = args[0].dynamicCast<StructType>())
           if (auto value = args[1].dynamicCast<CompileTimeValue>())
             if (auto intValue = value->value.getReferenceMaybe<int>()) {
               if (*intValue < 0 || *intValue >= structType->alternatives.size())
-                return "Variant member index out of range: "s + to_string(*intValue);
+                return "Union member index out of range: "s + to_string(*intValue);
               return (SType) CompileTimeValue::get(structType->alternatives[*intValue].name);
             }
         fail();
@@ -1818,7 +1818,7 @@ JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
   unordered_set<string> subtypeNames;
   for (auto& subtype : elements) {
     if (subtypeNames.count(subtype.name))
-      return subtype.codeLoc.getError("Duplicate variant alternative: " + quote(subtype.name));
+      return subtype.codeLoc.getError("Duplicate union member: " + quote(subtype.name));
     subtypeNames.insert(subtype.name);
     type->alternatives.push_back({subtype.name, TRY(membersContext.getTypeFromString(subtype.type))});
     vector<SType> params;
@@ -2697,7 +2697,7 @@ WithErrorLine<SType> MemberAccessExpression::getTypeImpl(Context& context) {
   auto leftType = TRY(lhs->getTypeImpl(context));
   if (auto res = leftType->getSizeError(context); !res)
     return codeLoc.getError(leftType->getName() + res.get_error());
-  isVariant = leftType->getUnderlying()->getType() == BuiltinType::VARIANT_TYPE;
+  isUnion = leftType->getUnderlying()->getType() == BuiltinType::UNION_TYPE;
   auto ret = TRY(leftType->getTypeOfMember(identifier).addCodeLoc(codeLoc));
   TRY(initializeDestructor(context, leftType, identifier, codeLoc, destructorCall));
   return ret;
@@ -2722,7 +2722,7 @@ WithErrorLine<SType> MemberIndexExpression::getTypeImpl(Context& context) {
     return codeLoc.getError(leftType.get()->getName() + res.get_error());
   auto member = TRY(leftType->getTypeOfMember(value.value).addCodeLoc(codeLoc));
   memberName = member.name;
-  isVariant = leftType->getUnderlying()->getType() == BuiltinType::VARIANT_TYPE;
+  isUnion = leftType->getUnderlying()->getType() == BuiltinType::UNION_TYPE;
   TRY(initializeDestructor(context, leftType, *memberName, codeLoc, destructorCall));
   return member.type;
 }
