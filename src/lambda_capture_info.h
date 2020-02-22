@@ -21,6 +21,7 @@ struct LambdaCaptureInfo {
     string name;
     CodeLoc codeLoc;
     LambdaCaptureType type;
+    bool hasConstructor;
   };
   vector<Var> captures;
   vector<LambdaCapture> implicitCaptures;

@@ -1,0 +1,23 @@
+// 3
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+struct Y {
+  X[2] x;
+};
+
+void f(Y*) {}
+
+int main() {
+  mutable a = 1;
+  {
+    f(&Y({X(&a), X(&a)}));
+  }
+  return a;
+}

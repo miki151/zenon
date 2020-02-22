@@ -1,0 +1,28 @@
+// no_compile
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+struct Z {
+  X x;
+};
+
+void destruct(Z* z) {
+}
+
+template <T>
+void f(T) {}
+
+int main() {
+  mutable a = 0;
+  {
+    const z = Z(X(&a));
+    f(move(z).x);
+  }
+  return a;
+}

@@ -150,7 +150,7 @@ WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SType& 
 
 WithError<SType> TemplateParameterType::getTypeOfMember(const string& s) const {
   if (type == BuiltinType::STRUCT_TYPE)
-    return "Can only refer to template struct type members by index"s;
+    return "Can only refer to template struct type members by name"s;
   return Type::getTypeOfMember(s);
 }
 
@@ -258,7 +258,11 @@ string FunctionInfo::getMangledName() const {
     return id.get<string>();
   return id.visit(
       [this](const string& s) {
-        return s + *getMangledSuffix();
+        if (type.builtinOperator)
+          return s;
+        auto suf = getMangledSuffix();
+        CHECK(!!suf) << prettyString();
+        return s + *suf;
       },
       [this](Operator op) {
         if (auto opName = getCodegenName(op))
@@ -297,14 +301,12 @@ optional<string> FunctionInfo::getMangledSuffix() const {
   return suf;
 }
 
-optional<string> FunctionInfo::getParamName(int index) const {
-  if (auto def = getParent()->definition) {
-    if ((index < def->parameters.size() && (!def->isVariadicParams || type.variadicParams)) || index < def->parameters.size() - 1)
-      return def->parameters[index].name;
-    else if (auto& name = def->parameters.back().name)
-      return getExpandedParamName(*name, index - def->parameters.size() + 1);
-  }
-    return none;
+optional<string> FunctionInfo::getParamName(int index, const FunctionDefinition* def) const {
+  if ((index < def->parameters.size() && (!def->isVariadicParams || type.variadicParams)) || index < def->parameters.size() - 1)
+    return def->parameters[index].name;
+  else if (auto& name = def->parameters.back().name)
+    return getExpandedParamName(*name, index - def->parameters.size() + 1);
+  return none;
 }
 
 SFunctionInfo FunctionInfo::getWithoutRequirements() const {
@@ -643,6 +645,18 @@ WithError<SType> StructType::getTypeOfMember(const string& name) const {
   return "No " + (alternatives.empty() ? "member"s : "alternative"s) + " named " + quote(name) + " in type " + quote(getName());
 }
 
+bool StructType::hasDestructor() const {
+  if (!!destructor)
+    return true;
+  for (auto& m : members)
+    if (m.type->hasDestructor())
+      return true;
+  for (auto& m : alternatives)
+    if (m.type->hasDestructor())
+      return true;
+  return false;
+}
+
 shared_ptr<StructType> StructType::getInstance(vector<SType> newTemplateParams) {
   CHECK(newTemplateParams.size() == templateParams.size());
   auto self = get_this().get().dynamicCast<StructType>();
@@ -678,8 +692,6 @@ void StructType::updateInstantations() {
         member.type = member.type->replace(templateParams[i], type->templateParams[i], errors);
       if (destructor) {
         type->destructor = replaceInFunction(type->destructor.get(), templateParams[i], type->templateParams[i], errors);
-        auto res = type->destructor->getDefinition()->addInstance(nullptr, type->destructor.get());
-        CHECK(!!res) << res.get_error();
       }
     }
     CHECK(errors.empty());
@@ -740,6 +752,10 @@ WithError<Type::MemberInfo> Type::getTypeOfMember(const SType&) const {
 
 WithError<SType> Type::getTypeOfMember(const string&) const {
   return "Type " + quote(getName()) + " doesn't support dot operator"s;
+}
+
+bool Type::hasDestructor() const {
+  return false;
 }
 
 SType ReferenceType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
@@ -812,11 +828,7 @@ SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
     if (destructor) {
       ret->destructor = destructor;
       ret->destructor = replaceInFunction(ret->destructor.get(), from, to, errors);
-      auto res = ret->destructor->getDefinition()->addInstance(nullptr, ret->destructor.get());
-      if (!res)
-        errors.push_back(
-            //ret->destructor->getDefinition()->codeLoc.toString() + ": Error instantiating destructor: " +
-            res.get_error().toString());
+      CHECK(ret->destructor->type.params[0] == PointerType::get(ret));
     }
   } else
     INFO << "Found instantiated: " << ret->getName();
@@ -1302,6 +1314,10 @@ JustError<string> ArrayType::getMappingError(const Context& context, TypeMapping
   return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
 }
 
+bool ArrayType::hasDestructor() const {
+  return underlying->hasDestructor();
+}
+
 SCompileTimeValue CompileTimeValue::get(Value value) {
   static map<Value, SCompileTimeValue> generated;
   if (!generated.count(value)) {
@@ -1544,6 +1560,10 @@ void OptionalType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) 
   underlying->codegenDefinition(visited, accu);
 }
 
+bool OptionalType::hasDestructor() const {
+  return underlying->hasDestructor();
+}
+
 shared_ptr<OptionalType> OptionalType::get(SType type) {
   static map<SType, shared_ptr<OptionalType>> generated;
   if (!generated.count(type)) {
@@ -1617,6 +1637,13 @@ shared_ptr<LambdaType> LambdaType::get(string name, vector<SType> templateParams
     generated.insert({key, ret});
   }
   return generated.at(key);
+}
+
+bool LambdaType::hasDestructor() const {
+  for (auto& capture : captures)
+    if (capture.captureType != LambdaCaptureType::REFERENCE && capture.type->hasDestructor())
+      return true;
+  return false;
 }
 
 shared_ptr<LambdaType> LambdaType::get(vector<SType> templateParams) {

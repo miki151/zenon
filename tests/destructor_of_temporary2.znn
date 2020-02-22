@@ -1,0 +1,45 @@
+// 2
+
+import "std/panic.znn";
+
+extern struct CDest;
+extern CDest(int mutable*);
+
+struct X {
+  int mutable* cnt;
+  int mutable* dest;
+  CDest cDest;
+};
+
+embed {
+#include <cassert>
+  struct CDest {
+    CDest(int* b) : b(b) {
+    }
+    ~CDest() {
+      assert(*b == 1);
+      *b = 2;
+    }
+    int* b;
+  };
+}
+
+void destruct(X* x) {
+  ++*x->cnt;
+  assert(*x->dest == 0);
+  *x->dest = 1;
+}
+
+int operator - (X* y) {
+  return 1;
+}
+
+int main() {
+  mutable a = 1;
+  {
+    mutable b = 0;
+    const x = -X(&a, &b, CDest(&b));
+    a = b;
+  }
+  return a;
+}

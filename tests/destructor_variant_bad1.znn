@@ -1,0 +1,16 @@
+// no_compile
+
+struct X {
+};
+
+variant V {
+  X x;
+  int y;
+};
+
+void destruct(V* v) {
+}
+
+int main() {
+  return 0;
+}

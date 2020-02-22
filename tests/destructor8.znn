@@ -1,0 +1,26 @@
+// 4
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+template <T>
+void f(T t) {}
+
+struct Y {
+  X x;
+};
+
+int main() {
+  mutable a = 3;
+  {
+    const y = Y(X(&a));
+    if (true)
+      f(move(y));
+  }
+  return a;
+}

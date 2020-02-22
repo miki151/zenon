@@ -14,6 +14,7 @@ struct SwitchStatement;
 struct FunctionDefinition;
 struct Accu;
 struct StatementBlock;
+struct Statement;
 
 struct Type : public owned_object<Type> {
   Type();
@@ -33,6 +34,7 @@ struct Type : public owned_object<Type> {
   };
   virtual WithError<MemberInfo> getTypeOfMember(const SType&) const;
   virtual WithError<SType> getTypeOfMember(const string& name) const;
+  virtual bool hasDestructor() const;
   void codegenDefinition(set<const Type*>& visited, Accu&) const;
   virtual ~Type() {}
   virtual WithErrorLine<SType> instantiate(const Context&, vector<SType> templateArgs, CodeLoc) const;
@@ -156,6 +158,7 @@ struct OptionalType : public Type {
   virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   void codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const override;
+  virtual bool hasDestructor() const override;
 
   static shared_ptr<OptionalType> get(SType);
   SType underlying;
@@ -267,6 +270,7 @@ struct StructType : public Type {
   virtual WithError<MemberInfo> getTypeOfMember(const SType&) const override;
   virtual SType getType() const override;
   virtual WithError<SType> getTypeOfMember(const string&) const override;
+  virtual bool hasDestructor() const override;
   string name;
   shared_ptr<StructType> getInstance(vector<SType> templateParams);
   vector<SType> templateParams;
@@ -311,6 +315,7 @@ struct ArrayType : public Type {
   static shared_ptr<ArrayType> get(SType, SCompileTimeValue size);
   virtual JustError<string> getSizeError(const Context&) const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
+  virtual bool hasDestructor() const override;
   ArrayType(SType, SCompileTimeValue size);
   SCompileTimeValue size;
   SType underlying;
@@ -363,7 +368,7 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   string getMangledName() const;
   bool isMainFunction() const;
   optional<string> getMangledSuffix() const;
-  optional<string> getParamName(int index) const;
+  optional<string> getParamName(int index, const FunctionDefinition*) const;
   SFunctionInfo getWithoutRequirements() const;
   FunctionInfo(Private, FunctionId, FunctionType, nullable<SFunctionInfo> parent);
   FunctionInfo(Private, FunctionId, FunctionType, FunctionDefinition*);
@@ -382,6 +387,7 @@ struct LambdaType : public Type {
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
+  virtual bool hasDestructor() const override;
   static shared_ptr<LambdaType> get(string name, vector<SType> templateParams);
   static shared_ptr<LambdaType> get(vector<SType> templateParams);
   struct Private {};
@@ -391,6 +397,8 @@ struct LambdaType : public Type {
   vector<SType> templateParams;
   vector<optional<string>> parameterNames;
   unique_ptr<StatementBlock> body;
+  unique_ptr<StatementBlock> destructor;
+  vector<unique_ptr<Statement>> destructorCalls;
   private:
   string name;
 };

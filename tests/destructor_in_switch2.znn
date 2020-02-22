@@ -1,0 +1,45 @@
+// 3
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+struct Y {
+  int mutable* cnt;
+};
+
+void destruct(Y* x) {
+  *x->cnt += 2;
+}
+
+variant V {
+  X x;
+  Y y;
+};
+
+template <T>
+void f(T) {}
+
+void handle(V v) {
+  switch (move(v)) {
+    case (X x) {
+      f(move(x));
+    }
+    default {
+    }
+  }
+}
+
+int main() {
+  mutable a = 0;
+  {
+    const v = V::x(X(&a));
+    handle(move(v));
+    handle(V::y(Y(&a)));
+  }
+  return a;
+}

@@ -1,0 +1,34 @@
+// 54
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+struct Y {
+  X? y;
+  X[3] x;
+};
+
+Y f(int mutable* a) {
+  return Y(X(a), {X(a), X(a), X(a)});
+}
+
+bool operator! (Y* y) {
+  return false;
+}
+
+int main() {
+  mutable a = 0;
+  mutable ret = 0;
+  {
+    if (const y = f(&a))
+      ret = 50;
+    else
+      ret = 30;
+  }
+  return ret + a;
+}

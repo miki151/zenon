@@ -1,0 +1,31 @@
+// 4
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+int operator * (X*, X*) {
+  return 5;
+}
+
+int operator * (X*, int) {
+  return 5;
+}
+
+int operator * (int, X*) {
+  return 5;
+}
+
+int main() {
+  mutable a = 0;
+  {
+    const x = X(&a) * X(&a);
+    const y = X(&a) * 150;
+    const z = 150 * X(&a);
+  }
+  return a;
+}

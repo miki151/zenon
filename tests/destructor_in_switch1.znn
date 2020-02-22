@@ -1,0 +1,25 @@
+// 1
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+variant V {
+  X x;
+};
+
+int main() {
+  mutable a = 0;
+  {
+    const v = V::x(X(&a));
+    switch (move(v)) {
+      default {
+      }
+    }
+  }
+  return a;
+}

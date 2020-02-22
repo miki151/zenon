@@ -1,0 +1,31 @@
+// 2
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+struct Y {
+  X x;
+  X y;
+};
+
+variant Z {
+  Y y;
+  X x;
+};
+
+template <T>
+void f(T) {}
+
+int main() {
+  mutable a = 0;
+  {
+    const y = Z::y(Y(X(&a), X(&a)));
+    f(move(y));
+  }
+  return a;
+}

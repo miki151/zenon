@@ -5,6 +5,7 @@ export import "std/concepts.znn";
 export import "std/string.znn";
 export import "std/optional.znn";
 export import "std/pointer.znn";
+export import "std/destruct.znn";
 
 export int implicit_copy(int* b) {
   embed {
@@ -60,10 +61,5 @@ Enum implicit_copy(Enum* e) {
   return *e;
 }
 
-export template <T> requires is_variant<T>
-int get_index(T* t) {
-  embed {
-    return int(t->unionElem);
-  }
-}
-
+export template <T>
+void discard_impl(T) {}

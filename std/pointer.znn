@@ -4,4 +4,8 @@ T* implicit_copy(T** p) {
   return *p;
 }
 
+export template <T>
+T mutable* implicit_copy(T mutable** p) {
+  return *p;
+}
 

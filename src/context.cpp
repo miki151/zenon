@@ -160,12 +160,12 @@ WithError<SType> Context::getTypeOfVariable(const string& id) const {
             case LambdaCaptureType::MOVE:
             case LambdaCaptureType::COPY:
             case LambdaCaptureType::IMPLICIT_COPY:
-              return state->vars.at(id).type->getUnderlying();
+              return (SType) ReferenceType::get(state->vars.at(id).type->getUnderlying());
           }
         } else {
           if (auto captureType = lambdaInfo->defaultCapture) {
             auto& varInfo = state->vars.at(id);
-            lambdaInfo->captures.push_back(LambdaCaptureInfo::Var{id, varInfo.declarationLoc, *captureType});
+            lambdaInfo->captures.push_back(LambdaCaptureInfo::Var{id, varInfo.declarationLoc, *captureType, false});
             lambdaInfo->implicitCaptures.push_back(LambdaCapture{id, getCapturedType(varInfo.type, *captureType), *captureType});
             return varInfo.type;
           } else

@@ -58,8 +58,15 @@ void Variable::codegen(Accu& accu, CodegenStage) const {
   accu.add(*identifier.asBasicIdentifier());
 }
 
+static string getDestructorName(const string& id) {
+  return "destruct_" + id;
+}
+
 void MoveExpression::codegen(Accu& accu, CodegenStage) const {
-  accu.add("std::move(" + identifier + ")");
+  if (hasDestructor)
+    accu.add("moveAndSetMoved(" + identifier +", &" + getDestructorName(identifier) + ".wasMoved)");
+  else
+    accu.add("std::move(" + identifier + ")");
 }
 
 void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
@@ -67,9 +74,16 @@ void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   if (functionInfo && !functionInfo->type.builtinOperator)
     if (auto opName = getCodegenName(op)) {
       accu.add(opName + *functionInfo->getMangledSuffix() + "("s);
-      expr[0]->codegen(accu, stage);
+      auto handleExpr = [&](int index) {
+        if (destructorCall[index])
+          accu.add("*get_temporary_holder(");
+        expr[index]->codegen(accu, stage);
+        if (destructorCall[index])
+          accu.add(", &::" + destructorCall[index]->getMangledName() + ")");
+      };
+      handleExpr(0);
       accu.add(", ");
-      expr[1]->codegen(accu, stage);
+      handleExpr(1);
       accu.add(")");
       return;
     }
@@ -99,6 +113,12 @@ void StatementBlock::codegen(Accu& accu, CodegenStage stage) const {
   accu.newLine("}");
 }
 
+static void codegenDestructorCall(Accu& accu, CodegenStage stage, const Statement& destructor, const string& variable) {
+  accu.add("auto " + getDestructorName(variable) + " = deferDestruct([&]{ ");
+  destructor.codegen(accu, stage);
+  accu.add(";});");
+}
+
 void VariableDeclaration::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   accu.add(realType.get()->getCodegenName() + " ");
@@ -110,30 +130,34 @@ void VariableDeclaration::codegen(Accu& accu, CodegenStage stage) const {
     initExpr->codegen(accu, stage);
   }
   accu.add(";");
+  if (destructorCall)
+    codegenDestructorCall(accu, stage, *destructorCall, identifier);
 }
 
 void IfStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
-  accu.newLine("if (");
   if (declaration) {
+    accu.newLine("{");
     declaration->codegen(accu, stage);
-    if (!condition)
-      accu.pop_back();
   }
-  if (condition)
-    condition->codegen(accu, stage);
+  accu.newLine("if (");
+  condition->codegen(accu, stage);
   accu.add(")");
   ++accu.indent;
-  accu.newLine();
+  accu.newLine("{");
   ifTrue->codegen(accu, stage);
+  accu.add("}");
   --accu.indent;
   if (ifFalse) {
-    accu.newLine("else");
+    accu.newLine("else {");
     ++accu.indent;
     accu.newLine();
     ifFalse->codegen(accu, stage);
+    accu.add("}");
     --accu.indent;
   }
+  if (declaration)
+    accu.newLine("}");
 }
 
 void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
@@ -198,14 +222,14 @@ static string getFunctionSignatureName(const FunctionInfo& function) {
   return function.getMangledName();
 }
 
-static string getSignature(const FunctionInfo& functionInfo) {
+static string getSignature(const FunctionInfo& functionInfo, const FunctionDefinition* definition) {
   string retVal;
   //if (!name.contains<ConstructorId>())
     retVal = functionInfo.type.retVal->getCodegenName() + " ";
   string ret = retVal + getFunctionSignatureName(functionInfo) + "(";
   for (int i = 0; i < functionInfo.type.params.size(); ++i) {
     auto& param = functionInfo.type.params[i];
-    auto paramName = functionInfo.getParamName(i);
+    auto paramName = functionInfo.getParamName(i, definition);
     string argText = param->getCodegenName() + " " + paramName.value_or("") + ", ";
     if (functionInfo.id.contains<Operator>()) {
       if (auto p = param.dynamicCast<ReferenceType>()) {
@@ -231,7 +255,7 @@ void FunctionDefinition::handlePointerParamsInOperator(Accu& accu, const Stateme
   vector<string> ptrInits;
   for (int i = 0; i < functionInfo->type.params.size(); ++i) {
     auto& param = functionInfo->type.params[i];
-    auto name = functionInfo->getParamName(i);
+    auto name = functionInfo->getParamName(i, this);
     if (name && functionInfo->id.contains<Operator>())
       if (param.dynamicCast<ReferenceType>() || param.dynamicCast<MutableReferenceType>())
         ptrInits.push_back("auto " + *name + " = &" + *name + "_ptr;");
@@ -273,16 +297,23 @@ void FunctionDefinition::handlePointerReturnInOperator(Accu& accu, const Stateme
 void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (external || stage.isTypes)
     return;
-  auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body) {
+  auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body, const vector<unique_ptr<Statement>>& destructors) {
     if (functionInfo.getMangledSuffix()) {
       if (!functionInfo.type.templateParams.empty())
         accu.add("inline ");
       //std::cout << "In function " << getSignature(functionInfo) << std::endl;
-      accu.add(getSignature(functionInfo));
+      accu.add(getSignature(functionInfo, this));
       if (body && stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
-        accu.newLine("");
+        accu.newLine("{");
+        CHECK(destructors.size() == functionInfo.type.params.size())
+            << functionInfo.prettyString();
+        for (int i = 0; i < functionInfo.type.params.size(); ++i)
+          if (destructors[i]) {
+            codegenDestructorCall(accu, stage, *destructors[i], *parameters[i].name);
+            accu.newLine();
+          }
         addStacktraceGenerator(accu, body);
-        accu.newLine("");
+        accu.newLine("}");
       } else {
         accu.add(";");
         accu.newLine("");
@@ -290,10 +321,10 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
       accu.newLine("");
     }
   };
-  addInstance(*functionInfo, body.get());
+  addInstance(*functionInfo, body.get(), destructorCalls);
   for (auto& instance : instances)
     if (instance.functionInfo->getMangledSuffix())
-      addInstance(*instance.functionInfo, instance.body.get());
+      addInstance(*instance.functionInfo, instance.body.get(), instance.destructorCalls);
 }
 
 constexpr const char* variantEnumeratorPrefix = "Enum_";
@@ -415,12 +446,6 @@ void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) co
     ++accu.indent;
     for (auto& member : members)
       accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
-    if (destructor) {
-      accu.newLine(*name + "() = default;");
-      accu.newLine("inline ~" + *name + "();");
-      accu.newLine(*name + "(" + *name + "&&) = default;");
-      accu.newLine(*name + "& operator =(" + *name + "&&) = default;");
-    }
     --accu.indent;
     accu.newLine("};");
     accu.newLine();
@@ -462,16 +487,29 @@ string codegen(const AST& ast, const Context& context, const string& codegenIncl
   for (auto& lambda : context.typeRegistry->getLambdas())
     if (lambda->functionInfo->getMangledSuffix()) {
       lambda->codegenDefinition(visitedTypes, accu);
-      auto dummyIdent = IdentifierInfo("ignore", lambda->body->codeLoc);
-      auto def = unique<FunctionDefinition>(lambda->body->codeLoc, dummyIdent,
-          lambda->functionInfo->id);
-      def->body = generateLambdaBody(std::move(lambda->body), *lambda);
-      auto functionType = lambda->functionInfo->type;
-      def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, string(lambdaArgName), false, false});
-      for (int i = 1; i < functionType.params.size(); ++i)
-        def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, lambda->parameterNames[i - 1], false, false});
-      def->functionInfo = FunctionInfo::getDefined(lambda->functionInfo->id, std::move(functionType), def.get());
-      lambdas.push_back(std::move(def));
+      const auto dummyIdent = IdentifierInfo("ignore", lambda->body->codeLoc);
+      auto getLambdaBody = [&lambda, &dummyIdent](unique_ptr<StatementBlock> body) {
+        auto def = unique<FunctionDefinition>(body->codeLoc, dummyIdent,
+            lambda->functionInfo->id);
+        def->body = generateLambdaBody(std::move(body), *lambda);
+        def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, string(lambdaArgName), false, false});
+        return def;
+      };
+      auto mainBody = getLambdaBody(std::move(lambda->body));
+      mainBody->destructorCalls.emplace_back();
+      const auto& functionType = lambda->functionInfo->type;
+      for (int i = 1; i < functionType.params.size(); ++i) {
+        mainBody->parameters.push_back(FunctionParameter{mainBody->body->codeLoc, dummyIdent, lambda->parameterNames[i - 1], false, false});
+        mainBody->destructorCalls.push_back(std::move(lambda->destructorCalls[i - 1]));
+      }
+      mainBody->functionInfo = FunctionInfo::getDefined(lambda->functionInfo->id, std::move(functionType), mainBody.get());
+      lambdas.push_back(std::move(mainBody));
+      if (lambda->destructor) {
+        auto destructorBody = getLambdaBody(std::move(lambda->destructor));
+        destructorBody->destructorCalls.emplace_back();
+        destructorBody->functionInfo = FunctionInfo::getImplicit("destruct"s, FunctionType(BuiltinType::VOID, {PointerType::get(lambda)}, {}));
+        lambdas.push_back(std::move(destructorBody));
+      }
     }
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::declare());
@@ -504,14 +542,6 @@ void ExpressionStatement::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (stage.isDefine && !external && !incomplete) {
-    for (auto& instance : concat({type.get()}, type->instances))
-      if (auto name = instance->getMangledName()) {
-        if (auto fun = instance->destructor)
-          accu.newLine(*name + "::~" + *name + "() { " + getFunctionCallName(*fun, false) + "(this);}");
-        accu.newLine();
-      }
-  }
   if (type->external || !stage.isTypes)
     return;
   for (auto& instantation : concat({type.get()}, type->instances))
@@ -599,15 +629,20 @@ void SwitchStatement::codegenVariant(Accu& accu) const {
   accu.add("{ auto&& "s + variantTmpRef + " = ");
   expr->codegen(accu, CodegenStage::define());
   accu.add(";");
+  if (destructorCall)
+    accu.add("auto " + getDestructorName(variantTmpRef) + " = deferDestruct([&]{ "
+        + destructorCall->getMangledName() + "(&" + variantTmpRef + ");});");
   accu.newLine("switch ("s + variantTmpRef + "."s + variantUnionElem + ") {");
   ++accu.indent;
   for (auto& caseElem : caseElems) {
     auto caseId = *getOnlyElement(caseElem.ids);
     accu.newLine("case "s + *targetType->getMangledName() + "::" + variantEnumeratorPrefix + caseId + ": {");
     ++accu.indent;
-    if (caseElem.varType == caseElem.VALUE)
+    if (caseElem.varType == caseElem.VALUE) {
       accu.newLine("auto&& "s + caseId + " = " + variantTmpRef + "." + variantUnionEntryPrefix + caseId + ";");
-    else if (caseElem.varType == caseElem.POINTER)
+      if (destructorCall)
+        accu.newLine("auto& "s + getDestructorName(caseId) + " = " + getDestructorName(variantTmpRef) + ";");
+    } else if (caseElem.varType == caseElem.POINTER)
       accu.newLine("auto "s + caseId + " = &" + variantTmpRef + "." + variantUnionEntryPrefix + caseId + ";");
     accu.newLine();
     caseElem.block->codegen(accu, CodegenStage::define());
@@ -625,7 +660,8 @@ void SwitchStatement::codegenVariant(Accu& accu) const {
     accu.newLine("}");
   }
   --accu.indent;
-  accu.newLine("}}");
+  accu.newLine("}");
+  accu.newLine("}");
 }
 
 void UnaryExpression::codegen(Accu& accu, CodegenStage stage) const {
@@ -633,7 +669,11 @@ void UnaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   if (functionInfo && !functionInfo->type.builtinOperator)
     if (auto opName = getCodegenName(op)) {
       accu.add(opName + *functionInfo->getMangledSuffix() + "("s);
+      if (destructorCall)
+        accu.add("*get_temporary_holder(");
       expr->codegen(accu, stage);
+      if (destructorCall)
+        accu.add(", &::" + destructorCall->getMangledName() + ")");
       accu.add(")");
       return;
     }
@@ -669,15 +709,17 @@ static string getLoopBreakLabel(int loopId) {
 
 void ForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
-  accu.add("for (");
+  accu.add("{");
   init->codegen(accu, CodegenStage::define());
+  accu.add("for (;");
   cond->codegen(accu, CodegenStage::define());
   accu.add(";");
   iter->codegen(accu, CodegenStage::define());
   accu.add(")");
   ++accu.indent;
-  accu.newLine();
+  accu.newLine("{");
   body->codegen(accu, CodegenStage::define());
+  accu.add("}}");
   --accu.indent;
   accu.newLine(getLoopBreakLabel(loopId) + ":;");
   accu.newLine();
@@ -700,19 +742,20 @@ void RangedLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.add(";");
   accu.newLine();
   containerEnd->codegen(accu, stage);
-  accu.newLine();
-  accu.newLine("for (");
+  accu.newLine("{");
   init->codegen(accu, stage);
+  accu.newLine("for (;");
   condition->codegen(accu, stage);
   accu.add(";");
   increment->codegen(accu, stage);
   accu.add(")");
   ++accu.indent;
-  accu.newLine();
+  accu.newLine("{");
   body->codegen(accu, CodegenStage::define());
+  accu.add("}");
   --accu.indent;
   --accu.indent;
-  accu.newLine("}");
+  accu.newLine("}}");
   accu.newLine(getLoopBreakLabel(loopId) + ":;");
   accu.newLine();
 }
@@ -723,8 +766,9 @@ void WhileLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   cond->codegen(accu, CodegenStage::define());
   accu.add(")");
   ++accu.indent;
-  accu.newLine();
+  accu.newLine("{");
   body->codegen(accu, CodegenStage::define());
+  accu.add("}");
   --accu.indent;
   accu.newLine(getLoopBreakLabel(loopId) + ":;");
   accu.newLine();
@@ -773,7 +817,10 @@ void LambdaExpression::codegen(Accu& a, CodegenStage) const {
   for (auto& capture : captureInfo.captures) {
     switch (capture.type) {
       case LambdaCaptureType::MOVE:
-        a.add("std::move(" + capture.name + "),");
+        if (capture.hasConstructor)
+          a.add("({" + getDestructorName(capture.name) + ".wasMoved = true; std::move(" + capture.name + ");}),");
+        else
+          a.add("std::move(" + capture.name + "),");
         break;
       case LambdaCaptureType::COPY:
         a.add("::copy(&" + capture.name + "),");
@@ -808,15 +855,27 @@ void VariablePackElement::codegen(Accu&, CodegenStage) const {
 
 void MemberAccessExpression::codegen(Accu& accu, CodegenStage stage) const {
   accu.add("(");
+  if (destructorCall) {
+    accu.add("{auto&& tmp = ");
+  }
   lhs->codegen(accu, stage);
-  accu.add(")."s + (isVariant ? variantUnionEntryPrefix : "") + identifier);
+  if (destructorCall) {
+    accu.add(";" + destructorCall->getMangledName() + "(&tmp); std::move(tmp)." + identifier +";})");
+  } else
+    accu.add(")."s + (isVariant ? variantUnionEntryPrefix : "") + identifier);
 }
 
 
 void MemberIndexExpression::codegen(Accu& accu, CodegenStage stage) const {
   accu.add("(");
+  if (destructorCall) {
+    accu.add("{auto&& tmp = ");
+  }
   lhs->codegen(accu, stage);
-  accu.add(")."s + (isVariant ? variantUnionEntryPrefix : "") + *memberName);
+  if (destructorCall) {
+    accu.add(";" + destructorCall->getMangledName() + "(&tmp); std::move(tmp)." + *memberName +";})");
+  } else
+    accu.add(")."s + (isVariant ? variantUnionEntryPrefix : "") + *memberName);
 }
 
 

@@ -17,6 +17,12 @@ export template <T>
 extern struct vector;
 
 export template <T>
+void destruct(vector<T>* v) {
+  for (mutable it : *v)
+    it->destruct();
+}
+
+export template <T>
 extern vector();
 
 export template <T>
@@ -101,6 +107,7 @@ void push_back(vector<T> mutable* v, T elem) {
   embed {
     v->push_back(std::move(elem));
   }
+  set_moved_in_embed(move(elem));
 }
 
 export template <T>
@@ -194,6 +201,7 @@ vector<T> as_vector(mutable T[Sz] array) {
     embed {
     ret.push_back(std::move(*it.elem));
     }
+  set_moved_in_embed(move(array));
   return move(ret);
 }
 

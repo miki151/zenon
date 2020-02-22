@@ -254,6 +254,14 @@ static WithErrorLine<SFunctionInfo> handleOperatorOverloads(Context& context, Co
   }
 }
 
+static WithErrorLine<SFunctionInfo> getFunction(const Context&,
+    CodeLoc, IdentifierType, vector<SType> templateArgs, const vector<SType>& argTypes,
+    const vector<CodeLoc>&);
+
+static WithErrorLine<SFunctionInfo> getFunction(const Context&,
+    CodeLoc, IdentifierType, vector<SType> templateArgs, const vector<SType>& argTypes,
+    const vector<CodeLoc>&, vector<unique_ptr<Expression>>&);
+
 unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr) {
   switch (op) {
     case Operator::NOT_EQUAL:
@@ -284,6 +292,21 @@ static vector<unique_ptr<Expression>> transformValueOrArg(vector<unique_ptr<Expr
   return expr;
 }
 
+static unique_ptr<Expression> getDestructAndGetCall(CodeLoc codeLoc, unique_ptr<Expression> expr) {
+  return unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
+      (unique<FunctionCall>(codeLoc, IdentifierInfo("destruct_and_get", codeLoc),
+          unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false)));
+}
+
+static unique_ptr<Expression> getDestructorCall(CodeLoc codeLoc, unique_ptr<Expression> expr) {
+  return unique<FunctionCall>(codeLoc, IdentifierInfo("destruct", codeLoc),
+      unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false);
+}
+
+static unique_ptr<Statement> getDestructorStatement(CodeLoc codeLoc, const string& identifier) {
+  return unique<ExpressionStatement>(getDestructorCall(codeLoc, unique<Variable>(IdentifierInfo(identifier, codeLoc))));
+}
+
 WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
   switch (op) {
     case Operator::NOT_EQUAL:
@@ -307,11 +330,26 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
         return expr[1]->codeLoc.getError("Unable to evaluate variable pack index at compile-time");
       functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, exprTypes,
           ::transform(expr, [&](auto& e) { return e->codeLoc;}), expr));
+      if (op == Operator::ASSIGNMENT && exprTypes[0]->getUnderlying()->hasDestructor()) {
+        expr[0] = getDestructAndGetCall(codeLoc, std::move(expr[0]));
+        CHECK(!!getType(context, expr[0]));
+      }
       if (auto definition = functionInfo->getDefinition())
         TRY(definition->addInstance(&context, functionInfo.get()));
+      TRY(considerDestructorCall(context, 0, exprTypes[0]));
+      TRY(considerDestructorCall(context, 1, exprTypes[1]));
       return functionInfo->type.retVal;
     }
   }
+}
+
+JustError<ErrorLoc> BinaryExpression::considerDestructorCall(const Context& context, int index, const SType& argType) {
+  if (argType->hasDestructor() && argType->getUnderlying() == argType && functionInfo->type.params[index].dynamicCast<ReferenceType>()) {
+    destructorCall[index] = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(argType)}, {codeLoc}));
+    if (auto definition = destructorCall[index]->getDefinition())
+      TRY(definition->addInstance(&context, destructorCall[index].get()));
+  }
+  return success;
 }
 
 WithEvalError<EvalResult> BinaryExpression::eval(const Context& context) const {
@@ -349,15 +387,19 @@ UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e
 
 WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
   nullable<SType> ret;
-  auto right = getType(context, expr);
-  if (!right)
-    return right;
-  ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right.get()->getName())};
+  auto right = TRY(getType(context, expr));
+  ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName())};
   auto exprTmp = makeVec(std::move(expr));
   functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, {TRY(exprTmp[0]->getTypeImpl(context))}, {exprTmp[0]->codeLoc}, exprTmp));
   expr = std::move(exprTmp[0]);
   if (auto definition = functionInfo->getDefinition())
     TRY(definition->addInstance(&context, functionInfo.get()));
+  if (right->hasDestructor() && right->getUnderlying() == right &&
+      (functionInfo->type.params[0].dynamicCast<ReferenceType>() || op == Operator::GET_ADDRESS)) {
+    destructorCall = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(right)}, {codeLoc}));
+    if (auto definition = destructorCall->getDefinition())
+      TRY(definition->addInstance(&context, destructorCall.get()));
+  }
   return functionInfo->type.retVal;
 }
 
@@ -482,6 +524,10 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   TRY(getType(context, initExpr));
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
   context.addVariable(identifier, std::move(varType), codeLoc);
+  if (realType->hasDestructor()) {
+    destructorCall = getDestructorStatement(codeLoc, identifier);
+    TRY(destructorCall->check(context));
+  }
   return success;
 }
 
@@ -580,6 +626,9 @@ unique_ptr<Statement> Statement::deepCopy() const {
 
 bool IfStatement::hasReturnStatement(const Context& context) const {
   return ifTrue->hasReturnStatement(context) && ifFalse && ifFalse->hasReturnStatement(context);
+}
+
+StatementBlock::StatementBlock(CodeLoc l, vector<unique_ptr<Statement>> e) : Statement(l), elems(std::move(e)) {
 }
 
 bool StatementBlock::hasReturnStatement(const Context& context) const {
@@ -770,17 +819,35 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
 static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
     CodeLoc codeLoc, IdentifierType id, vector<SType> templateArgs, const vector<SType>& argTypes,
     const vector<CodeLoc>& argLoc) {
+  if (id.isSimpleString("destruct"))
+    id = IdentifierType("destruct_full");
+  if (id.isSimpleString("destruct_impl_dont_call"))
+    id = IdentifierType("destruct");
   ErrorLoc errors = codeLoc.getError("Couldn't find function " + id.prettyString() +
       " matching arguments: (" + joinTypeList(argTypes) + ")");
   vector<SFunctionInfo> overloads;
   if (auto templateType = context.getFunctionTemplate(id)) {
-    for (auto& overload : *templateType)
+    for (auto& overload : *templateType) {
       if (auto f = instantiateFunction(context, overload, codeLoc, templateArgs, argTypes, argLoc)) {
         overloads.push_back(f.get());
       } else
         errors = codeLoc.getError(errors.error + "\nCandidate: "s + overload->prettyString() + ": " +
             f.get_error().error);
+    }
   }
+  if (id.isSimpleString("destruct")) {
+    if (!argTypes.empty() && argTypes[0]->getUnderlying().dynamicCast<PointerType>()) {
+      if (auto s = argTypes[0]->removePointer().dynamicCast<StructType>())
+        if (s->destructor) {
+          CHECK(templateArgs.empty());
+          CHECK(s->destructor->type.params[0] == PointerType::get(s));
+          return s->destructor.get();
+        }
+      if (auto s = argTypes[0]->removePointer().dynamicCast<LambdaType>())
+        if (s->destructor)
+          return FunctionInfo::getImplicit("destruct"s, FunctionType(BuiltinType::VOID, {PointerType::get(s)}, {}));
+    }
+  } else
   if (id.isSimpleString("invoke") && !argTypes.empty() && argTypes[0].dynamicCast<PointerType>())
     if (auto lambda = argTypes[0]->removePointer().dynamicCast<LambdaType>()) {
       if (auto f = instantiateFunction(context, lambda->functionInfo.get(), codeLoc, templateArgs, argTypes, argLoc)) {
@@ -1035,6 +1102,18 @@ JustError<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBloc
   return success;
 }
 
+static vector<unique_ptr<Statement>> getDestructorCalls(CodeLoc codeLoc, const vector<string>& ids, const vector<SType>& types) {
+  vector<unique_ptr<Statement>> ret;
+  CHECK(ids.size() == types.size());
+  for (int i = 0; i < ids.size(); ++i) {
+    if (types[i]->hasDestructor())
+      ret.push_back(getDestructorStatement(codeLoc, ids[i]));
+    else
+      ret.push_back(nullptr);
+  }
+  return ret;
+}
+
 JustError<ErrorLoc> FunctionDefinition::addInstance(const Context* callContext, const SFunctionInfo& instance) {
   if (callContext && callContext->getTemplateParams())
     return success;
@@ -1052,11 +1131,16 @@ JustError<ErrorLoc> FunctionDefinition::addInstance(const Context* callContext, 
       for (auto& other : instances)
         if (other.functionInfo->getWithoutRequirements() == instance->getWithoutRequirements())
           return success;
-      instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), instance, requirements});
+      int instanceIndex = instances.size();
+      instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), {},
+          instance, requirements});
       if (wasChecked) {
-        TRY(instances.back().generateBody(body.get(), codeLoc));
-        return checkBody(requirements, *instances.back().body,
-            *instances.back().functionInfo);
+        TRY(instances[instanceIndex].generateBody(body.get(), codeLoc));
+        vector<unique_ptr<Statement>> destructorCallsTmp;
+        auto ret = checkBody(requirements, *instances[instanceIndex].body,
+            *instances[instanceIndex].functionInfo, destructorCallsTmp);
+        instances[instanceIndex].destructorCalls = std::move(destructorCallsTmp);
+        return ret;
       }
     }
   } else
@@ -1094,7 +1178,7 @@ JustError<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) 
 }
 
 JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& requirements,
-    StatementBlock& myBody,  const FunctionInfo& instanceInfo) const {
+    StatementBlock& myBody, const FunctionInfo& instanceInfo, vector<unique_ptr<Statement>>& destructorCalls) const {
   auto bodyContext = Context::withParent(*definitionContext);
   for (auto& f : requirements) {
     if (!contains(bodyContext.getFunctions(f->id), f->getParent()))
@@ -1109,7 +1193,7 @@ JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& r
     auto type = instanceInfo.type.params[i];
     if (name.contains<Operator>())
       type = convertReferenceToPointer(type);
-    if (auto name = instanceInfo.getParamName(i)) {
+    if (auto name = instanceInfo.getParamName(i, this)) {
       auto& param = parameters[min(i, parameters.size() -1)];
       auto varType = param.isMutable
           ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
@@ -1125,6 +1209,15 @@ JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& r
   ReturnTypeChecker returnChecker(retVal);
   bodyContext.addReturnTypeChecker(&returnChecker);
   TRY(myBody.check(bodyContext));
+  if (templateParams.empty()) {
+    vector<string> paramNames;
+    for (int i = 0; i < instanceInfo.type.params.size(); ++i)
+      paramNames.push_back(*instanceInfo.getParamName(i, this));
+    destructorCalls = getDestructorCalls(codeLoc, std::move(paramNames), instanceInfo.type.params);
+    for (auto& elem : destructorCalls)
+      if (elem)
+        TRY(elem->check(bodyContext));
+  }
   if (retVal == BuiltinType::NORETURN && !myBody.hasReturnStatement(bodyContext))
     return codeLoc.getError("This function should never return");
   if (retVal != BuiltinType::VOID && !myBody.hasReturnStatement(bodyContext))
@@ -1141,16 +1234,14 @@ JustError<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& c
   return success;
 }
 
-static WithError<shared_ptr<StructType>> getDestructedType(const vector<SType>& params) {
+static WithError<SType> getDestructedType(const vector<SType>& params) {
   if (params.size() != 1)
     return "Destructor function should take exactly one argument"s;
   auto& param = params[0];
   auto ret = param->removePointer();
   if (ret == param)
     return "Destructor function parameter should be a pointer to the destructed type"s;
-  if (auto ret1 = ret.dynamicCast<StructType>())
-    return ret1;
-  return "User-defined destructor is allowed only for struct types"s;
+  return ret;
 }
 
 JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport) {
@@ -1162,7 +1253,7 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
     TRY(checkForIncompleteTypes(paramsContext));
     // For checking the template we use the Context that includes the template params.
     definitionContext.emplace(Context::withParent(paramsContext));
-    TRY(checkBody({}, *body, *functionInfo));
+    TRY(checkBody({}, *body, *functionInfo, destructorCalls));
     // For checking instances we just use the top level context.
     definitionContext.emplace(Context::withParent(context));
     wasChecked = true;
@@ -1170,7 +1261,7 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
       if (!instances[i].body) {
         TRY(instances[i].generateBody(body.get(), codeLoc));
         TRY(checkBody(instances[i].requirements, *instances[i].body,
-            *instances[i].functionInfo));
+            *instances[i].functionInfo, instances[i].destructorCalls));
       }
     MoveChecker moveChecker;
     for (auto& p : parameters)
@@ -1178,8 +1269,9 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
         moveChecker.addVariable(*p.name);
     if (name == "destruct"s) {
       auto destructedType = TRY(getDestructedType(functionInfo->type.params).addCodeLoc(codeLoc));
-      if (!destructedType->definition || destructedType->definition->file != codeLoc.file)
-        return codeLoc.getError("Destructor function must be defined in the same file as the destructed type");
+      if (auto structType = destructedType.dynamicCast<StructType>())
+        if (!structType->definition || structType->definition->file != codeLoc.file)
+          return codeLoc.getError("Destructor function must be defined in the same file as the destructed type");
     }
     return body->checkMoves(moveChecker);
   }
@@ -1191,20 +1283,26 @@ JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCac
   TRY(context.addFunction(functionInfo.get()).addCodeLoc(codeLoc));
   if (name == "destruct"s) {
     auto destructedType = TRY(getDestructedType(functionInfo->type.params).addCodeLoc(codeLoc));
-    if (destructedType->destructor)
-      return codeLoc.getError("Destructor function for type " + quote(destructedType->getName()) + " already defined here: "
-          + destructedType->destructor->getDefinition()->codeLoc.toString());
-    auto adjusted = functionInfo.get();
-    if (functionInfo->type.templateParams.size() != destructedType->templateParams.size())
-      return codeLoc.getError("Number of template parameters of destructor function must match destructed type");
-    for (auto& param : functionInfo->type.templateParams)
-      if (!destructedType->templateParams.contains(param))
-        return codeLoc.getError("Template parameters of destructor function must match destructed type");
-    ErrorBuffer errors;
-    for (int i = 0; i < destructedType->parent->templateParams.size(); ++i)
-      adjusted = replaceInFunction(adjusted, functionInfo->type.templateParams[i], destructedType->parent->templateParams[i], errors);
-    CHECK(errors.empty());
-    destructedType->parent->destructor = adjusted;
+    if (auto structType = destructedType.dynamicCast<StructType>()) {
+      if (!structType->alternatives.empty())
+        return codeLoc.getError("User-defined destructors for variant types are not supported");
+      if (structType->destructor)
+        return codeLoc.getError("Destructor function for type " + quote(destructedType->getName()) + " already defined here: "
+            + structType->destructor->getDefinition()->codeLoc.toString());
+      auto adjusted = functionInfo.get();
+      if (functionInfo->type.templateParams.size() != structType->templateParams.size())
+        return codeLoc.getError("Number of template parameters of destructor function must match destructed type");
+      for (auto& param : functionInfo->type.templateParams)
+        if (!structType->templateParams.contains(param))
+          return codeLoc.getError("Template parameters of destructor function must match destructed type");
+      ErrorBuffer errors;
+      for (int i = 0; i < structType->parent->templateParams.size(); ++i)
+        adjusted = replaceInFunction(adjusted, functionInfo->type.templateParams[i], structType->parent->templateParams[i], errors);
+      CHECK(errors.empty());
+      structType->parent->destructor = adjusted;
+    } else
+    if (!cache.isCurrentlyBuiltIn())
+      return codeLoc.getError("User-defined destructor is allowed only for struct types");
   }
   return success;
 }
@@ -1377,8 +1475,12 @@ JustError<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
   noReturnExpr = res == BuiltinType::NORETURN;
   if (!canDiscard && res != BuiltinType::VOID && res != BuiltinType::NORETURN)
     return codeLoc.getError("Expression result of type " + quote(res->getName()) + " discarded");
-  if (canDiscard && (res == BuiltinType::VOID || res == BuiltinType::NORETURN))
-    return codeLoc.getError("Void expression result unnecessarily marked as discarded");
+  if (canDiscard) {
+    if (res == BuiltinType::VOID || res == BuiltinType::NORETURN)
+      return codeLoc.getError("Void expression result unnecessarily marked as discarded");
+    expr = unique<FunctionCall>(codeLoc, IdentifierInfo("discard_impl", codeLoc), std::move(expr), false);
+    CHECK(!!getType(context, expr));
+  }
   return success;
 }
 
@@ -1410,7 +1512,9 @@ JustError<ErrorLoc> FunctionCall::initializeTemplateArgsAndIdentifierType(const 
 
 JustError<ErrorLoc> FunctionCall::checkNamedArgs() const {
   for (int i = 0; i < argNames.size(); ++i) {
-    auto paramName = functionInfo->getParamName(callType ? (i + 1) : i);
+    optional<string> paramName;
+    if (auto def = functionInfo->getParent()->getDefinition())
+      paramName = functionInfo->getParamName(callType ? (i + 1) : i, def);
     if (argNames[i] && paramName && argNames[i] != paramName) {
       return arguments[i]->codeLoc.getError("Function argument " + quote(*argNames[i]) +
           " doesn't match parameter " + quote(*paramName) + " of function " +
@@ -1608,7 +1712,13 @@ FunctionCall::FunctionCall(CodeLoc l, bool methodCall, Private) : Expression(l),
 SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statement(l), expr(std::move(e)) {}
 
 JustError<ErrorLoc> SwitchStatement::check(Context& context, bool) {
-  return TRY(getType(context, expr))->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
+  auto type = TRY(getType(context, expr));
+  if (type->hasDestructor()) {
+    destructorCall = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(type)}, {codeLoc}));
+    if (auto definition = destructorCall->getDefinition())
+      TRY(definition->addInstance(&context, destructorCall.get()));
+  }
+  return type->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
 }
 
 JustError<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const {
@@ -1790,8 +1900,8 @@ void StructDefinition::addGeneratedConstructor(Context& context, const AST& ast)
   }
 }
 
-MoveExpression::MoveExpression(CodeLoc l, string id) : Expression(l), identifier(id) {
-}
+MoveExpression::MoveExpression(CodeLoc l, string id, bool hasDestructor)
+    : Expression(l), identifier(id), hasDestructor(hasDestructor) {}
 
 WithErrorLine<SType> MoveExpression::getTypeImpl(Context& context) {
   if (!type) {
@@ -1805,11 +1915,12 @@ WithErrorLine<SType> MoveExpression::getTypeImpl(Context& context) {
     } else
       return codeLoc.getError(ret.get_error());
   }
+  hasDestructor = type->hasDestructor();
   return type.get();
 }
 
 unique_ptr<Expression> MoveExpression::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  auto ret = unique<MoveExpression>(codeLoc, identifier);
+  auto ret = unique<MoveExpression>(codeLoc, identifier, hasDestructor);
   ErrorBuffer errors2;
   ret->type = type->replace(from, to, errors2);
   merge(errors, errors2, codeLoc);
@@ -1818,13 +1929,13 @@ unique_ptr<Expression> MoveExpression::replace(SType from, SType to, ErrorLocBuf
 
 unique_ptr<Expression> MoveExpression::replaceVar(string from, string to) const {
   if (from == identifier)
-    return unique<MoveExpression>(codeLoc, to);
+    return unique<MoveExpression>(codeLoc, to, hasDestructor);
   else
     return deepCopy();
 }
 
 unique_ptr<Expression> MoveExpression::transform(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<MoveExpression>(codeLoc, identifier);
+  return unique<MoveExpression>(codeLoc, identifier, hasDestructor);
 }
 
 JustError<ErrorLoc> MoveExpression::checkMoves(MoveChecker& checker) const {
@@ -2365,6 +2476,9 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   if (type && !recheck)
     return SType(type.get());
   nullable<SType> retType;
+  for (int i = 0; i < parameters.size(); ++i)
+    if (!parameters[i].name)
+      parameters[i].name = "parameter" + to_string(i);
   if (recheck)
     retType = type->functionInfo->type.retVal;
   else if (returnType)
@@ -2421,8 +2535,25 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
   if (!block->hasReturnStatement(context) && retType != BuiltinType::VOID)
     return block->codeLoc.getError("Not all paths lead to a return statement in a lambda expression returning non-void");
   type->body = cast<StatementBlock>(std::move(blockCopy));
+  type->destructorCalls = getDestructorCalls(codeLoc,
+      parameters.transform([](auto& p) { return *p.name;}),
+      getSubsequence(type->functionInfo->type.params, 1));
+  for (auto& elem : type->destructorCalls)
+    if (elem)
+      TRY(elem->check(bodyContext));
   context.typeRegistry->addLambda(type.get());
   context.addType(type->getName(), type.get());
+  vector<unique_ptr<Statement>> toDestruct;
+  for (auto& capture : type->captures)
+    if (capture.captureType != LambdaCaptureType::REFERENCE && capture.type->hasDestructor()) {
+      toDestruct.push_back(getDestructorStatement(codeLoc, capture.name));
+      CHECK(toDestruct.back()->check(bodyContext));
+      for (auto& elem : captureInfo.captures)
+        if (elem.name == capture.name)
+          elem.hasConstructor = true;
+    }
+  if (!toDestruct.empty())
+    type->destructor = unique<StatementBlock>(codeLoc, std::move(toDestruct));
   return SType(type.get());
 }
 
@@ -2542,12 +2673,32 @@ unique_ptr<MemberAccessExpression> MemberAccessExpression::getPointerAccess(Code
 MemberAccessExpression::MemberAccessExpression(CodeLoc l , unique_ptr<Expression> lhs, string id)
   : Expression(l), lhs(std::move(lhs)), identifier(id) { }
 
+static JustError<ErrorLoc> initializeDestructor(const Context& context, const SType& type, const string& member, CodeLoc codeLoc,
+    nullable<SFunctionInfo>& destructorCall) {
+  if (auto structType = type.dynamicCast<StructType>()) {
+    if (structType->destructor)
+      return codeLoc.getError("Can't move member from a value with a user-defined destructor");
+    if (structType->hasDestructor()) {
+      for (int i = 0; i < structType->members.size(); ++i)
+        if (structType->members[i].name == member) {
+          destructorCall = TRY(getFunction(context, codeLoc, "destruct_except"s, {CompileTimeValue::get(i)},
+              {PointerType::get(type)}, {codeLoc}));
+          if (auto definition = destructorCall->getDefinition())
+            TRY(definition->addInstance(&context, destructorCall.get()));
+        }
+    }
+  }
+  return success;
+}
+
 WithErrorLine<SType> MemberAccessExpression::getTypeImpl(Context& context) {
   auto leftType = TRY(lhs->getTypeImpl(context));
   if (auto res = leftType->getSizeError(context); !res)
     return codeLoc.getError(leftType->getName() + res.get_error());
   isVariant = leftType->getUnderlying()->getType() == BuiltinType::VARIANT_TYPE;
-  return leftType->getTypeOfMember(identifier).addCodeLoc(codeLoc);
+  auto ret = TRY(leftType->getTypeOfMember(identifier).addCodeLoc(codeLoc));
+  TRY(initializeDestructor(context, leftType, identifier, codeLoc, destructorCall));
+  return ret;
 }
 
 unique_ptr<Expression> MemberAccessExpression::transform(const StmtTransformFun& fun1, const ExprTransformFun& fun2) const {
@@ -2570,6 +2721,7 @@ WithErrorLine<SType> MemberIndexExpression::getTypeImpl(Context& context) {
   auto member = TRY(leftType->getTypeOfMember(value.value).addCodeLoc(codeLoc));
   memberName = member.name;
   isVariant = leftType->getUnderlying()->getType() == BuiltinType::VARIANT_TYPE;
+  TRY(initializeDestructor(context, leftType, *memberName, codeLoc, destructorCall));
   return member.type;
 }
 

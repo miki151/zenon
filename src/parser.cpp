@@ -203,7 +203,7 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
     auto id = TRY(tokens.eat<IdentifierToken>("Expected variable name"));
     if (closeBracket)
       TRY(tokens.eat(Keyword::CLOSE_BRACKET));
-    captureInfo.captures.push_back(LambdaCaptureInfo::Var{id.value, id.codeLoc, captureType});
+    captureInfo.captures.push_back(LambdaCaptureInfo::Var{id.value, id.codeLoc, captureType, false});
     if (tokens.peek() != Keyword::CLOSE_SQUARE_BRACKET)
       TRY(tokens.eat(Keyword::COMMA));
   }

@@ -1,0 +1,13 @@
+// no_compile
+
+struct X {
+};
+
+template <T>
+void eat(T) {}
+
+int main() {
+  mutable x = X();
+  const l1 = [move(x)] { eat(x); };
+  return 0;
+}

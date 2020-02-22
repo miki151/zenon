@@ -1,5 +1,4 @@
 // 6
-// 6
 
 template <T> requires can_invoke<T, void>
 struct X {

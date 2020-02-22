@@ -1,22 +1,13 @@
 
 export import "std/concepts.znn";
-
-export template <T, int Size>
-T* operator [] (T[Size]* a, int index) {
-  embed {
-    return &a->at(index);
-  }
-}
-
-export template <T, int Size>
-T mutable* operator [] (T[Size] mutable* a, int index) {
-  embed {
-    return &a->at(index);
-  }
-}
+export import "std/destruct.znn";
 
 export template <T, int Size>
 T operator [] (T[Size] a, int index) {
+  for (mutable i = 0; i < Size; ++i)
+    if (i != index)
+      destruct(&a[i]);
+  set_moved_in_embed(move(a));
   embed {
     return std::move(a.at(index));
   }

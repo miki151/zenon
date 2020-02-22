@@ -1,0 +1,21 @@
+// 4
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+void f(X x) {}
+
+int main() {
+  mutable a = 3;
+  {
+    const x = X(&a);
+    if (true)
+      f(move(x));
+  }
+  return a;
+}

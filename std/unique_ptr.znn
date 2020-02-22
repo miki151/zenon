@@ -10,9 +10,15 @@ extern struct unique_ptr;
 
 export template <T>
 unique_ptr<T> make_unique(T t) {
+  set_moved_in_embed(move(t));
   embed {
     return std::make_unique<T>(std::move(t));
   }
+}
+
+export template <T>
+void destruct(unique_ptr<T>* ptr) {
+  ptr->get()->destruct();
 }
 
 export template <T>

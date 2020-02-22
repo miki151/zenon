@@ -1,0 +1,33 @@
+// 6
+
+import "std/unique_ptr.znn";
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+struct Y {
+  X x;
+  X y;
+};
+
+struct Z {
+  Y y;
+  X x;
+};
+
+template <T>
+void f(T) {}
+
+int main() {
+  mutable a = 3;
+  {
+    const y = make_unique(Z(Y(X(&a), X(&a)), X(&a)));
+    f(move(y));
+  }
+  return a;
+}

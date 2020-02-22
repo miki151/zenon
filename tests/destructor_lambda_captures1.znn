@@ -1,0 +1,24 @@
+// 4
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+struct Y {
+  X? y;
+  X[3] x;
+};
+
+int main() {
+  mutable a = 0;
+  {
+    mutable y = Y(X(&a), {X(&a), X(&a), X(&a)});
+    y.y = null;
+    const l1 = [move(y)] {};
+  }
+  return a;
+}

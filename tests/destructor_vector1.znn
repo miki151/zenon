@@ -1,0 +1,44 @@
+// 15
+
+import "std/vector.znn";
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+template <T>
+void f(T t) {}
+
+struct Y {
+  X x;
+  X y;
+};
+
+struct Z {
+  Y y;
+  X x;
+};
+
+struct V {
+  vector<Z> v;
+};
+
+X copy(X*) = default;
+Y copy(Y*) = default;
+Z copy(Z*) = default;
+V copy(V*) = default;
+
+int main() {
+  mutable a = 3;
+  {
+    const y = V({Z(Y(X(&a), X(&a)), X(&a)), Z(Y(X(&a), X(&a)), X(&a))}.as_vector());
+    const z = y.copy();
+    f(move(y));
+    f(move(z));
+  }
+  return a;
+}

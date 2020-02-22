@@ -1,0 +1,28 @@
+// 5
+
+import "std/vector.znn";
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+struct Y {
+  X? y;
+  vector<X> x;
+};
+
+template <T>
+void f(T) {}
+
+int main() {
+  mutable a = 0;
+  {
+    mutable y = Y(null, {X(&a), X(&a), X(&a)}.as_vector());
+    y = Y(X(&a), {X(&a)}.as_vector());
+  }
+  return a;
+}

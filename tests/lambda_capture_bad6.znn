@@ -1,0 +1,15 @@
+// no_compile
+
+struct X {
+};
+
+X copy(X*) = default;
+
+template <T>
+void eat(T) {}
+
+int main() {
+  mutable x = X();
+  const l1 = [copy(x)] { eat(x); };
+  return 0;
+}

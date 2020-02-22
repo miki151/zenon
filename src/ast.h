@@ -107,6 +107,7 @@ struct MemberAccessExpression : Expression {
   unique_ptr<Expression> lhs;
   string identifier;
   bool isVariant = false;
+  nullable<SFunctionInfo> destructorCall;
 };
 
 struct MemberIndexExpression : Expression {
@@ -119,6 +120,7 @@ struct MemberIndexExpression : Expression {
   unique_ptr<Expression> index;
   optional<string> memberName;
   bool isVariant = false;
+  nullable<SFunctionInfo> destructorCall;
 };
 
 struct BinaryExpression : Expression {
@@ -133,9 +135,12 @@ struct BinaryExpression : Expression {
   Operator op;
   vector<unique_ptr<Expression>> expr;
   nullable<SFunctionInfo> functionInfo;
+  nullable<SFunctionInfo> destructorCall[2];
   struct Private {};
   BinaryExpression(Private, CodeLoc, Operator, vector<unique_ptr<Expression>>);
+  JustError<ErrorLoc> considerDestructorCall(const Context&, int index, const SType& argType);
 };
+
 
 struct UnaryExpression : Expression {
   UnaryExpression(CodeLoc, Operator, unique_ptr<Expression>);
@@ -147,6 +152,7 @@ struct UnaryExpression : Expression {
   Operator op;
   unique_ptr<Expression> expr;
   nullable<SFunctionInfo> functionInfo;
+  nullable<SFunctionInfo> destructorCall;
 };
 
 struct TernaryExpression : Expression {
@@ -162,7 +168,7 @@ struct TernaryExpression : Expression {
 };
 
 struct MoveExpression : Expression {
-  MoveExpression(CodeLoc, string);
+  MoveExpression(CodeLoc, string, bool hasDestructor = false);
   virtual WithErrorLine<SType> getTypeImpl(Context&) override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
   virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
@@ -171,6 +177,7 @@ struct MoveExpression : Expression {
   virtual void codegen(Accu&, CodegenStage) const override;
   string identifier;
   nullable<SType> type;
+  bool hasDestructor = false;
 };
 
 struct CountOfExpression : Expression {
@@ -304,6 +311,7 @@ struct VariableDeclaration : Statement {
   unique_ptr<Expression> initExpr;
   bool isMutable = false;
   bool isStatic = false;
+  unique_ptr<Statement> destructorCall;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -337,6 +345,7 @@ struct IfStatement : Statement {
 
 struct StatementBlock : Statement {
   using Statement::Statement;
+  StatementBlock(CodeLoc, vector<unique_ptr<Statement>>);
   vector<unique_ptr<Statement>> elems;
   virtual bool hasReturnStatement(const Context&) const override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
@@ -544,6 +553,7 @@ struct SwitchStatement : Statement {
   vector<CaseElem> caseElems;
   unique_ptr<StatementBlock> defaultBlock;
   unique_ptr<Expression> expr;
+  nullable<SFunctionInfo> destructorCall;
   enum { ENUM, VARIANT} type;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
@@ -563,9 +573,11 @@ struct FunctionDefinition : Statement {
   FunctionId name;
   using Parameter = FunctionParameter;
   vector<Parameter> parameters;
+  vector<unique_ptr<Statement>> destructorCalls;
   unique_ptr<StatementBlock> body;
   struct InstanceInfo {
     unique_ptr<StatementBlock> body;
+    vector<unique_ptr<Statement>> destructorCalls;
     SFunctionInfo functionInfo;
     vector<SFunctionInfo> requirements;
     NODISCARD JustError<ErrorLoc> generateBody(StatementBlock* parentBody, CodeLoc);
@@ -597,7 +609,7 @@ struct FunctionDefinition : Statement {
   NODISCARD JustError<ErrorLoc> addInstance(const Context* callContext, const SFunctionInfo&);
   NODISCARD JustError<ErrorLoc> generateDefaultBodies(Context&);
   NODISCARD JustError<ErrorLoc> checkBody(const vector<SFunctionInfo>& requirements, StatementBlock& myBody,
-      const FunctionInfo& instanceInfo) const;
+      const FunctionInfo& instanceInfo, vector<unique_ptr<Statement> >& destructorCalls) const;
   NODISCARD JustError<ErrorLoc> checkForIncompleteTypes(const Context&);
   WithErrorLine<SType> getReturnType(const Context&) const;
 };

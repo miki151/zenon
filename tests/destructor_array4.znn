@@ -1,0 +1,22 @@
+// 3
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+X[3] f(int mutable* a) {
+  return {X(a), X(a), X(a)};
+}
+
+int main() {
+  mutable a = 0;
+  {
+    const l = [](X a) {};
+    l.invoke(f(&a)[0]);
+  }
+  return a;
+}
