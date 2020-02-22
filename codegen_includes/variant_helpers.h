@@ -33,7 +33,7 @@ struct MoveAssignmentVisitor {
 };
 
 template <typename T>
-struct VariantHelper {
+struct UnionHelper {
    static void assign(T&& from, T& to) {
     if (from.unionElem == to.unionElem) {
       to.visit([&](auto& myElem) {

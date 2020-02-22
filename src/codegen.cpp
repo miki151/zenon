@@ -327,11 +327,11 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
       addInstance(*instance.functionInfo, instance.body.get(), instance.destructorCalls);
 }
 
-constexpr const char* variantEnumeratorPrefix = "Enum_";
-constexpr const char* variantUnionEntryPrefix = "Union_";
-constexpr const char* variantUnionElem = "unionElem";
+constexpr const char* unionEnumeratorPrefix = "Enum_";
+constexpr const char* unionEntryPrefix = "Union_";
+constexpr const char* unionDiscriminatorName = "unionElem";
 
-static void codegenVariant(set<const Type*>& visited, Accu& accu, const StructType* type) {
+static void codegenUnion(set<const Type*>& visited, Accu& accu, const StructType* type) {
   for (auto& elem : type->alternatives)
     elem.type->codegenDefinition(visited, accu);
   auto name = *type->getMangledName();
@@ -342,8 +342,8 @@ static void codegenVariant(set<const Type*>& visited, Accu& accu, const StructTy
   vector<string> typeNames;
   for (auto& subtype : type->alternatives)
     typeNames.push_back(subtype.name);
-  accu.add(combine(transform(typeNames, [](const string& e){ return variantEnumeratorPrefix + e;}), ", ") + "} "
-      + variantUnionElem + ";");
+  accu.add(combine(transform(typeNames, [](const string& e){ return unionEnumeratorPrefix + e;}), ", ") + "} "
+      + unionDiscriminatorName + ";");
   for (auto& alternative : type->alternatives) {
     string signature = alternative.name + "(";
     if (alternative.type != BuiltinType::VOID)
@@ -356,7 +356,7 @@ static void codegenVariant(set<const Type*>& visited, Accu& accu, const StructTy
   accu.newLine("bool dummy;");
   for (auto& alternative : type->alternatives) {
     if (alternative.type != BuiltinType::VOID)
-      accu.newLine(alternative.type->getCodegenName() + " " + variantUnionEntryPrefix + alternative.name + ";");
+      accu.newLine(alternative.type->getCodegenName() + " " + unionEntryPrefix + alternative.name + ";");
   }
   --accu.indent;
   accu.newLine("};");
@@ -366,12 +366,12 @@ static void codegenVariant(set<const Type*>& visited, Accu& accu, const StructTy
     ++accu.indent;
     for (auto& alternative : type->alternatives) {
       if (alternative.type != BuiltinType::VOID) {
-        accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
+        accu.newLine("case "s + unionEnumeratorPrefix + alternative.name + ":");
         ++accu.indent;
-        accu.newLine("return std::forward<Visitor>(v)("s + variantUnionEntryPrefix + alternative.name + ");");
+        accu.newLine("return std::forward<Visitor>(v)("s + unionEntryPrefix + alternative.name + ");");
         --accu.indent;
       } else {
-        accu.newLine("case "s + variantEnumeratorPrefix + alternative.name + ":");
+        accu.newLine("case "s + unionEnumeratorPrefix + alternative.name + ":");
         ++accu.indent;
         accu.newLine("return;");
         --accu.indent;
@@ -389,9 +389,9 @@ static void codegenVariant(set<const Type*>& visited, Accu& accu, const StructTy
   accu.newLine("auto visit(Visitor&& v) {");
   visitBody();
   accu.newLine("}");
-  accu.newLine(name + "(" + name + "&& o) { VariantHelper<" + name + ">::move(std::move(o), *this);  }");
-  accu.newLine(name + "& operator = (" + name + "&& o) {VariantHelper<" + name + ">::assign(std::move(o), *this); return *this; }");
-  accu.newLine("~" + name + "() { VariantHelper<" + name + ">::destroy(*this); }");
+  accu.newLine(name + "(" + name + "&& o) { UnionHelper<" + name + ">::move(std::move(o), *this);  }");
+  accu.newLine(name + "& operator = (" + name + "&& o) {UnionHelper<" + name + ">::assign(std::move(o), *this); return *this; }");
+  accu.newLine("~" + name + "() { UnionHelper<" + name + ">::destroy(*this); }");
   accu.newLine("private:" + name + "() {}");
   --accu.indent;
   accu.newLine("};");
@@ -431,7 +431,7 @@ void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) co
     instance->codegenDefinition(visited, accu);
   if (auto name = getMangledName()) {
     if (!alternatives.empty()) {
-      codegenVariant(visited, accu, this);
+      codegenUnion(visited, accu, this);
       return;
     }
     for (auto& elem : members)
@@ -571,9 +571,9 @@ void UnionDefinition::codegen(Accu& accu, CodegenStage stage) const {
           accu.add("inline " + name + " " + name + "::" + signature + " {");
           ++accu.indent;
           accu.newLine(name + " ret;");
-          accu.newLine("ret."s + variantUnionElem + " = " + variantEnumeratorPrefix + alternative.name + ";");
+          accu.newLine("ret."s + unionDiscriminatorName + " = " + unionEnumeratorPrefix + alternative.name + ";");
           if (!(alternative.type == BuiltinType::VOID))
-            accu.newLine("new (&ret."s + variantUnionEntryPrefix + alternative.name + ") " +
+            accu.newLine("new (&ret."s + unionEntryPrefix + alternative.name + ") " +
                 alternative.type->getCodegenName() + "(std::move(elem));");
           accu.newLine("return ret;");
           --accu.indent;
@@ -581,8 +581,6 @@ void UnionDefinition::codegen(Accu& accu, CodegenStage stage) const {
           accu.newLine("");
         }
 }
-
-constexpr const char* variantTmpRef = "variantTmpRef";
 
 void SwitchStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
@@ -625,25 +623,27 @@ void SwitchStatement::codegenEnum(Accu& accu) const {
   accu.newLine("}");
 }
 
+constexpr const char* unionTmpRef = "unionTmpRef";
+
 void SwitchStatement::codegenVariant(Accu& accu) const {
-  accu.add("{ auto&& "s + variantTmpRef + " = ");
+  accu.add("{ auto&& "s + unionTmpRef + " = ");
   expr->codegen(accu, CodegenStage::define());
   accu.add(";");
   if (destructorCall)
-    accu.add("auto " + getDestructorName(variantTmpRef) + " = deferDestruct([&]{ "
-        + destructorCall->getMangledName() + "(&" + variantTmpRef + ");});");
-  accu.newLine("switch ("s + variantTmpRef + "."s + variantUnionElem + ") {");
+    accu.add("auto " + getDestructorName(unionTmpRef) + " = deferDestruct([&]{ "
+        + destructorCall->getMangledName() + "(&" + unionTmpRef + ");});");
+  accu.newLine("switch ("s + unionTmpRef + "."s + unionDiscriminatorName + ") {");
   ++accu.indent;
   for (auto& caseElem : caseElems) {
     auto caseId = *getOnlyElement(caseElem.ids);
-    accu.newLine("case "s + *targetType->getMangledName() + "::" + variantEnumeratorPrefix + caseId + ": {");
+    accu.newLine("case "s + *targetType->getMangledName() + "::" + unionEnumeratorPrefix + caseId + ": {");
     ++accu.indent;
     if (caseElem.varType == caseElem.VALUE) {
-      accu.newLine("auto&& "s + caseId + " = " + variantTmpRef + "." + variantUnionEntryPrefix + caseId + ";");
+      accu.newLine("auto&& "s + caseId + " = " + unionTmpRef + "." + unionEntryPrefix + caseId + ";");
       if (destructorCall)
-        accu.newLine("auto& "s + getDestructorName(caseId) + " = " + getDestructorName(variantTmpRef) + ";");
+        accu.newLine("auto& "s + getDestructorName(caseId) + " = " + getDestructorName(unionTmpRef) + ";");
     } else if (caseElem.varType == caseElem.POINTER)
-      accu.newLine("auto "s + caseId + " = &" + variantTmpRef + "." + variantUnionEntryPrefix + caseId + ";");
+      accu.newLine("auto "s + caseId + " = &" + unionTmpRef + "." + unionEntryPrefix + caseId + ";");
     accu.newLine();
     caseElem.block->codegen(accu, CodegenStage::define());
     accu.newLine("break;");
@@ -862,7 +862,7 @@ void MemberAccessExpression::codegen(Accu& accu, CodegenStage stage) const {
   if (destructorCall) {
     accu.add(";" + destructorCall->getMangledName() + "(&tmp); std::move(tmp)." + identifier +";})");
   } else
-    accu.add(")."s + (isUnion ? variantUnionEntryPrefix : "") + identifier);
+    accu.add(")."s + (isUnion ? unionEntryPrefix : "") + identifier);
 }
 
 
@@ -875,7 +875,7 @@ void MemberIndexExpression::codegen(Accu& accu, CodegenStage stage) const {
   if (destructorCall) {
     accu.add(";" + destructorCall->getMangledName() + "(&tmp); std::move(tmp)." + *memberName +";})");
   } else
-    accu.add(")."s + (isUnion ? variantUnionEntryPrefix : "") + *memberName);
+    accu.add(")."s + (isUnion ? unionEntryPrefix : "") + *memberName);
 }
 
 
