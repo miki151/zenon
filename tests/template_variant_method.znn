@@ -3,7 +3,7 @@
 import "std/concepts.znn";
 
 template <T> requires can_copy<T>
-variant V {
+union V {
   T value;
   void isNull;
 };

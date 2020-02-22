@@ -4,7 +4,7 @@ struct A {
   int value;
 };
 
-variant X {
+union X {
   int i;
   A a;
 };

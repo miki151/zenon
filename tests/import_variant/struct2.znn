@@ -1,6 +1,6 @@
 
 export template<T, U>
-variant V2 {
+union V2 {
   T t;
   U u;
 };

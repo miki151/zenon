@@ -2,7 +2,7 @@
 
 import "std/unique_ptr.znn";
 
-variant V {
+union V {
   unique_ptr<int> ptr;
   int value;
 };

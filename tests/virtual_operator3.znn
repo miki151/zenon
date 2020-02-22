@@ -42,7 +42,7 @@ concept ShapeInterface {
 };
 
 template <T> requires ShapeInterface<T>
-variant Shape {
+union Shape {
   Triangle triangle;
   Rectangle rectangle;
   T circle;

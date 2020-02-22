@@ -21,7 +21,7 @@ concept hasValue {
 };
 
 template <S> requires hasValue<S>
-variant V {
+union V {
   S s;
   void isNull;
 };

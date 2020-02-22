@@ -16,7 +16,7 @@ T choose(Right*, T left, T right) {
   return move(right);
 }
 
-variant LeftRight { 
+union LeftRight { 
   Left left;
   Right right;
 };

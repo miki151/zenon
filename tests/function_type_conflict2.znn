@@ -4,7 +4,7 @@ int T(int a) {
   return a;
 }
 
-variant T {
+union T {
   int x;
 };
 

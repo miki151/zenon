@@ -5,7 +5,7 @@ concept CanAdd {
   V add(T*, U);
 };
 
-variant S {
+union S {
   int i;
   bool b;
 };

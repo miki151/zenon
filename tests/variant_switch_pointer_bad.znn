@@ -1,6 +1,6 @@
 // no_compile
 
-variant V {
+union V {
   void isNull;
   int a;
 };

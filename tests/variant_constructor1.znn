@@ -1,6 +1,6 @@
 // 5
 
-export variant V {
+export union V {
   int a;
   bool b;
 };

@@ -554,7 +554,7 @@ struct SwitchStatement : Statement {
   unique_ptr<StatementBlock> defaultBlock;
   unique_ptr<Expression> expr;
   nullable<SFunctionInfo> destructorCall;
-  enum { ENUM, VARIANT} type;
+  enum { ENUM, UNION} type;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> replace(SType from, SType to, ErrorLocBuffer&) const override;
@@ -564,7 +564,7 @@ struct SwitchStatement : Statement {
 
   private:
   void codegenEnum(Accu&) const;
-  void codegenVariant(Accu&) const;
+  void codegenUnion(Accu&) const;
 };
 
 struct FunctionDefinition : Statement {

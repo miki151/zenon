@@ -1,6 +1,6 @@
 export import "struct2.znn";
 
-export variant V1 {
+export union V1 {
   int x;
   bool b;
 };

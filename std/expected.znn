@@ -2,7 +2,7 @@
 import "std/panic.znn";
 
 export template <T>
-variant expected {
+union expected {
   T value;
   string error;
 };

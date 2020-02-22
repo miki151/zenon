@@ -30,7 +30,7 @@ struct Triangle {
 };
 
 template <T>
-variant Shape {
+union Shape {
   Triangle triangle;
   Rectangle rectangle;
   T circle;

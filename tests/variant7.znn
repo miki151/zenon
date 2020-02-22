@@ -8,7 +8,7 @@ void f(S mutable* s) {
   s->a = 5;
 }
 
-variant V {
+union V {
   int i;
   string s;
 };

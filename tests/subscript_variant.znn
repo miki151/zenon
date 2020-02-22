@@ -3,7 +3,7 @@
 import "std/concepts.znn";
 
 template<T>
-variant X {
+union X {
   T elem;
   void isNull;
 };

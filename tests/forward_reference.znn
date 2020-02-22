@@ -53,7 +53,7 @@ T m2(A<T>* a) {
 }*/
 
 template <T>
-variant V {
+union V {
   void isNull;
   T elem;
 };

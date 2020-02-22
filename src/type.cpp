@@ -13,7 +13,7 @@ BuiltinType::DefType BuiltinType::ANY_TYPE = shared<BuiltinType>("any_type");
 BuiltinType::DefType BuiltinType::ENUM_TYPE = shared<BuiltinType>("enum_type");
 BuiltinType::DefType BuiltinType::NULL_TYPE = shared<BuiltinType>("null_type");
 BuiltinType::DefType BuiltinType::STRUCT_TYPE = shared<BuiltinType>("struct_type");
-BuiltinType::DefType BuiltinType::UNION_TYPE = shared<BuiltinType>("variant_type");
+BuiltinType::DefType BuiltinType::UNION_TYPE = shared<BuiltinType>("union_type");
 
 string BuiltinType::getName(bool withTemplateArguments) const {
   return name;
@@ -567,7 +567,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
     SwitchArgument argumentType) const {
   if (alternatives.empty())
     return statement.codeLoc.getError("Can't switch on a struct type");
-  statement.type = SwitchStatement::VARIANT;
+  statement.type = SwitchStatement::UNION;
   statement.targetType = (SType)get_this();
   unordered_set<string> handledTypes;
   auto getAlternativeType = [&] (const string& name) -> nullable<SType> {
@@ -578,14 +578,14 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
   };
   for (auto& caseElem : statement.caseElems) {
     if (caseElem.ids.size() > 1)
-      return caseElem.codeloc.getError("Multiple case elements not allowed in a variant switch");
+      return caseElem.codeloc.getError("Multiple case elements not allowed in a union switch");
     auto caseId = caseElem.ids[0];
     caseElem.declaredVar = caseId;
     if (!getAlternativeType(caseId))
       return caseElem.codeloc.getError("Element " + quote(caseId) +
-          " not present in variant " + quote(getName()));
+          " not present in union " + quote(getName()));
     if (handledTypes.count(caseId))
-      return caseElem.codeloc.getError("Variant element " + quote(caseId)
+      return caseElem.codeloc.getError("Union member " + quote(caseId)
         + " handled more than once in switch statement");
     handledTypes.insert(caseId);
     auto caseBodyContext = Context::withParent(outsideContext);
@@ -595,7 +595,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
     if (auto caseType = TRY(caseElem.getType(outsideContext))) {
       if (caseType != realType && caseType->removePointer() != realType)
         return caseElem.codeloc.getError(
-            "Can't handle variant element " + quote(caseId) + " of type " +
+            "Can't handle union member " + quote(caseId) + " of type " +
             quote(realType->getName()) + " as type " + quote(caseType->getName()));
       if (caseType == MutablePointerType::get(realType)) {
         caseElem.varType = caseElem.POINTER;
@@ -636,7 +636,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
   } else {
     if (handledTypes.size() == alternatives.size())
       return statement.defaultBlock->codeLoc.getError(
-          "Default switch statement unnecessary when all variant cases are handled");
+          "Default switch statement unnecessary when all union members are handled");
     TRY(statement.defaultBlock->check(outsideContext));
   }
   return success;

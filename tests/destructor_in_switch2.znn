@@ -16,7 +16,7 @@ void destruct(Y* x) {
   *x->cnt += 2;
 }
 
-variant V {
+union V {
   X x;
   Y y;
 };

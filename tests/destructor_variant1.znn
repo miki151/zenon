@@ -13,7 +13,7 @@ struct Y {
   X y;
 };
 
-variant Z {
+union Z {
   Y y;
   X x;
 };

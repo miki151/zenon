@@ -3,7 +3,7 @@
 struct V;
 
 template <T>
-variant V {
+union V {
   int x;
   string s;
 };

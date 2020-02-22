@@ -1,6 +1,6 @@
 // no_compile
 
-variant V {
+union V {
   string s;
   int x;
   bool b;

@@ -607,10 +607,10 @@ WithErrorLine<unique_ptr<ContinueStatement>> parseContinueStatement(Tokens& toke
 }
 
 WithErrorLine<unique_ptr<UnionDefinition>> parseUnionDefinition(Tokens& tokens) {
-  TRY(tokens.eat(Keyword::VARIANT));
+  TRY(tokens.eat(Keyword::UNION));
   auto nameToken = tokens.popNext();
   if (!nameToken.contains<IdentifierToken>())
-    return nameToken.codeLoc.getError("Expected variant name");
+    return nameToken.codeLoc.getError("Expected union type name");
   auto ret = unique<UnionDefinition>(nameToken.codeLoc, nameToken.value);
   TRY(tokens.eat(Keyword::OPEN_BLOCK));
   while (1) {
@@ -625,7 +625,7 @@ WithErrorLine<unique_ptr<UnionDefinition>> parseUnionDefinition(Tokens& tokens) 
     auto typeIdent = TRY(parseIdentifier(tokens, true));
     auto token2 = tokens.popNext();
     if (!token2.contains<IdentifierToken>())
-      return token2.codeLoc.getError("Expected name of a variant alternative");
+      return token2.codeLoc.getError("Expected name of a union member");
     ret->elements.push_back(UnionDefinition::Element{typeIdent, token2.value, token2.codeLoc});
     TRY(tokens.eat(Keyword::SEMICOLON));
   }
@@ -730,7 +730,7 @@ WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) 
           if (auto s = identifier.asBasicIdentifier())
             caseElem.ids.push_back(*s);
           else
-            return identifier.codeLoc.getError("Expected variant alternative name, got " + quote(identifier.prettyString()));
+            return identifier.codeLoc.getError("Expected union member name, got " + quote(identifier.prettyString()));
           if (token2 == Keyword::CLOSE_BRACKET)
             break;
           identifier = TRY(parseIdentifier(tokens, true));
@@ -851,8 +851,8 @@ WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
     };
     if (nextToken == Keyword::STRUCT)
       return addTemplate(parseStructDefinition(tokens, false), "struct");
-    if (nextToken == Keyword::VARIANT)
-      return addTemplate(parseUnionDefinition(tokens), "variant");
+    if (nextToken == Keyword::UNION)
+      return addTemplate(parseUnionDefinition(tokens), "union");
     if (nextToken == Keyword::CONCEPT)
       return addTemplate(parseConceptDefinition(tokens), "concept");
     else {
@@ -959,7 +959,7 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             }
           case Keyword::STRUCT:
             return cast<Statement>(parseStructDefinition(tokens, false));
-          case Keyword::VARIANT:
+          case Keyword::UNION:
             return cast<Statement>(parseUnionDefinition(tokens));
           case Keyword::SWITCH:
             return cast<Statement>(parseSwitchStatement(tokens));

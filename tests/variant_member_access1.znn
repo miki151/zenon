@@ -1,6 +1,6 @@
 // 8
 
-variant V {
+union V {
   int a;
   string s;
 };

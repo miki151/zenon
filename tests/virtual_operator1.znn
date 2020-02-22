@@ -34,7 +34,7 @@ int operator [](Triangle* t, int index) {
 }
 
 template <T>
-variant Shape {
+union Shape {
   Triangle triangle;
   Rectangle rectangle;
   T circle;

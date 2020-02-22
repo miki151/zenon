@@ -1,6 +1,6 @@
 // 6
 
-variant V {
+union V {
   int a;
   bool b;
 };

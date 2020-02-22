@@ -1,6 +1,6 @@
 // no_compile
 
-variant T {
+union T {
   int x;
 };
 

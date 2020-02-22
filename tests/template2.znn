@@ -3,7 +3,7 @@
 import "std/concepts.znn";
 
 template <Param>
-variant nullable {
+union nullable {
   Param p;
   void isNull;
 };
@@ -22,7 +22,7 @@ nullable<T> value(mutable T t) {
 }
 
 template <U, V>
-variant V2 {
+union V2 {
   nullable<U> e1;
   nullable<V> e2;
 };

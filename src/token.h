@@ -36,7 +36,7 @@ enum class Keyword {
   STRUCT,
   EXTERN,
   EMBED,
-  VARIANT,
+  UNION,
   NAMESPACE_ACCESS,
   SWITCH,
   CASE,

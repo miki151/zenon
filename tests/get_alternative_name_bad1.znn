@@ -1,6 +1,6 @@
 // no_compile
 
-variant V {
+union V {
   int uvwxyz;
 };
 

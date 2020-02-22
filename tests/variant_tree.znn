@@ -16,7 +16,7 @@ struct NonLeaf {
 };
 
 template <T>
-variant Node {
+union Node {
   Leaf<T> leaf;
   NonLeaf<T> nonLeaf;
 };

@@ -1,6 +1,6 @@
 // 5
 
-variant V {
+union V {
   void elem1;
   void elem2;
   void elem3;

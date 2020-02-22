@@ -7,7 +7,7 @@ void copy(T mutable* out, T in) {
 }
 
 template<T>
-variant V {
+union V {
   T elem;
   void isNull;
 };

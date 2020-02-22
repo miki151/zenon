@@ -3,7 +3,7 @@
 struct A {
 };
 
-variant X {
+union X {
   int i;
   A a;
 };

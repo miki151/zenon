@@ -585,8 +585,8 @@ void UnionDefinition::codegen(Accu& accu, CodegenStage stage) const {
 void SwitchStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   switch (type) {
-    case VARIANT:
-      codegenVariant(accu);
+    case UNION:
+      codegenUnion(accu);
       break;
     case ENUM:
       codegenEnum(accu);
@@ -625,7 +625,7 @@ void SwitchStatement::codegenEnum(Accu& accu) const {
 
 constexpr const char* unionTmpRef = "unionTmpRef";
 
-void SwitchStatement::codegenVariant(Accu& accu) const {
+void SwitchStatement::codegenUnion(Accu& accu) const {
   accu.add("{ auto&& "s + unionTmpRef + " = ");
   expr->codegen(accu, CodegenStage::define());
   accu.add(";");
