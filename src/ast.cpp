@@ -1774,7 +1774,7 @@ bool SwitchStatement::hasReturnStatement(const Context& context) const {
   return true;
 }
 
-VariantDefinition::VariantDefinition(CodeLoc l, string n) : Statement(l), name(n) {
+UnionDefinition::UnionDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
 static WithErrorLine<shared_ptr<StructType>> getNewOrIncompleteStruct(Context& context, string name, CodeLoc codeLoc,
@@ -1804,7 +1804,7 @@ static JustError<string> getRedefinitionError(const string& typeName, const opti
     return success;
 }
 
-JustError<ErrorLoc> VariantDefinition::addToContext(Context& context) {
+JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
   type = TRY(getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, false));
   context.setFullyDefined(type.get().get(), true);
   TRY(getRedefinitionError(type->getName(), type->definition).addCodeLoc(codeLoc));
@@ -1832,7 +1832,7 @@ JustError<ErrorLoc> VariantDefinition::addToContext(Context& context) {
   return success;
 }
 
-JustError<ErrorLoc> VariantDefinition::check(Context& context, bool) {
+JustError<ErrorLoc> UnionDefinition::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   for (auto& param : type->templateParams)
     bodyContext.addType(param->getName(), param);

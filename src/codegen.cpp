@@ -558,7 +558,7 @@ void EnumDefinition::codegen(Accu& accu, CodegenStage stage) const {
   }
 }
 
-void VariantDefinition::codegen(Accu& accu, CodegenStage stage) const {
+void UnionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (stage.isDefine)
     for (auto& instance : concat({type.get()}, type->instances))
       if (auto name1 = instance->getMangledName())

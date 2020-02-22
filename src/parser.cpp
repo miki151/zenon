@@ -606,12 +606,12 @@ WithErrorLine<unique_ptr<ContinueStatement>> parseContinueStatement(Tokens& toke
   return unique<ContinueStatement>(continueToken.codeLoc);
 }
 
-WithErrorLine<unique_ptr<VariantDefinition>> parseVariantDefinition(Tokens& tokens) {
+WithErrorLine<unique_ptr<UnionDefinition>> parseUnionDefinition(Tokens& tokens) {
   TRY(tokens.eat(Keyword::VARIANT));
   auto nameToken = tokens.popNext();
   if (!nameToken.contains<IdentifierToken>())
     return nameToken.codeLoc.getError("Expected variant name");
-  auto ret = unique<VariantDefinition>(nameToken.codeLoc, nameToken.value);
+  auto ret = unique<UnionDefinition>(nameToken.codeLoc, nameToken.value);
   TRY(tokens.eat(Keyword::OPEN_BLOCK));
   while (1) {
     auto memberToken = tokens.peek();
@@ -626,7 +626,7 @@ WithErrorLine<unique_ptr<VariantDefinition>> parseVariantDefinition(Tokens& toke
     auto token2 = tokens.popNext();
     if (!token2.contains<IdentifierToken>())
       return token2.codeLoc.getError("Expected name of a variant alternative");
-    ret->elements.push_back(VariantDefinition::Element{typeIdent, token2.value, token2.codeLoc});
+    ret->elements.push_back(UnionDefinition::Element{typeIdent, token2.value, token2.codeLoc});
     TRY(tokens.eat(Keyword::SEMICOLON));
   }
   TRY(tokens.eat(Keyword::SEMICOLON));
@@ -852,7 +852,7 @@ WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
     if (nextToken == Keyword::STRUCT)
       return addTemplate(parseStructDefinition(tokens, false), "struct");
     if (nextToken == Keyword::VARIANT)
-      return addTemplate(parseVariantDefinition(tokens), "variant");
+      return addTemplate(parseUnionDefinition(tokens), "variant");
     if (nextToken == Keyword::CONCEPT)
       return addTemplate(parseConceptDefinition(tokens), "concept");
     else {
@@ -960,7 +960,7 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
           case Keyword::STRUCT:
             return cast<Statement>(parseStructDefinition(tokens, false));
           case Keyword::VARIANT:
-            return cast<Statement>(parseVariantDefinition(tokens));
+            return cast<Statement>(parseUnionDefinition(tokens));
           case Keyword::SWITCH:
             return cast<Statement>(parseSwitchStatement(tokens));
           case Keyword::ENUM:

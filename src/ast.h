@@ -493,8 +493,8 @@ struct StructDefinition : Statement {
   bool external = false;
 };
 
-struct VariantDefinition : Statement {
-  VariantDefinition(CodeLoc, string name);
+struct UnionDefinition : Statement {
+  UnionDefinition(CodeLoc, string name);
   string name;
   struct Element {
     IdentifierInfo type;
