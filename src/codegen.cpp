@@ -298,10 +298,9 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (external || stage.isTypes)
     return;
   auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body, const vector<unique_ptr<Statement>>& destructors) {
-    if (functionInfo.getMangledSuffix()) {
+    if (functionInfo.getMangledSuffix() && (wasUsed || functionInfo.isMainFunction() || (exported && !stage.isImport))) {
       if (!functionInfo.type.templateParams.empty())
         accu.add("inline ");
-      //std::cout << "In function " << getSignature(functionInfo) << std::endl;
       accu.add(getSignature(functionInfo, this));
       if (body && stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
         accu.newLine("{");
@@ -493,6 +492,7 @@ string codegen(const AST& ast, const Context& context, const string& codegenIncl
             lambda->functionInfo->id);
         def->body = generateLambdaBody(std::move(body), *lambda);
         def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, string(lambdaArgName), false, false});
+        def->wasUsed = true;
         return def;
       };
       auto mainBody = getLambdaBody(std::move(lambda->body));

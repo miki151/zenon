@@ -374,6 +374,7 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   FunctionInfo(Private, FunctionId, FunctionType, FunctionDefinition*);
   SFunctionInfo getParent() const;
   FunctionDefinition* getDefinition() const;
+  JustError<ErrorLoc> addInstance(const Context&) const;
 
   private:
   const nullable<SFunctionInfo> parent;

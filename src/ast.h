@@ -591,6 +591,7 @@ struct FunctionDefinition : Statement {
   bool isVirtual = false;
   bool isDefault = false;
   bool isVariadicParams = false;
+  bool wasUsed = false;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&, ImportCache&, const Context& primaryContext) override;
   virtual void codegen(Accu&, CodegenStage) const override;

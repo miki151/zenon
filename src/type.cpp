@@ -326,6 +326,12 @@ FunctionDefinition* FunctionInfo::getDefinition() const {
   return getParent()->definition;
 }
 
+JustError<ErrorLoc> FunctionInfo::addInstance(const Context& context) const {
+  if (auto def = getDefinition())
+    return def->addInstance(&context, get_this().get());
+  return success;
+}
+
 FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionType type, nullable<SFunctionInfo> parent)
   : id(std::move(id)), type(std::move(type)), parent(std::move(parent)) {}
 
