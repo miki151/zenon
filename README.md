@@ -11,21 +11,21 @@ Zenon is a statically typed language that compiles to C++. It offers safe and ea
 * No member functions/methods. Any function can be called with a method syntax.
 * Compiles to C++.
 * Extremely easy binding with C/C++.
-* Built-in variant/tagged union type
+* Built-in tagged union type
 * Syntax similar to C++
 
 ## Zenon in examples
 
-### Variant
+### Union
 
 ``` C++
-variant my_variant {
+union my_union {
     bool bvalue;
     int ivalue;
 };
 
 int example() {
-    const var = my_variant::bvalue(true);
+    const var = my_union::bvalue(true);
     switch (var) {
         case (bool bvalue) {
             if (bvalue)
@@ -42,9 +42,9 @@ int example() {
 
 ### Templates
 ``` C++
-// Implementing a nullable aka optional type using a variant
+// Implementing a nullable aka optional type using a union
 template <T>
-variant nullable {
+union nullable {
     T value;
     void null;
 };
