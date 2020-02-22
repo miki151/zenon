@@ -17,14 +17,15 @@ struct Accu {
     buf[pos] += s;
   }
 
+  const int indentSize = 2;
+
   void newLine(const string& s = "", Position pos = CURRENT) {
-    const int indentSize = 2;
     buf[pos] += "\n" + string(indent * indentSize, ' ');
     buf[pos] += s;
   }
 
   void newLine(CodeLoc codeLoc) {
-    buf[CURRENT] += "\n";
+    buf[CURRENT] += "\n"  + string(indent * indentSize, ' ');
     if (includeLineNumbers)
       add("#line " + to_string(codeLoc.line) + " \"" + codeLoc.file + "\"\n");
   }
@@ -303,7 +304,7 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
         accu.add("inline ");
       accu.add(getSignature(functionInfo, this));
       if (body && stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
-        accu.newLine("{");
+        accu.add("{");
         CHECK(destructors.size() == functionInfo.type.params.size())
             << functionInfo.prettyString();
         for (int i = 0; i < functionInfo.type.params.size(); ++i)
@@ -317,6 +318,7 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
         accu.add(";");
         accu.newLine("");
       }
+      accu.newLine("");
       accu.newLine("");
     }
   };
