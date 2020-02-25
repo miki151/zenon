@@ -7,7 +7,7 @@ ReturnTypeChecker::ReturnTypeChecker(nullable<SType> explicitReturn) : explicitR
 }
 
 JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, SType returnType, unique_ptr<Expression>& expr) {
-  auto underlying = returnType->getUnderlying();
+  auto underlying = returnType->removeReference();
   if (explicitReturn) {
     if (explicitReturn == BuiltinType::NORETURN)
       return "This function should never return"s;

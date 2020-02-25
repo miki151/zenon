@@ -192,18 +192,18 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
     return param == arg;
   };
   auto isExactValueArg = [] (SType arg, SType param) {
-    return param == arg->getUnderlying();
+    return param == arg->removeReference();
   };
   auto isExactReferenceArg = [] (SType arg, SType param) {
     bool byConstRef = param.dynamicCast<ReferenceType>() &&
         !arg.dynamicCast<MutableReferenceType>() &&
-        param->getUnderlying() == arg->getUnderlying();
+        param->removeReference() == arg->removeReference();
     return byConstRef;
   };
   auto isConstToMutableReferenceArg = [] (SType arg, SType param) {
     bool byConstRef = param.dynamicCast<ReferenceType>() &&
         arg.dynamicCast<MutableReferenceType>() &&
-        param->getUnderlying() == arg->getUnderlying();
+        param->removeReference() == arg->removeReference();
     return byConstRef;
   };
   auto isSpecialized = [&] (const auto& args, const auto& overload) {
@@ -330,7 +330,7 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
         return expr[1]->codeLoc.getError("Unable to evaluate variable pack index at compile-time");
       functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, exprTypes,
           ::transform(expr, [&](auto& e) { return e->codeLoc;}), expr));
-      if (op == Operator::ASSIGNMENT && exprTypes[0]->getUnderlying()->hasDestructor()) {
+      if (op == Operator::ASSIGNMENT && exprTypes[0]->removeReference()->hasDestructor()) {
         expr[0] = getDestructAndGetCall(codeLoc, std::move(expr[0]));
         CHECK(!!getType(context, expr[0]));
       }
@@ -343,7 +343,7 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
 }
 
 JustError<ErrorLoc> BinaryExpression::considerDestructorCall(const Context& context, int index, const SType& argType) {
-  if (argType->hasDestructor() && argType->getUnderlying() == argType && functionInfo->type.params[index].dynamicCast<ReferenceType>()) {
+  if (argType->hasDestructor() && argType->removeReference() == argType && functionInfo->type.params[index].dynamicCast<ReferenceType>()) {
     destructorCall[index] = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(argType)}, {codeLoc}));
     TRY(destructorCall[index]->addInstance(context));
   }
@@ -391,7 +391,7 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
   functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, {TRY(exprTmp[0]->getTypeImpl(context))}, {exprTmp[0]->codeLoc}, exprTmp));
   expr = std::move(exprTmp[0]);
   TRY(functionInfo->addInstance(context));
-  if (right->hasDestructor() && right->getUnderlying() == right &&
+  if (right->hasDestructor() && right->removeReference() == right &&
       (functionInfo->type.params[0].dynamicCast<ReferenceType>() || op == Operator::GET_ADDRESS)) {
     destructorCall = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(right)}, {codeLoc}));
     TRY(destructorCall->addInstance(context));
@@ -499,7 +499,7 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
       realType = TRY(context.getTypeFromString(*type));
     else
     if (initExpr)
-      realType = TRY(getType(context, initExpr))->getUnderlying();
+      realType = TRY(getType(context, initExpr))->removeReference();
     else
       return codeLoc.getError("Initializing expression needed to infer variable type");
   }
@@ -715,8 +715,8 @@ NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyRequirements(Co
 
 static bool paramsAreGoodForOperator(const vector<SType>& params) {
   for (auto& p : params)
-    if (p->getUnderlying()->getType() == BuiltinType::STRUCT_TYPE ||
-        p->getUnderlying()->getType() == BuiltinType::UNION_TYPE)
+    if (p->removeReference()->getType() == BuiltinType::STRUCT_TYPE ||
+        p->removeReference()->getType() == BuiltinType::UNION_TYPE)
       return true;
   return false;
 }
@@ -832,7 +832,7 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
     }
   }
   if (id.isSimpleString("destruct")) {
-    if (!argTypes.empty() && argTypes[0]->getUnderlying().dynamicCast<PointerType>()) {
+    if (!argTypes.empty() && argTypes[0]->removeReference().dynamicCast<PointerType>()) {
       if (auto s = argTypes[0]->removePointer().dynamicCast<StructType>())
         if (s->destructor) {
           CHECK(templateArgs.empty());
@@ -1595,12 +1595,12 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
     };
     if (methodCall) {
       auto leftType = argTypes[0];
-      if (!leftType->getUnderlying().dynamicCast<PointerType>() &&
-          !leftType->getUnderlying().dynamicCast<MutablePointerType>())
+      if (!leftType->removeReference().dynamicCast<PointerType>() &&
+          !leftType->removeReference().dynamicCast<MutablePointerType>())
         tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
       argTypes[0] = leftType.dynamicCast<MutableReferenceType>()
-          ? SType(MutablePointerType::get(leftType->getUnderlying()))
-          : SType(PointerType::get(leftType->getUnderlying()));
+          ? SType(MutablePointerType::get(leftType->removeReference()))
+          : SType(PointerType::get(leftType->removeReference()));
       tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
     } else
       getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs, arguments).unpack(functionInfo, error);
@@ -1713,7 +1713,7 @@ JustError<ErrorLoc> SwitchStatement::check(Context& context, bool) {
     destructorCall = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(type)}, {codeLoc}));
     TRY(destructorCall->addInstance(context));
   }
-  if (!context.isFullyDefined(type->getUnderlying().get()))
+  if (!context.isFullyDefined(type->removeReference().get()))
     return codeLoc.getError("Type " + quote(type->getName()) + " is incomplete in this context");
   return type->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
 }
@@ -1908,7 +1908,7 @@ WithErrorLine<SType> MoveExpression::getTypeImpl(Context& context) {
       if (!ret.get_value().dynamicCast<MutableReferenceType>() &&
           !ret.get_value().dynamicCast<ReferenceType>())
         return codeLoc.getError("Can't move from " + quote(ret.get_value()->getName()));
-      type = ret.get_value()->getUnderlying();
+      type = ret.get_value()->removeReference();
     } else
       return codeLoc.getError(ret.get_error());
   }
@@ -2007,7 +2007,7 @@ JustError<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& body
   auto initVal = TRY(init->eval(context).addNoEvalError(init->codeLoc.getError("Unable to evaluate expression at compile time")));
   context.addType(counter, CompileTimeValue::getReference(initVal.value.dynamicCast<CompileTimeValue>()));
   auto condVal = TRY(cond->eval(context).addNoEvalError(cond->codeLoc.getError("Unable to evaluate expression at compile time")));
-  if (condVal.value->getType()->getUnderlying() != BuiltinType::BOOL)
+  if (condVal.value->getType()->removeReference() != BuiltinType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote(BuiltinType::BOOL->getName()));
   TRY(iter->eval(context).addNoEvalError(iter->codeLoc.getError("Unable to evaluate expression at compile time")));
   return success;
@@ -2290,7 +2290,7 @@ RangedLoopStatement::RangedLoopStatement(CodeLoc l, unique_ptr<VariableDeclarati
 JustError<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   auto containerType = TRY(getType(context, container));
-  if (containerType->getUnderlying() == containerType)
+  if (containerType->removeReference() == containerType)
     containerType = ReferenceType::get(containerType);
   auto uniqueSufix = to_string(codeLoc.line) + "_" + to_string(codeLoc.column);
   containerName = "container"s + uniqueSufix;
@@ -2377,7 +2377,7 @@ ArrayLiteral::ArrayLiteral(CodeLoc codeLoc) : Expression(codeLoc) {
 
 WithErrorLine<SType> ArrayLiteral::getTypeImpl(Context& context) {
   auto typeTmp = TRY(typeId ? context.getTypeFromString(*typeId, false) : getType(context, contents[0]));
-  auto ret = typeTmp->getUnderlying();
+  auto ret = typeTmp->removeReference();
   for (int i = 0; i < contents.size(); ++i) {
     if (i > 0 || !typeId)
       typeTmp = TRY(getType(context, contents[i]));
@@ -2696,7 +2696,7 @@ WithErrorLine<SType> MemberAccessExpression::getTypeImpl(Context& context) {
   auto leftType = TRY(lhs->getTypeImpl(context));
   if (auto res = leftType->getSizeError(context); !res)
     return codeLoc.getError(leftType->getName() + res.get_error());
-  isUnion = leftType->getUnderlying()->getType() == BuiltinType::UNION_TYPE;
+  isUnion = leftType->removeReference()->getType() == BuiltinType::UNION_TYPE;
   auto ret = TRY(leftType->getTypeOfMember(identifier).addCodeLoc(codeLoc));
   TRY(initializeDestructor(context, leftType, identifier, codeLoc, destructorCall));
   return ret;
@@ -2721,7 +2721,7 @@ WithErrorLine<SType> MemberIndexExpression::getTypeImpl(Context& context) {
     return codeLoc.getError(leftType.get()->getName() + res.get_error());
   auto member = TRY(leftType->getTypeOfMember(value.value).addCodeLoc(codeLoc));
   memberName = member.name;
-  isUnion = leftType->getUnderlying()->getType() == BuiltinType::UNION_TYPE;
+  isUnion = leftType->removeReference()->getType() == BuiltinType::UNION_TYPE;
   TRY(initializeDestructor(context, leftType, *memberName, codeLoc, destructorCall));
   return member.type;
 }

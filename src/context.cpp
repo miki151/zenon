@@ -79,7 +79,7 @@ static SType getCapturedType(SType input, LambdaCaptureType type) {
     case LambdaCaptureType::COPY:
     case LambdaCaptureType::IMPLICIT_COPY:
     case LambdaCaptureType::MOVE:
-      return input->getUnderlying();
+      return input->removeReference();
   }
 }
 
@@ -87,7 +87,7 @@ WithErrorLine<vector<LambdaCapture>> Context::setLambda(LambdaCaptureInfo* info)
   vector<LambdaCapture> ret;
   for (auto& capture : info->captures) {
     if (auto type = getTypeOfVariable(capture.name)) {
-      auto underlying = type->get()->getUnderlying();
+      auto underlying = type->get()->removeReference();
       if (capture.type == LambdaCaptureType::IMPLICIT_COPY && !canConvert(*type, underlying))
         return capture.codeLoc.getError("Variable " + capture.name + " of type " +
             quote(underlying->getName()) + " can't be captured by implicit copy");
@@ -160,7 +160,7 @@ WithError<SType> Context::getTypeOfVariable(const string& id) const {
             case LambdaCaptureType::MOVE:
             case LambdaCaptureType::COPY:
             case LambdaCaptureType::IMPLICIT_COPY:
-              return (SType) ReferenceType::get(state->vars.at(id).type->getUnderlying());
+              return (SType) ReferenceType::get(state->vars.at(id).type->removeReference());
           }
         } else {
           if (auto captureType = lambdaInfo->defaultCapture) {
@@ -243,7 +243,7 @@ vector<SType> Context::getConversions(SType type) const {
   vector<SType> ret = {type};
   if (type->isMetaType() && type != BuiltinType::ANY_TYPE)
     ret.push_back(BuiltinType::ANY_TYPE);
-  auto underlying = type->getUnderlying();
+  auto underlying = type->removeReference();
   if (underlying == BuiltinType::INT)
     ret.push_back(BuiltinType::DOUBLE);
   if (auto ptr = underlying.dynamicCast<MutablePointerType>())
@@ -259,8 +259,8 @@ JustError<string> Context::canConvert(SType from, SType to) const {
 }
 
 JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expression>& expr) const {
-  auto underlying = from->getUnderlying();
-  if (from != underlying && to->getUnderlying() == underlying && underlying->isBuiltinCopyable(*this, expr))
+  auto underlying = from->removeReference();
+  if (from != underlying && to->removeReference() == underlying && underlying->isBuiltinCopyable(*this, expr))
     return success;
   if (contains(getConversions(from), to) ||
       (from == BuiltinType::NULL_TYPE && to.dynamicCast<OptionalType>() &&
@@ -626,19 +626,19 @@ nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> a
         break;
       case Operator::POINTER_DEREFERENCE:
         if (argTypes.size() == 1) {
-          if (auto referenceType = convertPointerToReferenceStrict(argTypes[0]->getUnderlying()))
+          if (auto referenceType = convertPointerToReferenceStrict(argTypes[0]->removeReference()))
             return FunctionType(referenceType.get(), {argTypes[0]}, {}).setBuiltin();
         }
         break;
       case Operator::ASSIGNMENT:
-        if (argTypes.size() == 2 && canConvert(argTypes[1], argTypes[0]->getUnderlying()))
+        if (argTypes.size() == 2 && canConvert(argTypes[1], argTypes[0]->removeReference()))
           if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
             return FunctionType(BuiltinType::VOID, {argTypes[0], referenceType->underlying}, {}).setBuiltin();
         break;
       case Operator::SUBSCRIPT:
         if (argTypes.size() == 2 && canConvert(argTypes[1], BuiltinType::INT))
           if (auto pack = argTypes[0].dynamicCast<VariablePack>())
-            return FunctionType(pack->packType, {argTypes[0]->getUnderlying(), argTypes[0]->getUnderlying()}, {}).setBuiltin();
+            return FunctionType(pack->packType, {argTypes[0]->removeReference(), argTypes[0]->removeReference()}, {}).setBuiltin();
         break;
       default:
         break;

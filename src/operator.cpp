@@ -336,7 +336,7 @@ static SCompileTimeValue getExampleValue(SType type) {
   if (BuiltinType::CHAR == type)
     return CompileTimeValue::get('a');
   if (auto ref = type.dynamicCast<MutableReferenceType>())
-    return CompileTimeValue::getReference(getExampleValue(ref->getUnderlying()));
+    return CompileTimeValue::getReference(getExampleValue(ref->removeReference()));
   //if (BuiltinType::VOID == type)
   fail();
 }

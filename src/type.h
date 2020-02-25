@@ -21,7 +21,6 @@ struct Type : public owned_object<Type> {
   virtual string getName(bool withTemplateArguments = true) const = 0;
   virtual string getCodegenName() const;
   virtual optional<string> getMangledName() const;
-  virtual SType getUnderlying() const;
   virtual bool canAssign(SType from) const;
   virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const;
   SType replace(SType from, SType to, ErrorBuffer&) const;
@@ -46,6 +45,7 @@ struct Type : public owned_object<Type> {
   };
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const;
   virtual SType removePointer() const;
+  virtual SType removeReference() const;
   virtual JustError<string> getSizeError(const Context&) const;
   virtual bool canBeValueTemplateParam() const;
   virtual bool canDeclareVariable() const;
@@ -90,7 +90,7 @@ struct ReferenceType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual optional<string> getMangledName() const override;
   virtual string getCodegenName() const override;
-  virtual SType getUnderlying() const override;
+  virtual SType removeReference() const override;
   virtual bool canAssign(SType from) const override;
   virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
@@ -108,7 +108,7 @@ struct MutableReferenceType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual optional<string> getMangledName() const override;
   virtual string getCodegenName() const override;
-  virtual SType getUnderlying() const override;
+  virtual SType removeReference() const override;
   virtual bool canAssign(SType from) const override;
   virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;

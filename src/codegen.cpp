@@ -460,7 +460,7 @@ static unique_ptr<StatementBlock> generateLambdaBody(unique_ptr<StatementBlock> 
         unique<Variable>(IdentifierInfo(lambdaArgName, body->codeLoc)), capture.name));
     auto type = capture.type;
     if (capture.captureType == LambdaCaptureType::REFERENCE) {
-      type = convertPointerToReference(type->getUnderlying());
+      type = convertPointerToReference(type->removeReference());
       memberExpr = unique<UnaryExpression>(body->codeLoc, Operator::POINTER_DEREFERENCE, std::move(memberExpr));
     } else
       type = ReferenceType::get(type);

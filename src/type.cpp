@@ -349,15 +349,15 @@ optional<string> Type::getMangledName() const {
   return getCodegenName();
 }
 
-SType Type::getUnderlying() const {
+SType Type::removeReference() const {
   return get_this().get();
 }
 
-SType ReferenceType::getUnderlying() const {
+SType ReferenceType::removeReference() const {
   return underlying;
 }
 
-SType MutableReferenceType::getUnderlying() const {
+SType MutableReferenceType::removeReference() const {
   return underlying;
 }
 
@@ -370,7 +370,7 @@ shared_ptr<ReferenceType> ReferenceType::get(SType type) {
   return generated.at(type);
 }
 
-ReferenceType::ReferenceType(SType t) : underlying(t->getUnderlying()) {
+ReferenceType::ReferenceType(SType t) : underlying(t->removeReference()) {
 }
 
 shared_ptr<MutableReferenceType> MutableReferenceType::get(SType type) {
@@ -394,7 +394,7 @@ shared_ptr<PointerType> PointerType::get(SType type) {
   return generated.at(type);
 }
 
-PointerType::PointerType(SType t) : underlying(t->getUnderlying()) {
+PointerType::PointerType(SType t) : underlying(t->removeReference()) {
 }
 
 shared_ptr<MutablePointerType> MutablePointerType::get(SType type) {
@@ -406,7 +406,7 @@ shared_ptr<MutablePointerType> MutablePointerType::get(SType type) {
   return generated.at(type);
 }
 
-MutablePointerType::MutablePointerType(SType t) : underlying(t->getUnderlying()) {
+MutablePointerType::MutablePointerType(SType t) : underlying(t->removeReference()) {
 }
 
 bool Type::canAssign(SType from) const{
@@ -497,7 +497,7 @@ bool ReferenceType::canAssign(SType from) const {
 }
 
 bool MutableReferenceType::canAssign(SType from) const {
-  return underlying == from->getUnderlying();
+  return underlying == from->removeReference();
 }
 
 static JustError<string> checkMembers(const Context& context, set<const Type*> &visited, const SType& t, bool onlyIncomplete) {
@@ -975,7 +975,7 @@ SType MutablePointerType::removePointer() const {
 }
 
 JustError<string> ReferenceType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
-  return ::getDeductionError(context, mapping, underlying, from->getUnderlying());
+  return ::getDeductionError(context, mapping, underlying, from->removeReference());
 }
 
 JustError<string> MutableReferenceType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
@@ -1090,7 +1090,7 @@ void generateConversions(const Context& context, const vector<SType>& paramTypes
     if ((!paramType.dynamicCast<ReferenceType>() && !paramType.dynamicCast<MutableReferenceType>()) &&
         (argType.dynamicCast<ReferenceType>() || argType.dynamicCast<MutableReferenceType>())) {
       unique_ptr<Expression> emptyExpr;
-      CHECK(argType->getUnderlying()->isBuiltinCopyable(context, expr[i]));
+      CHECK(argType->removeReference()->isBuiltinCopyable(context, expr[i]));
     }
   }
 }
@@ -1102,10 +1102,10 @@ static JustError<ErrorLoc> checkImplicitCopies(const Context& context, const vec
     auto& argType = argTypes[i];
     if ((!paramType.dynamicCast<ReferenceType>() && !paramType.dynamicCast<MutableReferenceType>()) &&
         (argType.dynamicCast<ReferenceType>() || argType.dynamicCast<MutableReferenceType>())) {
-      if (argType->getUnderlying()->isBuiltinCopyable(context))
-        argType = argType->getUnderlying();
+      if (argType->removeReference()->isBuiltinCopyable(context))
+        argType = argType->removeReference();
       else
-        return argLoc[i].getError("Type " + quote(argType->getUnderlying()->getName()) + " cannot be copied.");
+        return argLoc[i].getError("Type " + quote(argType->removeReference()->getName()) + " cannot be copied.");
     }
   }
   return success;
