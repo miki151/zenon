@@ -409,10 +409,6 @@ shared_ptr<MutablePointerType> MutablePointerType::get(SType type) {
 MutablePointerType::MutablePointerType(SType t) : underlying(t->removeReference()) {
 }
 
-bool Type::canAssign(SType from) const{
-  return false;
-}
-
 bool Type::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {
   return false;
 }
@@ -490,14 +486,6 @@ bool EnumType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) co
 
 SType EnumType::getType() const {
   return BuiltinType::ENUM_TYPE;
-}
-
-bool ReferenceType::canAssign(SType from) const {
-  return false;
-}
-
-bool MutableReferenceType::canAssign(SType from) const {
-  return underlying == from->removeReference();
 }
 
 static JustError<string> checkMembers(const Context& context, set<const Type*> &visited, const SType& t, bool onlyIncomplete) {

@@ -21,7 +21,6 @@ struct Type : public owned_object<Type> {
   virtual string getName(bool withTemplateArguments = true) const = 0;
   virtual string getCodegenName() const;
   virtual optional<string> getMangledName() const;
-  virtual bool canAssign(SType from) const;
   virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const;
   SType replace(SType from, SType to, ErrorBuffer&) const;
   virtual bool canReplaceBy(SType) const;
@@ -91,7 +90,6 @@ struct ReferenceType : public Type {
   virtual optional<string> getMangledName() const override;
   virtual string getCodegenName() const override;
   virtual SType removeReference() const override;
-  virtual bool canAssign(SType from) const override;
   virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
@@ -109,7 +107,6 @@ struct MutableReferenceType : public Type {
   virtual optional<string> getMangledName() const override;
   virtual string getCodegenName() const override;
   virtual SType removeReference() const override;
-  virtual bool canAssign(SType from) const override;
   virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
@@ -154,7 +151,6 @@ struct OptionalType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual optional<string> getMangledName() const override;
   virtual string getCodegenName() const override;
-  //virtual bool canAssign(SType from) const override;
   virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   void codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const override;
