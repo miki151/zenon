@@ -10,7 +10,7 @@ union X {
 
 template<T> requires can_copy<T>
 T operator[](X<T>* x, mutable T a) {
-  switch (*x) {
+  switch (x) {
     case (T* elem) {
       return elem->copy();
     }

@@ -6,12 +6,12 @@ union V {
 };
 
 int fun(V* v) {
-  switch (*v) {
-    case (int a) {
-      return a;
+  switch (v) {
+    case (int* a) {
+      return *a;
     }
-    case (bool b) {
-      if (b)
+    case (bool* b) {
+      if (*b)
         return 2;
       else
         return 1;

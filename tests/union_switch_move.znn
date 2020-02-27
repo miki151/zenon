@@ -8,7 +8,7 @@ union V {
 
 template <T>
 T get(V v, T t) {
-  switch (v) {
+  switch (&v) {
     case (elem1) { return move(t); }
     case (elem2) { return move(t); }
     default {

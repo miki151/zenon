@@ -950,7 +950,6 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
   bool isPointerParam = false;
   if (!unionType) {
     unionType = virtualType.get()->removePointer().dynamicCast<StructType>();
-    switchExpr = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(switchExpr));
     isPointerParam = true;
   }
   if (!unionType || unionType->alternatives.empty())
@@ -1016,8 +1015,7 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
       body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
     } else {
       auto copiedParam = unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc));
-      auto topSwitch = unique<SwitchStatement>(codeLoc,
-          unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(copiedParam)));
+      auto topSwitch = unique<SwitchStatement>(codeLoc, std::move(copiedParam));
       for (auto& alternative : structType->alternatives) {
         auto block = unique<StatementBlock>(codeLoc);
         auto constructorName = returnType;
@@ -1715,7 +1713,9 @@ JustError<ErrorLoc> SwitchStatement::check(Context& context, bool) {
   }
   if (!context.isFullyDefined(type->removeReference().get()))
     return codeLoc.getError("Type " + quote(type->getName()) + " is incomplete in this context");
-  return type->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
+  if (type->removeReference() != type && !type->isBuiltinCopyable(context, expr))
+    return codeLoc.getError("Type " + quote(type->getName()) + " is not implicitly copyable. Consider moving or passing as pointer.");
+  return type->removeReference()->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
 }
 
 JustError<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const {

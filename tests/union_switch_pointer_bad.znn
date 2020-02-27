@@ -7,8 +7,8 @@ union V {
 
 int main() {
   mutable v = V::isNull();
-  switch (v) {
-    case (int a) {
+  switch (&v) {
+    case (int* a) {
     }
     case (void mutable* isNull) {
     }

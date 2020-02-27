@@ -10,7 +10,7 @@ union V {
 
 int main() {
   const v = V<bool, int, string, char>::a1(true);
-  switch (v) {
+  switch (move(v)) {
     case (A1 a1) {
       return 1;
     }

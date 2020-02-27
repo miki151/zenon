@@ -1,0 +1,16 @@
+// no_compile
+
+enum E {
+  E1,
+  E2
+};
+
+int main() {
+  const u = E::E1;
+  switch (&u) {
+    case (E1) {
+    }
+    default {}
+  }
+  return 0;
+}

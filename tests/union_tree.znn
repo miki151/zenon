@@ -42,7 +42,7 @@ concept CanAdd {
 
 template <T> requires CanAdd<T>
 T calculateSum(Node<T>* node, T neutralElem) {
-  switch (*node) {
+  switch (node) {
     case (Leaf<T>* leaf) {
       return leaf->value.copy();
     }

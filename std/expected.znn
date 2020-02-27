@@ -9,7 +9,7 @@ union expected {
 
 export template <T>
 bool operator !(expected<T>* v) {
-  switch (*v) {
+  switch (v) {
     case (T* value) {
       return false;
     }
@@ -21,7 +21,7 @@ bool operator !(expected<T>* v) {
 
 export template <T>
 T* operator *(expected<T>* v) {
-  switch (*v) {
+  switch (v) {
     case (T* value) {
       return value;
     }
@@ -45,7 +45,7 @@ T operator *(expected<T> v) {
 
 export template <T>
 string get_error(expected<T>* v) {
-  switch (*v) {
+  switch (v) {
     case (T* value) {
       panic("Expected contains valid value");
     }

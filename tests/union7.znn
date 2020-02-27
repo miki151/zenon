@@ -16,12 +16,12 @@ union V {
 int get(V mutable* self, int a) {
   mutable s1 = S(1);
   s1.f();
-  switch (*self) {
+  switch (self) {
     case (int mutable* i) {
       *i = 4;
       return *i + a;
     }
-    case (string s) {
+    case (string* s) {
       return 1 + a;
     }
   }

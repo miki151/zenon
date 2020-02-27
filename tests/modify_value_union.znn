@@ -11,7 +11,7 @@ V getV() {
 
 int main() {
   mutable v = V::i(5);
-  switch (v) {
+  switch (&v) {
     case (string s) {
       s = "pak";
     }

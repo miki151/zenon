@@ -11,11 +11,11 @@ int main() {
   mutable v = V::x(3);
   mutable res = 0;
   mutable resS = "";
-  switch (v) {
-    case (mutable int x) {
+  switch (move(v)) {
+    case (int x) {
       res = move(x);
     }
-    case (mutable string s) {
+    case (string s) {
       resS = move(s);
     }
   }

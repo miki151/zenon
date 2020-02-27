@@ -10,7 +10,7 @@ union V {
 
 template<U, T> requires can_copy<T>
 T getValueOr(V<T>* v, U u, mutable T a) {
-  switch (*v) {
+  switch (v) {
     case (T* value) {
       return value->copy();
     }

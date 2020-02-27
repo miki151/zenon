@@ -92,7 +92,6 @@ struct ReferenceType : public Type {
   virtual SType removeReference() const override;
   virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
-  virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual WithError<MemberInfo> getTypeOfMember(const SType&) const override;
   virtual WithError<SType> getTypeOfMember(const string& name) const override;
   virtual SType removePointer() const override;
@@ -109,7 +108,6 @@ struct MutableReferenceType : public Type {
   virtual SType removeReference() const override;
   virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
-  virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual WithError<MemberInfo> getTypeOfMember(const SType&) const override;
   virtual WithError<SType> getTypeOfMember(const string& name) const override;
   virtual SType removePointer() const override;
@@ -127,6 +125,7 @@ struct PointerType : public Type {
   virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual SType removePointer() const override;
+  virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
 
   static shared_ptr<PointerType> get(SType);
   SType underlying;
@@ -141,6 +140,7 @@ struct MutablePointerType : public Type {
   virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual SType removePointer() const override;
+  virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
 
   static shared_ptr<MutablePointerType> get(SType);
   MutablePointerType(SType);

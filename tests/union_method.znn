@@ -6,9 +6,9 @@ union V {
 };
 
 int getValueOr(V mutable* v, int a) {
-  switch (*v) {
-    case (int value) {
-      return value;
+  switch (v) {
+    case (int* value) {
+      return *value;
     }
     case (isNull) {
       return a;
