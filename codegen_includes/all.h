@@ -69,4 +69,7 @@ auto moveAndGetMember(T t, GetMember getMember, Destruct destruct) noexcept {
   return getMember(std::move(t));
 }
 
+template <typename T>
+void set_moved_in_embed(const T&) {}
+
 #endif

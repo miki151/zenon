@@ -1,0 +1,70 @@
+export import "std/optional.znn";
+export import "std/union.znn";
+
+export template <T>
+void destruct(T* t) {
+}
+
+export template <T>
+void destruct_full(T* t) {
+  destruct_impl_dont_call(t);
+}
+
+export template <T> requires is_struct<T>
+void destruct_full(T* t) {
+  destruct_impl_dont_call(t);
+  static for (mutable i = 0; i < struct_count(T); ++i)
+    destruct(&t->(i));
+}
+
+export template <int Except, T> requires is_struct<T>
+void destruct_except(T* t) {
+  static for (mutable i = 0; i < Except; ++i)
+    destruct(&t->(i));
+  static for (mutable i = Except + 1; i < struct_count(T); ++i)
+    destruct(&t->(i));
+}
+
+export template <T> requires is_union<T>
+void destruct_full(T* t) {
+  destruct_impl_dont_call(t);
+  static for (mutable i = 0; i < union_count(T); ++i)
+    if (i == t->get_index())
+      destruct(&t->(i));
+}
+
+export template <T>
+extern void set_moved_in_embed(T);
+
+export template <T, int Size>
+T* operator [] (T[Size]* a, int index) {
+  embed {
+    return &a->at(index);
+  }
+}
+
+export template <T, int Size>
+T mutable* operator [] (T[Size] mutable* a, int index) {
+  embed {
+    return &a->at(index);
+  }
+}
+
+
+export template <T, int Size>
+void destruct(T[Size]* array) {
+  for (mutable i = 0; i < Size; ++i)
+    (*array)[i].destruct();
+}
+
+export template <T>
+void destruct(T?* t) {
+  if (*t)
+    (*t)->destruct();
+}
+
+export template <T>
+T mutable* destruct_and_get(T mutable* t) {
+  destruct(t);
+  return t;
+}
