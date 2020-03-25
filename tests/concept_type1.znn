@@ -1,0 +1,32 @@
+// 16
+
+template <T>
+concept C1 {
+  int call(T*);
+};
+
+struct X {
+  int a;
+};
+
+int call(X* x) {
+  return x->a;
+}
+
+struct Y {
+};
+
+int call(Y*) {
+  return 10;
+}
+
+int main() {
+  const x = X(5);
+  mutable res = 1;
+  mutable c = cast<C1*>(&x);
+  res += c->call();
+  const y = Y();
+  c = cast<C1*>(&y);
+  res += call(c);
+  return res;
+}

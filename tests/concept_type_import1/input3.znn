@@ -1,0 +1,23 @@
+
+import "input2.znn";
+
+export template <T>
+struct X {
+  T a;
+};
+
+export template <T> requires can_implicit_copy<T>
+T get(X<T>* x) {
+  return x->a;
+}
+
+export template <T>
+void set(X<T> mutable* x, T e) {
+  x->a = move(e);
+}
+
+export int f() {
+  const x = X(4);
+  const c = cast<C1*>(&x);
+  return c->get();
+}

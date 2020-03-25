@@ -1,0 +1,27 @@
+// no_compile
+
+template <T>
+concept C1 {
+  int get(T*);
+};
+
+template <T>
+struct X {
+  T a;
+};
+
+template <T>
+concept Not {
+  void something(T*);
+};
+
+template <T> requires can_implicit_copy<T>, Not<T>
+T get(X<T>* x) {
+  return x->a;
+}
+
+int main() {
+  const x = X(5);
+  const c = cast<C1*>(&x);
+  return c->get();
+}

@@ -1,21 +1,21 @@
 // 3
 
 template<T>
-concept fun1 {
+concept c1 {
   int fun1(T*);
 };
 
 template<T>
-concept fun2 {
+concept c2 {
   int fun2(T*);
 };
 
-template <T> requires fun1<T>
+template <T> requires c1<T>
 int f(T t) {
   return t.fun1();
 }
 
-template <T> requires fun2<T>
+template <T> requires c2<T>
 int f(T t) {
   return t.fun2();
 }

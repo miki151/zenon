@@ -64,6 +64,8 @@ string PointerType::getName(bool withTemplateArguments) const {
 }
 
 string PointerType::getCodegenName() const {
+  if (auto t = underlying.dynamicCast<ConceptType>())
+    return "const_fat_ptr<" + t->concept->getName(false) + "_vtable>";
   return underlying->getCodegenName() + " const*";
 }
 
@@ -80,6 +82,8 @@ string MutablePointerType::getName(bool withTemplateArguments) const {
 }
 
 string MutablePointerType::getCodegenName() const {
+  if (auto t = underlying.dynamicCast<ConceptType>())
+    return "fat_ptr<" + t->concept->getName(false) + "_vtable>";
   return underlying->getCodegenName() + "*";
 }
 
@@ -249,7 +253,7 @@ string FunctionInfo::prettyString() const {
   return type.retVal->getName() + " " + toString(id) + joinTemplateParams(type.templateParams, type.variadicTemplate) + "(" +
       combine(transform(type.params, [](auto& t) { return t->getName(); }), ", ") +
       (type.variadicParams ? "...)" : ")") +
-      (type.fromConcept ? " [from concept]" : "") +
+      (!!type.concept ? " [from concept]" : "") +
       (getParent()->definition ? getParent()->definition->codeLoc.toString() : "");
 }
 
@@ -286,6 +290,8 @@ bool FunctionInfo::isMainFunction() const {
 }
 
 optional<string> FunctionInfo::getMangledSuffix() const {
+  if (type.concept)
+    return "C" + type.concept->getName(false);
   string suf;
   if (!type.retVal->getMangledName())
     return none;
@@ -353,6 +359,14 @@ optional<string> Type::getMangledName() const {
 
 SType Type::removeReference() const {
   return get_this().get();
+}
+
+bool Type::isPointer() const {
+  return removePointer() != this;
+}
+
+bool Type::isReference() const {
+  return removeReference() != this;
 }
 
 SType ReferenceType::removeReference() const {
@@ -886,7 +900,7 @@ static JustError<ErrorLoc> checkRequirements(const Context& context, const vecto
     vector<FunctionType> existing) {
   for (auto& req : requirements)
     if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
-      if (auto res = context.getRequiredFunctions(**concept, existing); !res)
+      if (auto res = context.getRequiredFunctions(**concept, false, existing); !res)
         return codeLoc.getError(res.get_error());
     } else
     if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
@@ -1084,11 +1098,7 @@ void generateConversions(const Context& context, const vector<SType>& paramTypes
   for (int i = 0; i < paramTypes.size(); ++i) {
     auto& paramType = paramTypes[i];
     auto& argType = argTypes[i];
-    if ((!paramType.dynamicCast<ReferenceType>() && !paramType.dynamicCast<MutableReferenceType>()) &&
-        (argType.dynamicCast<ReferenceType>() || argType.dynamicCast<MutableReferenceType>())) {
-      unique_ptr<Expression> emptyExpr;
-      CHECK(argType->removeReference()->isBuiltinCopyable(context, expr[i]));
-    }
+    CHECK(context.canConvert(argType, paramType, expr[i]));
   }
 }
 
@@ -1180,15 +1190,18 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
 
 EnumType::EnumType(string n, Private) : name(std::move(n)) {}
 
-Concept::Concept(const string& name, Context context, bool variadic) : name(name), context(std::move(context)), variadic(variadic) {
+Concept::Concept(const string& name, ConceptDefinition* def, Context context, bool variadic)
+    : def(def), name(name), context(std::move(context)), variadic(variadic) {
 }
 
-string Concept::getName() const {
-  return name + joinTemplateParams(params);
+string Concept::getName(bool withTemplateParams) const {
+  if (withTemplateParams)
+    return name + joinTemplateParams(params);
+  return name;
 }
 
 SConcept Concept::translate(vector<SType> newParams, bool variadicParams, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name, Context(context.typeRegistry), variadicParams);
+  auto ret = shared<Concept>(name, def, Context(context.typeRegistry), variadicParams);
   ret->context.deepCopyFrom(context);
   ret->params = newParams;
   if (!variadic || variadicParams) {
@@ -1205,7 +1218,7 @@ SConcept Concept::translate(vector<SType> newParams, bool variadicParams, ErrorB
 }
 
 SConcept Concept::expand(SType from, vector<SType> newParams, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name, Context(context.typeRegistry), variadic);
+  auto ret = shared<Concept>(name, def, Context(context.typeRegistry), variadic);
   ret->context.deepCopyFrom(context);
   ret->params = params;
   ret->variadic = false;
@@ -1215,7 +1228,7 @@ SConcept Concept::expand(SType from, vector<SType> newParams, ErrorBuffer& error
 }
 
 SConcept Concept::replace(SType from, SType to, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name, Context(context.typeRegistry), variadic);
+  auto ret = shared<Concept>(name, def, Context(context.typeRegistry), variadic);
   ret->context.deepCopyFrom(context);
   ret->params = params;
   ret->variadic = variadic;
@@ -1231,6 +1244,27 @@ const vector<SType>& Concept::getParams() const {
 
 bool Concept::isVariadic() const {
   return variadic;
+}
+
+JustError<ErrorLoc> Concept::canCreateConceptType() const {
+  if (params.size() > 1)
+    return def->codeLoc.getError("Concept has more than one template parameter");
+  for (auto& f : context.getAllFunctions()) {
+    int numTemplatedParams = 0;
+    for (int i = 0; i < f->type.params.size(); ++i) {
+      auto& param = f->type.params[i];
+      if (!param->getMangledName()) {
+        ++numTemplatedParams;
+        if (!param->isPointer() || param->removePointer() != params[0])
+          return f->getDefinition()->parameters[i].codeLoc.getError("Templated parameter must be passed by pointer");
+      }
+    }
+    if (numTemplatedParams != 1)
+      return f->getDefinition()->codeLoc.getError("Function must take exactly one templated parameter by pointer");
+    if (!f->type.retVal->getMangledName())
+      return f->getDefinition()->codeLoc.getError("Function must not return values of templated type");
+  }
+  return success;
 }
 
 const Context& Concept::getContext() const {
@@ -1702,4 +1736,42 @@ SType convertReferenceToPointer(SType type) {
     return p.get();
   else
     return type;
+}
+
+shared_ptr<ConceptType> ConceptType::get(SConcept c) {
+  static map<Concept*, shared_ptr<ConceptType>> cache;
+  if (!cache.count(c.get())) {
+    cache.insert(make_pair(c.get(), shared<ConceptType>(Private{}, c)));
+  }
+  return cache.at(c.get());
+}
+
+ConceptType::ConceptType(ConceptType::Private, SConcept c) : concept(std::move(c)) {
+}
+
+string ConceptType::getCodegenName() const {
+  fail();
+}
+
+optional<std::string> ConceptType::getMangledName() const {
+  return concept->getName(false);
+}
+
+SType ConceptType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  return get(concept->replace(from, to, errors));
+}
+
+JustError<string> ConceptType::getSizeError(const Context&) const {
+  return getName() + " has unknown size";
+}
+
+SConcept ConceptType::getConceptFor(const SType& t) const {
+  ErrorBuffer errors;
+  auto res = concept->replace(concept->getParams()[0], t, errors);
+  CHECK(errors.empty());
+  return res;
+}
+
+string ConceptType::getName(bool withTemplateArguments) const {
+  return concept->getName();
 }

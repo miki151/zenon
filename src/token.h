@@ -64,7 +64,8 @@ enum class Keyword {
   COUNTOF,
   MEMBER_ACCESS,
   ARROW_MEMBER_ACCESS,
-  QUESTION_MARK
+  QUESTION_MARK,
+  CAST
 };
 
 struct EmbedToken {

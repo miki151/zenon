@@ -1,13 +1,5 @@
 export import "std/pointer.znn";
 
-export embed {
-template <typename T>
-struct slice_t {
-  T const* begin;
-  T const* end;
-};
-}
-
 export template <T>
 int size(T[]* s) {
   embed {

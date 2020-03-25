@@ -32,8 +32,9 @@ class Context : public owned_object<Context> {
   void operator = (const Context&) = delete;
   Context& operator = (Context&&) = default;
   void deepCopyFrom(const Context&);
-  WithError<vector<SFunctionInfo>> getRequiredFunctions(const Concept&, vector<FunctionType> existing) const;
-  bool isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific, vector<FunctionType> existing = {}) const;
+  WithError<vector<SFunctionInfo>> getRequiredFunctions(const Concept&, bool instantiated, vector<FunctionType> existing) const;
+  nullable<SFunctionInfo> isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
+      vector<FunctionType> existing = {}) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
   void addVariable(const string& ident, SType, CodeLoc);

@@ -242,6 +242,18 @@ struct ArrayLiteral : Expression {
   nullable<SType> type;
 };
 
+struct FatPointerConversion : Expression {
+  FatPointerConversion(CodeLoc, IdentifierInfo toType, unique_ptr<Expression> arg);
+  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+  NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  IdentifierInfo toType;
+  unique_ptr<Expression> arg;
+  nullable<SType> argType;
+  nullable<SConcept> concept;
+};
+
 enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_POINTER };
 
 struct FunctionCall : Expression {
@@ -515,10 +527,18 @@ struct ConceptDefinition : Statement {
   string name;
   vector<unique_ptr<FunctionDefinition>> functions;
   TemplateInfo templateInfo;
+  nullable<SConcept> concept;
+  struct FatPointerInfo {
+    SType type;
+    vector<SFunctionInfo> vTable;
+  };
+  void addFatPointer(FatPointerInfo);
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+  private:
+  vector<FatPointerInfo> fatPointers;
 };
 
 struct EnumDefinition : Statement {
@@ -596,7 +616,7 @@ struct FunctionDefinition : Statement {
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&, ImportCache&, const Context& primaryContext) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
-  NODISCARD JustError<ErrorLoc> setFunctionType(const Context&, bool concept = false, bool builtInImport = false);
+  NODISCARD JustError<ErrorLoc> setFunctionType(const Context&, nullable<SConcept> concept = nullptr, bool builtInImport = false);
   void handlePointerParamsInOperator(Accu&, const StatementBlock*) const;
   void handlePointerReturnInOperator(Accu&, const StatementBlock*) const;
   void addStacktraceGenerator(Accu&, const StatementBlock*) const;

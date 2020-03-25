@@ -1,0 +1,19 @@
+// no_compile
+
+template <T>
+concept C1 {
+  T call(T*, int);
+};
+
+struct X {
+};
+
+X call(X*, int) {
+  return X();
+}
+
+int main() {
+  const x = X();
+  const c1 = cast<C1*>(&x);
+  return 0;
+}

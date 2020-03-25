@@ -45,6 +45,8 @@ struct Type : public owned_object<Type> {
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const;
   virtual SType removePointer() const;
   virtual SType removeReference() const;
+  bool isPointer() const;
+  bool isReference() const;
   virtual JustError<string> getSizeError(const Context&) const;
   virtual bool canBeValueTemplateParam() const;
   virtual bool canDeclareVariable() const;
@@ -345,12 +347,12 @@ struct FunctionType {
   vector<SType> templateParams;
   vector<TemplateRequirement> requirements;
   nullable<SType> parentType;
-  bool fromConcept = false;
+  nullable<SConcept> concept;
   bool builtinOperator = false;
   bool generatedConstructor = false;
   bool variadicTemplate = false;
   bool variadicParams = false;
-  COMPARABLE(FunctionType, retVal, params, templateParams, parentType, variadicTemplate, variadicParams, requirements, fromConcept, builtinOperator, generatedConstructor)
+  COMPARABLE(FunctionType, retVal, params, templateParams, parentType, variadicTemplate, variadicParams, requirements, concept, builtinOperator, generatedConstructor)
 };
 
 struct FunctionInfo : public owned_object<FunctionInfo> {
@@ -400,23 +402,40 @@ struct LambdaType : public Type {
   string name;
 };
 
+struct ConceptDefinition;
+
 struct Concept : public owned_object<Concept> {
-  Concept(const string& name, Context emptyContext, bool variadic);
-  string getName() const;
+  Concept(const string& name, ConceptDefinition*, Context emptyContext, bool variadic);
+  string getName(bool withTemplateParams = true) const;
   SConcept translate(vector<SType> params, bool variadicParams, ErrorBuffer&) const;
   SConcept replace(SType from, SType to, ErrorBuffer&) const;
   SConcept expand(SType from, vector<SType> newParams, ErrorBuffer& errors) const;
   const vector<SType>& getParams() const;
   bool isVariadic() const;
+  JustError<ErrorLoc> canCreateConceptType() const;
   const Context& getContext() const;
   vector<SType>& modParams();
   Context& modContext();
+  ConceptDefinition* def;
 
   private:
   vector<SType> params;
   string name;
   Context context;
   bool variadic;
+};
+
+struct ConceptType : public Type {
+  static shared_ptr<ConceptType> get(SConcept);
+  struct Private{};
+  ConceptType(Private, SConcept);
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual string getCodegenName() const override;
+  virtual optional<string> getMangledName() const override;
+  virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
+  virtual JustError<string> getSizeError(const Context&) const override;
+  SConcept getConceptFor(const SType&) const;
+  SConcept concept;
 };
 
 struct Expression;

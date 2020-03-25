@@ -265,6 +265,16 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
               return var.codeLoc.getError("Expected variable identifier");
             return cast<Expression>(unique<CountOfExpression>(token.codeLoc, var.value));
           }
+          case Keyword::CAST: {
+            tokens.popNext();
+            TRY(tokens.eat(Operator::LESS_THAN));
+            auto toType = TRY(parseIdentifier(tokens, true));
+            TRY(tokens.eat(Operator::MORE_THAN));
+            TRY(tokens.eat(Keyword::OPEN_BRACKET));
+            auto arg = TRY(parseExpression(tokens));
+            TRY(tokens.eat(Keyword::CLOSE_BRACKET));
+            return cast<Expression>(unique<FatPointerConversion>(token.codeLoc, toType, std::move(arg)));
+          }
           case Keyword::FALSE:
             tokens.popNext();
             return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(false)));

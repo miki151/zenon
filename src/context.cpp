@@ -105,31 +105,32 @@ WithErrorLine<vector<LambdaCapture>> Context::setLambda(LambdaCaptureInfo* info)
   return std::move(ret);
 }
 
-bool Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
+nullable<SFunctionInfo> Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
     vector<FunctionType> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
   if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, specific->type.params,
       vector<CodeLoc>(specific->type.params.size(), CodeLoc()), existing)) {
-    return specific->type.retVal == inst.get()->type.retVal;
+    if (specific->type.retVal == inst.get()->type.retVal)
+      return inst.get_value();
   }
-  else
-    return false;
+  return nullptr;
 }
 
-WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& required, vector<FunctionType> existing) const {
+WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& required, bool instantiated,
+    vector<FunctionType> existing) const {
   vector<SFunctionInfo> ret;
   for (auto otherState : required.getContext().getReversedStates()) {
     for (auto& overloads : otherState->functions)
       for (auto& function : overloads.second) {
         auto getFunction = [&]() -> optional<SFunctionInfo> {
           for (auto& myFun : getFunctions(overloads.first))
-            if (isGeneralization(myFun, function, existing))
-              return myFun->getWithoutRequirements();
+            if (auto inst = isGeneralization(myFun, function, existing))
+              return (instantiated ? inst.get() : myFun)->getWithoutRequirements();
           if (overloads.first == "invoke"s)
             if (!function->type.params.empty())
               if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
-                if (isGeneralization(lambda->functionInfo.get(), function, existing))
-                  return lambda->functionInfo->getWithoutRequirements();
+                if (auto inst = isGeneralization(lambda->functionInfo.get(), function, existing))
+                  return (instantiated ? inst.get() : lambda->functionInfo)->getWithoutRequirements();
           return none;
         };
         if (auto res = getFunction())
@@ -259,8 +260,14 @@ JustError<string> Context::canConvert(SType from, SType to) const {
 }
 
 JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expression>& expr) const {
-  auto underlying = from->removeReference();
-  if (from != underlying && to->removeReference() == underlying && underlying->isBuiltinCopyable(*this, expr))
+  if (from == to)
+    return success;
+  auto fromUnderlying = from->removeReference();
+  auto toUnderlying = to->removeReference();
+  if (fromUnderlying == toUnderlying && toUnderlying != to &&
+      (!from.dynamicCast<ReferenceType>() || !to.dynamicCast<MutableReferenceType>()))
+    return success;
+  if (from != fromUnderlying && to->removeReference() == fromUnderlying && fromUnderlying->isBuiltinCopyable(*this, expr))
     return success;
   if (contains(getConversions(from), to) ||
       (from == BuiltinType::NULL_TYPE && to.dynamicCast<OptionalType>() &&
@@ -374,8 +381,19 @@ WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameter
   return params;
 }
 
-void Context::addConcept(const string& name, shared_ptr<Concept> i) {
+void Context::addConcept(const string& name, SConcept i) {
   state->concepts.insert({name, i});
+  if (i->canCreateConceptType()) {
+    ErrorBuffer errors;
+    for (auto& fun : i->getContext().getAllFunctions()) {
+      for (auto& param : fun->type.params)
+        if (!param->getMangledName()) {
+          CHECK(!!addFunction(replaceInFunction(fun, i->getParams()[0], ConceptType::get(i), errors)));
+          break;
+        }
+    }
+    CHECK(errors.empty());
+  }
 }
 
 nullable<SConcept> Context::getConcept(const string& name) const {
@@ -456,7 +474,13 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
   if (id.parts.size() != 1)
     return id.codeLoc.getError("Bad type identifier: " + id.prettyString());
   auto name = id.parts[0].name;
-  auto topType = getType(name);
+  nullable<SType> topType;
+  if (auto concept = getConcept(name)) {
+    if (auto res = concept->canCreateConceptType(); !res)
+      return id.codeLoc.getError("Can't create a concept type from concept " + quote(concept->getName()) + ":\n" + res.get_error().toString());
+    topType = ConceptType::get(concept.get());
+  } else
+    topType = getType(name);
   if (!topType)
     return id.codeLoc.getError("Type not found: " + quote(name));
   if (typePack) {
@@ -638,7 +662,7 @@ nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> a
       case Operator::SUBSCRIPT:
         if (argTypes.size() == 2 && canConvert(argTypes[1], BuiltinType::INT))
           if (auto pack = argTypes[0].dynamicCast<VariablePack>())
-            return FunctionType(pack->packType, {argTypes[0]->removeReference(), argTypes[0]->removeReference()}, {}).setBuiltin();
+            return FunctionType(pack->packType, {argTypes[0]->removeReference(), argTypes[1]->removeReference()}, {}).setBuiltin();
         break;
       default:
         break;

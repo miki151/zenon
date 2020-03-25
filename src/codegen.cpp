@@ -790,7 +790,92 @@ void EnumConstant::codegen(Accu& accu, CodegenStage) const {
   accu.add(enumType->getCodegenName() + "::" + enumElement);
 }
 
-void ConceptDefinition::codegen(Accu&, CodegenStage) const {
+static string getVTableFunName(const FunctionId id) {
+  return id.visit(
+      [](const string& s) {
+        return s;
+      },
+      [](Operator op) {
+        return getCodegenName(op);
+      },
+      [](ConstructorTag) -> string {
+        fail();
+      }
+  );
+}
+
+static string getVTableName(const string& concept) {
+  return concept + "_vtable";
+}
+
+void ConceptDefinition::codegen(Accu& accu, CodegenStage stage) const {
+  if (!fatPointers.empty()) {
+    const auto vTableName = getVTableName(name);
+    auto addParams = [&] (const SFunctionInfo& fun) {
+      for (auto& param : fun->type.params) {
+        if (auto name = param->getMangledName())
+          accu.add(*name);
+        else if (param.dynamicCast<PointerType>())
+          accu.add("void const*");
+        else
+          accu.add("void*");
+        accu.add(",");
+      }
+      accu.pop_back();
+    };
+    auto functions = concept->getContext().getAllFunctions();
+    if (stage.isTypes) {
+      accu.newLine("struct " + vTableName + " {");
+      ++accu.indent;
+      for (auto& fun : functions) {
+        accu.newLine(fun->type.retVal->getCodegenName() + " (*" + getVTableFunName(fun->id) + ")(");
+        addParams(fun);
+        accu.add(");");
+      }
+      --accu.indent;
+      accu.newLine("};");
+      accu.newLine();
+      ErrorBuffer errors;
+      for (auto fun : functions) {
+        auto conceptType = ConceptType::get(concept.get());
+        fun = replaceInFunction(fun, concept->getParams()[0], conceptType, errors);
+        accu.newLine("inline " + fun->type.retVal->getCodegenName() + " " + fun->getMangledName() + "(");
+        auto getArgName = [](int i) { return "_arg" + to_string(i); };
+        string virtualArg;
+        for (int i = 0; i < fun->type.params.size(); ++i) {
+          auto& param = fun->type.params[i];
+          accu.add((i > 0 ? ", " : "") + param->getCodegenName() + " " + getArgName(i));
+          if (i > 0)
+            virtualArg += ", ";
+          if (param->removePointer() == conceptType)
+            virtualArg = "return " + getArgName(i) + ".vTable->" + getVTableFunName(fun->id) + "(" + virtualArg + getArgName(i) + ".object";
+          else
+            virtualArg += getArgName(i);
+        }
+        CHECK(!virtualArg.empty());
+        accu.add(") {");
+        ++accu.indent;
+        accu.newLine(virtualArg + ");");
+        --accu.indent;
+        accu.newLine("}");
+        accu.newLine();
+      }
+      CHECK(errors.empty());
+    }
+    if (stage.isDefine)
+      for (auto& elem : fatPointers) {
+        accu.newLine("static " + vTableName + " " + vTableName + "_" + *elem.type->getMangledName() + "{");
+        ++accu.indent;
+        for (int i = 0; i < functions.size(); ++i) {
+          accu.newLine("reinterpret_cast<" + functions[i]->type.retVal->getCodegenName() + " (*)(");
+          addParams(functions[i]);
+          accu.add(")>(&" + elem.vTable[i]->getMangledName() +"),");
+        }
+        --accu.indent;
+        accu.newLine("};");
+        accu.newLine();
+      }
+  }
 }
 
 void BreakStatement::codegen(Accu& accu, CodegenStage) const {
@@ -889,4 +974,13 @@ void TernaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   accu.add("):(");
   e2->codegen(accu, stage);
   accu.add(")");
+}
+
+void FatPointerConversion::codegen(Accu& accu, CodegenStage stage) const {
+  if (argType.get().dynamicCast<PointerType>())
+    accu.add("make_const_fat_ptr(");
+  else
+    accu.add("make_fat_ptr(");
+  arg->codegen(accu, stage);
+  accu.add(", &" + getVTableName(concept->getName(false)) + "_" + *argType->removePointer()->getMangledName() + ")");
 }

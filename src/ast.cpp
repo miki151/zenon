@@ -170,7 +170,7 @@ static bool exactFirstArg(const vector<SType>& argTypes, const FunctionType& ove
 }
 
 static bool fromConcept(const vector<SType>&, const SFunctionInfo& f) {
-  return f->type.fromConcept;
+  return !!f->type.concept;
 }
 
 static bool userDefinedConstructor(const vector<SType>&, const SFunctionInfo& f) {
@@ -343,7 +343,7 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
 }
 
 JustError<ErrorLoc> BinaryExpression::considerDestructorCall(const Context& context, int index, const SType& argType) {
-  if (argType->hasDestructor() && argType->removeReference() == argType && functionInfo->type.params[index].dynamicCast<ReferenceType>()) {
+  if (argType->hasDestructor() && !argType->isReference() && functionInfo->type.params[index].dynamicCast<ReferenceType>()) {
     destructorCall[index] = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(argType)}, {codeLoc}));
     TRY(destructorCall[index]->addInstance(context));
   }
@@ -391,7 +391,7 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
   functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, {TRY(exprTmp[0]->getTypeImpl(context))}, {exprTmp[0]->codeLoc}, exprTmp));
   expr = std::move(exprTmp[0]);
   TRY(functionInfo->addInstance(context));
-  if (right->hasDestructor() && right->removeReference() == right &&
+  if (right->hasDestructor() && !right->isReference() &&
       (functionInfo->type.params[0].dynamicCast<ReferenceType>() || op == Operator::GET_ADDRESS)) {
     destructorCall = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(right)}, {codeLoc}));
     TRY(destructorCall->addInstance(context));
@@ -748,7 +748,7 @@ static WithErrorLine<vector<SType>> getTemplateParams(const TemplateInfo& info, 
   return ret;
 }
 
-JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, bool concept, bool builtInImport) {
+JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, nullable<SConcept> concept, bool builtInImport) {
   for (int i = 0; i < parameters.size(); ++i)
     if (!parameters[i].name)
       parameters[i].name = "parameter" + to_string(i);
@@ -791,7 +791,7 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
   if (!builtInImport && !concept && name.contains<Operator>() && !paramsAreGoodForOperator(params))
     return codeLoc.getError("Operator parameters must include at least one user-defined type");
   FunctionType functionType(returnType, params, templateTypes);
-  functionType.fromConcept = concept;
+  functionType.concept = concept;
   functionType.requirements = requirements;
   functionType.variadicTemplate = templateInfo.variadic;
   functionType.variadicParams = isVariadicParams;
@@ -1116,9 +1116,9 @@ JustError<ErrorLoc> FunctionDefinition::addInstance(const Context* callContext, 
   for (auto& req : instance->type.requirements)
     if (auto concept = req.base.getValueMaybe<SConcept>())
       append(requirements, TRY((callContext ? callContext : &*definitionContext)
-          ->getRequiredFunctions(**concept, {}).addCodeLoc(codeLoc)));
+          ->getRequiredFunctions(**concept, false, {}).addCodeLoc(codeLoc)));
   for (auto& fun : requirements)
-    if (fun->type.fromConcept)
+    if (!!fun->type.concept)
       return success;
   if (instance != functionInfo.get()) {
     if (body) {
@@ -1274,7 +1274,7 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
 }
 
 JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
-  TRY(setFunctionType(context, false, cache.isCurrentlyBuiltIn()));
+  TRY(setFunctionType(context, nullptr, cache.isCurrentlyBuiltIn()));
   TRY(context.addFunction(functionInfo.get()).addCodeLoc(codeLoc));
   if (name == "destruct"s) {
     auto destructedType = TRY(getDestructedType(functionInfo->type.params).addCodeLoc(codeLoc));
@@ -1304,7 +1304,7 @@ JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCac
 
 static void addBuiltInConcepts(Context& context) {
   auto addType = [&context](const char* name, SType type) {
-    shared_ptr<Concept> concept = shared<Concept>(name, Context(context.typeRegistry), false);
+    shared_ptr<Concept> concept = shared<Concept>(name, nullptr, Context(context.typeRegistry), false);
     concept->modParams().push_back(shared<TemplateParameterType>(type, "T", CodeLoc()));
     context.addConcept(name, concept);
   };
@@ -1547,7 +1547,7 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
     // Go through all functions coming from a concept and try to expand them from the current type pack into 'expanded'.
     // Otherwise one of the types in 'expanded' might fail a requirement in the checked call
     for (auto& fun : callContext.getAllFunctions())
-      if (fun->type.fromConcept) {
+      if (!!fun->type.concept) {
         ErrorBuffer errors;
         auto replaced = replaceInFunction(fun, callContext.getTypePack().get(), expanded.back(), errors);
         if (errors.empty() && replaced != fun)
@@ -1713,7 +1713,7 @@ JustError<ErrorLoc> SwitchStatement::check(Context& context, bool) {
   }
   if (!context.isFullyDefined(type->removeReference().get()))
     return codeLoc.getError("Type " + quote(type->getName()) + " is incomplete in this context");
-  if (type->removeReference() != type && !type->isBuiltinCopyable(context, expr))
+  if (type->isReference() && !type->isBuiltinCopyable(context, expr))
     return codeLoc.getError("Type " + quote(type->getName()) + " is not implicitly copyable. Consider moving or passing as pointer.");
   return type->removeReference()->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
 }
@@ -2230,8 +2230,15 @@ unique_ptr<Expression> EnumConstant::transform(const StmtTransformFun&, const Ex
 ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
 }
 
+void ConceptDefinition::addFatPointer(ConceptDefinition::FatPointerInfo info) {
+  for (auto& elem : fatPointers)
+    if (elem.type == info.type)
+      return;
+  fatPointers.push_back(info);
+}
+
 JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
-  shared_ptr<Concept> concept = shared<Concept>(name, Context(context.typeRegistry), templateInfo.variadic);
+  concept = shared<Concept>(name, this, Context(context.typeRegistry), templateInfo.variadic);
   auto declarationsContext = Context::withParent(context);
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];
@@ -2242,11 +2249,11 @@ JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
   for (auto& function : functions) {
     if (function->isVirtual)
       return function->codeLoc.getError("Virtual functions are not allowed here");
-    TRY(function->setFunctionType(declarationsContext, true));
+    TRY(function->setFunctionType(declarationsContext, concept));
     TRY(function->check(declarationsContext));
     TRY(concept->modContext().addFunction(function->functionInfo.get()).addCodeLoc(function->codeLoc));
   }
-  context.addConcept(name, concept);
+  context.addConcept(name, concept.get());
   return success;
 }
 
@@ -2290,7 +2297,7 @@ RangedLoopStatement::RangedLoopStatement(CodeLoc l, unique_ptr<VariableDeclarati
 JustError<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
   auto containerType = TRY(getType(context, container));
-  if (containerType->removeReference() == containerType)
+  if (!containerType->isReference())
     containerType = ReferenceType::get(containerType);
   auto uniqueSufix = to_string(codeLoc.line) + "_" + to_string(codeLoc.column);
   containerName = "container"s + uniqueSufix;
@@ -2781,4 +2788,36 @@ JustError<ErrorLoc> TernaryExpression::checkMoves(MoveChecker& checker) const {
   TRY(e2->checkMoves(checker));
   checker.endBlock();
   return success;
+}
+
+FatPointerConversion::FatPointerConversion(CodeLoc l, IdentifierInfo toType, unique_ptr<Expression> arg)
+    : Expression(l), toType(toType), arg(std::move(arg)) {
+}
+
+WithErrorLine<SType> FatPointerConversion::getTypeImpl(Context& context) {
+  argType = TRY(getType(context, arg))->removeReference();
+  if (!argType->isPointer())
+    return arg->codeLoc.getError("Argument must be a pointer");
+  auto ret = TRY(context.getTypeFromString(toType));
+  if (!ret->isPointer())
+    return toType.codeLoc.getError("Expected pointer to a concept type");
+  if (auto t = ret->removePointer().dynamicCast<ConceptType>())
+    concept = t->getConceptFor(argType->removePointer());
+  else
+    return toType.codeLoc.getError("Expected pointer to a concept type");
+  if (ret.dynamicCast<MutablePointerType>() && !argType.get().dynamicCast<MutablePointerType>())
+    return toType.codeLoc.getError("Cannot cast value of type " + quote(argType->getName()) + " to a mutable pointer");
+  auto functions = TRY(context.getRequiredFunctions(*concept, true, {}).addCodeLoc(codeLoc));
+  for (auto& fun : functions)
+    fun->addInstance(context);
+  concept->def->addFatPointer({argType->removePointer(), functions});
+  return ret;
+}
+
+unique_ptr<Expression> FatPointerConversion::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
+  return unique<FatPointerConversion>(codeLoc, toType, arg->transform(f1, f2));
+}
+
+JustError<ErrorLoc> FatPointerConversion::checkMoves(MoveChecker& c) const {
+  return arg->checkMoves(c);
 }

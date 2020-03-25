@@ -1,0 +1,21 @@
+// 5
+
+template <T>
+concept C1 {
+  int get(T*);
+};
+
+template <T>
+struct X {
+  T a;
+};
+
+int get(X<int>* x) {
+  return x->a;
+}
+
+int main() {
+  const x = X(5);
+  const c = cast<C1*>(&x);
+  return c->get();
+}

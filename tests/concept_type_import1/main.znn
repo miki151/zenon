@@ -1,0 +1,11 @@
+// 10
+
+import "input2.znn";
+import "input3.znn";
+
+int main() {
+  mutable x = X(5);
+  const c = cast<C1 mutable*>(&x);
+  c->set(6);
+  return c->get() + f();
+}
