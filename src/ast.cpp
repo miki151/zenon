@@ -2797,24 +2797,40 @@ FatPointerConversion::FatPointerConversion(CodeLoc l, IdentifierInfo toType, uni
 }
 
 WithErrorLine<SType> FatPointerConversion::getTypeImpl(Context& context) {
-  argType = TRY(getType(context, arg))->removeReference();
-  if (!argType->isPointer())
-    return arg->codeLoc.getError("Argument must be a pointer");
+  argType = TRY(getType(context, arg));
   auto ret = TRY(context.getTypeFromString(toType));
-  if (!ret->isPointer())
-    return toType.codeLoc.getError("Expected pointer to a concept type");
-  if (auto t = ret->removePointer().dynamicCast<ConceptType>())
-    conceptType = t;
-  else
-    return toType.codeLoc.getError("Expected pointer to a concept type");
-  auto concept = conceptType->getConceptFor(argType->removePointer());
-  if (ret.dynamicCast<MutablePointerType>() && !argType.get().dynamicCast<MutablePointerType>())
-    return toType.codeLoc.getError("Cannot cast value of type " + quote(argType->getName()) + " to a mutable pointer");
-  auto functions = TRY(context.getRequiredFunctions(*concept, true, {}).addCodeLoc(codeLoc));
-  for (auto& fun : functions)
-    fun->addInstance(context);
-  concept->def->addFatPointer({argType->removePointer(), functions}, conceptType.get());
-  return ret;
+  if (argType->isPointer()) {
+    argType = argType->removeReference();
+    if (!ret->isPointer())
+      return toType.codeLoc.getError("Expected pointer to a concept type");
+    if (auto t = ret->removePointer().dynamicCast<ConceptType>())
+      conceptType = t;
+    else
+      return toType.codeLoc.getError("Expected pointer to a concept type");
+    auto concept = conceptType->getConceptFor(argType->removePointer());
+    if (ret.dynamicCast<MutablePointerType>() && !argType.get().dynamicCast<MutablePointerType>())
+      return toType.codeLoc.getError("Cannot cast value of type " + quote(argType->getName()) + " to a mutable pointer");
+    auto functions = TRY(context.getRequiredFunctions(*concept, true, {}).addCodeLoc(codeLoc));
+    for (auto& fun : functions)
+      fun->addInstance(context);
+    concept->def->addFatPointer({argType->removePointer(), functions}, conceptType.get());
+    return ret;
+  } else {
+    if (auto t = ret.dynamicCast<ConceptType>())
+      conceptType = t;
+    else
+      return toType.codeLoc.getError("Expected a concept type");
+    auto concept = conceptType->getConceptFor(argType.get());
+    if (argType->isReference()) {
+      TRY(context.canConvert(argType.get(), argType->removeReference(), arg).addCodeLoc(arg->codeLoc));
+      CHECK(!!getType(context, arg));
+    }
+    auto functions = TRY(context.getRequiredFunctions(*concept, true, {}).addCodeLoc(codeLoc));
+    for (auto& fun : functions)
+      fun->addInstance(context);
+    concept->def->addFatPointer({argType.get(), functions}, conceptType.get());
+    return ret;
+  }
 }
 
 unique_ptr<Expression> FatPointerConversion::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {

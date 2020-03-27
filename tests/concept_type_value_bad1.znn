@@ -1,0 +1,21 @@
+// no_compile
+
+template <T>
+concept C1 {
+  int get(T*);
+  void set(T mutable*, int);
+};
+
+struct X {
+  int a;
+};
+
+int get(X* x) {
+  return x->a;
+}
+
+int main() {
+  const x = X(5);
+  mutable c = cast<C1>(move(x));
+  return 0;
+}

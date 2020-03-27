@@ -984,8 +984,10 @@ void TernaryExpression::codegen(Accu& accu, CodegenStage stage) const {
 void FatPointerConversion::codegen(Accu& accu, CodegenStage stage) const {
   if (argType.get().dynamicCast<PointerType>())
     accu.add("make_const_fat_ptr(");
-  else
+  else if (argType.get().dynamicCast<MutablePointerType>())
     accu.add("make_fat_ptr(");
+  else
+    accu.add("make_fat_value(");
   arg->codegen(accu, stage);
   accu.add(", &" + getVTableName(*conceptType->getMangledName()) + "_" + *argType->removePointer()->getMangledName() + ")");
 }

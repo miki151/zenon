@@ -65,7 +65,7 @@ string PointerType::getName(bool withTemplateArguments) const {
 
 string PointerType::getCodegenName() const {
   if (auto t = underlying.dynamicCast<ConceptType>())
-    return "const_fat_ptr<" + t->getCodegenName() + "_vtable>";
+    return "const_fat_ptr<" + *t->getMangledName() + "_vtable>";
   return underlying->getCodegenName() + " const*";
 }
 
@@ -83,7 +83,7 @@ string MutablePointerType::getName(bool withTemplateArguments) const {
 
 string MutablePointerType::getCodegenName() const {
   if (auto t = underlying.dynamicCast<ConceptType>())
-    return "fat_ptr<" + t->getCodegenName() + "_vtable>";
+    return "fat_ptr<" + *t->getMangledName() + "_vtable>";
   return underlying->getCodegenName() + "*";
 }
 
@@ -1827,7 +1827,7 @@ ConceptType::ConceptType(ConceptType::Private, SConcept c, vector<SType> params,
 }
 
 string ConceptType::getCodegenName() const {
-  return *getMangledName();
+  return "fat_value<" + *getMangledName() + "_vtable>";
 }
 
 optional<std::string> ConceptType::getMangledName() const {
@@ -1841,7 +1841,7 @@ SType ConceptType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const 
 }
 
 JustError<string> ConceptType::getSizeError(const Context&) const {
-  return getName() + " has unknown size";
+  return success;
 }
 
 JustError<string> ConceptType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {

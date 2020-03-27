@@ -1,0 +1,12 @@
+// no_compile
+
+template <T>
+int get(can_invoke<int, T> fun, T t) {
+  return fun.invoke(move(t));
+}
+
+int main() {
+  const lam = [](string s) { return s.size(); };
+  const fun = cast<can_invoke<int, string>>(move(lam));
+  return get(fun, "pokpok");
+}

@@ -649,7 +649,7 @@ nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> a
       case Operator::GET_ADDRESS:
         if (argTypes.size() == 1) {
           if (auto pointerType = convertReferenceToPointerStrict(argTypes[0]))
-            return FunctionType(pointerType.get(), {argTypes[0]}, {}).setBuiltin();
+            return FunctionType(pointerType.get(), {argTypes[0]}, {});
           else // this codegens a call to the op_get_address function, which returns the address of a temporary object
             return FunctionType(PointerType::get(argTypes[0]), {argTypes[0]}, {});
         }
