@@ -1,0 +1,22 @@
+// 2
+
+template <T>
+concept C1 {
+  int fun1(T*);
+};
+
+struct X {};
+
+int fun1(X* x) {
+  return 2;
+}
+
+template <T> requires C1<T>
+C1* get(T* x) {
+  return cast<C1*>(x);
+}
+int main() {
+  const x = X();
+  const c = get(&x);
+  return c->fun1();
+}

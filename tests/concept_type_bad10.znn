@@ -1,0 +1,18 @@
+// no_compile
+
+template <Args...>
+concept C1 {
+  void fun1234();
+};
+
+void f(C1<int, bool>*) {}
+
+C1<int>* get() {
+  embed {
+  }
+}
+
+int main() {
+  f(get());
+  return 0;
+}

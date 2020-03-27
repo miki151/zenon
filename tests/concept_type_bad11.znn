@@ -1,0 +1,9 @@
+// no_compile
+
+int calc(can_invoke<int>* f) {
+  return 2 * f->invoke();
+}
+
+int main() {
+  return calc(cast<can_invoke<int>*>(&[] (int a) { return 1; }));
+}

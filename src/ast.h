@@ -251,7 +251,7 @@ struct FatPointerConversion : Expression {
   IdentifierInfo toType;
   unique_ptr<Expression> arg;
   nullable<SType> argType;
-  nullable<SConcept> concept;
+  nullable<shared_ptr<ConceptType>> conceptType;
 };
 
 enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_POINTER };
@@ -527,18 +527,19 @@ struct ConceptDefinition : Statement {
   string name;
   vector<unique_ptr<FunctionDefinition>> functions;
   TemplateInfo templateInfo;
-  nullable<SConcept> concept;
   struct FatPointerInfo {
     SType type;
     vector<SFunctionInfo> vTable;
   };
-  void addFatPointer(FatPointerInfo);
+  void addFatPointer(FatPointerInfo, shared_ptr<ConceptType>);
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+
   private:
   vector<FatPointerInfo> fatPointers;
+  vector<shared_ptr<ConceptType>> conceptInstances;
 };
 
 struct EnumDefinition : Statement {

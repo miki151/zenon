@@ -388,7 +388,10 @@ void Context::addConcept(const string& name, SConcept i) {
     for (auto& fun : i->getContext().getAllFunctions()) {
       for (auto& param : fun->type.params)
         if (!param->getMangledName()) {
-          CHECK(!!addFunction(replaceInFunction(fun, i->getParams()[0], ConceptType::get(i), errors)));
+          auto typeParams = i->getParams().getSubsequence(1);
+          CHECK(!!addFunction(addTemplateParams(
+                replaceInFunction(fun, i->getParams()[0], ConceptType::get(i, typeParams, i->isVariadic()), errors),
+                typeParams, i->isVariadic())));
           break;
         }
     }
@@ -475,25 +478,28 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
     return id.codeLoc.getError("Bad type identifier: " + id.prettyString());
   auto name = id.parts[0].name;
   nullable<SType> topType;
-  if (auto concept = getConcept(name)) {
-    if (auto res = concept->canCreateConceptType(); !res)
-      return id.codeLoc.getError("Can't create a concept type from concept " + quote(concept->getName()) + ":\n" + res.get_error().toString());
-    topType = ConceptType::get(concept.get());
-  } else
-    topType = getType(name);
-  if (!topType)
-    return id.codeLoc.getError("Type not found: " + quote(name));
-  if (typePack) {
-    if (!*typePack && topType == getTypePack())
-      return id.codeLoc.getError("Type parameter pack " + quote(name) + " must be unpacked using the '...' operator");
-    if (*typePack && getTypePack() != topType.get())
-      return id.codeLoc.getError("Type " + quote(name) + " is not a type parameter pack");
-  }
-  bool variadicParams = id.parts[0].variadic;
-  auto templateArgs = TRY(getTypeList(id.parts[0].templateArguments, variadicParams));
-  if (variadicParams)
-    return id.codeLoc.getError("Type " + quote(name) + " is not a variadic template");
-  WithErrorLine<SType> ret = topType->instantiate(*this, templateArgs, id.codeLoc);
+  WithErrorLine<SType> ret = [&]() -> WithErrorLine<SType> {
+    if (auto concept = getConcept(name)) {
+      if (auto res = concept->canCreateConceptType(); !res)
+        return id.codeLoc.getError("Can't create a concept type from concept " + quote(concept->getName()) + ":\n" + res.get_error().toString());
+      return SType(ConceptType::get(concept.get(), TRY(getTypeList(id.parts[0].templateArguments, typePack.value_or(false))),
+          typePack.value_or(false)));
+    } else
+      topType = getType(name);
+    if (!topType)
+      return id.codeLoc.getError("Type not found: " + quote(name));
+    if (typePack) {
+      if (!*typePack && topType == getTypePack())
+        return id.codeLoc.getError("Type parameter pack " + quote(name) + " must be unpacked using the '...' operator");
+      if (*typePack && getTypePack() != topType.get())
+        return id.codeLoc.getError("Type " + quote(name) + " is not a type parameter pack");
+    }
+    bool variadicParams = id.parts[0].variadic;
+    auto templateArgs = TRY(getTypeList(id.parts[0].templateArguments, variadicParams));
+    if (variadicParams)
+      return id.codeLoc.getError("Type " + quote(name) + " is not a variadic template");
+    return topType->instantiate(*this, templateArgs, id.codeLoc);
+  }();
   if (ret)
     for (auto& elem : id.typeOperator) {
       elem.visit(

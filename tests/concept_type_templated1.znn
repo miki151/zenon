@@ -1,0 +1,9 @@
+// 8
+
+int calc(can_invoke<int, int>* f) {
+  return 2 * f->invoke(3);
+}
+
+int main() {
+  return calc(cast<can_invoke<int, int>*>(&[] (int a) { return a + 1; }));
+}

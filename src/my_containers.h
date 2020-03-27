@@ -188,6 +188,24 @@ class vector {
     ++modCounter;
   }
 
+  vector<T> getSubsequence(int start, optional<int> lengthOption = none) const {
+    auto length = std::min(size() - start, lengthOption.value_or(size() - start));
+    CHECK(start >= 0 && length >= 0 && start + length <= size());
+    vector<T> ret;
+    ret.reserve(length);
+    for (int i = start; i < start + length; ++i)
+      ret.push_back(this->operator[](i));
+    return ret;
+  }
+
+  vector<T> getPrefix(int num) const {
+    return getSubsequence(0, num);
+  }
+
+  vector<T> getSuffix(int num) const {
+    return getSubsequence(size() - num, num);
+  }
+
   optional<int> findAddress(const T* ptr) const {
     for (int i = 0; i < size(); ++i)
       if (&impl.at(i) == ptr)

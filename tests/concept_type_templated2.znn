@@ -1,0 +1,35 @@
+// 15
+
+template <T, U>
+concept C1 {
+  U get(T*);
+};
+
+struct X {
+  int a;
+};
+
+int get(X* x) {
+  return x->a;
+}
+
+template <T>
+struct Y {
+  T a;
+};
+
+template <T> requires can_implicit_copy<T>
+T get(Y<T>* y) {
+  return y->a;
+}
+
+int main() {
+  const x = X(5);
+  mutable c1 = cast<C1<int>*>(&x);
+  const res1 = c1->get();
+  const y1 = Y(4);
+  c1 = cast<C1<int>*>(&y1);
+  const y2 = Y("pokpok");
+  const c2 = cast<C1<string>*>(&y2);
+  return res1 + c1->get() + c2->get().size();
+}

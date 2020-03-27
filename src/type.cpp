@@ -65,7 +65,7 @@ string PointerType::getName(bool withTemplateArguments) const {
 
 string PointerType::getCodegenName() const {
   if (auto t = underlying.dynamicCast<ConceptType>())
-    return "const_fat_ptr<" + t->concept->getName(false) + "_vtable>";
+    return "const_fat_ptr<" + t->getCodegenName() + "_vtable>";
   return underlying->getCodegenName() + " const*";
 }
 
@@ -83,7 +83,7 @@ string MutablePointerType::getName(bool withTemplateArguments) const {
 
 string MutablePointerType::getCodegenName() const {
   if (auto t = underlying.dynamicCast<ConceptType>())
-    return "fat_ptr<" + t->concept->getName(false) + "_vtable>";
+    return "fat_ptr<" + t->getCodegenName() + "_vtable>";
   return underlying->getCodegenName() + "*";
 }
 
@@ -107,13 +107,9 @@ string StructType::getCodegenName() const {
 }
 
 optional<string> StructType::getMangledName() const {
-  string suf;
-  for (auto& param : templateParams)
-    if (auto name = param->getMangledName())
-      suf += *name;
-    else
-      return none;
-  return getName(false) + suf;
+  if (auto suf = mangleTemplateParams(templateParams))
+    return getName(false) + *suf;
+  return none;
 }
 
 string TemplateParameterType::getName(bool withTemplateArguments) const {
@@ -378,6 +374,7 @@ SType MutableReferenceType::removeReference() const {
 }
 
 shared_ptr<ReferenceType> ReferenceType::get(SType type) {
+  type = type->removeReference();
   static map<SType, shared_ptr<ReferenceType>> generated;
   if (!generated.count(type)) {
     auto ret = shared<ReferenceType>(type);
@@ -390,39 +387,42 @@ ReferenceType::ReferenceType(SType t) : underlying(t->removeReference()) {
 }
 
 shared_ptr<MutableReferenceType> MutableReferenceType::get(SType type) {
+  type = type->removeReference();
   static map<SType, shared_ptr<MutableReferenceType>> generated;
   if (!generated.count(type)) {
-    auto ret = shared<MutableReferenceType>(type);
+    auto ret = shared<MutableReferenceType>(Private{}, type);
     generated.insert({type, ret});
   }
   return generated.at(type);
 }
 
-MutableReferenceType::MutableReferenceType(SType t) : underlying(t) {
+MutableReferenceType::MutableReferenceType(Private, SType t) : underlying(t) {
 }
 
 shared_ptr<PointerType> PointerType::get(SType type) {
+  type = type->removeReference();
   static map<SType, shared_ptr<PointerType>> generated;
   if (!generated.count(type)) {
-    auto ret = shared<PointerType>(type);
+    auto ret = shared<PointerType>(Private{}, type);
     generated.insert({type, ret});
   }
   return generated.at(type);
 }
 
-PointerType::PointerType(SType t) : underlying(t->removeReference()) {
+PointerType::PointerType(Private, SType t) : underlying(t) {
 }
 
 shared_ptr<MutablePointerType> MutablePointerType::get(SType type) {
+  type = type->removeReference();
   static map<SType, shared_ptr<MutablePointerType>> generated;
   if (!generated.count(type)) {
-    auto ret = shared<MutablePointerType>(type);
+    auto ret = shared<MutablePointerType>(Private{}, type);
     generated.insert({type, ret});
   }
   return generated.at(type);
 }
 
-MutablePointerType::MutablePointerType(SType t) : underlying(t->removeReference()) {
+MutablePointerType::MutablePointerType(Private, SType t) : underlying(t) {
 }
 
 bool Type::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {
@@ -759,8 +759,16 @@ bool Type::canReplaceBy(SType) const {
   return false;
 }
 
-SType Type::replaceImpl(SType, SType, ErrorBuffer&) const {
+SType Type::transform(function<SType(const Type*)>) const {
   return get_this().get();
+}
+
+SType Type::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  return transform([&](const Type* t) { return t->replace(from, to, errors); });
+}
+
+SType Type::expand(SType from, vector<SType> to, ErrorBuffer& errors) const {
+  return transform([&](const Type* t) { return t->expand(from, to, errors); });
 }
 
 SType Type::getType() const {
@@ -779,20 +787,20 @@ bool Type::hasDestructor() const {
   return false;
 }
 
-SType ReferenceType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
-  return ReferenceType::get(underlying->replace(from, to, errors));
+SType ReferenceType::transform(function<SType(const Type*)> fun) const {
+  return ReferenceType::get(fun(underlying.get()));
 }
 
-SType MutableReferenceType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
-  return MutableReferenceType::get(underlying->replace(from, to, errors));
+SType MutableReferenceType::transform(function<SType(const Type*)> fun) const {
+  return MutableReferenceType::get(fun(underlying.get()));
 }
 
-SType PointerType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
-  return PointerType::get(underlying->replace(from, to, errors));
+SType PointerType::transform(function<SType(const Type*)> fun) const {
+  return PointerType::get(fun(underlying.get()));
 }
 
-SType MutablePointerType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
-  return MutablePointerType::get(underlying->replace(from, to, errors));
+SType MutablePointerType::transform(function<SType(const Type*)> fun) const {
+  return MutablePointerType::get(fun(underlying.get()));
 }
 
 static void checkNonVoidMember(const SType& type, const SType& to, ErrorBuffer& errors) {
@@ -853,7 +861,41 @@ SType StructType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
     }
   } else
     INFO << "Found instantiated: " << ret->getName();
-  return ret;
+  return std::move(ret);
+}
+
+SType StructType::expand(SType pack, vector<SType> to, ErrorBuffer& errors) const {
+  vector<SType> newTemplateParams;
+  for (auto& param : templateParams)
+    newTemplateParams.push_back(param->expand(pack, to, errors));
+  auto ret = parent->getInstance(newTemplateParams);
+  // This is how we check if instantiate gave us a new type to fill
+  if (ret->templateParams != newTemplateParams) {
+    ret->templateParams = newTemplateParams;
+    INFO << "New instantiation: " << ret->getName();
+    ret->staticContext.deepCopyFrom(staticContext);
+    ret->alternatives = alternatives;
+    for (auto& alternative : ret->alternatives) {
+      //checkNonVoidMember(alternative.type, to, errors);
+      alternative.type = alternative.type->expand(pack, to, errors);
+    }
+    ret->members = members;
+    for (auto& members : ret->members) {
+      //checkNonVoidMember(members.type, to, errors);
+      members.type = members.type->expand(pack, to, errors);
+    }
+    ret->requirements = requirements;
+    /*for (auto& req : ret->requirements)
+      req.base.visit(RequirementVisitor{from, to, errors});*/
+    ret->staticContext.expand(pack, to, errors);
+    /*if (destructor) {
+      ret->destructor = destructor;
+      ret->destructor = replaceInFunction(ret->destructor.get(), from, to, errors);
+      CHECK(ret->destructor->type.params[0] == PointerType::get(ret));
+    }*/
+  } else
+    INFO << "Found instantiated: " << ret->getName();
+  return std::move(ret);
 }
 
 FunctionType replaceInFunction(FunctionType type, SType from, SType to, ErrorBuffer& errors) {
@@ -871,6 +913,14 @@ FunctionType replaceInFunction(FunctionType type, SType from, SType to, ErrorBuf
 
 SFunctionInfo replaceInFunction(const SFunctionInfo& fun, SType from, SType to, ErrorBuffer& errors) {
   return FunctionInfo::getInstance(fun->id, replaceInFunction(fun->type, from, to, errors), fun);
+}
+
+SFunctionInfo addTemplateParams(const SFunctionInfo& fun, vector<SType> params, bool variadic) {
+  auto type = fun->type;
+  CHECK(type.templateParams.empty());
+  type.templateParams = params;
+  type.variadicTemplate = variadic;
+  return FunctionInfo::getInstance(fun->id, type, fun);
 }
 
 WithErrorLine<SType> Type::instantiate(const Context& context, vector<SType> templateArgs, CodeLoc loc) const {
@@ -1089,7 +1139,14 @@ static JustError<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc co
         ));
       break;
     }
+  if (lastTemplateParam)
+    for (auto& param : type.params)
+      param = param->expand(lastTemplateParam.get(), expandedTypes, errors);
   type.requirements = std::move(newRequirements);
+  if (!errors.empty())
+    return codeLoc.getError(errors.front());
+  if (!errors2.empty())
+    return errors2.front();
   return success;
 }
 
@@ -1159,7 +1216,7 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
       if (auto deduced = mapping.templateArgs[i])
         templateArgs.push_back(deduced.get());
       else
-        return codeLoc.getError("Couldn't deduce template argument " + quote(type.templateParams[i]->getName()));
+       return codeLoc.getError("Couldn't deduce template argument " + quote(type.templateParams[i]->getName()));
     }
     if (templateArgs[i].dynamicCast<CompileTimeValue>() && !templateArgs[i]->getType()->canBeValueTemplateParam())
       return codeLoc.getError("Value template parameter cannot have type " + quote(templateArgs[i]->getType()->getName()));
@@ -1171,6 +1228,8 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
     type = replaceInFunction(type, type.templateParams[i], templateArgs[i], errors);
     type.templateParams[i] = templateArgs[i];
   }
+  for (int i = 0; i < argTypes.size(); ++i)
+    TRY(context.canConvert(argTypes[i], type.params[i]).addCodeLoc(argLoc[i]));
   if (errors.empty())
     for (auto& fun : existing)
       if (areParamsTypesEqual(input->type, fun))
@@ -1247,22 +1306,27 @@ bool Concept::isVariadic() const {
 }
 
 JustError<ErrorLoc> Concept::canCreateConceptType() const {
-  if (params.size() > 1)
-    return def->codeLoc.getError("Concept has more than one template parameter");
+  auto mainType = params[0];
+  auto isTemplated = [&mainType] (const Type* type) {
+    ErrorBuffer errors;
+    auto res = type->replace(mainType, BuiltinType::INT, errors) != type;
+    CHECK(errors.empty());
+    return res;
+  };
   for (auto& f : context.getAllFunctions()) {
     int numTemplatedParams = 0;
     for (int i = 0; i < f->type.params.size(); ++i) {
       auto& param = f->type.params[i];
-      if (!param->getMangledName()) {
+      if (isTemplated(param.get())) {
         ++numTemplatedParams;
         if (!param->isPointer() || param->removePointer() != params[0])
-          return f->getDefinition()->parameters[i].codeLoc.getError("Templated parameter must be passed by pointer");
+          return f->getDefinition()->parameters[i].codeLoc.getError("Concept type parameter must be passed by pointer");
       }
     }
     if (numTemplatedParams != 1)
-      return f->getDefinition()->codeLoc.getError("Function must take exactly one templated parameter by pointer");
-    if (!f->type.retVal->getMangledName())
-      return f->getDefinition()->codeLoc.getError("Function must not return values of templated type");
+      return f->getDefinition()->codeLoc.getError("Function must take exactly one concept type parameter by pointer");
+    if (isTemplated(f->type.retVal.get()))
+      return f->getDefinition()->codeLoc.getError("Function must not return values of concept type");
   }
   return success;
 }
@@ -1331,6 +1395,10 @@ SType ArrayType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   return get(underlying->replace(from, to, errors), size->replace(from, to, errors).dynamicCast<CompileTimeValue>());
 }
 
+SType ArrayType::expand(SType pack, vector<SType> to, ErrorBuffer& errors) const {
+  return get(underlying->expand(pack, to, errors), size);
+}
+
 shared_ptr<ArrayType> ArrayType::get(SType type, SCompileTimeValue size) {
   static map<pair<SType, SType>, shared_ptr<ArrayType>> generated;
   if (!generated.count({type, size})) {
@@ -1383,8 +1451,8 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
       [](NullValue v) { return "null"; },
       [](const string& v) { return v; },
       [](const EnumValue& t) { return t.type->getName() + "::" + t.type->elements[t.index]; },
-      [](const ArrayValue& t) { return "{" + combine(transform(t.values,
-      [](const auto& v) { return v->getName();}), ", ") + "}"; },
+      [](const ArrayValue& t) { return "{" + combine(::transform(t.values,
+          [](const auto& v) { return v->getName();}), ", ") + "}"; },
       [](const TemplateValue& v) { return v.name; },
       [](const TemplateExpression& v) { return getPrettyString(v.op, v.args); },
       [](const TemplateFunctionCall& v) { return "[function call]"; }
@@ -1396,8 +1464,8 @@ string CompileTimeValue::getCodegenName() const {
       [this](const auto&) { return getName(); },
       [](const ReferenceValue& ref) { return ref.value->getName(); },
       [](const string& v) { return "\"" + v +"\"_lstr"; },
-      [](const ArrayValue& t) { return "make_array<" + t.type->getCodegenName() + ">(" + combine(transform(t.values,
-      [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
+      [](const ArrayValue& t) { return "make_array<" + t.type->getCodegenName() + ">(" + combine(::transform(t.values,
+          [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
       [](const TemplateValue&) -> string { fail(); },
       [](const TemplateExpression&) -> string { fail(); },
       [](const TemplateFunctionCall&) -> string { fail(); }
@@ -1485,31 +1553,40 @@ bool CompileTimeValue::canReplaceBy(SType t) const {
   return false;
 }
 
-SType CompileTimeValue::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
-  return value.visit(
-      [&](const TemplateValue& value) {
-        return CompileTimeValue::getTemplateValue(value.type->replace(from, to, errors), value.name);
+template <typename Fun>
+SType static compileTimeValueVisit(const CompileTimeValue& v, Fun f, ErrorBuffer& errors) {
+  return v.value.visit(
+      [&](const CompileTimeValue::TemplateValue& value) {
+        return CompileTimeValue::getTemplateValue(f(value.type.get()), value.name);
       },
-      [&](const TemplateExpression& value) {
-        if (auto ret = ::eval(value.op, transform(value.args,
-            [&](const SType& t){ return t->replace(from, to, errors); })))
+      [&](const CompileTimeValue::TemplateExpression& value) {
+        if (auto ret = ::eval(value.op, ::transform(value.args,
+            [&](const SType& t){ return f(t.get()); })))
           return *ret;
         else {
           errors.push_back("Can't evaluate operator " + quote(getString(value.op)));
-          return get_this().get();
+          return v.get_this().get();
         }
       },
-      [&](const TemplateFunctionCall& value) {
-        if (auto ret = value.functionInfo.invokeFunction(value.name, value.loc, transform(value.args,
-            [&](const SType& t){ return t->replace(from, to, errors); }), value.argLoc))
+      [&](const CompileTimeValue::TemplateFunctionCall& value) {
+        if (auto ret = value.functionInfo.invokeFunction(value.name, value.loc, ::transform(value.args,
+            [&](const SType& t){ return f(t.get()); }), value.argLoc))
           return *ret;
         else {
           errors.push_back(ret.get_error().error);
-          return get_this().get();
+          return v.get_this().get();
         }
       },
-      [&](const auto&) { return get_this().get();}
+      [&](const auto&) { return v.get_this().get();}
   );
+}
+
+SType CompileTimeValue::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
+  return compileTimeValueVisit(*this, [&](const Type* type) { return type->replace(from, to, errors); }, errors);
+}
+
+SType CompileTimeValue::expand(SType pack, vector<SType> to, ErrorBuffer& errors) const {
+  return compileTimeValueVisit(*this, [&](const Type* type) { return type->expand(pack, to, errors); }, errors);
 }
 
 string SliceType::getName(bool withTemplateArguments) const {
@@ -1526,8 +1603,8 @@ optional<string> SliceType::getMangledName() const {
   return none;
 }
 
-SType SliceType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
-  return get(underlying->replace(from, to, errors));
+SType SliceType::transform(function<SType(const Type*)> fun) const {
+  return get(fun(underlying.get()));
 }
 
 JustError<string> SliceType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
@@ -1593,8 +1670,8 @@ JustError<string> OptionalType::getMappingError(const Context& context, TypeMapp
   return "Can't bind type " + quote(from->getName()) + " to type " + quote(getName());
 }
 
-SType OptionalType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
-  return OptionalType::get(underlying->replace(from, to, errors));
+SType OptionalType::transform(function<SType(const Type*)> fun) const {
+  return OptionalType::get(fun(underlying.get()));
 }
 
 void OptionalType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const {
@@ -1606,18 +1683,17 @@ bool OptionalType::hasDestructor() const {
 }
 
 shared_ptr<OptionalType> OptionalType::get(SType type) {
+  type = type->removeReference();
   static map<SType, shared_ptr<OptionalType>> generated;
   if (!generated.count(type)) {
-    auto ret = shared<OptionalType>(type);
+    auto ret = shared<OptionalType>(Private{}, type);
     generated.insert({type, ret});
   }
   return generated.at(type);
 }
 
-OptionalType::OptionalType(SType t) : underlying(std::move(t)) {
-
+OptionalType::OptionalType(Private, SType t) : underlying(std::move(t)) {
 }
-
 
 string LambdaType::getName(bool withTemplateArguments) const {
   return name;
@@ -1738,40 +1814,74 @@ SType convertReferenceToPointer(SType type) {
     return type;
 }
 
-shared_ptr<ConceptType> ConceptType::get(SConcept c) {
-  static map<Concept*, shared_ptr<ConceptType>> cache;
-  if (!cache.count(c.get())) {
-    cache.insert(make_pair(c.get(), shared<ConceptType>(Private{}, c)));
+shared_ptr<ConceptType> ConceptType::get(SConcept c, vector<SType> params, bool variadic) {
+  static map<tuple<Concept*, vector<SType>, bool>, shared_ptr<ConceptType>> cache;
+  if (!cache.count({c.get(), params, variadic})) {
+    cache.insert(make_pair(make_tuple(c.get(), params, variadic), shared<ConceptType>(Private{}, c, params, variadic)));
   }
-  return cache.at(c.get());
+  return cache.at({c.get(), params, variadic});
 }
 
-ConceptType::ConceptType(ConceptType::Private, SConcept c) : concept(std::move(c)) {
+ConceptType::ConceptType(ConceptType::Private, SConcept c, vector<SType> params, bool variadic)
+    : concept(std::move(c)), params(std::move(params)), variadic(variadic) {
 }
 
 string ConceptType::getCodegenName() const {
-  fail();
+  return *getMangledName();
 }
 
 optional<std::string> ConceptType::getMangledName() const {
-  return concept->getName(false);
+  if (auto suf = mangleTemplateParams(params))
+    return concept->getName(false) + *suf;
+  return none;
 }
 
 SType ConceptType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
-  return get(concept->replace(from, to, errors));
+  return get(concept, params.transform([&](const SType& t){ return t->replace(from, to, errors); }), variadic);
 }
 
 JustError<string> ConceptType::getSizeError(const Context&) const {
   return getName() + " has unknown size";
 }
 
+JustError<string> ConceptType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+  auto arg = argType.dynamicCast<ConceptType>();
+  if (!arg || concept != arg->concept)
+    return "Can't bind type " + quote(argType->getName()) + " to concept type " + quote(getName());
+  for (int i = 0; i < min(params.size(), arg->params.size()); ++i)
+    TRY(::getDeductionError(context, mapping, params[i], arg->params[i]));
+  return success;
+}
+
+SType ConceptType::expand(SType pack, vector<SType> to, ErrorBuffer& errors) const {
+  if (variadic && params.back() == pack) {
+    auto p = params;
+    p.pop_back();
+    p.append(to);
+    return get(concept, std::move(p), false);
+  }
+  return Type::expand(std::move(pack), std::move(to), errors);
+}
+
 SConcept ConceptType::getConceptFor(const SType& t) const {
   ErrorBuffer errors;
-  auto res = concept->replace(concept->getParams()[0], t, errors);
+  auto res = concept->translate(concat({t}, params), false, errors);
   CHECK(errors.empty());
   return res;
 }
 
 string ConceptType::getName(bool withTemplateArguments) const {
-  return concept->getName();
+  if (withTemplateArguments)
+    return concept->getName(false) + joinTemplateParams(params);
+  return concept->getName(false);
+}
+
+optional<string> mangleTemplateParams(const vector<SType>& params) {
+  string ret;
+  for (auto& param : params)
+    if (auto name = param->getMangledName())
+      ret += *name;
+    else
+      return none;
+  return std::move(ret);
 }

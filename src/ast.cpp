@@ -2230,7 +2230,9 @@ unique_ptr<Expression> EnumConstant::transform(const StmtTransformFun&, const Ex
 ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
 }
 
-void ConceptDefinition::addFatPointer(ConceptDefinition::FatPointerInfo info) {
+void ConceptDefinition::addFatPointer(ConceptDefinition::FatPointerInfo info, shared_ptr<ConceptType> conceptType) {
+  if (!conceptInstances.contains(conceptType))
+    conceptInstances.push_back(conceptType);
   for (auto& elem : fatPointers)
     if (elem.type == info.type)
       return;
@@ -2238,7 +2240,7 @@ void ConceptDefinition::addFatPointer(ConceptDefinition::FatPointerInfo info) {
 }
 
 JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
-  concept = shared<Concept>(name, this, Context(context.typeRegistry), templateInfo.variadic);
+  auto concept = shared<Concept>(name, this, Context(context.typeRegistry), templateInfo.variadic);
   auto declarationsContext = Context::withParent(context);
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];
@@ -2253,7 +2255,7 @@ JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
     TRY(function->check(declarationsContext));
     TRY(concept->modContext().addFunction(function->functionInfo.get()).addCodeLoc(function->codeLoc));
   }
-  context.addConcept(name, concept.get());
+  context.addConcept(name, concept);
   return success;
 }
 
@@ -2802,15 +2804,16 @@ WithErrorLine<SType> FatPointerConversion::getTypeImpl(Context& context) {
   if (!ret->isPointer())
     return toType.codeLoc.getError("Expected pointer to a concept type");
   if (auto t = ret->removePointer().dynamicCast<ConceptType>())
-    concept = t->getConceptFor(argType->removePointer());
+    conceptType = t;
   else
     return toType.codeLoc.getError("Expected pointer to a concept type");
+  auto concept = conceptType->getConceptFor(argType->removePointer());
   if (ret.dynamicCast<MutablePointerType>() && !argType.get().dynamicCast<MutablePointerType>())
     return toType.codeLoc.getError("Cannot cast value of type " + quote(argType->getName()) + " to a mutable pointer");
   auto functions = TRY(context.getRequiredFunctions(*concept, true, {}).addCodeLoc(codeLoc));
   for (auto& fun : functions)
     fun->addInstance(context);
-  concept->def->addFatPointer({argType->removePointer(), functions});
+  concept->def->addFatPointer({argType->removePointer(), functions}, conceptType.get());
   return ret;
 }
 
