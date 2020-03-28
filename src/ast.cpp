@@ -342,9 +342,13 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
   }
 }
 
+WithErrorLine<SFunctionInfo> getDestructor(const Context& context, const SType& type) {
+  return getFunction(context, CodeLoc(), "destruct"s, {}, {PointerType::get(type)}, {CodeLoc()});
+}
+
 JustError<ErrorLoc> BinaryExpression::considerDestructorCall(const Context& context, int index, const SType& argType) {
   if (argType->hasDestructor() && !argType->isReference() && functionInfo->type.params[index].dynamicCast<ReferenceType>()) {
-    destructorCall[index] = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(argType)}, {codeLoc}));
+    destructorCall[index] = TRY(getDestructor(context, argType));
     TRY(destructorCall[index]->addInstance(context));
   }
   return success;
@@ -812,27 +816,38 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
   return success;
 }
 
-static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
-    CodeLoc codeLoc, IdentifierType id, vector<SType> templateArgs, const vector<SType>& argTypes,
-    const vector<CodeLoc>& argLoc) {
+static FunctionId translateDestructorId(const FunctionId& id) {
+  if (id == "destruct"s)
+    return "destruct_full"s;
+  if (id == "destruct_impl_dont_call"s)
+    return "destruct"s;
+  return id;
+}
+
+static IdentifierType translateDestructorId(const IdentifierType& id) {
   if (id.isSimpleString("destruct"))
-    id = IdentifierType("destruct_full");
+    return IdentifierType("destruct_full");
   if (id.isSimpleString("destruct_impl_dont_call"))
-    id = IdentifierType("destruct");
-  ErrorLoc errors = codeLoc.getError("Couldn't find function " + id.prettyString() +
-      " matching arguments: (" + joinTypeList(argTypes) + ")");
+    return IdentifierType("destruct");
+  return id;
+}
+
+static WithError<SFunctionInfo> getFunction(const Context& context,
+    CodeLoc codeLoc, FunctionId id, vector<SFunctionInfo> candidates,
+    vector<SType> templateArgs, const vector<SType>& argTypes,
+    const vector<CodeLoc>& argLoc) {
   vector<SFunctionInfo> overloads;
-  if (auto templateType = context.getFunctionTemplate(id)) {
-    for (auto& overload : *templateType) {
-      if (auto f = instantiateFunction(context, overload, codeLoc, templateArgs, argTypes, argLoc)) {
-        overloads.push_back(f.get());
-      } else
-        errors = codeLoc.getError(errors.error + "\nCandidate: "s + overload->prettyString() + ": " +
-            f.get_error().error);
-    }
+  string errors;
+  for (auto& overload : candidates) {
+    if (auto f = instantiateFunction(context, overload, codeLoc, templateArgs, argTypes, argLoc)) {
+      overloads.push_back(f.get());
+    } else
+      errors += "\nCandidate: "s + overload->prettyString() + ": " + f.get_error().error;
   }
-  if (id.isSimpleString("destruct")) {
+  if (id == "destruct"s) {
     if (!argTypes.empty() && argTypes[0]->removeReference().dynamicCast<PointerType>()) {
+      if (auto s = argTypes[0]->removePointer().dynamicCast<ConceptType>())
+        return s->getConceptFor(argTypes[0]->removePointer())->getContext().getFunctions("destruct"s)[0];
       if (auto s = argTypes[0]->removePointer().dynamicCast<StructType>())
         if (s->destructor) {
           CHECK(templateArgs.empty());
@@ -844,14 +859,13 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
           return FunctionInfo::getImplicit("destruct"s, FunctionType(BuiltinType::VOID, {PointerType::get(s)}, {}));
     }
   } else
-  if (id.isSimpleString("invoke") && !argTypes.empty() && argTypes[0].dynamicCast<PointerType>())
+  if (id == "invoke"s && !argTypes.empty() && argTypes[0].dynamicCast<PointerType>())
     if (auto lambda = argTypes[0]->removePointer().dynamicCast<LambdaType>()) {
       if (auto f = instantiateFunction(context, lambda->functionInfo.get(), codeLoc, templateArgs, argTypes, argLoc)) {
         if (!contains(overloads, *f))
           overloads.push_back(*f);
       } else
-        errors = codeLoc.getError(errors.error + "\nCandidate: "s + lambda->functionInfo->prettyString() + ": " +
-            f.get_error().error);
+        errors += "\nCandidate: "s + lambda->functionInfo->prettyString() + ": " + f.get_error().error;
     }
   if (overloads.empty())
     return errors;
@@ -860,8 +874,25 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
   if (overloads.size() == 1)
     return overloads[0];
   else
-    return codeLoc.getError("Multiple function overloads found:\n" +
-        combine(transform(overloads, [](const auto& o) { return o->prettyString();}), "\n"));
+    return "Multiple function overloads found:\n" +
+        combine(transform(overloads, [](const auto& o) { return o->prettyString();}), "\n");
+}
+
+static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
+    CodeLoc codeLoc, IdentifierType id, vector<SType> templateArgs, const vector<SType>& argTypes,
+    const vector<CodeLoc>& argLoc) {
+  auto candidates = context.getFunctionTemplate(translateDestructorId(id));
+  auto error =  codeLoc.getError("Couldn't find function " + id.prettyString() +
+      " matching arguments: (" + joinTypeList(argTypes) + ")");
+  if (candidates.empty())
+    return error;
+  auto functionId = candidates[0]->id;
+  if (auto res = getFunction(context, codeLoc, functionId, std::move(candidates), std::move(templateArgs), argTypes, argLoc))
+    return *res;
+  else {
+    error.error += res.get_error();
+    return error;
+  }
 }
 
 static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
@@ -1116,7 +1147,7 @@ JustError<ErrorLoc> FunctionDefinition::addInstance(const Context* callContext, 
   for (auto& req : instance->type.requirements)
     if (auto concept = req.base.getValueMaybe<SConcept>())
       append(requirements, TRY((callContext ? callContext : &*definitionContext)
-          ->getRequiredFunctions(**concept, false, {}).addCodeLoc(codeLoc)));
+          ->getRequiredFunctions(**concept, {}).addCodeLoc(codeLoc)));
   for (auto& fun : requirements)
     if (!!fun->type.concept)
       return success;
@@ -2796,6 +2827,16 @@ FatPointerConversion::FatPointerConversion(CodeLoc l, IdentifierInfo toType, uni
     : Expression(l), toType(toType), arg(std::move(arg)) {
 }
 
+static WithErrorLine<vector<SFunctionInfo>> getRequiredFunctionsForConceptType(const Context& context,
+    const Concept& concept, CodeLoc codeLoc) {
+  vector<SFunctionInfo> ret;
+  for (auto& fun : concept.getContext().getAllFunctions())
+    ret.push_back(TRY(getFunction(context, codeLoc, translateDestructorId(fun->id),
+        context.getFunctions(translateDestructorId(fun->id)), {}, fun->type.params,
+        vector<CodeLoc>(fun->type.params.size(), codeLoc)).addCodeLoc(codeLoc)));
+  return ret;
+}
+
 WithErrorLine<SType> FatPointerConversion::getTypeImpl(Context& context) {
   argType = TRY(getType(context, arg));
   auto ret = TRY(context.getTypeFromString(toType));
@@ -2810,7 +2851,7 @@ WithErrorLine<SType> FatPointerConversion::getTypeImpl(Context& context) {
     auto concept = conceptType->getConceptFor(argType->removePointer());
     if (ret.dynamicCast<MutablePointerType>() && !argType.get().dynamicCast<MutablePointerType>())
       return toType.codeLoc.getError("Cannot cast value of type " + quote(argType->getName()) + " to a mutable pointer");
-    auto functions = TRY(context.getRequiredFunctions(*concept, true, {}).addCodeLoc(codeLoc));
+    auto functions = TRY(getRequiredFunctionsForConceptType(context, *concept, codeLoc));
     for (auto& fun : functions)
       fun->addInstance(context);
     concept->def->addFatPointer({argType->removePointer(), functions}, conceptType.get());
@@ -2825,7 +2866,7 @@ WithErrorLine<SType> FatPointerConversion::getTypeImpl(Context& context) {
       TRY(context.canConvert(argType.get(), argType->removeReference(), arg).addCodeLoc(arg->codeLoc));
       CHECK(!!getType(context, arg));
     }
-    auto functions = TRY(context.getRequiredFunctions(*concept, true, {}).addCodeLoc(codeLoc));
+    auto functions = TRY(getRequiredFunctionsForConceptType(context, *concept, codeLoc));
     for (auto& fun : functions)
       fun->addInstance(context);
     concept->def->addFatPointer({argType.get(), functions}, conceptType.get());

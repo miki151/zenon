@@ -445,6 +445,7 @@ struct ConceptType : public Type {
   virtual JustError<string> getSizeError(const Context&) const override;
   virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
   virtual SType expand(SType pack, vector<SType> to, ErrorBuffer&) const override;
+  virtual bool hasDestructor() const override;
   SConcept getConceptFor(const SType&) const;
   SConcept concept;
   vector<SType> params;

@@ -839,32 +839,35 @@ void ConceptDefinition::codegen(Accu& accu, CodegenStage stage) const {
           --accu.indent;
           accu.newLine("};");
           accu.newLine();
-          ErrorBuffer errors;
-          for (auto fun : functions) {
-            fun = replaceInFunction(fun, conceptType->concept->getParams()[0], conceptType, errors);
-            accu.newLine("inline " + fun->type.retVal->getCodegenName() + " " + fun->getMangledName() + "(");
-            auto getArgName = [](int i) { return "_arg" + to_string(i); };
-            string virtualArg;
-            for (int i = 0; i < fun->type.params.size(); ++i) {
-              auto& param = fun->type.params[i];
-              accu.add((i > 0 ? ", " : "") + param->getCodegenName() + " " + getArgName(i));
-              if (i > 0)
-                virtualArg += ", ";
-              if (param->removePointer() == conceptType)
-                virtualArg = "return " + getArgName(i) + ".vTable->" + getVTableFunName(fun->id) + "(" + virtualArg + getArgName(i) + ".object";
-              else
-                virtualArg += getArgName(i);
-            }
-            CHECK(!virtualArg.empty());
+        }
+        ErrorBuffer errors;
+        for (auto fun : functions) {
+          fun = replaceInFunction(fun, conceptType->concept->getParams()[0], conceptType, errors);
+          accu.newLine("inline " + fun->type.retVal->getCodegenName() + " " + fun->getMangledName() + "(");
+          auto getArgName = [](int i) { return "_arg" + to_string(i); };
+          string virtualArg;
+          for (int i = 0; i < fun->type.params.size(); ++i) {
+            auto& param = fun->type.params[i];
+            accu.add((i > 0 ? ", " : "") + param->getCodegenName() + " " + getArgName(i));
+            if (i > 0)
+              virtualArg += ", ";
+            if (param->removePointer() == conceptType)
+              virtualArg = "return " + getArgName(i) + ".vTable->" + getVTableFunName(fun->id) + "(" + virtualArg + getArgName(i) + ".object";
+            else
+              virtualArg += getArgName(i);
+          }
+          CHECK(!virtualArg.empty());
+          if (stage.isDefine) {
             accu.add(") {");
             ++accu.indent;
             accu.newLine(virtualArg + ");");
             --accu.indent;
             accu.newLine("}");
-            accu.newLine();
-          }
-          CHECK(errors.empty());
+          } else
+            accu.add(");");
+          accu.newLine();
         }
+        CHECK(errors.empty());
         if (stage.isDefine)
           for (auto& elem : fatPointers)
             if (elem.type->getMangledName()) {

@@ -1,0 +1,31 @@
+// 7
+
+template <Fun, Ret, Args...>
+concept can_invoke2 {
+  Ret invoke(Fun*, Args...);
+  void destruct(Fun*);
+};
+
+template <T>
+int get(can_invoke2<int, T> fun, T t) {
+  return fun.invoke(move(t));
+}
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+int main() {
+  mutable res = 0;
+  {
+    const x = X(&res);
+    const lam = [move(x)](string s) { return s.size(); };
+    const fun = cast<can_invoke2<int, string>>(move(lam));
+    res += get(move(fun), "pokpok");
+  }
+  return res;
+}

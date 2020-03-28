@@ -1,0 +1,14 @@
+// no_compile
+
+template <T>
+concept C1 {
+  int get(T*);
+};
+
+int f(C1 c) {
+  return c.get();
+}
+
+int main() {
+  return 0;
+}

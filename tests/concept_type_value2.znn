@@ -4,6 +4,7 @@ template <T>
 concept C1 {
   int get(T*);
   void set(T mutable*, int);
+  void destruct(T*);
 };
 
 struct X {

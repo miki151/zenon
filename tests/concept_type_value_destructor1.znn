@@ -1,0 +1,34 @@
+// 4
+
+template <T>
+concept C1 {
+  int get(T*);
+  void destruct(T*);
+};
+
+struct X {
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+int get(X* x) {
+  return 1;
+}
+
+int f(C1 c) {
+  return c.get();
+}
+
+int main() {
+  mutable cnt = 1;
+  {
+    const x = X(&cnt);
+    const y = X(&cnt);
+    mutable c = cast<C1>(move(x));
+    cnt += f(move(c));
+  }
+  return cnt;
+}

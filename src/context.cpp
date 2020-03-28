@@ -105,18 +105,18 @@ WithErrorLine<vector<LambdaCapture>> Context::setLambda(LambdaCaptureInfo* info)
   return std::move(ret);
 }
 
-nullable<SFunctionInfo> Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
+bool Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
     vector<FunctionType> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
   if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, specific->type.params,
       vector<CodeLoc>(specific->type.params.size(), CodeLoc()), existing)) {
     if (specific->type.retVal == inst.get()->type.retVal)
-      return inst.get_value();
+      return true;
   }
-  return nullptr;
+  return false;
 }
 
-WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& required, bool instantiated,
+WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& required,
     vector<FunctionType> existing) const {
   vector<SFunctionInfo> ret;
   for (auto otherState : required.getContext().getReversedStates()) {
@@ -124,13 +124,13 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
       for (auto& function : overloads.second) {
         auto getFunction = [&]() -> optional<SFunctionInfo> {
           for (auto& myFun : getFunctions(overloads.first))
-            if (auto inst = isGeneralization(myFun, function, existing))
-              return (instantiated ? inst.get() : myFun)->getWithoutRequirements();
+            if (isGeneralization(myFun, function, existing))
+              return myFun->getWithoutRequirements();
           if (overloads.first == "invoke"s)
             if (!function->type.params.empty())
               if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
-                if (auto inst = isGeneralization(lambda->functionInfo.get(), function, existing))
-                  return (instantiated ? inst.get() : lambda->functionInfo)->getWithoutRequirements();
+                if (isGeneralization(lambda->functionInfo.get(), function, existing))
+                  return lambda->functionInfo->getWithoutRequirements();
           return none;
         };
         if (auto res = getFunction())
@@ -386,14 +386,10 @@ void Context::addConcept(const string& name, SConcept i) {
   if (i->canCreateConceptType()) {
     ErrorBuffer errors;
     for (auto& fun : i->getContext().getAllFunctions()) {
-      for (auto& param : fun->type.params)
-        if (!param->getMangledName()) {
-          auto typeParams = i->getParams().getSubsequence(1);
-          CHECK(!!addFunction(addTemplateParams(
-                replaceInFunction(fun, i->getParams()[0], ConceptType::get(i, typeParams, i->isVariadic()), errors),
-                typeParams, i->isVariadic())));
-          break;
-        }
+      auto typeParams = i->getParams().getSubsequence(1);
+      CHECK(!!addFunction(addTemplateParams(
+            replaceInFunction(fun, i->getParams()[0], ConceptType::get(i, typeParams, i->isVariadic()), errors),
+            typeParams, i->isVariadic())));
     }
     CHECK(errors.empty());
   }
@@ -605,7 +601,7 @@ WithError<IdentifierType> Context::getIdentifierType(const IdentifierInfo& id) c
   }
 }
 
-WithError<vector<SFunctionInfo>> Context::getFunctionTemplate(IdentifierType id) const {
+vector<SFunctionInfo> Context::getFunctionTemplate(IdentifierType id) const {
   vector<SFunctionInfo> ret;
   if (id.parts.size() > 1)
     return (*id.parts[0].name.getReferenceMaybe<SType>())->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());

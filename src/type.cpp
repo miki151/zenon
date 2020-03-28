@@ -950,7 +950,7 @@ static JustError<ErrorLoc> checkRequirements(const Context& context, const vecto
     vector<FunctionType> existing) {
   for (auto& req : requirements)
     if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
-      if (auto res = context.getRequiredFunctions(**concept, false, existing); !res)
+      if (auto res = context.getRequiredFunctions(**concept, existing); !res)
         return codeLoc.getError(res.get_error());
     } else
     if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
@@ -1841,6 +1841,9 @@ SType ConceptType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const 
 }
 
 JustError<string> ConceptType::getSizeError(const Context&) const {
+  if (!hasDestructor())
+    return "Concept " + quote(getName(false)) + " has not destructor declared, therefore the "
+        "type cannot be passed by value"s;
   return success;
 }
 
@@ -1861,6 +1864,14 @@ SType ConceptType::expand(SType pack, vector<SType> to, ErrorBuffer& errors) con
     return get(concept, std::move(p), false);
   }
   return Type::expand(std::move(pack), std::move(to), errors);
+}
+
+bool ConceptType::hasDestructor() const {
+  for (auto& function : concept->getContext().getFunctions("destruct"s))
+    if (function->type.retVal == BuiltinType::VOID && function->type.params.size() == 1
+        && function->type.params[0] == PointerType::get(concept->getParams()[0]))
+      return true;
+  return false;
 }
 
 SConcept ConceptType::getConceptFor(const SType& t) const {

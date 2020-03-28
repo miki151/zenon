@@ -32,8 +32,8 @@ class Context : public owned_object<Context> {
   void operator = (const Context&) = delete;
   Context& operator = (Context&&) = default;
   void deepCopyFrom(const Context&);
-  WithError<vector<SFunctionInfo>> getRequiredFunctions(const Concept&, bool instantiated, vector<FunctionType> existing) const;
-  nullable<SFunctionInfo> isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
+  WithError<vector<SFunctionInfo>> getRequiredFunctions(const Concept&, vector<FunctionType> existing) const;
+  bool isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
       vector<FunctionType> existing = {}) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
@@ -61,7 +61,7 @@ class Context : public owned_object<Context> {
   NODISCARD JustError<string> addImplicitFunction(FunctionId, FunctionType);
   NODISCARD JustError<string> addFunction(SFunctionInfo);
   WithError<IdentifierType> getIdentifierType(const IdentifierInfo&) const;
-  WithError<vector<SFunctionInfo>> getFunctionTemplate(IdentifierType) const;
+  vector<SFunctionInfo> getFunctionTemplate(IdentifierType) const;
   WithEvalError<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
   using BuiltInFunction = function<WithError<SType>(vector<SType>)>;
   void addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction);
