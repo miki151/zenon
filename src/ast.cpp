@@ -92,7 +92,7 @@ VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, 
 FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionId name)
   : Statement(l), returnType(std::move(r)), name(name) {}
 
-WithErrorLine<SType> Constant::getTypeImpl(Context&) {
+WithErrorLine<SType> Constant::getTypeImpl(const Context&) {
   return value->getType();
 }
 
@@ -111,7 +111,7 @@ unique_ptr<Expression> Constant::transform(const StmtTransformFun&, const ExprTr
   return unique<Constant>(codeLoc, value);
 }
 
-WithErrorLine<SType> Variable::getTypeImpl(Context& context) {
+WithErrorLine<SType> Variable::getTypeImpl(const Context& context) {
   optional<string> varError;
   if (auto id = identifier.asBasicIdentifier()) {
     if (auto& pack = context.getVariablePack())
@@ -228,7 +228,7 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
 }
 
 
-static WithErrorLine<SFunctionInfo> handleOperatorOverloads(Context& context, CodeLoc codeLoc, Operator op,
+static WithErrorLine<SFunctionInfo> handleOperatorOverloads(const Context& context, CodeLoc codeLoc, Operator op,
     vector<SType> types, vector<CodeLoc> argLocs, vector<unique_ptr<Expression>>& expr) {
   vector<SFunctionInfo> overloads;
   if (auto fun = context.getBuiltinOperator(op, types))
@@ -307,7 +307,7 @@ static unique_ptr<Statement> getDestructorStatement(CodeLoc codeLoc, const strin
   return unique<ExpressionStatement>(getDestructorCall(codeLoc, unique<Variable>(IdentifierInfo(identifier, codeLoc))));
 }
 
-WithErrorLine<SType> BinaryExpression::getTypeImpl(Context& context) {
+WithErrorLine<SType> BinaryExpression::getTypeImpl(const Context& context) {
   switch (op) {
     case Operator::NOT_EQUAL:
     case Operator::LESS_OR_EQUAL:
@@ -387,7 +387,7 @@ JustError<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
 UnaryExpression::UnaryExpression(CodeLoc l, Operator o, unique_ptr<Expression> e)
     : Expression(l), op(o), expr(std::move(e)) {}
 
-WithErrorLine<SType> UnaryExpression::getTypeImpl(Context& context) {
+WithErrorLine<SType> UnaryExpression::getTypeImpl(const Context& context) {
   nullable<SType> ret;
   auto right = TRY(getType(context, expr));
   ErrorLoc error { codeLoc, "Can't apply operator: " + quote(getString(op)) + " to type: " + quote(right->getName())};
@@ -1597,7 +1597,7 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
   return success;
 }
 
-WithErrorLine<SType> FunctionCall::getTypeImpl(Context& callContext) {
+WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
   TRY(initializeTemplateArgsAndIdentifierType(callContext));
   optional<ErrorLoc> error;
   if (!functionInfo) {
@@ -1931,7 +1931,7 @@ void StructDefinition::addGeneratedConstructor(Context& context, const AST& ast)
 MoveExpression::MoveExpression(CodeLoc l, string id, bool hasDestructor)
     : Expression(l), identifier(id), hasDestructor(hasDestructor) {}
 
-WithErrorLine<SType> MoveExpression::getTypeImpl(Context& context) {
+WithErrorLine<SType> MoveExpression::getTypeImpl(const Context& context) {
   if (!type) {
     if (auto ret = context.getTypeOfVariable(identifier)) {
       if (context.isCapturedVariable(identifier))
@@ -2222,7 +2222,7 @@ JustError<ErrorLoc> EnumDefinition::check(Context&, bool) {
 EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(l), enumName(name), enumElement(element) {
 }
 
-WithErrorLine<SType> EnumConstant::getTypeImpl(Context& context) {
+WithErrorLine<SType> EnumConstant::getTypeImpl(const Context& context) {
   auto type = TRY(context.getTypeFromString(IdentifierInfo(enumName, codeLoc)));
   if (auto enumType = type.dynamicCast<EnumType>()) {
     if (!context.isFullyDefined(enumType.get()))
@@ -2415,7 +2415,7 @@ JustError<ErrorLoc> ContinueStatement::checkMovesImpl(MoveChecker& checker) cons
 ArrayLiteral::ArrayLiteral(CodeLoc codeLoc) : Expression(codeLoc) {
 }
 
-WithErrorLine<SType> ArrayLiteral::getTypeImpl(Context& context) {
+WithErrorLine<SType> ArrayLiteral::getTypeImpl(const Context& context) {
   auto typeTmp = TRY(typeId ? context.getTypeFromString(*typeId, false) : getType(context, contents[0]));
   auto ret = typeTmp->removeReference();
   for (int i = 0; i < contents.size(); ++i) {
@@ -2440,7 +2440,7 @@ JustError<ErrorLoc> ArrayLiteral::checkMoves(MoveChecker& checker) const {
   return success;
 }
 
-WithErrorLine<SType> getType(Context& context, unique_ptr<Expression>& expr, bool evaluateAtCompileTime) {
+WithErrorLine<SType> getType(const Context& context, unique_ptr<Expression>& expr, bool evaluateAtCompileTime) {
   auto type = TRY(expr->getTypeImpl(context));
   if (evaluateAtCompileTime) {
     if (auto type = expr->eval(context)) {
@@ -2509,7 +2509,7 @@ LambdaExpression::LambdaExpression(CodeLoc l, vector<FunctionParameter> params, 
       captureInfo(std::move(captureInfo)) {
 }
 
-WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
+WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
   if (type && !recheck)
     return SType(type.get());
   nullable<SType> retType;
@@ -2579,7 +2579,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(Context& context) {
     if (elem)
       TRY(elem->check(bodyContext));
   context.typeRegistry->addLambda(type.get());
-  context.addType(type->getName(), type.get());
+  //context.addType(type->getName(), type.get());
   vector<unique_ptr<Statement>> toDestruct;
   for (auto& capture : type->captures) {
     if (capture.captureType != LambdaCaptureType::REFERENCE && capture.type->hasDestructor()) {
@@ -2635,7 +2635,7 @@ unique_ptr<Expression> LambdaExpression::replace(SType from, SType to, ErrorLocB
 CountOfExpression::CountOfExpression(CodeLoc l, string id) : Expression(l), identifier(std::move(id)) {
 }
 
-WithErrorLine<SType> CountOfExpression::getTypeImpl(Context& context) {
+WithErrorLine<SType> CountOfExpression::getTypeImpl(const Context& context) {
   if (!count) {
     if (context.getTypeOfVariable(identifier))
       return codeLoc.getError("Expected variable or type pack");
@@ -2680,7 +2680,7 @@ VariablePackElement::VariablePackElement(CodeLoc l, string packName, vector<stri
     : Expression(l), packName(std::move(packName)), ids(std::move(ids)), index(std::move(index)) {
 }
 
-WithErrorLine<SType> VariablePackElement::getTypeImpl(Context& context) {
+WithErrorLine<SType> VariablePackElement::getTypeImpl(const Context& context) {
   if (!ids.empty())
     return context.getTypeOfVariable(ids[0]).addCodeLoc(codeLoc);
   else
@@ -2732,7 +2732,7 @@ static JustError<ErrorLoc> initializeDestructor(const Context& context, const ST
   return success;
 }
 
-WithErrorLine<SType> MemberAccessExpression::getTypeImpl(Context& context) {
+WithErrorLine<SType> MemberAccessExpression::getTypeImpl(const Context& context) {
   auto leftType = TRY(lhs->getTypeImpl(context));
   if (auto res = leftType->getSizeError(context); !res)
     return codeLoc.getError(leftType->getName() + res.get_error());
@@ -2753,7 +2753,7 @@ JustError<ErrorLoc> MemberAccessExpression::checkMoves(MoveChecker& checker) con
 MemberIndexExpression::MemberIndexExpression(CodeLoc l, unique_ptr<Expression> lhs, unique_ptr<Expression> index)
   : Expression(l), lhs(std::move(lhs)), index(std::move(index)) {}
 
-WithErrorLine<SType> MemberIndexExpression::getTypeImpl(Context& context) {
+WithErrorLine<SType> MemberIndexExpression::getTypeImpl(const Context& context) {
   auto value = TRY(index->eval(context).addNoEvalError(
       index->codeLoc.getError("Unable to evaluate constant expression at compile-time")));
   auto leftType = TRY(lhs->getTypeImpl(context));
@@ -2778,7 +2778,7 @@ TernaryExpression::TernaryExpression(CodeLoc l, unique_ptr<Expression> cond, uni
   : Expression(l), condExpr(std::move(cond)), e1(std::move(e1)), e2(std::move(e2)) {
 }
 
-WithErrorLine<SType> TernaryExpression::getTypeImpl(Context& context) {
+WithErrorLine<SType> TernaryExpression::getTypeImpl(const Context& context) {
   auto condType = TRY(getType(context, condExpr));
   if (!context.canConvert(condType, BuiltinType::BOOL))
     return condExpr->codeLoc.getError("Expected expression of type " + quote(BuiltinType::BOOL->getName()) +
@@ -2837,7 +2837,7 @@ static WithErrorLine<vector<SFunctionInfo>> getRequiredFunctionsForConceptType(c
   return ret;
 }
 
-WithErrorLine<SType> FatPointerConversion::getTypeImpl(Context& context) {
+WithErrorLine<SType> FatPointerConversion::getTypeImpl(const Context& context) {
   argType = TRY(getType(context, arg));
   auto ret = TRY(context.getTypeFromString(toType));
   if (argType->isPointer()) {

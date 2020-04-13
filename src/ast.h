@@ -42,7 +42,7 @@ struct Node {
   virtual ~Node() {}
 };
 
-extern WithErrorLine<SType> getType(Context&, unique_ptr<Expression>&, bool evaluateAtCompileTime = true);
+extern WithErrorLine<SType> getType(const Context&, unique_ptr<Expression>&, bool evaluateAtCompileTime = true);
 
 struct EvalResult {
   SType value;
@@ -52,7 +52,7 @@ struct EvalResult {
 struct Expression : Node {
   using Node::Node;
   using TransformFun = function<unique_ptr<Expression>(Expression*)>;
-  virtual WithErrorLine<SType> getTypeImpl(Context&) = 0;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) = 0;
 
   virtual WithEvalError<EvalResult> eval(const Context&) const;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const;
@@ -65,7 +65,7 @@ struct Expression : Node {
 
 struct Constant : Expression {
   Constant(CodeLoc, SCompileTimeValue);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
@@ -76,7 +76,7 @@ struct Constant : Expression {
 
 struct EnumConstant : Expression {
   EnumConstant(CodeLoc, string enumName, string enumElement);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
@@ -88,7 +88,7 @@ struct EnumConstant : Expression {
 
 struct Variable : Expression {
   Variable(IdentifierInfo);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
@@ -100,7 +100,7 @@ struct Variable : Expression {
 struct MemberAccessExpression : Expression {
   static unique_ptr<MemberAccessExpression> getPointerAccess(CodeLoc, unique_ptr<Expression> lhs, string);
   MemberAccessExpression(CodeLoc, unique_ptr<Expression> lhs, string);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
@@ -112,7 +112,7 @@ struct MemberAccessExpression : Expression {
 
 struct MemberIndexExpression : Expression {
   MemberIndexExpression(CodeLoc, unique_ptr<Expression> lhs, unique_ptr<Expression> index);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
@@ -126,7 +126,7 @@ struct MemberIndexExpression : Expression {
 struct BinaryExpression : Expression {
   static unique_ptr<Expression> get(CodeLoc, Operator, unique_ptr<Expression>, unique_ptr<Expression>);
   static unique_ptr<Expression> get(CodeLoc, Operator, vector<unique_ptr<Expression>>);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> expandVar(string from, vector<string> to) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
@@ -144,7 +144,7 @@ struct BinaryExpression : Expression {
 
 struct UnaryExpression : Expression {
   UnaryExpression(CodeLoc, Operator, unique_ptr<Expression>);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -157,7 +157,7 @@ struct UnaryExpression : Expression {
 
 struct TernaryExpression : Expression {
   TernaryExpression(CodeLoc, unique_ptr<Expression>, unique_ptr<Expression>, unique_ptr<Expression>);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -169,7 +169,7 @@ struct TernaryExpression : Expression {
 
 struct MoveExpression : Expression {
   MoveExpression(CodeLoc, string, bool hasDestructor = false);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
   virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
@@ -182,7 +182,7 @@ struct MoveExpression : Expression {
 
 struct CountOfExpression : Expression {
   CountOfExpression(CodeLoc, string);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> expand(SType from, vector<SType> to) const override;
   virtual unique_ptr<Expression> expandVar(string from, vector<string> to) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
@@ -195,7 +195,7 @@ struct CountOfExpression : Expression {
 
 struct VariablePackElement : Expression {
   VariablePackElement(CodeLoc, string packName, vector<string> ids, SCompileTimeValue index);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -217,7 +217,7 @@ struct FunctionParameter {
 struct LambdaExpression : Expression {
   LambdaExpression(CodeLoc, vector<FunctionParameter>, unique_ptr<StatementBlock>, optional<IdentifierInfo> returnType,
       LambdaCaptureInfo captureInfo);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -233,7 +233,7 @@ struct LambdaExpression : Expression {
 
 struct ArrayLiteral : Expression {
   ArrayLiteral(CodeLoc);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -244,7 +244,7 @@ struct ArrayLiteral : Expression {
 
 struct FatPointerConversion : Expression {
   FatPointerConversion(CodeLoc, IdentifierInfo toType, unique_ptr<Expression> arg);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -260,7 +260,7 @@ struct FunctionCall : Expression {
   FunctionCall(CodeLoc, IdentifierInfo, bool methodCall);
   FunctionCall(CodeLoc, IdentifierInfo, unique_ptr<Expression> arg, bool methodCall);
   static unique_ptr<FunctionCall> constructor(CodeLoc, SType type);
-  virtual WithErrorLine<SType> getTypeImpl(Context&) override;
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> replace(SType from, SType to, ErrorLocBuffer&) const override;
