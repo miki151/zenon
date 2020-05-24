@@ -8,6 +8,11 @@ int size(T[]* s) {
 }
 
 export template <T>
+bool empty(T[]* s) {
+  return s->size() == 0;
+}
+
+export template <T>
 T[] implicit_copy(T[]* s) {
   embed {
     return *s;
@@ -68,6 +73,8 @@ bool operator == (slice_iterator<T>* it1, slice_iterator<T>* it2) {
 export template <T, int N>
 T[] slice(T[N]* array) {
   embed {
+    if (array->empty())
+      return slice_t<T>{nullptr, nullptr};
     return slice_t<T>{&array->front(), &array->back() + 1};
   }
 }
