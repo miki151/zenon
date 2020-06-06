@@ -1,0 +1,16 @@
+// 3
+
+struct X {
+  int a;
+};
+
+X operator + (X* a, X* b) {
+  return X(a->a + b->a);
+}
+
+
+int main() {
+  mutable x = X(1);
+  x += X(2);
+  return x.a;
+}

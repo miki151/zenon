@@ -1,0 +1,22 @@
+// no_compile
+
+struct X {
+};
+
+struct Y {
+  X x;
+  int a;
+  string s;
+};
+
+bool operator == (Y*, Y*) = default;
+
+int main() {
+  const t1 = Y(X(), 1, "pok");
+  const t2 = Y(X(), 1, "pok");
+  const t3 = Y(X(), 1, "pak");
+  mutable res = t1 == t2 ? 1 : 2;
+  if (t1 == t3)
+    res += 1;
+  return res;
+}
