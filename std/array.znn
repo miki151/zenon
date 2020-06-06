@@ -35,7 +35,7 @@ T[Size] array_repeat(T elem) {
   }
 }
 
-export template <int Size, T, Fun> requires can_copy<T>, can_invoke<Fun, T, int>, (Size >= 0)
+export template <int Size, T, Fun> requires can_invoke<Fun, T, int>, (Size >= 0)
 T[Size] array_generate(Fun fun) {
   embed {
     std::array<T, Size> a;
