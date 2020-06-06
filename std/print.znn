@@ -1,6 +1,6 @@
 export import "concepts.znn";
 
-export embed{
+embed{
 #include <cstdio>
 }
 
@@ -8,7 +8,7 @@ export string to_string(int* i) {
   embed {
     char buf[12];
     snprintf(buf, 12, "%d", *i);
-    return lite_str<>(buf);
+    return lite_str<>::owned(buf);
   }
 }
 
@@ -16,7 +16,7 @@ export string to_string(double* i) {
   embed {
     char buf[20];
     snprintf(buf, 20, "%f", *i);
-    return lite_str<>(buf);
+    return lite_str<>::owned(buf);
   }
 }
 

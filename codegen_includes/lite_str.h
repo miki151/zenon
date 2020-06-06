@@ -53,8 +53,8 @@ class basic_lite_str {
   typedef uint32_t length_t;
   length_t length;
   enum Type {
-    ALLOCATED,
-    LITERAL
+    OWNED,
+    REFERENCE
   } type;
 
   // TODO: figure out if using an atomic counter is enough to support copying strings between threads.
@@ -65,12 +65,28 @@ class basic_lite_str {
     return *((ref_counter_t*)(ptr + length + 1));
   }
 
+  void destruct() {
+    if (type == OWNED && --get_ref_counter() == 0) {
+      allocator_t::deallocate(ptr);
+    }
+  }
+
   public:
 
-  basic_lite_str(const char_type* s = "") {
-    type = LITERAL;
-    auto buf = create_buffer(char_traits::get_length(s));
+  basic_lite_str() : ptr(""), length(0), type(REFERENCE) {}
+
+  static basic_lite_str reference(const char_type* s = "") {
+    basic_lite_str ret;
+    ret.ptr = s;
+    ret.length = char_traits::get_length(s);
+    return ret;
+  }
+
+  static basic_lite_str owned(const char_type* s) {
+    basic_lite_str ret;
+    auto buf = ret.create_buffer(char_traits::get_length(s));
     strcpy(buf, s);
+    return ret;
   }
 
   basic_lite_str(const basic_lite_str& other) {
@@ -98,14 +114,14 @@ class basic_lite_str {
     type = other.type;
     length = other.length;
     // This stops o from decreasing the ref counter if there is one
-    other.type = LITERAL;
+    other.type = REFERENCE;
   }
 
   void copy_from(const basic_lite_str& other) {
     ptr = other.ptr;
     type = other.type;
     length = other.length;
-    if (type == ALLOCATED)
+    if (type == OWNED)
       ++get_ref_counter();
   }
 
@@ -119,14 +135,8 @@ class basic_lite_str {
     buf[length] = '\0';
     ptr = buf;
     get_ref_counter() = 1;
-    type = ALLOCATED;
+    type = OWNED;
     return buf;
-  }
-
-  void destruct() {
-    if (type == ALLOCATED && --get_ref_counter() == 0) {
-      allocator_t::deallocate(ptr);
-    }
   }
 
   ~basic_lite_str() {
@@ -168,7 +178,7 @@ stream& operator << (stream& os, const basic_lite_str<char_type, char_traits, al
 
 template <typename stream, typename char_type, typename char_traits, typename alloc>
 stream& operator >> (stream& os, basic_lite_str<char_type, char_traits, alloc>& s) {
-  s = "";
+  s = basic_lite_str<char_type, char_traits, alloc>();
   while (1) {
     char buf[2] = {0};
     os.get(buf[0]);
@@ -254,5 +264,5 @@ bool operator < (const basic_lite_str<char_type, char_traits, alloc>& s1, const 
 }
 
 inline lite_str<> operator "" _lstr(const char* str, size_t) {
-  return lite_str<>(str);
+  return lite_str<>::reference(str);
 }

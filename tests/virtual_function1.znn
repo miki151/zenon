@@ -1,6 +1,5 @@
 // 6
 
-import "std/print.znn";
 import "std/math.znn";
 import "std/vector.znn";
 import "std/concepts.znn";
