@@ -1,6 +1,6 @@
 // 1
 
-import "std/print.znn";
+import "std/io.znn";
 
 struct A {
   int a;

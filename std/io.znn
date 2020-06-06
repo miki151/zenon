@@ -1,4 +1,3 @@
-export import "concepts.znn";
 
 embed{
 #include <cstdio>
@@ -36,7 +35,7 @@ concept can_print {
   string to_string(T*);
 };
 
-export void print(string s) {
+export void printf(string s) {
   embed {
     printf("%s", s.data());
   }

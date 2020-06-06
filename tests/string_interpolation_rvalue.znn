@@ -1,6 +1,6 @@
 // 1
 
-import "std/print.znn";
+import "std/io.znn";
 
 int get() {
   return 1;
