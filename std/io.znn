@@ -93,6 +93,10 @@ export double? scan_double(file_input* f) {
   return scan_impl<double>(f, "%lf");
 }
 
+export char? scan_char(file_input* f) {
+  return scan_impl<char>(f, "%c");
+}
+
 export string? scan_string(file_input* f, int max_length) {
   const format = "%{max_length}s";
   embed {
