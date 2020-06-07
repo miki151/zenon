@@ -558,8 +558,8 @@ JustError<std::string> Context::checkNameConflictExcludingFunctions(const string
 JustError<string> Context::addFunction(SFunctionInfo info) {
   auto& overloads = state->functions[info->id];
   for (auto& fun : overloads)
-    if (areParamsEquivalent(fun->type, info->type) &&
-        (!info->id.contains<ConstructorTag>() || fun->type.retVal == info->type.retVal) &&
+    if ((!info->id.contains<ConstructorTag>() || fun->type.retVal == info->type.retVal) &&
+        areParamsEquivalent(fun->type, info->type) &&
         fun->type.generatedConstructor == info->type.generatedConstructor)
       return "Can't overload " + info->prettyString() + " with the same argument types."s;
   overloads.push_back(info);

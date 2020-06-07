@@ -715,7 +715,7 @@ void StructType::updateInstantations() {
         type->destructor = replaceInFunction(type->destructor.get(), templateParams[i], type->templateParams[i], errors);
       }
     }
-    CHECK(errors.empty());
+    CHECK(errors.empty()) << errors[0];
   }
 }
 
