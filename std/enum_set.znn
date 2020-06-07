@@ -1,0 +1,66 @@
+export import "std/concepts.znn";
+export import "std/enum.znn";
+
+export embed {
+#include <bitset>
+using std::bitset;
+}
+
+export template <int N>
+extern struct bitset;
+
+export template <int N>
+extern bitset();
+
+export template <Key> requires is_enum<Key>
+struct enum_set {
+  bitset<(enum_count(Key))> values;
+};
+
+export template <Key> requires is_enum<Key>
+enum_set() {
+  return enum_set<Key>::enum_set(bitset<(enum_count(Key))>());
+}
+
+export template <Key> requires is_enum<Key>
+bool contains(enum_set<Key>* set, Key key) {
+  const index = key.asInt();
+  embed {
+    return set->values.test(index);
+  }
+}
+
+export template <Key> requires is_enum<Key>
+int size(enum_set<Key>* set) {
+  embed {
+    return set->values.count();
+  }
+}
+
+export template <Key> requires is_enum<Key>
+bool empty(enum_set<Key>* set) {
+  embed {
+    return set->values.none();
+  }
+}
+
+export template <Key> requires is_enum<Key>
+void set(enum_set<Key> mutable* set, Key key, bool value) {
+  const index = key.asInt();
+  embed {
+    set->values.set(index, value);
+  }
+}
+
+export template <Key> requires is_enum<Key>
+void set(enum_set<Key> mutable* set, Key key) {
+  set->set(key, true);
+}
+
+export template <Key> requires is_enum<Key>
+void clear(enum_set<Key> mutable* set) {
+  embed {
+    set->values.reset();
+  }
+}
+

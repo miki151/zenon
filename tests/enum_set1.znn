@@ -1,0 +1,25 @@
+// 28
+
+import "std/enum_set.znn";
+
+enum E {
+  E1,
+  E2,
+  E3,
+  E4
+};
+
+int main() {
+  mutable s = enum_set<E>();
+  s.set(E::E1);
+  s.clear();
+  s.set(E::E2);
+  s.set(E::E4);
+  s.set(E::E3);
+  s.set(E::E3, false);
+  mutable res = 0;
+  for (mutable e : enum_range<E>())
+    if (s.contains(*e))
+      res += 1 + asInt(*e);
+  return res + 11 * s.size();
+}
