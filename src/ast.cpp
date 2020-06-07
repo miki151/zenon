@@ -1611,26 +1611,33 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
       argLocs.push_back(arguments[i]->codeLoc);
       INFO << "Function argument " << argTypes.back()->getName();
     }
-    auto tryMethodCall = [&](MethodCallType thisCallType) {
+    auto tryMethodCall = [&](MethodCallType thisCallType, const Type& origType) -> JustError<ErrorLoc> {
       auto res = getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs, arguments);
       if (res)
         callType = thisCallType;
+      if (callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
+        if (!origType.isReference() && argTypes[0]->removePointer()->hasDestructor()) {
+          destructorCall = TRY(getFunction(callContext, codeLoc, "destruct"s, {}, {argTypes[0]}, {codeLoc}));
+          TRY(destructorCall->addInstance(callContext));
+        }
+      }
       if (res && functionInfo) {
         error = codeLoc.getError("Ambigous method call:\nCandidate: " + functionInfo->prettyString() +
             "\nCandidate: " + res.get()->prettyString());
         functionInfo = nullptr;
       } else
         res.unpack(functionInfo, error);
+      return success;
     };
     if (methodCall) {
       auto leftType = argTypes[0];
       if (!leftType->removeReference().dynamicCast<PointerType>() &&
           !leftType->removeReference().dynamicCast<MutablePointerType>())
-        tryMethodCall(MethodCallType::FUNCTION_AS_METHOD);
+        TRY(tryMethodCall(MethodCallType::FUNCTION_AS_METHOD, *leftType));
       argTypes[0] = leftType.dynamicCast<MutableReferenceType>()
           ? SType(MutablePointerType::get(leftType->removeReference()))
           : SType(PointerType::get(leftType->removeReference()));
-      tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER);
+      TRY(tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER, *leftType));
     } else
       getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs, arguments).unpack(functionInfo, error);
   }

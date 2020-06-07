@@ -276,6 +276,7 @@ struct FunctionCall : Expression {
   vector<unique_ptr<Expression>> arguments;
   vector<optional<string>> argNames;
   optional<MethodCallType> callType;
+  nullable<SFunctionInfo> destructorCall;
   bool methodCall = false;
   bool variadicArgs = false;
   bool variadicTemplateArgs = false;

@@ -183,11 +183,10 @@ static string getFunctionCallName(const FunctionInfo& functionInfo, bool methodC
   return typePrefix + functionInfo.getMangledName();
 }
 
-static void genFunctionCall(Accu& accu, const FunctionInfo& functionInfo,
-    vector<Expression*> arguments, optional<MethodCallType> callType) {
+void FunctionCall::codegen(Accu& accu, CodegenStage) const {
   string suffix;
-  string id = getFunctionCallName(functionInfo, !!callType);
-  if (functionInfo.type.generatedConstructor) {
+  string id = getFunctionCallName(*functionInfo, !!callType);
+  if (functionInfo->type.generatedConstructor) {
     accu.add(id + "{");
     suffix = "}";
   } else {
@@ -196,9 +195,14 @@ static void genFunctionCall(Accu& accu, const FunctionInfo& functionInfo,
   }
   bool extractPointer = callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
   for (auto& arg : arguments) {
-    if (extractPointer)
+    if (extractPointer) {
       accu.add("op_get_address(");
+      if (destructorCall)
+        accu.add("*get_temporary_holder(");
+    }
     arg->codegen(accu, CodegenStage::define());
+    if (extractPointer && destructorCall)
+      accu.add(", &::" + destructorCall->getMangledName() + ")");
     if (extractPointer) {
       accu.add(")");
       extractPointer = false;
@@ -210,10 +214,6 @@ static void genFunctionCall(Accu& accu, const FunctionInfo& functionInfo,
     accu.pop_back();
   }
   accu.add(suffix);
-}
-
-void FunctionCall::codegen(Accu& accu, CodegenStage) const {
-  genFunctionCall(accu, *functionInfo, extractRefs(arguments), callType);
 }
 
 static string getFunctionSignatureName(const FunctionInfo& function) {
