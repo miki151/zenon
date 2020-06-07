@@ -40,3 +40,79 @@ export void printf(string s) {
     printf("%s", s.data());
   }
 }
+
+export extern struct FILE;
+
+export struct file_output {
+  FILE mutable* handle;
+};
+
+export file_output(string path) {
+  embed {
+    return file_output{fopen(path.data(), "w")};
+  }
+}
+
+export void printf(file_output* f, string s) {
+  embed {
+    fprintf(f->handle, "%s", s.data());
+  }
+}
+
+export void destruct(file_output* f) {
+  embed {
+    fclose(f->handle);
+  }
+}
+
+export struct file_input {
+  FILE mutable* handle;
+};
+
+export file_input(string path) {
+  embed {
+    return file_input{fopen(path.data(), "r")};
+  }
+}
+
+template <T>
+T? scan_impl(file_input* f, string format) {
+  embed {
+    T ret;
+    if (fscanf(f->handle, format.data(), &ret) == 1)
+      return ret;
+  }
+  return null;
+}
+
+export int? scan_int(file_input* f) {
+  return scan_impl<int>(f, "%d");
+}
+
+export double? scan_double(file_input* f) {
+  return scan_impl<double>(f, "%lf");
+}
+
+export string? scan_string(file_input* f, int max_length) {
+  const format = "%{max_length}s";
+  embed {
+    char buf[max_length + 1];
+    if (fscanf(f->handle, format.data(), buf) == 1)
+      return zenon_string::owned(buf);
+  }
+  return null;
+}
+
+export void destruct(file_input* f) {
+  embed {
+    fclose(f->handle);
+  }
+}
+
+export string? remove_file(string path) {
+  embed {
+    if (remove(path.data()))
+      return lite_str<>::reference(strerror(errno));
+  }
+  return null;
+}

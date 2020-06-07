@@ -1,0 +1,18 @@
+// 20
+
+import "std/io.znn";
+import "std/math.znn";
+
+int main() {
+  const path = "tmp.txt";
+  const t = "text";
+  const n = 13;
+  const d = 1.6;
+  file_output(path).printf("{t} {n} {d}\n");
+  const input = file_input(path);
+  const text = *input.scan_string(10);
+  const v1 = *input.scan_int();
+  const v2 = *input.scan_double();
+  assert(!remove_file(path));
+  return text.size() + v1 + as_int(2 * v2).as_int();
+}

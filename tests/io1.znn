@@ -1,0 +1,12 @@
+// 13
+
+import "std/io.znn";
+
+int main() {
+  const path = "tmp.txt";
+  file_output(path).printf("13\n");
+  const input = file_input(path);
+  const ret = input.scan_int();
+  assert(!remove_file(path));
+  return ret ?? 0;
+}

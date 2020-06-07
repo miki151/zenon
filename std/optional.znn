@@ -28,7 +28,7 @@ T? implicit_copy(T?* elem) {
 export template <T>
 T mutable* operator * (T? mutable* elem) {
   if (!*elem)
-    panic("Attempted to dereference a null value");
+    panic("Attempted to dereference a null value from " + get_name(T) + "?");
   embed {
     return &**elem;
   }
@@ -37,7 +37,7 @@ T mutable* operator * (T? mutable* elem) {
 export template <T>
 T* operator * (T?* elem) {
   if (!*elem)
-    panic("Attempted to dereference a null value");
+    panic("Attempted to dereference a null value from " + get_name(T) + "?");
   embed {
     return &**elem;
   }
@@ -46,7 +46,7 @@ T* operator * (T?* elem) {
 export template <T>
 T operator * (T? elem) {
   if (!elem)
-    panic("Attempted to dereference a null value");
+    panic("Attempted to dereference a null value from " + get_name(T) + "?");
   embed {
     return std::move(*elem);
   }
