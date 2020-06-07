@@ -497,7 +497,7 @@ static JustError<string> getVariableInitializationError(const char* action, cons
 }
 
 JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
-  TRY(context.checkNameConflict(identifier, "Variable").addCodeLoc(codeLoc));
+  TRY(context.checkNameConflictExcludingFunctions(identifier, "Variable").addCodeLoc(codeLoc));
   if (!realType) {
     if (type)
       realType = TRY(context.getTypeFromString(*type));
@@ -2077,7 +2077,7 @@ WithErrorLine<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled
 }
 
 JustError<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
-  TRY(context.checkNameConflict(counter, "variable").addCodeLoc(codeLoc));
+  TRY(context.checkNameConflictExcludingFunctions(counter, "variable").addCodeLoc(codeLoc));
   auto bodyContext = Context::withParent(context);
   TRY(checkExpressions(bodyContext));
   auto initType = TRY(getType(bodyContext, init));
@@ -2501,7 +2501,7 @@ ExternConstantDeclaration::ExternConstantDeclaration(CodeLoc l, IdentifierInfo t
 }
 
 JustError<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
-  TRY(context.checkNameConflict(identifier, "Variable").addCodeLoc(codeLoc));
+  TRY(context.checkNameConflictExcludingFunctions(identifier, "Variable").addCodeLoc(codeLoc));
   realType = TRY(context.getTypeFromString(type));
   if (realType == BuiltinType::VOID)
     return codeLoc.getError("Can't declare constant of type " + quote(BuiltinType::VOID->getName()));
