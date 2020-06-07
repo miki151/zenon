@@ -1,0 +1,24 @@
+// 41
+
+import "std/enum_map.znn";
+
+enum E {
+  E1,
+  E2,
+  E3,
+  E4
+};
+
+int main() {
+  const map = enum_map_generate<E, int>([](E e) {
+    switch (e) {
+      case (E1) { return 2; }
+      case (E2) { return 5; }
+      case (E3) { return 11; }
+      case (E4) { return 23; }
+    }});
+  mutable res = 0;
+  for (mutable e : enum_range<E>())
+    res += map[*e];
+  return res;
+}
