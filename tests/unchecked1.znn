@@ -1,0 +1,14 @@
+// 6
+
+int f(int a) {
+  return 1 + a;
+}
+
+template <T>
+int get(T t) {
+  unchecked return f(move(t));
+}
+
+int main() {
+  return get(5);
+}

@@ -652,7 +652,7 @@ static WithErrorLine<TemplateRequirement> applyRequirement(Context& from,
   return TemplateRequirement(shared_ptr<Expression>(std::move(expr)), false);
 }
 
-NODISCARD static WithErrorLine<vector<TemplateRequirement>> gi(Context& from,
+NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyRequirements(Context& from,
     const TemplateInfo& requirements) {
   vector<TemplateRequirement> ret;
   for (auto& req : requirements.requirements)
@@ -2751,4 +2751,27 @@ unique_ptr<Expression> FatPointerConversion::transform(const StmtTransformFun& f
 
 JustError<ErrorLoc> FatPointerConversion::checkMoves(MoveChecker& c) const {
   return arg->checkMoves(c);
+}
+
+UncheckedStatement::UncheckedStatement(CodeLoc l, unique_ptr<Statement> elem) : Statement(l), elem(std::move(elem)) {
+}
+
+bool UncheckedStatement::hasReturnStatement(const Context& context) const {
+  if (!context.getTemplateParams())
+    return elem->hasReturnStatement(context);
+  return true;
+}
+
+JustError<ErrorLoc> UncheckedStatement::check(Context& context, bool) {
+  if (!context.getTemplateParams())
+    return elem->check(context);
+  return success;
+}
+
+JustError<ErrorLoc> UncheckedStatement::checkMovesImpl(MoveChecker& checker) const {
+  return elem->checkMovesImpl(checker);
+}
+
+unique_ptr<Statement> UncheckedStatement::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
+  return unique<UncheckedStatement>(codeLoc, elem->transform(f1, f2));
 }

@@ -1013,6 +1013,10 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
               ret->isStatic = true;
               return cast<Statement>(std::move(ret));
             }
+          case Keyword::UNCHECKED:
+            tokens.popNext();
+            return cast<Statement>(unique<UncheckedStatement>(tokens.peek().codeLoc,
+                TRY(parseStatement(tokens, false))));
           default:
             return token.codeLoc.getError("Unexpected keyword: " + quote(token.value));
         }

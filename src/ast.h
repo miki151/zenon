@@ -347,6 +347,16 @@ struct StatementBlock : Statement {
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
 };
 
+struct UncheckedStatement : Statement {
+  UncheckedStatement(CodeLoc, unique_ptr<Statement>);
+  unique_ptr<Statement> elem;
+  virtual bool hasReturnStatement(const Context&) const override;
+  NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
+  NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+};
+
 struct ReturnStatement : Statement {
   using Statement::Statement;
   ReturnStatement(CodeLoc, unique_ptr<Expression>);

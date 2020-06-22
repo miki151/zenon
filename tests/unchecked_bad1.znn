@@ -1,0 +1,14 @@
+// no_compile
+
+int f(char a) {
+  return 1;
+}
+
+template <T>
+int get(T t) {
+  unchecked return f(move(t));
+}
+
+int main() {
+  return get(5);
+}

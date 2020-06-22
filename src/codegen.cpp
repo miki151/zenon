@@ -989,3 +989,7 @@ void FatPointerConversion::codegen(Accu& accu, CodegenStage stage) const {
   arg->codegen(accu, stage);
   accu.add(", &" + getVTableName(*conceptType->getMangledName()) + "_" + *argType->removePointer()->getMangledName() + ")");
 }
+
+void UncheckedStatement::codegen(Accu& accu, CodegenStage s) const {
+  elem->codegen(accu, s);
+}
