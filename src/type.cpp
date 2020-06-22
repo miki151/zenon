@@ -175,7 +175,7 @@ JustError<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, 
   statement.targetType = (SType)get_this();
   unordered_set<string> handledElems;
   for (auto& caseElem : statement.caseElems) {
-    if (!caseElem.type.contains<none_t>())
+    if (!!caseElem.type)
       return caseElem.codeloc.getError("Expected enum element");
     for (auto& id : caseElem.ids) {
       if (!contains(elements, id))
@@ -608,38 +608,49 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
     handledTypes.insert(caseId);
     auto caseBodyContext = Context::withParent(outsideContext);
     auto realType = getAlternativeType(caseId).get();
-    if (realType != BuiltinType::VOID)
-      caseElem.varType = caseElem.VALUE;
-    if (auto caseType = TRY(caseElem.getType(outsideContext))) {
-      if (caseType != realType && caseType->removePointer() != realType)
-        return caseElem.codeloc.getError(
-            "Can't handle union member " + quote(caseId) + " of type " +
-            quote(realType->getName()) + " as type " + quote(caseType->getName()));
-      if (caseType == MutablePointerType::get(realType)) {
-        caseElem.varType = caseElem.POINTER;
-        if (argumentType != SwitchArgument::MUTABLE_REFERENCE)
-          return caseElem.codeloc.getError(
-              "Can only bind element to mutable pointer when switch argument is a mutable pointer.");
-        if (realType == BuiltinType::VOID)
-          return caseElem.codeloc.getError("Can't bind void element to pointer");
-        caseBodyContext.addVariable(caseId, ReferenceType::get(MutablePointerType::get(realType)), caseElem.codeloc);
-      } else
-      if (caseType == PointerType::get(realType)) {
-        caseElem.varType = caseElem.POINTER;
-        if (argumentType == SwitchArgument::VALUE)
-          return caseElem.codeloc.getError(
-              "Can only bind element to pointer when switch argument is a pointer. Consider binding to a value instead.");
-        if (realType == BuiltinType::VOID)
-          return caseElem.codeloc.getError("Can't bind void element to pointer");
-        caseBodyContext.addVariable(caseId, ReferenceType::get(PointerType::get(realType)), caseElem.codeloc);
+    auto caseType = TRY(caseElem.getType(outsideContext));
+    if (!caseType)
+      switch (argumentType) {
+        case SwitchArgument::VALUE:
+          caseType = realType;
+          break;
+        case SwitchArgument::REFERENCE:
+          caseType = PointerType::get(realType);
+          break;
+        case SwitchArgument::MUTABLE_REFERENCE:
+          caseType = MutablePointerType::get(realType);
+          break;
       }
-    }
-    if (caseElem.varType == caseElem.VALUE) {
+    if (caseType != realType && caseType->removePointer() != realType)
+      return caseElem.codeloc.getError(
+          "Can't handle union member " + quote(caseId) + " of type " +
+          quote(realType->getName()) + " as type " + quote(caseType->getName()));
+    if (caseType == MutablePointerType::get(realType)) {
+      caseElem.varType = caseElem.POINTER;
+      if (argumentType != SwitchArgument::MUTABLE_REFERENCE)
+        return caseElem.codeloc.getError(
+            "Can only bind element to mutable pointer when switch argument is a mutable pointer.");
+      if (realType != BuiltinType::VOID)
+        //return caseElem.codeloc.getError("Can't bind void element to pointer");
+        caseBodyContext.addVariable(caseId, ReferenceType::get(MutablePointerType::get(realType)), caseElem.codeloc);
+    } else
+    if (caseType == PointerType::get(realType)) {
+      caseElem.varType = caseElem.POINTER;
+      if (argumentType == SwitchArgument::VALUE)
+        return caseElem.codeloc.getError(
+            "Can only bind element to pointer when switch argument is a pointer. Consider binding to a value instead.");
+      if (realType != BuiltinType::VOID)
+        //return caseElem.codeloc.getError("Can't bind void element to pointer");
+        caseBodyContext.addVariable(caseId, ReferenceType::get(PointerType::get(realType)), caseElem.codeloc);
+    } else {
+      caseElem.varType = caseElem.VALUE;
       if (argumentType != SwitchArgument::VALUE)
         return caseElem.codeloc.getError(
             "Can only bind element to value when the switch argument is a value. Consider binding to a pointer instead.");
       caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
     }
+    if (realType == BuiltinType::VOID)
+      caseElem.varType = caseElem.NONE;
     TRY(caseElem.block->check(caseBodyContext));
   }
   if (!statement.defaultBlock) {
@@ -819,11 +830,11 @@ struct RequirementVisitor {
   }
   void operator()(shared_ptr<Expression>& expr) {
     ErrorLocBuffer errors2;
-    expr = expr->replace(from, to, errors2);
+    /*expr = expr->replace(from, to, errors2);
     if (auto constant = expr.dynamicCast<Constant>())
       if (auto value = constant->value->value.getValueMaybe<bool>())
         if (!*value)
-          errors.push_back(expr->codeLoc.toString() + ": Requirement evaluates to false");
+          errors.push_back(expr->codeLoc.toString() + ": Requirement evaluates to false");*/
     if (!errors2.empty())
       errors.push_back(errors2[0].error);
   }
@@ -946,7 +957,8 @@ static string getCantSubstituteError(SType param, SType with) {
   return ret;
 }
 
-static JustError<ErrorLoc> checkRequirements(const Context& context, const vector<TemplateRequirement>& requirements, CodeLoc codeLoc,
+static JustError<ErrorLoc> checkRequirements(const Context& context, vector<SType> templateParams,
+    vector<SType> templateArgs, const vector<TemplateRequirement>& requirements, CodeLoc codeLoc,
     vector<FunctionType> existing) {
   for (auto& req : requirements)
     if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
@@ -954,14 +966,19 @@ static JustError<ErrorLoc> checkRequirements(const Context& context, const vecto
         return codeLoc.getError(res.get_error());
     } else
     if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
-      if (expr1->get()->eval(context)->value == CompileTimeValue::get(false))
+      auto reqContext = Context::withParent(context);
+      for (int i = 0; i < templateParams.size(); ++i)
+        //if (!reqContext.getType(templateParams[i]->getName()))
+          reqContext.addType(templateParams[i]->getName(), templateArgs[i]);
+      if (expr1->get()->eval(reqContext)->value == CompileTimeValue::get(false))
         return expr1->get()->codeLoc.getError("Predicate evaluates to false");
     }
   return success;
 }
 
 WithErrorLine<SType> StructType::instantiate(const Context& context, vector<SType> templateArgs, CodeLoc loc) const {
-  CHECK(parent == this) << "Struct instatiated a second time?";
+  if (parent != this)
+    return get_this().get();
   if (templateArgs.size() != templateParams.size())
     return loc.getError("Wrong number of template parameters for type " + getName());
   auto ret = get_this().get().dynamicCast<StructType>();
@@ -974,7 +991,8 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
   for (auto& arg : templateArgs)
     if (arg.dynamicCast<CompileTimeValue>() && !arg->getType()->canBeValueTemplateParam())
       return loc.getError("Value template parameter cannot have type " + quote(arg->getType()->getName()));
-  TRY(checkRequirements(context, ret.dynamicCast<StructType>()->requirements, loc, {}));
+  TRY(checkRequirements(context, parent->templateParams, templateArgs,
+      ret.dynamicCast<StructType>()->requirements, loc, {}));
   if (!errors.empty())
     return loc.getError(errors[0]);
   return (SType) ret;
@@ -1134,7 +1152,7 @@ static JustError<ErrorLoc> expandVariadicTemplate(FunctionType& type, CodeLoc co
               return TemplateRequirement(r->replace(lastTemplateParam.get(), expanded, errors), false);
             },
             [&](const shared_ptr<Expression>& r) {
-              return TemplateRequirement(shared_ptr<Expression>(r->replace(lastTemplateParam.get(), expanded, errors2)), false);
+              return TemplateRequirement(r, true);
             }
         ));
       break;
@@ -1200,10 +1218,11 @@ static JustError<ErrorLoc> getConversionError(const Context& context, const SFun
 WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo& input, CodeLoc codeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing) {
   FunctionType type = input->type;
+  auto origParams = type.templateParams;
   TRY(expandVariadicTemplate(type, codeLoc, templateArgs, argTypes));
   if (type.params.size() != argTypes.size())
     return codeLoc.getError("Wrong number of function arguments. Expected " +
-        to_string(type.params.size()) + " got " + to_string(argTypes.size()));
+        to_string(argTypes.size()) + " got " + to_string(type.params.size()));
   auto implicitCopySuccess = checkImplicitCopies(context, type.params, argTypes, argLoc);
   if (templateArgs.size() > type.templateParams.size())
     return codeLoc.getError("Too many template arguments.");
@@ -1238,7 +1257,7 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
         return FunctionInfo::getInstance(input->id, type, input);
   existing.push_back(input->type);
   //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
-  TRY(checkRequirements(context, type.requirements, codeLoc, existing));
+  TRY(checkRequirements(context, origParams, templateArgs, type.requirements, codeLoc, existing));
   // The replace() errors need to be checked after returning potential requirement errors.
   if (!errors.empty())
     return codeLoc.getError(errors[0]);
@@ -1720,7 +1739,7 @@ SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
     newTemplateParams.push_back(param->replace(from, to, errors));
   auto ret = get(name, newTemplateParams);
   if (!ret->body) { // this is how we check that this is a newly created lambda
-    ret->body = cast<StatementBlock>(body->replace(from, to, errors2));
+    ret->body = cast<StatementBlock>(body->deepCopy());
     for (auto& e : errors2)
       errors.push_back(e.error);
     auto tmpType = functionInfo->type;

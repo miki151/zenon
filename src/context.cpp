@@ -123,9 +123,12 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
     for (auto& overloads : otherState->functions)
       for (auto& function : overloads.second) {
         auto getFunction = [&]() -> optional<SFunctionInfo> {
-          for (auto& myFun : getFunctions(overloads.first))
+//          std::cout << "Looking for " << function->prettyString() << std::endl;
+          for (auto& myFun : getFunctions(overloads.first)) {
+//            std::cout << "Considering " << myFun->prettyString() << std::endl;
             if (isGeneralization(myFun, function, existing))
               return myFun->getWithoutRequirements();
+          }
           if (overloads.first == "invoke"s)
             if (!function->type.params.empty())
               if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
@@ -179,7 +182,7 @@ WithError<SType> Context::getTypeOfVariable(const string& id) const {
       lambdaInfo = state->lambdaInfo;
   }
   for (auto& state : getReversedStates())
-    if (state->variablePack && state->variablePack->name == id)
+    if (state->unexpandedVariablePack && state->unexpandedVariablePack->first == id)
       return "Parameter pack must be unpacked using the '...' operator before being used"s;
   return "Variable not found: " + id;
 }
@@ -197,27 +200,6 @@ bool Context::isCapturedVariable(const string& id) const {
 void Context::addVariable(const string& ident, SType t, CodeLoc codeLoc) {
   state->vars.insert({ident, VariableInfo{t, codeLoc}});
   state->varsList.push_back(ident);
-}
-
-void Context::addVariablePack(const string& ident, SType t, CodeLoc l) {
-  state->variablePack = VariablePackInfo{ident, t, l};
-}
-
-const optional<Context::VariablePackInfo>& Context::getVariablePack() const {
-  for (auto& state : getReversedStates())
-    if (state->variablePack)
-      return state->variablePack;
-  return state->variablePack;
-}
-
-JustError<string> Context::expandVariablePack() {
-  if (auto& pack = getVariablePack()) {
-    addVariable(pack->name, pack->type, pack->codeLoc);
-    state->variablePack = pack;
-    state->variablePack->wasExpanded = true;
-    return success;
-  } else
-    return "No parameter pack is present in this context"s;
 }
 
 void Context::State::print() const {
@@ -352,31 +334,101 @@ vector<shared_ptr<const Context::State>> Context::getReversedStates() const {
   return ret;
 }
 
-void Context::addType(const string& name, SType t, bool fullyDefined, bool typePack) {
+void Context::addExpandedTypePack(const string& name, vector<SType> t) {
+  state->expandedTypePack = make_pair(std::move(name), std::move(t));
+}
+
+void Context::addUnexpandedTypePack(string name, SType t) {
+  state->unexpandedTypePack = make_pair(std::move(name), std::move(t));
+}
+
+void Context::addUnexpandedVariablePack(string name, SType t) {
+  state->unexpandedVariablePack = make_pair(std::move(name), std::move(t));
+}
+
+void Context::addExpandedVariablePack(const string& name, vector<SType> t) {
+  state->expandedVariablePack = make_pair(std::move(name), std::move(t));
+}
+
+WithError<pair<string, vector<SType>>> Context::getExpandedVariablePack() const {
+  for (auto& state : getReversedStates())
+    if (state->expandedVariablePack)
+      return *state->expandedVariablePack;
+  return "No variable pack is present in this context"s;
+}
+
+optional<pair<string, vector<SType>>> Context::getExpandedTypePack() const {
+  for (auto& state : getReversedStates())
+    if (state->expandedTypePack)
+      return state->expandedTypePack;
+  return none;
+}
+
+optional<pair<string, SType> > Context::getUnexpandedTypePack() const {
+  for (auto& state : getReversedStates()) {
+    if (state->expandedTypePack)
+      return none;
+    if (state->unexpandedTypePack)
+      return state->unexpandedTypePack;
+  }
+  return none;
+}
+
+optional<pair<string, SType> > Context::getUnexpandedVariablePack() const {
+  for (auto& state : getReversedStates()) {
+    if (state->expandedVariablePack)
+      return none;
+    if (state->unexpandedVariablePack)
+      return state->unexpandedVariablePack;
+  }
+  return none;
+}
+
+void Context::addType(const string& name, SType t, bool fullyDefined) {
   CHECK(!getType(name));
   state->types.insert({name, t});
   state->fullyDefinedTypes.insert({t.get(), fullyDefined});
-  if (typePack)
-    state->typePack = t;
+}
+
+void Context::addSubstitution(SubstitutionInfo info) {
+  state->substitutions.push_back(std::move(info));
+}
+
+vector<Context::SubstitutionInfo> Context::getSubstitutions() const {
+  vector<SubstitutionInfo> ret;
+  for (auto& state : getReversedStates())
+    ret.append(state->substitutions);
+  return ret;
 }
 
 WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameterInfo>& ids, bool variadic) const {
   vector<SType> params;
   for (int i = 0; i < ids.size(); ++i) {
-    auto type = ids[i].visit(
-        [&](const IdentifierInfo& id) -> WithErrorLine<SType> {
-          return getTypeFromString(id,  i == ids.size() - 1 && variadic); },
-        [&](const shared_ptr<Expression>& expr) -> WithErrorLine<SType> {
-          if (auto value = expr->eval(*this))
-            return value->value;
-          else
-            return expr->codeLoc.getError("Can't evaluate expression at compile-time");
+    auto getType = [id = ids[i]] (const Context& context, bool variadic) {
+      return id.visit(
+          [&](const IdentifierInfo& id) -> WithErrorLine<SType> {
+            return context.getTypeFromString(id, none); },
+          [&](const shared_ptr<Expression>& expr) -> WithErrorLine<SType> {
+            if (auto value = expr->eval(context))
+              return value->value;
+            else
+              return expr->codeLoc.getError("Can't evaluate expression at compile-time");
+          }
+      );
+    };
+    if (variadic && i == ids.size() - 1) {
+      if (auto pack = getExpandedTypePack()) {
+        for (auto& type : pack->second) {
+          auto elemContext = withParent(*this);
+          if (!elemContext.getType(pack->first))
+            elemContext.addType(pack->first, type);
+          params.push_back(TRY(getType(elemContext, true)));
         }
-    );
-    if (type)
-      params.push_back(*type);
-    else
-      return type.get_error();
+      }
+      else if (auto pack = getUnexpandedTypePack())
+        params.push_back(pack->second);
+    } else
+      params.push_back(TRY(getType(*this, false)));
   }
   return params;
 }
@@ -407,13 +459,6 @@ nullable<SType> Context::getType(const string& s) const {
   for (auto& state : getReversedStates())
     if (state->types.count(s))
       return state->types.at(s);
-  return nullptr;
-}
-
-nullable<SType> Context::getTypePack() const {
-  for (auto& state : getReversedStates())
-    if (auto t = state->typePack)
-      return t.get();
   return nullptr;
 }
 
@@ -485,9 +530,11 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
     if (!topType)
       return id.codeLoc.getError("Type not found: " + quote(name));
     if (typePack) {
-      if (!*typePack && topType == getTypePack())
+      auto activePack = getUnexpandedTypePack();
+      bool match = activePack && topType.get() == activePack->second;
+      if (!*typePack && match)
         return id.codeLoc.getError("Type parameter pack " + quote(name) + " must be unpacked using the '...' operator");
-      if (*typePack && getTypePack() != topType.get())
+      if (*typePack && !match)
         return id.codeLoc.getError("Type " + quote(name) + " is not a type parameter pack");
     }
     bool variadicParams = id.parts[0].variadic;
@@ -582,7 +629,6 @@ vector<SFunctionInfo> Context::getConstructorsFor(const SType& type) const {
 }
 
 WithError<IdentifierType> Context::getIdentifierType(const IdentifierInfo& id) const {
-  vector<FunctionInfo> ret;
   if (id.parts.size() > 1) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts[0], id.codeLoc))) {
       if (auto ret = type.get()->getStaticContext().getIdentifierType(id.getWithoutFirstPart())) {

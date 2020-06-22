@@ -11,7 +11,7 @@ concept has_value {
 template <Args...> requires has_value<Args>...
 int g(Args*... args) {
   mutable res = 0;
-  return get_value(args[res]);
+  return get_value(args...[res]);
 }
 
 int main() {

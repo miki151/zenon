@@ -11,29 +11,10 @@
 
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
-
-unique_ptr<Expression> Expression::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  return transform(
-      [&](Statement* expr) { return expr->replace(from, to, errors); },
-      [&](Expression* expr) { return expr->replace(from, to, errors); });
-}
-
-unique_ptr<Expression> Expression::expand(SType from, vector<SType> to) const {
-  return transform(
-      [&](Statement* expr) { return expr->expand(from, to); },
-      [&](Expression* expr) { return expr->expand(from, to); });
-}
-
 unique_ptr<Expression> Expression::replaceVar(string from, string to) const {
   return transform(
       [&](Statement* expr) { return expr->replaceVar(from, to); },
       [&](Expression* expr) { return expr->replaceVar(from, to); });
-}
-
-unique_ptr<Expression> Expression::expandVar(string from, vector<string> to) const {
-  return transform(
-      [&](Statement* expr) { return expr->expandVar(from, to); },
-      [&](Expression* expr) { return expr->expandVar(from, to); });
 }
 
 unique_ptr<Statement> identityStmt(Statement* expr) {
@@ -100,13 +81,6 @@ WithEvalError<EvalResult> Constant::eval(const Context&) const {
   return EvalResult{ value, true};
 }
 
-unique_ptr<Expression> Constant::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  ErrorBuffer errors2;
-  auto ret = unique<Constant>(codeLoc, value->replace(from, to, errors2).dynamicCast<CompileTimeValue>());
-  merge(errors, errors2, codeLoc);
-  return ret;
-}
-
 unique_ptr<Expression> Constant::transform(const StmtTransformFun&, const ExprTransformFun&) const {
   return unique<Constant>(codeLoc, value);
 }
@@ -114,9 +88,6 @@ unique_ptr<Expression> Constant::transform(const StmtTransformFun&, const ExprTr
 WithErrorLine<SType> Variable::getTypeImpl(const Context& context) {
   optional<string> varError;
   if (auto id = identifier.asBasicIdentifier()) {
-    if (auto& pack = context.getVariablePack())
-      if (pack->name == id)
-        return SType(shared<VariablePack>(pack->type, *id));
     if (auto varType = context.getTypeOfVariable(*id))
       return *varType;
     else
@@ -360,20 +331,6 @@ WithEvalError<EvalResult> BinaryExpression::eval(const Context& context) const {
   return EvalResult{TRY(::eval(op, {value1.value, value2.value})), value1.isConstant && value2.isConstant};
 }
 
-unique_ptr<Expression> BinaryExpression::expandVar(string from, vector<string> to) const {
-  if (op == Operator::SUBSCRIPT)
-    if (auto var = dynamic_cast<Variable*>(expr[0].get()))
-      if (var->identifier.asBasicIdentifier() == from)
-        if (auto index = dynamic_cast<Constant*>(expr[1].get())) {
-          if (auto val = index->value->value.getValueMaybe<int>()){
-            if (*val >= 0 && *val < to.size())
-              return unique<Variable>(IdentifierInfo(to[*val], codeLoc));
-          } else
-            return unique<VariablePackElement>(codeLoc, from, std::move(to), index->value);
-        }
-  return Expression::expandVar(std::move(from), std::move(to));
-}
-
 unique_ptr<Expression> BinaryExpression::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
   return get(codeLoc, op, fun(expr[0].get()), fun(expr[1].get()));
 }
@@ -584,36 +541,18 @@ JustError<ErrorLoc> Statement::checkMoves(MoveChecker& checker) const {
   return ret;
 }
 
-JustError<ErrorLoc> Statement::checkMovesImpl(MoveChecker&) const {
-  return success;
-}
-
-bool Statement::hasReturnStatement(const Context&) const {
-  return false;
-}
-
-unique_ptr<Statement> Statement::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  return transform(
-      [&](Statement* s) { return s->replace(from, to, errors); },
-      [&](Expression* s) { return s->replace(from, to, errors); });
-}
-
-unique_ptr<Statement> Statement::expand(SType from, vector<SType> to) const {
-  return transform(
-      [&](Statement* s) { return s->expand(from, to); },
-      [&](Expression* s) { return s->expand(from, to); });
-}
-
 unique_ptr<Statement> Statement::replaceVar(string from, string to) const {
   return transform(
       [&](Statement* s) { return s->replaceVar(from, to); },
       [&](Expression* s) { return s->replaceVar(from, to); });
 }
 
-unique_ptr<Statement> Statement::expandVar(string from, vector<string> to) const {
-  return transform(
-      [&](Statement* s) { return s->expandVar(from, to); },
-      [&](Expression* s) { return s->expandVar(from, to); });
+JustError<ErrorLoc> Statement::checkMovesImpl(MoveChecker&) const {
+  return success;
+}
+
+bool Statement::hasReturnStatement(const Context&) const {
+  return false;
 }
 
 unique_ptr<Statement> Statement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
@@ -659,7 +598,9 @@ static WithErrorLine<vector<SType>> translateConceptParams(const Context& contex
       if (requirement.variadic)
         requireTypePack = none;
       auto origParam = TRY(context.getTypeFromString(*arg, requireTypePack));
-      missingTypePack &= (context.getTypePack() != origParam);
+      if (auto p = context.getUnexpandedTypePack())
+        if (p->second == origParam)
+          missingTypePack = false;
       if (auto templateParam = origParam.dynamicCast<TemplateParameterType>()) {
         // Support is_enum concept
         auto& conceptParams = concept->getParams();
@@ -675,8 +616,8 @@ static WithErrorLine<vector<SType>> translateConceptParams(const Context& contex
   return translatedParams;
 }
 
-static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const TemplateInfo::ConceptRequirement& requirement,
-    bool variadicRequiements) {
+static WithErrorLine<TemplateRequirement> applyRequirement(Context& from,
+    const TemplateInfo::ConceptRequirement& requirement, bool variadicRequiements) {
   auto& reqId = requirement.identifier;
   if (requirement.variadic && reqId.parts[0].variadic)
     return reqId.codeLoc.getError("Requirement can't be both variadic and involving a variadic concept");
@@ -698,17 +639,21 @@ static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const 
     return reqId.codeLoc.getError("Unknown concept: " + reqId.parts[0].name);
 }
 
-static WithErrorLine<TemplateRequirement> applyRequirement(Context& from, const shared_ptr<Expression>& expr1, bool variadicRequirements) {
+static WithErrorLine<TemplateRequirement> applyRequirement(Context& from,
+    const shared_ptr<Expression>& expr1, bool variadicRequirements) {
   auto expr = expr1->deepCopy();
-  TRY(getType(from, expr));
-  auto value = TRY(expr->eval(from).addNoEvalError(expr1->codeLoc.getError("Unable to evaluate expression at compile-time")));
+  auto tmpExpr = expr->deepCopy();
+  TRY(getType(from, tmpExpr));
+  auto value = TRY(expr->eval(from).addNoEvalError(
+      expr1->codeLoc.getError("Unable to evaluate expression at compile-time")));
   if (value.value->getType() != BuiltinType::BOOL)
     return expr->codeLoc.getError("Expected expression of type " + quote(BuiltinType::BOOL->getName()) +
         ", got " + quote(value.value->getType()->getName()));
   return TemplateRequirement(shared_ptr<Expression>(std::move(expr)), false);
 }
 
-NODISCARD static WithErrorLine<vector<TemplateRequirement>> applyRequirements(Context& from, const TemplateInfo& requirements) {
+NODISCARD static WithErrorLine<vector<TemplateRequirement>> gi(Context& from,
+    const TemplateInfo& requirements) {
   vector<TemplateRequirement> ret;
   for (auto& req : requirements.requirements)
     ret.push_back(TRY(req.visit([&](auto& req) {
@@ -768,8 +713,9 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
   auto templateTypes = TRY(getTemplateParams(templateInfo, context));
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];
-    contextWithTemplateParams.addType(param.name, templateTypes[i], true,
-          i == templateInfo.params.size() - 1 && templateInfo.variadic);
+    contextWithTemplateParams.addType(param.name, templateTypes[i], true);
+    if (i == templateInfo.params.size() - 1 && templateInfo.variadic)
+      contextWithTemplateParams.addUnexpandedTypePack(param.name, templateTypes[i]);
   }
   auto requirements = TRY(applyRequirements(contextWithTemplateParams, templateInfo));
   definitionContext.emplace(Context::withParent(contextWithTemplateParams));
@@ -1014,7 +960,7 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
     switchStatement.caseElems.push_back(
         SwitchStatement::CaseElem {
           codeLoc,
-          alternativeType,
+          none,
           {alternative.name},
           alternative.name,
           std::move(block)
@@ -1059,7 +1005,7 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
         topSwitch->caseElems.push_back(
             SwitchStatement::CaseElem {
               codeLoc,
-              SType(alternative.type != BuiltinType::VOID ? PointerType::get(alternative.type) : alternative.type),
+              none,
               {alternative.name},
               alternative.name,
               std::move(block)
@@ -1090,40 +1036,6 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const
     }
     body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
   }
-  return success;
-}
-
-JustError<ErrorLoc> FunctionDefinition::InstanceInfo::generateBody(StatementBlock* parentBody, CodeLoc codeLoc) {
-  CHECK(!body);
-  auto& parentType = functionInfo->getParent()->type;
-  auto templateParams = parentType.templateParams;
-  for (int i = 0; i < templateParams.size(); ++i) {
-    StatementBlock* useBody = (i == 0) ? parentBody : body.get();
-    ErrorLocBuffer errors;
-    if (parentType.variadicTemplate && i == templateParams.size() - 1) {
-      vector<SType> expanded;
-      for (int j = i; j < functionInfo->type.templateParams.size(); ++j)
-        expanded.push_back(functionInfo->type.templateParams[j]);
-      body = cast<StatementBlock>(
-          useBody->expand(templateParams[i], std::move(expanded)));
-    } else
-      body = cast<StatementBlock>(
-          useBody->replace(templateParams[i], {functionInfo->type.templateParams[i]}, errors));
-    ErrorBuffer errors2;
-    for (int j = i + 1; j < templateParams.size(); ++j)
-      templateParams[j] = templateParams[j]->replace(templateParams[i], functionInfo->type.templateParams[i], errors2);
-    merge(errors, errors2, codeLoc);
-    if (!errors.empty())
-      return errors[0];
-  }
-  CHECK(!!body);
-  if (parentType.variadicParams)
-    if (auto& lastName = functionInfo->getDefinition()->parameters.back().name) {
-      vector<string> expanded;
-      for (int i = 0; i < functionInfo->type.params.size() + 1 - parentType.params.size(); ++i)
-        expanded.push_back(getExpandedParamName(*lastName, i));
-      body = cast<StatementBlock>(body->expandVar(*lastName, expanded));
-    }
   return success;
 }
 
@@ -1161,7 +1073,7 @@ JustError<ErrorLoc> FunctionDefinition::addInstance(const Context* callContext, 
       instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), {},
           instance, requirements});
       if (wasChecked) {
-        TRY(instances[instanceIndex].generateBody(body.get(), codeLoc));
+        instances[instanceIndex].body = cast<StatementBlock>(origBody->deepCopy());
         vector<unique_ptr<Statement>> destructorCallsTmp;
         auto ret = checkBody(requirements, *instances[instanceIndex].body,
             *instances[instanceIndex].functionInfo, destructorCallsTmp);
@@ -1181,8 +1093,11 @@ static void addTemplateParams(Context& context, vector<SType> params, bool varia
       auto templateValue = valueType->value.getReferenceMaybe<CompileTimeValue::TemplateValue>();
       context.addType(templateValue->name,
           CompileTimeValue::getTemplateValue(templateValue->type, templateValue->name));
-    } else
-      context.addType(param->getName(), param, true, variadic && i == params.size() - 1);
+    } else {
+      context.addType(param->getName(), param);
+      if (variadic && i == params.size() - 1)
+        context.addUnexpandedTypePack(param->getName(), param);
+    }
   }
 }
 
@@ -1203,6 +1118,64 @@ JustError<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) 
   return success;
 }
 
+void FunctionDefinition::addParamsToContext(Context& context, const FunctionInfo& instanceInfo) const {
+  vector<SType> templateParams;
+//  std::cout << "Checking " << instanceInfo.prettyString() << std::endl;
+  for (int i = 0; i < templateInfo.params.size(); ++i) {
+    if (i >= instanceInfo.type.templateParams.size()) {
+      context.addExpandedTypePack(templateInfo.params[i].name, {});
+//      std::cout << "Adding empty expanded type pack " << templateInfo.params[i].name << std::endl;
+    } else {
+      auto& t = instanceInfo.type.templateParams[i];
+      if (!t->getMangledName())
+        templateParams.push_back(t);
+      else if (i < templateInfo.params.size() - 1 || !templateInfo.variadic) {
+//        std::cout << "Adding " << templateInfo.params[i].name << " = " << t->getName() << std::endl;
+        context.addType(templateInfo.params[i].name, t);
+        context.addSubstitution(Context::SubstitutionInfo{
+            templateInfo.params[i].name, t->getCodegenName(), !!t.dynamicCast<CompileTimeValue>()});
+      } else {
+        auto types = instanceInfo.type.templateParams.getSubsequence(i);
+//        std::cout << "Adding expanded type pack " << templateInfo.params[i].name << " " << joinTypeList(types) << std::endl;
+        context.addExpandedTypePack(templateInfo.params[i].name, types);
+      }
+    }
+  }
+  context.setTemplated(templateParams);
+  for (int i = 0; i < parameters.size(); ++i) {
+    if (i >= instanceInfo.type.params.size()) {
+      if (parameters[i].name) {
+        context.addExpandedVariablePack(*parameters[i].name, {});
+//        std::cout << "Adding empty expanded type pack " << *parameters[i].name << std::endl;
+      }
+    } else {
+      auto& param = parameters[i];
+      auto getParamType = [&] (SType type) {
+        if (name.contains<Operator>())
+          type = convertReferenceToPointer(type);
+        return param.isMutable ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
+      };
+      if (auto name = parameters[i].name) {
+        if (!isVariadicParams || i < parameters.size() - 1) {
+          auto type = getParamType(instanceInfo.type.params[i]);
+          context.addVariable(*name, type, param.codeLoc);
+//          std::cout << "Adding param " << *name << " of type " << type->getName() << std::endl;
+        } else {
+          auto types = instanceInfo.type.params.getSubsequence(parameters.size() - 1)
+              .transform([&](auto& type) { return getParamType(type); });
+          if (instanceInfo.type.variadicParams) {
+            context.addUnexpandedVariablePack(*name, types.back());
+            //std::cout << "Adding unexpanded variable pack " << *name << " of type " << types.back()->getName() << std::endl;
+          } else {
+            context.addExpandedVariablePack(*name, types);
+            //std::cout << "Adding expanded variable pack " << *name << " of type " << joinTypeList(types) << std::endl;
+          }
+        }
+      }
+    }
+  }
+}
+
 JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& requirements,
     StatementBlock& myBody, const FunctionInfo& instanceInfo, vector<unique_ptr<Statement>>& destructorCalls) const {
   auto bodyContext = Context::withParent(*definitionContext);
@@ -1210,25 +1183,12 @@ JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& r
     if (!contains(bodyContext.getFunctions(f->id), f->getParent()))
       CHECK(bodyContext.addFunction(f));
   }
+  addParamsToContext(bodyContext, instanceInfo);
   vector<SType> templateParams;
+//  std::cout << "Checking " << instanceInfo.prettyString() << std::endl;
   for (auto& t : instanceInfo.type.templateParams)
     if (!t->getMangledName())
       templateParams.push_back(t);
-  bodyContext.setTemplated(templateParams);
-  for (int i = 0; i < instanceInfo.type.params.size(); ++i) {
-    auto type = instanceInfo.type.params[i];
-    if (name.contains<Operator>())
-      type = convertReferenceToPointer(type);
-    if (auto name = instanceInfo.getParamName(i, this)) {
-      auto& param = parameters[min(i, parameters.size() -1)];
-      auto varType = param.isMutable
-          ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
-      if (!isVariadicParams || i < instanceInfo.type.params.size() - 1 || templateParams.empty())
-        bodyContext.addVariable(*name, varType, param.codeLoc);
-      else
-        bodyContext.addVariablePack(*name, varType, param.codeLoc);
-    }
-  }
   auto retVal = instanceInfo.type.retVal;
   if (name.contains<Operator>())
     retVal = convertReferenceToPointer(retVal);
@@ -1273,6 +1233,7 @@ static WithError<SType> getDestructedType(const vector<SType>& params) {
 JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport) {
   TRY(generateDefaultBodies(context));
   if (body && (!templateInfo.params.empty() || notInImport)) {
+    origBody = cast<StatementBlock>(body->deepCopy());
     Context paramsContext = Context::withParent(context);
     addTemplateParams(paramsContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
     auto res = TRY(applyRequirements(paramsContext, templateInfo));
@@ -1285,7 +1246,7 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
     wasChecked = true;
     for (int i = 0; i < instances.size(); ++i)
       if (!instances[i].body) {
-        TRY(instances[i].generateBody(body.get(), codeLoc));
+        instances[i].body = cast<StatementBlock>(origBody->deepCopy());
         TRY(checkBody(instances[i].requirements, *instances[i].body,
             *instances[i].functionInfo, instances[i].destructorCalls));
       }
@@ -1537,7 +1498,10 @@ JustError<ErrorLoc> FunctionCall::initializeTemplateArgsAndIdentifierType(const 
 }
 
 JustError<ErrorLoc> FunctionCall::checkNamedArgs() const {
-  for (int i = 0; i < argNames.size(); ++i) {
+  int cnt = argNames.size();
+  if (variadicArgs)
+    --cnt;
+  for (int i = 0; i < cnt; ++i) {
     optional<string> paramName;
     if (auto def = functionInfo->getParent()->getDefinition())
       paramName = functionInfo->getParamName(callType ? (i + 1) : i, def);
@@ -1551,51 +1515,62 @@ JustError<ErrorLoc> FunctionCall::checkNamedArgs() const {
 }
 
 JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) {
-  if ((!variadicTemplateArgs && !variadicArgs))
+  bool variadicCall = variadicArgs && !callContext.getExpandedVariablePack();
+  bool variadicTemplateCall = variadicTemplateArgs && !callContext.getExpandedTypePack();
+  if (!variadicCall && !variadicTemplateCall)
     return success;
-  auto context = Context::withParent(callContext);
   nullable<SType> returnType;
   vector<SType> expanded;
   vector<string> expandedVars;
+  unordered_set<FunctionInfo*> allCalls;
   while (true) {
     auto call = cast<FunctionCall>(deepCopy());
-    if (variadicTemplateArgs)
-      call = cast<FunctionCall>(expand(templateArgs->back(), expanded));
-    auto& variablePack = callContext.getVariablePack();
-    if (variablePack)
-      call = cast<FunctionCall>(call->expandVar(variablePack->name, expandedVars));
-    auto type = TRY(call->getTypeImpl(context));
-    if (!!returnType && returnType != type)
-      return codeLoc.getError("Return type mismatch between called functions in variadic function call");
-    returnType = type;
-    // Check if we found a function that we can call with any arguments / template arguments expansion.
-    // The condition might have to be improved if some corner cases fail
-    if (call->functionInfo->type.variadicTemplate == this->functionInfo->type.variadicTemplate &&
-        call->functionInfo->type.variadicParams == this->functionInfo->type.variadicParams)
-      break;
-    expanded.push_back(shared<TemplateParameterType>(getExpandedParamName(
-        callContext.getTypePack()->getName(), expanded.size()), codeLoc));
-    // Go through all functions coming from a concept and try to expand them from the current type pack into 'expanded'.
-    // Otherwise one of the types in 'expanded' might fail a requirement in the checked call
+    auto context = Context::withParent(callContext);
+    if (variadicTemplateCall)
+      context.addExpandedTypePack(templateArgs->back()->getName(), expanded);
+    if (variadicCall)
+      context.addExpandedVariablePack(callContext.getUnexpandedVariablePack()->first, expanded);
+    for (auto& e : expanded)
     for (auto& fun : callContext.getAllFunctions())
       if (!!fun->type.concept) {
         ErrorBuffer errors;
-        auto replaced = replaceInFunction(fun, callContext.getTypePack().get(), expanded.back(), errors);
+        auto replaced = fun;
+        auto from = callContext.getUnexpandedTypePack()->second;
+//          std::cout << "Replacing in " << replaced->prettyString() << " from " << from->getName() << " to " << e->getName() << std::endl;
+          replaced = replaceInFunction(replaced, from, e, errors);
         if (errors.empty() && replaced != fun)
           ignore(context.addFunction(replaced));
         CHECK(errors.empty()); // not sure if any errors should appear here, so checking just in case
       }
-    if (variablePack) {
-      expandedVars.push_back(getExpandedParamName("SomeVar", expanded.size()));
-      ErrorBuffer errors;
-      context.addVariable(expandedVars.back(),
-          variablePack->type->replace(callContext.getTypePack().get(), expanded.back(), errors), codeLoc);
-      if (!errors.empty())
-        return codeLoc.getError(errors[0]);
-    }
+    auto type = TRY(call->getTypeImpl(context));
+    if (!!returnType && returnType != type)
+      return codeLoc.getError("Return type mismatch between called functions in variadic function call");
+    returnType = type;
+    expanded.push_back(shared<TemplateParameterType>(getExpandedParamName(
+        callContext.getUnexpandedTypePack()->second->getName(), expanded.size()), codeLoc));
+    //std::cout << "Calling " << call->functionInfo->prettyString() << std::endl;
+    auto target = call->functionInfo->getParent();
+    if (allCalls.count(target.get()))
+      break;
+    allCalls.insert(target.get());
   }
   return success;
 }
+
+/*// Check if we found a function that we can call with any arguments / template arguments expansion.
+// The condition might have to be improved if some corner cases fail
+expanded.push_back(shared<TemplateParameterType>(getExpandedParamName(
+    callContext.getUnexpandedTypePack()->getName(), expanded.size()), codeLoc));
+// Go through all functions coming from a concept and try to expand them from the current type pack into 'expanded'.
+// Otherwise one of the types in 'expanded' might fail a requirement in the checked call
+if (variablePack) {
+  expandedVars.push_back(getExpandedParamName("SomeVar", expanded.size()));
+  ErrorBuffer errors;
+  context.addVariable(expandedVars.back(),
+      variablePack->type->replace(callContext.getUnexpandedTypePack().get(), expanded.back(), errors), codeLoc);
+  if (!errors.empty())
+    return codeLoc.getError(errors[0]);
+}*/
 
 WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
   TRY(initializeTemplateArgsAndIdentifierType(callContext));
@@ -1605,11 +1580,26 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
     vector<CodeLoc> argLocs;
     for (int i = 0; i < arguments.size(); ++i) {
       auto context = Context::withParent(callContext);
-      if (variadicArgs && i == arguments.size() - 1)
-        TRY(context.expandVariablePack().addCodeLoc(arguments[i]->codeLoc));
-      argTypes.push_back(TRY(getType(context, arguments[i])));
-      argLocs.push_back(arguments[i]->codeLoc);
-      INFO << "Function argument " << argTypes.back()->getName();
+      if (variadicArgs && i == arguments.size() - 1) {
+        if (auto types = callContext.getExpandedVariablePack().addCodeLoc(arguments[i]->codeLoc)) {
+          auto origArg = arguments[i]->deepCopy();
+          arguments.pop_back();
+          for (int j = 0; j < types->second.size(); ++j) {
+            auto varName = getExpandedParamName(types->first, j);
+            arguments.push_back(origArg->replaceVar(types->first, varName));
+            auto argContext = Context::withParent(callContext);
+            argContext.addVariable(varName, ReferenceType::get(types->second[j]), arguments.back()->codeLoc);
+            argTypes.push_back(TRY(getType(argContext, arguments.back())));
+            argLocs.push_back(arguments.back()->codeLoc);
+  //          std::cout << "Function argument " << argTypes.back()->getName() << std::endl;
+          }
+        }
+        break;
+      } else {
+        argTypes.push_back(TRY(getType(context, arguments[i])));
+        argLocs.push_back(arguments[i]->codeLoc);
+      }
+//      std::cout << "Function argument " << argTypes.back()->getName() << std::endl;
     }
     auto tryMethodCall = [&](MethodCallType thisCallType, const Type& origType) -> JustError<ErrorLoc> {
       auto res = getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs, arguments);
@@ -1639,12 +1629,16 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
           : SType(PointerType::get(leftType->removeReference()));
       TRY(tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER, *leftType));
     } else
-      getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs, arguments).unpack(functionInfo, error);
+      getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs, arguments)
+          .unpack(functionInfo, error);
+//    if (functionInfo)
+//      std::cout << "Arguments \"" << joinTypeList(argTypes) << "\" " << functionInfo->prettyString() << std::endl;
   }
   if (functionInfo) {
     TRY(checkVariadicCall(callContext));
     TRY(functionInfo->type.retVal->getSizeError(callContext).addCodeLoc(codeLoc));
-    TRY(checkNamedArgs());
+    if (!callContext.getExpandedVariablePack())
+      TRY(checkNamedArgs());
     if (auto res = functionInfo->addInstance(callContext); !res)
       return codeLoc.getError("When instantiating template " + functionInfo->getParent()->prettyString() + " as " + functionInfo->prettyString()  + ":\n"
         + res.get_error().loc.toString() + ": " + res.get_error().error);
@@ -1667,56 +1661,11 @@ WithEvalError<EvalResult> FunctionCall::eval(const Context& context) const {
   return EvalError::noEval();
 }
 
-unique_ptr<Expression> FunctionCall::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  auto ret = cast<FunctionCall>(transform(
-      [from, to, &errors](Statement* st) { return st->replace(from, to, errors); },
-      [from, to, &errors](Expression* expr) { return expr->replace(from, to, errors); }));
-  ret->templateArgs.emplace();
-  ErrorBuffer errors2;
-  for (auto& arg : *templateArgs)
-    ret->templateArgs->push_back(arg->replace(from, to, errors2));
-  ret->identifierType = identifierType->replace(from, to, errors2);
-  merge(errors, errors2, codeLoc);
-  return ret;
-}
-
-unique_ptr<Expression> FunctionCall::expand(SType from, vector<SType> to) const {
-  auto ret = cast<FunctionCall>(transform(
-      [from, to](Statement* expr) { return expr->expand(from, to); },
-      [from, to](Expression* expr) { return expr->expand(from, to); }));
-  ret->templateArgs.emplace();
-  for (auto& arg : *templateArgs) {
-    if (arg == from)
-      append(*ret->templateArgs, to);
-    else
-      ret->templateArgs->push_back(arg);
-  }
-  ret->variadicTemplateArgs = false;
-  return ret;
-}
-
 unique_ptr<Expression> FunctionCall::replaceVar(string from, string to) const {
   auto ret = cast<FunctionCall>(transform(
       [from, to](Statement* expr) { return expr->replaceVar(from, to); },
       [from, to](Expression* expr) { return expr->replaceVar(from, to); }));
   ret->argNames = ::transform(argNames, [&](auto& n) -> optional<string> { if (n == from) return to; else return n; });
-  return ret;
-}
-
-unique_ptr<Expression> FunctionCall::expandVar(string from, vector<string> to) const {
-  auto ret = cast<FunctionCall>(transform(
-      [from, to](Statement* expr) { return expr->expandVar(from, to); },
-      [from, to](Expression* expr) { return expr->expandVar(from, to); }));
-  if (variadicArgs) {
-    auto lastArg = std::move(ret->arguments.back());
-    ret->arguments.pop_back();
-    ret->argNames.pop_back();
-    for (auto& toName : to) {
-      ret->arguments.push_back(lastArg->replaceVar(from, toName));
-      ret->argNames.push_back(none);
-    }
-  }
-  ret->variadicArgs = false;
   return ret;
 }
 
@@ -1773,18 +1722,6 @@ JustError<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const 
     TRY(defaultBlock->checkMoves(checker));
   }
   return success;
-}
-
-unique_ptr<Statement> SwitchStatement::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  auto ret = unique<SwitchStatement>(codeLoc, expr->replace(from, to, errors));
-  ErrorBuffer errors2;
-  ret->targetType = targetType->replace(from, to, errors2);
-  merge(errors, errors2, codeLoc);
-  if (defaultBlock)
-    ret->defaultBlock = cast<StatementBlock>(defaultBlock->replace(from, to, errors));
-  for (auto& elem : caseElems)
-    ret->caseElems.push_back(elem.replace(from, to, errors));
-  return ret;
 }
 
 unique_ptr<Statement> SwitchStatement::transform(const StmtTransformFun& fun,
@@ -1954,14 +1891,6 @@ WithErrorLine<SType> MoveExpression::getTypeImpl(const Context& context) {
   return type.get();
 }
 
-unique_ptr<Expression> MoveExpression::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  auto ret = unique<MoveExpression>(codeLoc, identifier, hasDestructor);
-  ErrorBuffer errors2;
-  ret->type = type->replace(from, to, errors2);
-  merge(errors, errors2, codeLoc);
-  return ret;
-}
-
 unique_ptr<Expression> MoveExpression::replaceVar(string from, string to) const {
   if (from == identifier)
     return unique<MoveExpression>(codeLoc, to, hasDestructor);
@@ -1980,7 +1909,8 @@ JustError<ErrorLoc> MoveExpression::checkMoves(MoveChecker& checker) const {
 EmbedStatement::EmbedStatement(CodeLoc l, string v) : Statement(l), value(v) {
 }
 
-JustError<ErrorLoc> EmbedStatement::check(Context&, bool) {
+JustError<ErrorLoc> EmbedStatement::check(Context& context, bool) {
+  replacements = context.getSubstitutions();
   return success;
 }
 
@@ -1988,11 +1918,8 @@ Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
   return TopLevelAllowance::CAN;
 }
 
-unique_ptr<Statement> EmbedStatement::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  auto ret = unique<EmbedStatement>(codeLoc, value);
-  ret->replacements = replacements;
-  ret->replacements.push_back({from, to});
-  return ret;
+unique_ptr<Statement> EmbedStatement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+  return unique<EmbedStatement>(codeLoc, value);
 }
 
 bool EmbedStatement::hasReturnStatement(const Context&) const {
@@ -2051,25 +1978,27 @@ JustError<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& body
   return success;
 }
 
-WithErrorLine<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled(const Context& context, SType counterType) const {
+WithErrorLine<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled(const Context& context,
+    SType counterType) const {
   vector<unique_ptr<Statement>> ret;
   auto counterValue = CompileTimeValue::getReference(init->eval(context)->value.dynamicCast<CompileTimeValue>());
   const int maxIterations = 500;
   int countIter = 0;
   while (1) {
     auto evalContext = Context::withParent(context);
-    evalContext.addType(counter, counterValue);
+    auto iterContext = Context::withParent(context);
+    iterContext.addType(counter, counterValue);
+    auto currentCounter = counterValue->value.getValueMaybe<CompileTimeValue::ReferenceValue>()->value;
+    evalContext.addType(counter, currentCounter);
     auto condValue = cond->eval(evalContext)->value;
     if (!*condValue.dynamicCast<CompileTimeValue>()->value.getValueMaybe<bool>())
       break;
-    auto currentCounter = counterValue->value.getValueMaybe<CompileTimeValue::ReferenceValue>()->value;
-    auto replaceExpr = unique<Constant>(body->codeLoc, currentCounter);
     ErrorLocBuffer errors;
-    ret.push_back(body->replace(counterType, currentCounter, errors));
+    ret.push_back(body->deepCopy());
     if (!errors.empty())
       return errors[0];
     TRY(ret.back()->check(evalContext));
-    CHECK(iter->eval(evalContext)->value->getMangledName());
+    CHECK(iter->eval(iterContext)->value->getMangledName());
     if (++countIter >= maxIterations)
       return codeLoc.getError("Static loop reached maximum number of iterations (" + to_string(maxIterations) + ")");
   }
@@ -2090,16 +2019,12 @@ JustError<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
   bodyContext.addType(counter, counterType);
   auto bodyTemplateContext = Context::withParent(bodyContext);
   bodyTemplateContext.setTemplated({counterType});
-  if (!wasChecked) {
-    wasChecked = true;
-    if (auto res = body->check(bodyTemplateContext); !res)
-    // If it's not a templated context then we will be unrolling the loop and find errors there
-    // (it still needs to be checked to avoid replace() errors :()
-    // This may potentially accept some bad code in some corner cases.
-      return res.get_error();
-  }
   if (!bodyContext.getTemplateParams())
     unrolled = TRY(getUnrolled(context, counterType));
+  else {
+    auto bodyTmp = body->deepCopy();
+    TRY(bodyTmp->check(bodyTemplateContext));
+  }
   return success;
 }
 
@@ -2116,14 +2041,12 @@ JustError<ErrorLoc> StaticForLoopStatement::checkMovesImpl(MoveChecker& checker)
 
 unique_ptr<Statement> StaticForLoopStatement::transform(const StmtTransformFun& fun,
     const ExprTransformFun& exprFun) const {
-  auto ret = unique<StaticForLoopStatement>(codeLoc,
+  return unique<StaticForLoopStatement>(codeLoc,
       counter,
       exprFun(init.get()),
       exprFun(cond.get()),
       exprFun(iter.get()),
       fun(body.get()));
-  ret->wasChecked = wasChecked;
-  return ret;
 }
 
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
@@ -2253,14 +2176,6 @@ WithEvalError<EvalResult> EnumConstant::eval(const Context& context) const {
   fail();
 }
 
-unique_ptr<Expression> EnumConstant::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  auto ret = unique<EnumConstant>(codeLoc, enumName, enumElement);
-  ErrorBuffer errors2;
-  ret->enumType = enumType->replace(from, to, errors2);
-  merge(errors, errors2, codeLoc);
-  return ret;
-}
-
 unique_ptr<Expression> EnumConstant::transform(const StmtTransformFun&, const ExprTransformFun&) const {
   return unique<EnumConstant>(codeLoc, enumName, enumElement);
 }
@@ -2283,8 +2198,9 @@ JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];
     concept->modParams().push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-    declarationsContext.addType(param.name, concept->modParams().back(), true,
-        templateInfo.variadic && i == templateInfo.params.size() - 1);
+    declarationsContext.addType(param.name, concept->modParams().back(), true);
+    if (templateInfo.variadic && i == templateInfo.params.size() - 1)
+      context.addUnexpandedTypePack(templateInfo.params[i].name, concept->modParams().back());
   }
   for (auto& function : functions) {
     if (function->isVirtual)
@@ -2379,10 +2295,6 @@ unique_ptr<Statement> RangedLoopStatement::transform(const StmtTransformFun& fun
       cast<VariableDeclaration>(fun(init.get())),
       exprFun(container.get()),
       fun(body.get()));
-  ret->condition = exprFun(condition.get());
-  ret->increment = exprFun(increment.get());
-  ret->containerName = containerName;
-  ret->containerEnd = cast<VariableDeclaration>(fun(containerEnd.get()));
   return ret;
 }
 
@@ -2462,29 +2374,10 @@ WithErrorLine<SType> getType(const Context& context, unique_ptr<Expression>& exp
 }
 
 WithErrorLine<nullable<SType>> SwitchStatement::CaseElem::getType(const Context& context) {
-  return type.visit(
-      [&](const IdentifierInfo& id) -> WithErrorLine<nullable<SType>> {
-        auto ret = TRY(context.getTypeFromString(id));
-        type = ret;
-        return nullable<SType>(ret);
-      },
-      [](const SType& t) -> WithErrorLine<nullable<SType>> { return nullable<SType>(t);},
-      [](none_t) -> WithErrorLine<nullable<SType>> { return nullable<SType>(); }
-  );
-}
-
-SwitchStatement::CaseElem SwitchStatement::CaseElem::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  CaseElem ret;
-  ret.codeloc = codeloc;
-  ret.ids = ids;
-  ret.block = cast<StatementBlock>(block->replace(from, to, errors));
-  ErrorBuffer errors2;
-  if (auto t = type.getReferenceMaybe<SType>())
-    ret.type = (*t)->replace(from, to, errors2);
+  if (type)
+    return nullable<SType>(TRY(context.getTypeFromString(*type)));
   else
-    ret.type = type;
-  merge(errors, errors2, codeloc);
-  return ret;
+    return nullable<SType>();
 }
 
 SwitchStatement::CaseElem SwitchStatement::CaseElem::transform(const StmtTransformFun& fun, const ExprTransformFun&) const {
@@ -2517,54 +2410,41 @@ LambdaExpression::LambdaExpression(CodeLoc l, vector<FunctionParameter> params, 
 }
 
 WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
-  if (type && !recheck)
+  if (type)
     return SType(type.get());
   nullable<SType> retType;
   for (int i = 0; i < parameters.size(); ++i)
     if (!parameters[i].name)
       parameters[i].name = "parameter" + to_string(i);
-  if (recheck)
-    retType = type->functionInfo->type.retVal;
-  else if (returnType)
+  if (returnType)
     retType = TRY(context.getTypeFromString(*returnType));
   auto bodyContext = Context::withParent(context);
   ReturnTypeChecker returnChecker(retType);
   bodyContext.addReturnTypeChecker(&returnChecker);
   auto captureTypes = TRY(bodyContext.setLambda(&captureInfo));
   vector<SType> params;
-  if (!recheck) {
-    type = LambdaType::get(context.getTemplateParams().value_or(vector<SType>()));
-    type->captures = captureTypes;
-    for (auto& param : parameters)
-      type->parameterNames.push_back(param.name);
-    params.push_back(PointerType::get(type.get()));
-    set<string> paramNames;
-    for (auto& param : parameters) {
-      auto type = TRY(bodyContext.getTypeFromString(param.type));
-      if (type == BuiltinType::VOID)
-        return param.codeLoc.getError("Function parameter may not have " + quote(type->getName()) + " type");
-      auto varType = param.isMutable ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
-      params.push_back(type);
-      if (param.name) {
-        bodyContext.addVariable(*param.name, varType, param.codeLoc);
-        if (paramNames.count(*param.name))
-          return param.codeLoc.getError("Duplicate function parameter name: " + quote(*param.name));
-        paramNames.insert(*param.name);
-      }
+  type = LambdaType::get(context.getTemplateParams().value_or(vector<SType>()));
+  type->captures = captureTypes;
+  for (auto& param : parameters)
+    type->parameterNames.push_back(param.name);
+  params.push_back(PointerType::get(type.get()));
+  set<string> paramNames;
+  for (auto& param : parameters) {
+    auto type = TRY(bodyContext.getTypeFromString(param.type));
+    if (type == BuiltinType::VOID)
+      return param.codeLoc.getError("Function parameter may not have " + quote(type->getName()) + " type");
+    auto varType = param.isMutable ? SType(MutableReferenceType::get(type)) : SType(ReferenceType::get(type));
+    params.push_back(type);
+    if (param.name) {
+      bodyContext.addVariable(*param.name, varType, param.codeLoc);
+      if (paramNames.count(*param.name))
+        return param.codeLoc.getError("Duplicate function parameter name: " + quote(*param.name));
+      paramNames.insert(*param.name);
     }
-  } else
-    for (int i = 1; i < type->functionInfo->type.params.size(); ++i) {
-      auto& param = type->functionInfo->type.params[i];
-      auto varType = parameters[i - 1].isMutable ? SType(MutableReferenceType::get(param)) : SType(ReferenceType::get(param));
-      if (parameters[i - 1].name)
-        bodyContext.addVariable(*parameters[i - 1].name, varType, parameters[i - 1].codeLoc);
-    }
+  }
   auto bodyContext2 = Context::withParent(bodyContext);
   TRY(block->check(bodyContext2));
-  if (!recheck) {
-    type->captures.append(captureInfo.implicitCaptures);
-  }
-  recheck = false;
+  type->captures.append(captureInfo.implicitCaptures);
   if (!returnType)
     retType = returnChecker.getReturnType();
   if (!type->functionInfo) {
@@ -2626,16 +2506,6 @@ JustError<ErrorLoc> LambdaExpression::checkMoves(MoveChecker& checker) const {
 
 unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, const ExprTransformFun& exprFun) const {
   auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->transform(fun, exprFun)), returnType, captureInfo);
-  ret->recheck = !!ret->type;
-  return ret;
-}
-
-unique_ptr<Expression> LambdaExpression::replace(SType from, SType to, ErrorLocBuffer& errors) const {
-  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->replace(from, to, errors)), returnType, captureInfo);
-  ErrorBuffer errors2;
-  ret->type = type->replace(from, to, errors2).dynamicCast<LambdaType>();
-  ret->recheck = true;
-  merge(errors, errors2, codeLoc);
   return ret;
 }
 
@@ -2643,74 +2513,68 @@ CountOfExpression::CountOfExpression(CodeLoc l, string id) : Expression(l), iden
 }
 
 WithErrorLine<SType> CountOfExpression::getTypeImpl(const Context& context) {
-  if (!count) {
-    if (context.getTypeOfVariable(identifier))
-      return codeLoc.getError("Expected variable or type pack");
-    auto& variablePack = context.getVariablePack();
-    if (!variablePack || variablePack->name != identifier)
-      type = TRY(context.getTypeFromString(IdentifierInfo(identifier, codeLoc), true));
-  }
-  return SType(BuiltinType::INT);
-}
-
-unique_ptr<Expression> CountOfExpression::expand(SType from, vector<SType> to) const {
-  if (type == from) {
-    auto ret = unique<CountOfExpression>(codeLoc, identifier);
-    ret->count = to.size();
-    return std::move(ret);
-  } else
-    return deepCopy();
-}
-
-unique_ptr<Expression> CountOfExpression::expandVar(string from, vector<string> to) const {
-  if (identifier == from) {
-    auto ret = unique<CountOfExpression>(codeLoc, identifier);
-    ret->count = to.size();
-    return std::move(ret);
-  } else
-    return deepCopy();
+  if (auto p = context.getExpandedVariablePack())
+    if (p->first == identifier)
+      return SType(BuiltinType::INT);
+  if (auto p = context.getExpandedTypePack())
+    if (p->first == identifier)
+      return SType(BuiltinType::INT);
+  if (auto p = context.getUnexpandedTypePack())
+    if (p->first == identifier)
+      return SType(BuiltinType::INT);
+  if (auto p = context.getUnexpandedVariablePack())
+    if (p->first == identifier)
+      return SType(BuiltinType::INT);
+  return codeLoc.getError("Operator countof requires a type or variable pack");
 }
 
 unique_ptr<Expression> CountOfExpression::transform(const StmtTransformFun&, const ExprTransformFun&) const {
   return unique<CountOfExpression>(codeLoc, identifier);
 }
 
-WithEvalError<EvalResult> CountOfExpression::eval(const Context&) const {
-  if (count)
-    return EvalResult{CompileTimeValue::get(*count), true};
-  else
-    return EvalResult{CompileTimeValue::getTemplateValue(BuiltinType::INT, "countof"), false};
+WithEvalError<EvalResult> CountOfExpression::eval(const Context& context) const {
+  if (auto t = context.getExpandedVariablePack()) {
+    if (t->first == identifier)
+      return EvalResult{CompileTimeValue::get(t->second.size()), true};
+  }
+  if (auto t = context.getExpandedTypePack())
+    if (t->first == identifier)
+      return EvalResult{CompileTimeValue::get(t->second.size()), true};
+  return EvalResult{CompileTimeValue::getTemplateValue(BuiltinType::INT, "countof"), false};
 }
 
 
-VariablePackElement::VariablePackElement(CodeLoc l, string packName, vector<string> ids, SCompileTimeValue index)
-    : Expression(l), packName(std::move(packName)), ids(std::move(ids)), index(std::move(index)) {
+VariablePackElement::VariablePackElement(CodeLoc l, string packName, unique_ptr<Expression> index)
+    : Expression(l), packName(std::move(packName)), index(std::move(index)) {
 }
 
 WithErrorLine<SType> VariablePackElement::getTypeImpl(const Context& context) {
-  if (!ids.empty())
-    return context.getTypeOfVariable(ids[0]).addCodeLoc(codeLoc);
-  else
-    return codeLoc.getError("Unable to get type of empty variable pack. If this error surfaces then it's a bug.");
-}
-
-unique_ptr<Expression> VariablePackElement::replace(SType from, SType to, ErrorLocBuffer& buf) const {
-  ErrorBuffer buf2;
-  auto newIndex = index->replace(from, to, buf2).dynamicCast<CompileTimeValue>();
-  merge(buf, buf2, codeLoc);
-  if (auto val = newIndex->value.getValueMaybe<int>()) {
-    if (*val < 0 || *val >= ids.size()) {
-      buf.push_back(codeLoc.getError("Variable pack index out of bounds: " + to_string(*val) + ", with "
-          + to_string(ids.size()) + " elements"));
-      return deepCopy();
+  auto indexValue1 = TRY(index->eval(context).addNoEvalError(
+      index->codeLoc.getError("Unable to evaluate constant expression at compile-time")));
+  auto indexValue = dynamic_cast<CompileTimeValue*>(indexValue1.value.get());
+  if (indexValue->getType() != BuiltinType::INT)
+    return index->codeLoc.getError("Expected subscript index of type " + quote(BuiltinType::INT->getName())
+        + ",  got " + quote(indexValue->getType()->getName()));
+  const int intValue = indexValue->value.getValueMaybe<int>().value_or(0);
+  auto getType = [&](const vector<SType>& types) -> WithErrorLine<SType> {
+    if (intValue >= 0 && intValue < types.size())
+      return types[intValue];
+    return codeLoc.getError("Index out of range: " + to_string(intValue) + ". Expected value between 0 and "
+        + to_string(types.size()));
+  };
+  if (auto pack = context.getExpandedVariablePack())
+    if (pack->first == packName) {
+      codegenName = getExpandedParamName(packName, intValue);
+      return getType(pack->second);
     }
-    return unique<Variable>(IdentifierInfo(ids[*val], codeLoc));
-  }
-  return cast<Expression>(unique<VariablePackElement>(codeLoc, packName, ids, newIndex));
+  if (auto pack = context.getUnexpandedVariablePack())
+    if (pack->first == packName)
+      return pack->second;
+  return codeLoc.getError(quote(packName) + " is neither a type or variable pack name.");
 }
 
 unique_ptr<Expression> VariablePackElement::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
-  return cast<Expression>(unique<VariablePackElement>(codeLoc, packName, ids, index));
+  return cast<Expression>(unique<VariablePackElement>(codeLoc, packName, index->transform(f1, f2)));
 }
 
 unique_ptr<MemberAccessExpression> MemberAccessExpression::getPointerAccess(CodeLoc l, unique_ptr<Expression> lhs, string id) {

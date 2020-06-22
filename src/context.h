@@ -38,23 +38,28 @@ class Context : public owned_object<Context> {
   WithError<SType> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
   void addVariable(const string& ident, SType, CodeLoc);
-  void addVariablePack(const string& ident, SType, CodeLoc);
-  struct VariablePackInfo {
-    string name;
-    SType type;
-    CodeLoc codeLoc;
-    bool wasExpanded = false;
-  };
-  const optional<VariablePackInfo>& getVariablePack() const;
-  JustError<string> expandVariablePack();
   void replace(SType from, SType to, ErrorBuffer&);
   void expand(SType, vector<SType> to, ErrorBuffer&);
   ReturnTypeChecker* getReturnTypeChecker() const;
   void addReturnTypeChecker(ReturnTypeChecker*);
-  void addType(const string& name, SType, bool fullyDefined = true, bool typePack = false);
+  void addType(const string& name, SType, bool fullyDefined = true);
+  void addExpandedTypePack(const string& name, vector<SType>);
+  void addUnexpandedTypePack(string, SType);
+  void addUnexpandedVariablePack(string, SType);
+  void addExpandedVariablePack(const string& name, vector<SType>);
+  optional<pair<string, vector<SType>>> getExpandedTypePack() const;
+  WithError<pair<string, vector<SType>>> getExpandedVariablePack() const;
+  optional<pair<string, SType>> getUnexpandedTypePack() const;
+  optional<pair<string, SType>> getUnexpandedVariablePack() const;
+  struct SubstitutionInfo {
+    string from;
+    string to;
+    bool constant;
+  };
+  void addSubstitution(SubstitutionInfo);
+  vector<SubstitutionInfo> getSubstitutions() const;
   WithErrorLine<SType> getTypeFromString(IdentifierInfo, optional<bool> typePack = false) const;
   nullable<SType> getType(const string&) const;
-  nullable<SType> getTypePack() const;
   bool isFullyDefined(const Type*) const;
   void setFullyDefined(const Type*, bool);
   vector<SType> getAllTypes() const;
@@ -97,9 +102,11 @@ class Context : public owned_object<Context> {
   struct State : public owned_object<State> {
     map<string, VariableInfo> vars;
     vector<string> varsList;
-    optional<VariablePackInfo> variablePack;
     map<string, SType> types;
-    nullable<SType> typePack;
+    optional<pair<string, vector<SType>>> expandedTypePack;
+    optional<pair<string, vector<SType>>> expandedVariablePack;
+    optional<pair<string, SType>> unexpandedVariablePack;
+    optional<pair<string, SType>> unexpandedTypePack;
     map<const Type*, bool> fullyDefinedTypes;
     map<FunctionId, vector<SFunctionInfo>> functions;
     ReturnTypeChecker* returnTypeChecker = nullptr;
@@ -109,6 +116,7 @@ class Context : public owned_object<Context> {
     bool isBuiltInModule = false;
     vector<SType> templateParams;
     LambdaCaptureInfo* lambdaInfo;
+    vector<SubstitutionInfo> substitutions;
     void merge(const State&);
     void print() const;
   };

@@ -294,7 +294,16 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
         auto identifier = TRY(parseIdentifier(tokens, false));
         if (tokens.peek() == Keyword::OPEN_BRACKET)
           return cast<Expression>(TRY(parseFunctionCall(identifier, tokens)));
-        else {
+        else if (tokens.peek() == Keyword::ELLIPSIS) {
+          tokens.popNext();
+          TRY(tokens.eat(Keyword::OPEN_SQUARE_BRACKET));
+          auto expr = TRY(parseExpression(tokens));
+          TRY(tokens.eat(Keyword::CLOSE_SQUARE_BRACKET));
+          if (auto id = identifier.asBasicIdentifier())
+            return cast<Expression>(unique<VariablePackElement>(identifier.codeLoc, *id, std::move(expr)));
+          else
+            return identifier.codeLoc.getError("Expected variable pack identifier");
+        } else {
           if (identifier.parts.size() == 1)
             return cast<Expression>(unique<Variable>(identifier));
           else

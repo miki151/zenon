@@ -691,13 +691,8 @@ void EmbedStatement::codegen(Accu& accu, CodegenStage stage) const {
       (stage.isImport&& stage.isTypes && exported)) {
     if (!isTopLevel)
       accu.newLine("{");
-    for (auto& r : replacements) {
-      if (auto value = r.from.dynamicCast<CompileTimeValue>()) {
-        CHECK(value->value.contains<CompileTimeValue::TemplateValue>());
-        accu.newLine("constexpr auto " + r.from->getName() + " = " + r.to->getCodegenName() + ";");
-      } else
-        accu.newLine("using " + r.from->getCodegenName() + " = " + r.to->getCodegenName() + ";");
-    }
+    for (auto& r : replacements)
+      accu.newLine((r.constant ? "constexpr auto " : "using ") + r.from + " = " + r.to + ";");
     accu.newLine(value);
     if (!isTopLevel)
       accu.newLine("}");
@@ -943,8 +938,8 @@ void CountOfExpression::codegen(Accu&, CodegenStage) const {
   FATAL << "Attempting to codegen countof expression";
 }
 
-void VariablePackElement::codegen(Accu&, CodegenStage) const {
-  FATAL << "Attempting to codegen variable pack element";
+void VariablePackElement::codegen(Accu& accu, CodegenStage) const {
+  accu.add(*codegenName);
 }
 
 
