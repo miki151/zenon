@@ -795,6 +795,9 @@ static string getVTableFunName(const FunctionId id) {
       },
       [](ConstructorTag) -> string {
         fail();
+      },
+      [](AttributeTag) -> string {
+        fail();
       }
   );
 }
@@ -992,4 +995,7 @@ void FatPointerConversion::codegen(Accu& accu, CodegenStage stage) const {
 
 void UncheckedStatement::codegen(Accu& accu, CodegenStage s) const {
   elem->codegen(accu, s);
+}
+
+void AttributeDefinition::codegen(Accu&, CodegenStage) const {
 }

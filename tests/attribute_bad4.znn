@@ -1,0 +1,15 @@
+// no_compile
+
+attribute @a1;
+
+template <T> requires has_attribute<T, @a1>
+void f() {
+}
+
+struct X {
+};
+
+int main() {
+  f<X>();
+  return 0;
+}

@@ -274,6 +274,11 @@ struct FunctionCall : Expression {
 
 struct AST;
 
+struct AttributeInfo {
+  string name;
+  CodeLoc codeLoc;
+};
+
 struct Statement : Node {
   using Node::Node;
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&);
@@ -286,6 +291,7 @@ struct Statement : Node {
   virtual void codegen(Accu&, CodegenStage) const override {}
   virtual unique_ptr<Statement> replaceVar(string from, string to) const;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const;
+  virtual bool canHaveAttributes() const { return false; }
   unique_ptr<Statement> deepCopy() const;
   enum class TopLevelAllowance {
     CANT,
@@ -294,6 +300,7 @@ struct Statement : Node {
   };
   virtual TopLevelAllowance allowTopLevel() const { return TopLevelAllowance::CANT; }
   bool exported = false;
+  vector<AttributeInfo> attributes;
 };
 
 struct VariableDeclaration : Statement {
@@ -475,6 +482,15 @@ struct TemplateInfo {
   vector<Requirement> requirements;
 };
 
+struct AttributeDefinition : Statement {
+  AttributeDefinition(CodeLoc, string name);
+  NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
+  NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+  string name;
+};
+
 struct StructDefinition : Statement {
   StructDefinition(CodeLoc, string name);
   bool incomplete = false;
@@ -492,6 +508,7 @@ struct StructDefinition : Statement {
   virtual void addGeneratedConstructor(Context&, const AST&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+  virtual bool canHaveAttributes() const override { return true; }
   bool external = false;
 };
 

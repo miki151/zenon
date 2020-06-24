@@ -66,7 +66,8 @@ enum class Keyword {
   ARROW_MEMBER_ACCESS,
   QUESTION_MARK,
   CAST,
-  UNCHECKED
+  UNCHECKED,
+  ATTRIBUTE
 };
 
 struct EmbedToken {

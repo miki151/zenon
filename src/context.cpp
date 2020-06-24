@@ -35,10 +35,9 @@ Context::Context(TypeRegistry* t) : typeRegistry(t), state(shared<State>()) {
 }
 
 void Context::State::merge(const Context::State& o) {
-  for (auto& f : o.functions) {
+  for (auto& f : o.functions)
     if (!functions.count(f.first))
       functions.insert(f);
-  }
 }
 
 void Context::deepCopyFrom(const Context& c) {
@@ -138,6 +137,9 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
         };
         if (auto res = getFunction())
           ret.push_back(*res);
+        else if (function->id == AttributeTag{})
+          return "Type " + quote(function->type.params[0]->getName()) + " is missing attribute: "
+              + quote(function->type.params[1]->getName());
         else
           return "Required function not implemented: " + function->prettyString() +
               ", required by concept: " + quote(required.getName());
@@ -399,6 +401,10 @@ vector<Context::SubstitutionInfo> Context::getSubstitutions() const {
   for (auto& state : getReversedStates())
     ret.append(state->substitutions);
   return ret;
+}
+
+void Context::setAttribute(SType t, SType attr) {
+  CHECK(addFunction(FunctionInfo::getImplicit(AttributeTag{}, FunctionType(BuiltinType::VOID, {t, attr}, {}))));
 }
 
 WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameterInfo>& ids, bool variadic) const {

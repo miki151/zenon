@@ -452,7 +452,10 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionSignature(IdentifierI
   } else {
     if (!token2.contains<IdentifierToken>())
       return token2.codeLoc.getError("Expected identifier, got: " + quote(token2.value));
-    ret = unique<FunctionDefinition>(type.codeLoc, type, token2.value);
+    if (token2.value == "builtin_has_attribute")
+      ret = unique<FunctionDefinition>(type.codeLoc, type, AttributeTag{});
+    else
+      ret = unique<FunctionDefinition>(type.codeLoc, type, token2.value);
   }
   TRY(tokens.eat(Keyword::OPEN_BRACKET));
   while (1) {
@@ -937,6 +940,29 @@ WithErrorLine<unique_ptr<ExternConstantDeclaration>> parseExternalConstant(Token
   return unique<ExternConstantDeclaration>(name.codeLoc, id1, name.value);
 }
 
+WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLevel);
+
+WithErrorLine<unique_ptr<Statement>> parseStatementWithAttributes(Tokens& tokens) {
+  TRY(tokens.eat(Keyword::OPEN_SQUARE_BRACKET));
+  vector<AttributeInfo> attrs;
+  while (1) {
+    auto element = tokens.popNext();
+    if (!element.contains<IdentifierToken>())
+      return element.codeLoc.getError("Expected attribute name, got: " + quote(element.value));
+    attrs.push_back(AttributeInfo{element.value, element.codeLoc});
+    if (tokens.eatMaybe(Keyword::CLOSE_SQUARE_BRACKET))
+      break;
+    TRY(tokens.eat(Keyword::COMMA));
+    if (tokens.eatMaybe(Keyword::CLOSE_SQUARE_BRACKET))
+      break;
+  }
+  auto stmt = TRY(parseStatement(tokens, true));
+  if (!stmt->canHaveAttributes())
+    return stmt->codeLoc.getError("This type of definition doesn't support attributes");
+  stmt->attributes = std::move(attrs);
+  return std::move(stmt);
+}
+
 WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLevel) {
   auto parseExpressionAndSemicolon = [&] () -> WithErrorLine<unique_ptr<ExpressionStatement>> {
     auto ret = TRY(parseExpression(tokens));
@@ -980,6 +1006,12 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             return cast<Statement>(parseStructDefinition(tokens, false));
           case Keyword::UNION:
             return cast<Statement>(parseUnionDefinition(tokens));
+          case Keyword::ATTRIBUTE: {
+            tokens.popNext();
+            auto name = TRY(tokens.eat<IdentifierToken>("Expected attribute name"));
+            TRY(tokens.eat(Keyword::SEMICOLON));
+            return cast<Statement>(unique<AttributeDefinition>(name.codeLoc, name.value));
+          }
           case Keyword::SWITCH:
             return cast<Statement>(parseSwitchStatement(tokens));
           case Keyword::ENUM:
@@ -1017,8 +1049,13 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             tokens.popNext();
             return cast<Statement>(unique<UncheckedStatement>(tokens.peek().codeLoc,
                 TRY(parseStatement(tokens, false))));
+          case Keyword::OPEN_SQUARE_BRACKET:
+            if (topLevel)
+              return parseStatementWithAttributes(tokens);
+            else
+              return cast<Statement>(parseExpressionAndSemicolon());
           default:
-            return token.codeLoc.getError("Unexpected keyword: " + quote(token.value));
+            return cast<Statement>(parseExpressionAndSemicolon());
         }
       },
       [&](const IdentifierToken&) -> WithErrorLine<unique_ptr<Statement>> {

@@ -1,0 +1,23 @@
+// 5
+
+attribute @a1;
+attribute @a2;
+
+template <T> requires has_attribute<T, @a1>
+int f() {
+  return 1;
+}
+
+template <T> requires has_attribute<T, @a2>
+int f() {
+  return 2;
+}
+
+[@a1]
+struct X {};
+[@a2]
+struct Y {};
+
+int main() {
+  return f<X>() + f<Y>() * 2;
+}

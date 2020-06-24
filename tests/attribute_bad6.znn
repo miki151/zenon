@@ -1,0 +1,17 @@
+// no_compile
+
+attribute @a1;
+
+template <T> requires has_attribute<T, @a1>
+int f() {
+  return 1;
+}
+
+template <T>
+int g() {
+  return f<T>();
+}
+
+int main() {
+  return 0;
+}

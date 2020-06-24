@@ -1,0 +1,9 @@
+// no_compile
+
+[@someattr]
+struct X {
+};
+
+int main() {
+  return 0;
+}

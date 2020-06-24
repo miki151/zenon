@@ -14,6 +14,7 @@ BuiltinType::DefType BuiltinType::ENUM_TYPE = shared<BuiltinType>("enum_type");
 BuiltinType::DefType BuiltinType::NULL_TYPE = shared<BuiltinType>("null_type");
 BuiltinType::DefType BuiltinType::STRUCT_TYPE = shared<BuiltinType>("struct_type");
 BuiltinType::DefType BuiltinType::UNION_TYPE = shared<BuiltinType>("union_type");
+BuiltinType::DefType BuiltinType::ATTRIBUTE_TYPE = shared<BuiltinType>("attribute_type");
 
 string BuiltinType::getName(bool withTemplateArguments) const {
   return name;
@@ -277,6 +278,9 @@ string FunctionInfo::getMangledName() const {
           return type.retVal->getCodegenName();
         else
           return "construct_" + type.retVal->getCodegenName();
+      },
+      [](AttributeTag) -> string {
+        fail();
       }
   );
 }
@@ -442,7 +446,8 @@ bool BuiltinType::canDeclareVariable() const {
 }
 
 bool BuiltinType::isMetaType() const {
-  return ANY_TYPE == this || STRUCT_TYPE == this || UNION_TYPE == this|| ENUM_TYPE == this;
+  return ANY_TYPE == this || STRUCT_TYPE == this || UNION_TYPE == this || ENUM_TYPE == this
+      || ATTRIBUTE_TYPE == this;
 }
 
 SType Type::removePointer() const {
@@ -1915,3 +1920,30 @@ optional<string> mangleTemplateParams(const vector<SType>& params) {
       return none;
   return std::move(ret);
 }
+
+string AttributeType::getName(bool withTemplateArguments) const {
+  return name;
+}
+
+bool AttributeType::canBeValueTemplateParam() const {
+  return false;
+}
+
+bool AttributeType::canDeclareVariable() const {
+  return false;
+}
+
+SType AttributeType::getType() const {
+  return BuiltinType::ATTRIBUTE_TYPE;
+}
+
+shared_ptr<AttributeType> AttributeType::get(const string& name) {
+  static map<string, shared_ptr<AttributeType>> generated;
+  if (!generated.count(name)) {
+    auto ret = shared<AttributeType>(Private{}, name);
+    generated.insert({name, ret});
+  }
+  return generated.at(name);
+}
+
+AttributeType::AttributeType(AttributeType::Private, const string& name) : name(name) {}

@@ -15,6 +15,7 @@ struct FunctionDefinition;
 struct Accu;
 struct StatementBlock;
 struct Statement;
+struct AttributeType;
 
 struct Type : public owned_object<Type> {
   Type();
@@ -82,11 +83,25 @@ struct BuiltinType : public Type {
   static DefType ENUM_TYPE;
   static DefType STRUCT_TYPE;
   static DefType UNION_TYPE;
+  static DefType ATTRIBUTE_TYPE;
   BuiltinType(const string& name, optional<string> codegenName = none);
 
   private:
   string name;
   string codegenName;
+};
+
+struct AttributeType : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual bool canBeValueTemplateParam() const override;
+  virtual bool canDeclareVariable() const override;
+  virtual SType getType() const override;
+  static shared_ptr<AttributeType> get(const string&);
+  struct Private {};
+  AttributeType(Private, const string& name);
+
+  private:
+  string name;
 };
 
 struct ReferenceType : public Type {

@@ -1,0 +1,9 @@
+// no_compile
+
+template <T> requires has_attribute<T, @a1>
+void f() {
+}
+
+int main() {
+  return 0;
+}

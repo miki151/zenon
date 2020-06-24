@@ -1,0 +1,10 @@
+// no_compile
+
+attribute @someattr;
+
+[@someattr]
+struct X;
+
+int main() {
+  return 0;
+}

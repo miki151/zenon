@@ -29,3 +29,8 @@ export template <T, Args...>
 concept can_construct {
   T(Args...);
 };
+
+export template <T, A>
+concept has_attribute {
+  void builtin_has_attribute(T, A);
+};

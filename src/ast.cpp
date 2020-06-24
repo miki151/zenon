@@ -584,7 +584,8 @@ bool ReturnStatement::hasReturnStatement(const Context&) const {
   return true;
 }
 
-static WithErrorLine<vector<SType>> translateConceptParams(const Context& context, const TemplateInfo::ConceptRequirement& requirement) {
+static WithErrorLine<vector<SType>> translateConceptParams(const Context& context,
+    const TemplateInfo::ConceptRequirement& requirement) {
   auto& reqId = requirement.identifier;
   auto& requirementArgs = reqId.parts[0].templateArguments;
   auto concept = context.getConcept(reqId.parts[0].name).get();
@@ -1811,10 +1812,26 @@ JustError<ErrorLoc> UnionDefinition::check(Context& context, bool) {
   return success;
 }
 
+static WithErrorLine<set<shared_ptr<AttributeType>>> getAttributeTypes(const Context& context,
+    const vector<AttributeInfo>& attributes) {
+  set<shared_ptr<AttributeType>> ret;
+  for (auto& attr : attributes)
+    if (auto t = context.getType(attr.name)) {
+      if (auto attrType = t.get().dynamicCast<AttributeType>())
+        ret.insert(attrType);
+      else
+        return attr.codeLoc.getError(quote(attr.name) + " is not an attribute");
+    } else
+      return attr.codeLoc.getError("Attribute not found: " + quote(attr.name));
+  return ret;
+}
+
 JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
   type = TRY(getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, incomplete));
   if (!incomplete) {
     TRY(getRedefinitionError(type->getName(), type->definition).addCodeLoc(codeLoc));
+    for (auto& attr : TRY(getAttributeTypes(context, attributes)))
+      context.setAttribute(type.get(), attr);
     type->definition = codeLoc;
     context.setFullyDefined(type.get().get(), true);
     if (templateInfo.params.size() != type->templateParams.size())
@@ -1832,7 +1849,9 @@ JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
         if (members[i].name == members[j].name)
           return members[j].codeLoc.getError("Duplicate member: " + quote(members[j].name));
     type->external = external;
-  }
+  } else
+  if (!attributes.empty())
+    return codeLoc.getError("Forward declaration can't contain any attributes.");
   return success;
 }
 
@@ -2774,4 +2793,17 @@ JustError<ErrorLoc> UncheckedStatement::checkMovesImpl(MoveChecker& checker) con
 
 unique_ptr<Statement> UncheckedStatement::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
   return unique<UncheckedStatement>(codeLoc, elem->transform(f1, f2));
+}
+
+AttributeDefinition::AttributeDefinition(CodeLoc l, string name) : Statement(l), name(std::move(name)) {
+}
+
+JustError<ErrorLoc> AttributeDefinition::addToContext(Context& context) {
+  TRY(context.checkNameConflictExcludingFunctions(name, "attribute").addCodeLoc(codeLoc));
+  context.addType(name, AttributeType::get(name));
+  return success;
+}
+
+JustError<ErrorLoc> AttributeDefinition::check(Context&, bool) {
+  return success;
 }

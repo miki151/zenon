@@ -41,7 +41,7 @@ static string getOperators() {
 }
 
 WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string& eofTokenValue) {
-  string idLetterFirst = "a-zA-Z";
+  string idLetterFirst = "a-zA-Z@";
   string idLetter = idLetterFirst + "0-9_";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
       {"//.*", [](const string&) -> optional<Token> { return none;}},
