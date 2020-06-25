@@ -2231,6 +2231,8 @@ JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
   auto declarationsContext = Context::withParent(context);
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];
+    if (param.type)
+      return param.codeLoc.getError("Concept value template parameters are not supported.");
     concept->modParams().push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
     declarationsContext.addType(param.name, concept->modParams().back(), true);
     if (templateInfo.variadic && i == templateInfo.params.size() - 1)
