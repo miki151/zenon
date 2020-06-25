@@ -698,7 +698,8 @@ static WithErrorLine<vector<SType>> getTemplateParams(const TemplateInfo& info, 
   return ret;
 }
 
-JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, nullable<SConcept> concept, bool builtInImport) {
+JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, nullable<SConcept> concept,
+    bool builtInImport) {
   for (int i = 0; i < parameters.size(); ++i)
     if (!parameters[i].name)
       parameters[i].name = "parameter" + to_string(i);
@@ -1233,15 +1234,29 @@ static WithError<SType> getDestructedType(const vector<SType>& params) {
 
 JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport) {
   TRY(generateDefaultBodies(context));
-  if (body && (!templateInfo.params.empty() || notInImport)) {
+  // if origBody is present then body has already been checked
+  // this can happen in exported functions, for example
+  // it probably isn't necessary to recheck the body in these cases
+  if (body && !origBody && (!templateInfo.params.empty() || notInImport)) {
+    // save the original unchecked body to use by template instances
     origBody = cast<StatementBlock>(body->deepCopy());
     Context paramsContext = Context::withParent(context);
-    addTemplateParams(paramsContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
-    auto res = TRY(applyRequirements(paramsContext, templateInfo));
+    // use a temporary FunctionInfo with fresh template types to avoid clashes if the function
+    // is calling itself with changed parameter order
+    auto thisFunctionInfo = functionInfo.get();
+    auto newParams = TRY(getTemplateParams(templateInfo, context));
+    addTemplateParams(paramsContext, newParams, thisFunctionInfo->type.variadicTemplate);
+    TRY(applyRequirements(paramsContext, templateInfo));
+    ErrorBuffer errors;
+    for (int i = 0; i < newParams.size(); ++i) {
+      thisFunctionInfo = replaceInFunction(thisFunctionInfo, functionInfo->type.templateParams[i], newParams[i],
+        errors);
+    }
+    CHECK(errors.empty());
     TRY(checkForIncompleteTypes(paramsContext));
     // For checking the template we use the Context that includes the template params.
     definitionContext.emplace(Context::withParent(paramsContext));
-    TRY(checkBody({}, *body, *functionInfo, destructorCalls));
+    TRY(checkBody({}, *body, *thisFunctionInfo, destructorCalls));
     // For checking instances we just use the top level context.
     definitionContext.emplace(Context::withParent(context));
     wasChecked = true;
@@ -1256,7 +1271,7 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
       if (p.name)
         moveChecker.addVariable(*p.name);
     if (name == "destruct"s) {
-      auto destructedType = TRY(getDestructedType(functionInfo->type.params).addCodeLoc(codeLoc));
+      auto destructedType = TRY(getDestructedType(thisFunctionInfo->type.params).addCodeLoc(codeLoc));
       if (auto structType = destructedType.dynamicCast<StructType>())
         if (!structType->definition || structType->definition->file != codeLoc.file)
           return codeLoc.getError("Destructor function must be defined in the same file as the destructed type");
