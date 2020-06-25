@@ -166,6 +166,7 @@ bool canOverload(Operator op) {
     case Operator::DIVIDE_BY:
     case Operator::MODULO:
     case Operator::EQUALS:
+    case Operator::NOT_EQUAL:
     case Operator::LESS_THAN:
     case Operator::MORE_THAN:
     case Operator::POINTER_DEREFERENCE:
@@ -347,6 +348,12 @@ WithEvalError<SType> eval(Operator op, vector<SType> args1) {
         ? CompileTimeValue::get(args1[0] == args1[1])
         : CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, args1, BuiltinType::BOOL});
     return SType(std::move(result));
+  } else
+  if (op == Operator::NOT_EQUAL && args1.size() == 2) {
+    auto result = args1[0]->getMangledName() && args1[1]->getMangledName()
+        ? CompileTimeValue::get(args1[0] != args1[1])
+        : CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, args1, BuiltinType::BOOL});
+    return SType(std::move(result));
   }
   vector<SCompileTimeValue> args;
   for (auto& arg1 : args1) {
@@ -386,6 +393,8 @@ const char* getCodegenName(Operator op) {
       return "op_module";
     case Operator::EQUALS:
       return "op_equals";
+    case Operator::NOT_EQUAL:
+      return "not_equal";
     case Operator::LESS_THAN:
       return "op_less_than";
     case Operator::MORE_THAN:

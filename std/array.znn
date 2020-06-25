@@ -1,5 +1,6 @@
 
 export import "std/concepts.znn";
+export import "std/operator_helpers.znn";
 export import "std/destruct.znn";
 
 export template <T, int Size>

@@ -1,4 +1,15 @@
 
+export import "std/concepts.znn";
+
+export template <T, U>
+concept can_equality_impl {
+  bool operator == (T*, U*);
+};
+
+export template <T, U> requires can_equality_impl<T, U>
+bool operator != (T* t, U* u) {
+  return !(*t == *u);
+}
 
 export template <T, U>
 concept can_increment_by_impl {

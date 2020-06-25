@@ -235,8 +235,6 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context&,
 
 unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr) {
   switch (op) {
-    case Operator::NOT_EQUAL:
-      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::EQUALS, std::move(expr)));
     case Operator::LESS_OR_EQUAL:
       return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::MORE_THAN, std::move(expr)));
     case Operator::MORE_OR_EQUAL:
@@ -280,7 +278,6 @@ static unique_ptr<Statement> getDestructorStatement(CodeLoc codeLoc, const strin
 
 WithErrorLine<SType> BinaryExpression::getTypeImpl(const Context& context) {
   switch (op) {
-    case Operator::NOT_EQUAL:
     case Operator::LESS_OR_EQUAL:
     case Operator::MORE_OR_EQUAL:
       FATAL << "This operator should have been rewritten";
