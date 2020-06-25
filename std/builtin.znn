@@ -6,6 +6,7 @@ export import "std/string.znn";
 export import "std/optional.znn";
 export import "std/pointer.znn";
 export import "std/destruct.znn";
+export import "std/operator_helpers.znn";
 
 export int implicit_copy(int* b) {
   embed {
@@ -63,3 +64,4 @@ Enum implicit_copy(Enum* e) {
 
 export template <T>
 void discard_impl(T) {}
+

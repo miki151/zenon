@@ -161,7 +161,9 @@ bool canOverload(Operator op) {
     case Operator::PLUS:
     case Operator::MINUS:
     case Operator::MULTIPLY:
+    case Operator::MULTIPLY_BY:
     case Operator::DIVIDE:
+    case Operator::DIVIDE_BY:
     case Operator::MODULO:
     case Operator::EQUALS:
     case Operator::LESS_THAN:
@@ -169,7 +171,9 @@ bool canOverload(Operator op) {
     case Operator::POINTER_DEREFERENCE:
     case Operator::PLUS_UNARY:
     case Operator::INCREMENT:
+    case Operator::INCREMENT_BY:
     case Operator::DECREMENT:
+    case Operator::DECREMENT_BY:
     case Operator::LOGICAL_NOT:
     case Operator::MINUS_UNARY:
     case Operator::VALUE_OR:

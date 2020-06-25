@@ -1,0 +1,42 @@
+
+
+export template <T, U>
+concept can_increment_by_impl {
+  T operator + (T*, U*);
+};
+
+export template <T, U> requires can_increment_by_impl<T, U>
+void operator +=(T mutable* t, U* u) {
+  *t = *t + *u;
+}
+
+export template <T, U>
+concept can_decrement_by_impl {
+  T operator - (T*, U*);
+};
+
+export template <T, U> requires can_decrement_by_impl<T, U>
+void operator -=(T mutable* t, U* u) {
+  *t = *t - *u;
+}
+
+export template <T, U>
+concept can_multiply_by_impl {
+  T operator * (T*, U*);
+};
+
+export template <T, U> requires can_multiply_by_impl<T, U>
+void operator *=(T mutable* t, U* u) {
+  *t = *t * *u;
+}
+
+export template <T, U>
+concept can_divide_by_impl {
+  T operator / (T*, U*);
+};
+
+export template <T, U> requires can_divide_by_impl<T, U>
+void operator /=(T mutable* t, U* u) {
+  *t = *t / *u;
+}
+
