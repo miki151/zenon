@@ -1344,12 +1344,14 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
         {{BuiltinType::BOOL}, {BuiltinType::BOOL}}, {}).setBuiltin()));
   CHECK(context.addImplicitFunction(Operator::LOGICAL_NOT, FunctionType(BuiltinType::BOOL,
       {{BuiltinType::BOOL}}, {}).setBuiltin()));
-  for (auto op : {Operator::EQUALS, Operator::LESS_THAN, Operator::MORE_THAN})
+  for (auto op : {Operator::EQUALS, Operator::NOT_EQUAL, Operator::LESS_THAN, Operator::MORE_THAN})
     for (auto type : {BuiltinType::INT, BuiltinType::STRING, BuiltinType::DOUBLE})
-      CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL, {{type}, {type}}, {}).setBuiltin()));
-  for (auto op : {Operator::EQUALS})
+      CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL,
+          {ReferenceType::get(type), ReferenceType::get(type)}, {}).setBuiltin()));
+  for (auto op : {Operator::EQUALS, Operator::NOT_EQUAL})
     for (auto type : {BuiltinType::BOOL, BuiltinType::CHAR})
-      CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL, {{type}, {type}}, {}).setBuiltin()));
+      CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL,
+          {ReferenceType::get(type), ReferenceType::get(type)}, {}).setBuiltin()));
   auto metaTypes = {BuiltinType::ANY_TYPE, BuiltinType::STRUCT_TYPE, BuiltinType::ENUM_TYPE, BuiltinType::UNION_TYPE};
   CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionType(BuiltinType::BOOL, {{BuiltinType::ANY_TYPE}, {BuiltinType::ANY_TYPE}}, {}).setBuiltin()));
   addBuiltInConcepts(context);
