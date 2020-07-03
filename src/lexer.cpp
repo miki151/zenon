@@ -55,9 +55,6 @@ WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string&
       {"[0-9]+" , [](const string&) -> optional<Token> { return Token(Number{}); } },
       {"[" + idLetterFirst + "][" + idLetter + "]*" , [](const string&) -> optional<Token> { return Token(IdentifierToken{}); }},
   };
-  INFO << "Lexing expressions:";
-  for (auto& elem : v)
-    INFO << elem.first;
   vector<int> lines(input.size());
   vector<int> columns(input.size());
   int currentLine = 0;
@@ -132,7 +129,6 @@ WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string&
           ret.back().codeLoc = codeLoc;
           ret.back().value = process(*token, matched);
         }
-        INFO << "Matched " << quote(matched) << " with rule " << index;
         break;
       }
   }
