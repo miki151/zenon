@@ -8,41 +8,32 @@ struct Accu {
   public:
   Accu(bool l) : includeLineNumbers(l) {}
 
-  enum Position {
-    CURRENT,
-    LAST_TOP_LEVEL,
-  };
-
-  void add(const string& s, Position pos = CURRENT) {
-    buf[pos] += s;
+  void add(const string& s) {
+    buf += s;
   }
 
   const int indentSize = 2;
 
-  void newLine(const string& s = "", Position pos = CURRENT) {
-    buf[pos] += "\n" + string(indent * indentSize, ' ');
-    buf[pos] += s;
+  void newLine(const string& s = "") {
+    add("\n" + string(indent * indentSize, ' ') + s);
   }
 
   void newLine(CodeLoc codeLoc) {
-    buf[CURRENT] += "\n"  + string(indent * indentSize, ' ');
+    add("\n"  + string(indent * indentSize, ' '));
     if (includeLineNumbers)
       add("#line " + to_string(codeLoc.line) + " \"" + codeLoc.file + "\"\n");
   }
 
-  void pop_back(Position pos = CURRENT) {
-    buf[pos].pop_back();
+  void pop_back() {
+    buf.pop_back();
   }
 
   string generate() {
-    string ret;
-    for (auto& elem : buf)
-      ret += elem.second + "\n";
-    return ret;
+    return std::move(buf);
   }
 
   int indent = 0;
-  map<Position, string> buf;
+  string buf;
   bool includeLineNumbers;
 };
 
