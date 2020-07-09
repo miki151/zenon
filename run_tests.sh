@@ -66,11 +66,11 @@ function run_test() {
   fi
 #echo -e "$GREEN Success$NC"
 }
-for I in `ls $WILDCARD*.znn`; do 
+for I in `ls $WILDCARD*.znn 2> /dev/null`; do 
   run_test $I
 done
 
-for I in `ls $WILDCARD*/main.znn`; do 
+for I in `ls $WILDCARD*/main.znn 2> /dev/null`; do 
   run_test $I
 done
 
