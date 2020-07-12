@@ -9,9 +9,6 @@ int f() {
   return g();
 }
 
-template <T>
-struct A;
-
 A<int> a1() {
   return A(1);
 }

@@ -8,9 +8,6 @@ struct Leaf {
 };
 
 template <T>
-struct Node;
-
-template <T>
 struct NonLeaf {
   vector<Node<T>> nodes;
 };

@@ -1,6 +1,4 @@
 
-export enum E;
-
 export int f(E e) {
   switch (e) {
   }

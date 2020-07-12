@@ -1,15 +1,13 @@
 #include <fstream>
 #include "debug.h"
 
-#include "token.h"
-#include "lexer.h"
-#include "parser.h"
 #include "ast.h"
 #include "codegen.h"
-#include "reader.h"
 #include "ProgramOptions.h"
 #include "lsp.h"
 #include "type_registry.h"
+#include "import_cache.h"
+#include "ast_cache.h"
 
 auto installDir = INSTALL_DIR;
 
@@ -61,6 +59,18 @@ T getOrCompileError(WithErrorLine<T> value) {
     exitWithError(value.get_error().loc, value.get_error().error);
 }
 
+static void checkCompileError(JustError<ErrorLoc> value) {
+  if (!value)
+    exitWithError(value.get_error().loc, value.get_error().error);
+}
+
+static string getCodegenAllFileName(string s) {
+  for (auto& c : s)
+    if (c == '/')
+      c = '_';
+  return s;
+}
+
 int main(int argc, char* argv[]) {
   po::parser flags = getCommandLineFlags();
   if (!flags.parseArgs(argc, argv))
@@ -98,23 +108,29 @@ int main(int argc, char* argv[]) {
   auto buildDir = ".build_cache";
   if (!fs::is_directory(buildDir))
     fs::create_directory(buildDir);
+  ImportCache importCache;
+  ASTCache astCache;
+  TypeRegistry typeRegistry;
+  const auto primaryContext = createPrimaryContext(&typeRegistry);
+  {
+    auto initialAST = getOrCompileError(astCache.getAST(fs::canonical(toCompile.begin()->path)));
+    for (auto& elem : initialAST->elems)
+      checkCompileError(elem->registerTypes(primaryContext, &typeRegistry, astCache, {installDir}));
+  }
   while (!toCompile.empty()) {
-    auto path = toCompile.begin()->path;
+    auto path = string(fs::canonical(toCompile.begin()->path));
     bool builtInModule = toCompile.begin()->builtIn;
     cerr << "Compiling " << path << endl;
     toCompile.removeIndexPreserveOrder(0);
     finished.insert(path);
-    auto program = readFromFile(path.c_str());
-    if (!program)
-      ErrorLog.get() << program.get_error();
-    INFO << "Parsing:\n\n" << program->value;
-    auto tokens = getOrCompileError(lex(program->value, CodeLoc(path, 0, 0), "end of file"));
-    auto ast = getOrCompileError(parse(tokens));
-    TypeRegistry typeRegistry;
-    auto primaryContext = createPrimaryContext(&typeRegistry);
+    auto ast = getOrCompileError(astCache.getAST(path));
+    if (builtInModule)
+      importCache.setBuiltIn();
     auto context = Context::withParent(primaryContext);
-    auto imported = getOrCompileError(correctness(path, ast, context, primaryContext, {installDir}, builtInModule));
-    auto cppCode = codegen(ast, context, installDir + "/codegen_includes/"s, !printCpp);
+    auto imported = getOrCompileError(correctness(path, *ast, context, primaryContext, importCache, builtInModule));
+    if (builtInModule)
+      importCache.popBuiltIn();
+    auto cppCode = codegen(*ast, typeRegistry, context, installDir + "/codegen_includes/"s, !printCpp);
     if (printCpp) {
       cout << cppCode << endl;
       return 0;
@@ -127,7 +143,7 @@ int main(int argc, char* argv[]) {
           finished.insert(import.path);
         }
     if (codegenAll)
-      ofstream(*codegenAll + "/"s + to_string(std::hash<string>()(path)) + ".cpp") << cppCode;
+      ofstream(*codegenAll + "/"s + getCodegenAllFileName(path) + ".cpp") << cppCode;
     else {
       auto objFile = fullCompile
           ? buildDir + "/"s + to_string(std::hash<string>()(cppCode + gccCmd)) + ".znn.o"

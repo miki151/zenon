@@ -9,6 +9,8 @@
 #include "lexer.h"
 #include "parser.h"
 #include "type_registry.h"
+#include "import_cache.h"
+#include "ast_cache.h"
 
 void output(const string& s) {
   cout << "Content-Length: " << s.size() << "\r\n\r\n" << s << std::flush;
@@ -214,8 +216,15 @@ void printDiagnostics(const char* installDir, const string& text, const string& 
       cerr << "Parsed " << ast->elems.size() << " top level statements" << endl;
       TypeRegistry typeRegistry;
       auto primaryContext = createPrimaryContext(&typeRegistry);
+      ImportCache importCache;
+      ASTCache astCache;
+      for (auto& elem : ast->elems)
+        if (auto res = elem->registerTypes(primaryContext, &typeRegistry, astCache, {installDir}); !res) {
+          add(res.get_error().error, res.get_error().loc);
+          return;
+        }
       auto context = Context::withParent(primaryContext);
-      auto imported = correctness(fs::system_complete(path), *ast, context, primaryContext, {installDir}, false);
+      auto imported = correctness(fs::system_complete(path), *ast, context, primaryContext, importCache, false);
       if (!imported) {
         cerr << "Type error" << endl;
         add(imported.get_error().error, imported.get_error().loc);

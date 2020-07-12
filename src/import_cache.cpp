@@ -1,9 +1,7 @@
 #include "import_cache.h"
 #include "ast.h"
 
-ImportCache::ImportCache(bool isBuiltInModule) {
-  if (isBuiltInModule)
-    ++builtInCounter;
+ImportCache::ImportCache() {
 }
 
 void ImportCache::insert(string path, Context context, bool builtIn) {
@@ -34,6 +32,14 @@ const vector<string>& ImportCache::getCurrentImports() const {
 
 bool ImportCache::isCurrentlyImported(string path) const {
   return ::contains(current, path);
+}
+
+void ImportCache::setBuiltIn() {
+  ++builtInCounter;
+}
+
+void ImportCache::popBuiltIn() {
+  --builtInCounter;
 }
 
 void ImportCache::pushCurrentImport(string path, bool isBuiltIn) {

@@ -1,6 +1,6 @@
 // no_compile
 
-struct X;
+import "x.znn";
 
 extern X[3] get();
 

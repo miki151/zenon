@@ -7,9 +7,11 @@ struct ModuleInfo;
 
 class ImportCache {
   public:
-  ImportCache(bool isBuiltInModule);
+  ImportCache();
   void insert(string path, Context context, bool builtIn);
   vector<ModuleInfo> getAllImports() const;
+  void setBuiltIn();
+  void popBuiltIn();
   bool contains(string path) const;
   const Context& getContext(string path) const;
   const vector<string>& getCurrentImports() const;

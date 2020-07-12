@@ -35,6 +35,10 @@ struct Accu {
   int indent = 0;
   string buf;
   bool includeLineNumbers;
+  unordered_set<const FunctionInfo*> instances;
+  unordered_set<const LambdaType*> lambdas;
+  unordered_set<const ConceptType*> conceptTypes;
+  set<pair<AST*, CodegenStage>> generated;
 };
 
 void Constant::codegen(Accu& accu, CodegenStage) const {
@@ -289,7 +293,8 @@ void FunctionDefinition::handlePointerReturnInOperator(Accu& accu, const Stateme
 void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (external || stage.isTypes)
     return;
-  auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body, const vector<unique_ptr<Statement>>& destructors) {
+  auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body,
+      const vector<unique_ptr<Statement>>& destructors) {
     if (functionInfo.getMangledSuffix() && (wasUsed || functionInfo.isMainFunction() || (exported && !stage.isImport))) {
       if (!functionInfo.type.templateParams.empty())
         accu.add("inline ");
@@ -315,7 +320,8 @@ void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   };
   addInstance(*functionInfo, body.get(), destructorCalls);
   for (auto& instance : instances)
-    if (instance.functionInfo->getMangledSuffix())
+    if (accu.instances.count(instance.functionInfo->getWithoutRequirements().get())
+        && instance.functionInfo->getMangledSuffix())
       addInstance(*instance.functionInfo, instance.body.get(), instance.destructorCalls);
 }
 
@@ -444,7 +450,7 @@ void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) co
   }
 }
 
-static unique_ptr<StatementBlock> generateLambdaBody(unique_ptr<StatementBlock> body, const LambdaType& type) {
+static unique_ptr<StatementBlock> generateLambdaBody(Statement* body, const LambdaType& type) {
   auto ret = unique<StatementBlock>(body->codeLoc);
   for (auto& capture : type.captures) {
     auto memberExpr = cast<Expression>(MemberAccessExpression::getPointerAccess(body->codeLoc,
@@ -459,63 +465,116 @@ static unique_ptr<StatementBlock> generateLambdaBody(unique_ptr<StatementBlock> 
     decl->realType = type;
     ret->elems.push_back(std::move(decl));
   }
-  ret->elems.push_back(std::move(body));
+  ret->elems.push_back(unique<ExternalStatement>(body));
   return ret;
 }
 
-string codegen(const AST& ast, const Context& context, const string& codegenInclude, bool includeLineNumbers) {
+void codegenLambdas(Accu& accu, const AST& ast, CodegenStage stage, set<const Type*>& visited) {
+  vector<unique_ptr<FunctionDefinition>> lambdas;
+  for (const auto& lambda : accu.lambdas)
+    if (lambda->functionInfo->getMangledSuffix()) {
+      if (stage.isTypes)
+        lambda->codegenDefinition(visited, accu);
+      const auto dummyIdent = IdentifierInfo("ignore", lambda->body->codeLoc);
+      auto getLambdaBody = [&lambda, &dummyIdent](Statement* body) {
+        auto def = unique<FunctionDefinition>(body->codeLoc, dummyIdent,
+            lambda->functionInfo->id);
+        def->body = generateLambdaBody(body, *lambda);
+        def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, string(lambdaArgName), false, false});
+        def->wasUsed = true;
+        return def;
+      };
+      auto mainBody = getLambdaBody(lambda->body.get());
+      mainBody->destructorCalls.emplace_back();
+      const auto& functionType = lambda->functionInfo->type;
+      for (int i = 1; i < functionType.params.size(); ++i) {
+        mainBody->parameters.push_back(FunctionParameter{mainBody->body->codeLoc, dummyIdent,
+            lambda->parameterNames[i - 1], false, false});
+        if (auto call = lambda->destructorCalls[i - 1].get())
+          mainBody->destructorCalls.push_back(unique<ExternalStatement>(call));
+        else
+          mainBody->destructorCalls.push_back(nullptr);
+      }
+      mainBody->functionInfo = FunctionInfo::getDefined(lambda->functionInfo->id, std::move(functionType),
+          mainBody.get());
+      lambdas.push_back(std::move(mainBody));
+      if (lambda->destructor) {
+        auto destructorBody = getLambdaBody(lambda->destructor.get());
+        destructorBody->destructorCalls.emplace_back();
+        destructorBody->functionInfo = FunctionInfo::getImplicit("destruct"s,
+            FunctionType(BuiltinType::VOID, {PointerType::get(lambda->get_this().get())}, {}));
+        lambdas.push_back(std::move(destructorBody));
+      }
+    }
+  for (auto& elem : lambdas) {
+    elem->codegen(accu, stage);
+  }
+}
+
+string codegen(const AST& ast, TypeRegistry& registry, const Context& context, const string& codegenInclude,
+    bool includeLineNumbers) {
   Accu accu(includeLineNumbers);
+  FunctionCallVisitFun visitFun = [&](SFunctionInfo call) {
+    call = call->getWithoutRequirements();
+    if (!accu.instances.count(call.get())) {
+      accu.instances.insert(call.get());
+      if (!call->type.concept)
+        if (auto def = call->getDefinition())
+          if (!def->external && def->functionInfo != call) {
+            for (auto& instance : def->instances)
+              if (instance.functionInfo->getWithoutRequirements() == call) {
+                instance.body->addFunctionCalls(visitFun);
+                instance.body->addLambdas(accu.lambdas);
+                instance.body->addConceptTypes(accu.conceptTypes);
+                for (auto& call : instance.destructorCalls)
+                  if (call) {
+                    call->addFunctionCalls(visitFun);
+                    call->addLambdas(accu.lambdas);
+                    call->addConceptTypes(accu.conceptTypes);
+                  }
+                return;
+              }
+            FATAL;
+          }
+    }
+  };
+  for (auto& elem : ast.elems) {
+    elem->addFunctionCalls(visitFun);
+    elem->addLambdas(accu.lambdas);
+    elem->addConceptTypes(accu.conceptTypes);
+  }
   accu.add("#include \"" + codegenInclude + "/all.h\"");
   accu.newLine();
+  for (auto& l : accu.lambdas)
+    accu.newLine("struct " + l->getCodegenName() + ";");
+  for (auto& t : registry.getAllStructs())
+    if (!t->external) {
+      if (auto name = t->getMangledName())
+        accu.newLine("struct " + *name + ";");
+      for (auto s : t->instances)
+        if (auto name = s->getMangledName())
+          accu.newLine("struct " + *name + ";");
+    }
+  for (auto& t : registry.getAllEnums())
+    if (!t->external)
+      accu.add("enum class " + *t->getMangledName() + ";");
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::types());
   }
-  vector<unique_ptr<FunctionDefinition>> lambdas;
   set<const Type*> visitedTypes;
   for (auto& type : context.getAllTypes()) {
     if (context.isFullyDefined(type.get()))
       type->codegenDefinition(visitedTypes, accu);
   }
-  for (auto& lambda : context.typeRegistry->getLambdas())
-    if (lambda->functionInfo->getMangledSuffix()) {
-      lambda->codegenDefinition(visitedTypes, accu);
-      const auto dummyIdent = IdentifierInfo("ignore", lambda->body->codeLoc);
-      auto getLambdaBody = [&lambda, &dummyIdent](unique_ptr<StatementBlock> body) {
-        auto def = unique<FunctionDefinition>(body->codeLoc, dummyIdent,
-            lambda->functionInfo->id);
-        def->body = generateLambdaBody(std::move(body), *lambda);
-        def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, string(lambdaArgName), false, false});
-        def->wasUsed = true;
-        return def;
-      };
-      auto mainBody = getLambdaBody(std::move(lambda->body));
-      mainBody->destructorCalls.emplace_back();
-      const auto& functionType = lambda->functionInfo->type;
-      for (int i = 1; i < functionType.params.size(); ++i) {
-        mainBody->parameters.push_back(FunctionParameter{mainBody->body->codeLoc, dummyIdent, lambda->parameterNames[i - 1], false, false});
-        mainBody->destructorCalls.push_back(std::move(lambda->destructorCalls[i - 1]));
-      }
-      mainBody->functionInfo = FunctionInfo::getDefined(lambda->functionInfo->id, std::move(functionType), mainBody.get());
-      lambdas.push_back(std::move(mainBody));
-      if (lambda->destructor) {
-        auto destructorBody = getLambdaBody(std::move(lambda->destructor));
-        destructorBody->destructorCalls.emplace_back();
-        destructorBody->functionInfo = FunctionInfo::getImplicit("destruct"s, FunctionType(BuiltinType::VOID, {PointerType::get(lambda)}, {}));
-        lambdas.push_back(std::move(destructorBody));
-      }
-    }
+  codegenLambdas(accu, ast, CodegenStage::types(), visitedTypes);
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::declare());
   }
-  for (auto& elem : lambdas) {
-    elem->codegen(accu, CodegenStage::declare());
-  }
+  codegenLambdas(accu, ast, CodegenStage::declare(), visitedTypes);
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::define());
   }
-  for (auto& elem : lambdas) {
-    elem->codegen(accu, CodegenStage::define());
-  }
+  codegenLambdas(accu, ast, CodegenStage::define(), visitedTypes);
   for (auto& elem : ast.elems) {
     if (auto fun = dynamic_cast<const FunctionDefinition*>(elem.get()))
       if (fun->name == "main"s) {
@@ -679,7 +738,7 @@ void UnaryExpression::codegen(Accu& accu, CodegenStage stage) const {
 void EmbedStatement::codegen(Accu& accu, CodegenStage stage) const {
   if ((stage.isDefine && !isTopLevel) ||
       (!stage.isImport && stage.isTypes && isTopLevel) ||
-      (stage.isImport&& stage.isTypes && exported)) {
+      (stage.isImport && stage.isTypes && exported)) {
     if (!isTopLevel)
       accu.newLine("{");
     for (auto& r : replacements)
@@ -763,13 +822,13 @@ void WhileLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void ImportStatement::codegen(Accu& accu, CodegenStage stage) const {
-  // ast can be null if import was already generated or is secondary and not public
-  if (ast)
+  stage.setImport();
+  if (!accu.generated.count(make_pair(ast, stage))) {
+    accu.generated.insert(make_pair(ast, stage));
     for (auto& elem : ast->elems)
-      if (elem->exported) {
-        elem->codegen(accu, stage.setImport());
-        //accu.newLine("");
-      }
+      if (elem->exported)
+        elem->codegen(accu, stage);
+  }
 }
 
 void EnumConstant::codegen(Accu& accu, CodegenStage) const {
@@ -812,66 +871,67 @@ void ConceptDefinition::codegen(Accu& accu, CodegenStage stage) const {
       accu.pop_back();
     };
     for (auto& conceptType : conceptInstances)
-      if (auto mangledName = conceptType->getMangledName()) {
-        const auto vTableName = getVTableName(*mangledName);
-        auto functions = conceptType->getConceptFor(conceptType->concept->getParams()[0])->getContext().getAllFunctions();
-        if (stage.isTypes)
-          accu.newLine("struct " + vTableName + ";");
-        else if (stage.isDefine) {
-          accu.newLine("struct " + vTableName + " {");
-          ++accu.indent;
-          for (auto& fun : functions) {
-            accu.newLine(fun->type.retVal->getCodegenName() + " (*" + getVTableFunName(fun->id) + ")(");
-            addParams(fun);
-            accu.add(");");
-          }
-          --accu.indent;
-          accu.newLine("};");
-          accu.newLine();
-        }
-        ErrorBuffer errors;
-        for (auto fun : functions) {
-          fun = replaceInFunction(fun, conceptType->concept->getParams()[0], conceptType, errors);
-          accu.newLine("inline " + fun->type.retVal->getCodegenName() + " " + fun->getMangledName() + "(");
-          auto getArgName = [](int i) { return "_arg" + to_string(i); };
-          string virtualArg;
-          for (int i = 0; i < fun->type.params.size(); ++i) {
-            auto& param = fun->type.params[i];
-            accu.add((i > 0 ? ", " : "") + param->getCodegenName() + " " + getArgName(i));
-            if (i > 0)
-              virtualArg += ", ";
-            if (param->removePointer() == conceptType)
-              virtualArg = "return " + getArgName(i) + ".vTable->" + getVTableFunName(fun->id) + "(" + virtualArg + getArgName(i) + ".object";
-            else
-              virtualArg += getArgName(i);
-          }
-          CHECK(!virtualArg.empty());
-          if (stage.isDefine) {
-            accu.add(") {");
+      if (auto mangledName = conceptType->getMangledName())
+        if (accu.conceptTypes.count(conceptType.get())) {
+          const auto vTableName = getVTableName(*mangledName);
+          auto functions = conceptType->getConceptFor(conceptType->concept->getParams()[0])->getContext().getAllFunctions();
+          if (stage.isTypes)
+            accu.newLine("struct " + vTableName + ";");
+          else if (stage.isDefine) {
+            accu.newLine("struct " + vTableName + " {");
             ++accu.indent;
-            accu.newLine(virtualArg + ");");
-            --accu.indent;
-            accu.newLine("}");
-          } else
-            accu.add(");");
-          accu.newLine();
-        }
-        CHECK(errors.empty());
-        if (stage.isDefine)
-          for (auto& elem : fatPointers)
-            if (elem.type->getMangledName()) {
-              accu.newLine("static " + vTableName + " " + vTableName + "_" + *elem.type->getMangledName() + "{");
-              ++accu.indent;
-              for (int i = 0; i < functions.size(); ++i) {
-                accu.newLine("reinterpret_cast<" + functions[i]->type.retVal->getCodegenName() + " (*)(");
-                addParams(functions[i]);
-                accu.add(")>(&" + elem.vTable[i]->getMangledName() +"),");
-              }
-              --accu.indent;
-              accu.newLine("};");
-              accu.newLine();
+            for (auto& fun : functions) {
+              accu.newLine(fun->type.retVal->getCodegenName() + " (*" + getVTableFunName(fun->id) + ")(");
+              addParams(fun);
+              accu.add(");");
             }
-      }
+            --accu.indent;
+            accu.newLine("};");
+            accu.newLine();
+          }
+          ErrorBuffer errors;
+          for (auto fun : functions) {
+            fun = replaceInFunction(fun, conceptType->concept->getParams()[0], conceptType, errors);
+            accu.newLine("inline " + fun->type.retVal->getCodegenName() + " " + fun->getMangledName() + "(");
+            auto getArgName = [](int i) { return "_arg" + to_string(i); };
+            string virtualArg;
+            for (int i = 0; i < fun->type.params.size(); ++i) {
+              auto& param = fun->type.params[i];
+              accu.add((i > 0 ? ", " : "") + param->getCodegenName() + " " + getArgName(i));
+              if (i > 0)
+                virtualArg += ", ";
+              if (param->removePointer() == conceptType)
+                virtualArg = "return " + getArgName(i) + ".vTable->" + getVTableFunName(fun->id) + "(" + virtualArg + getArgName(i) + ".object";
+              else
+                virtualArg += getArgName(i);
+            }
+            CHECK(!virtualArg.empty());
+            if (stage.isDefine) {
+              accu.add(") {");
+              ++accu.indent;
+              accu.newLine(virtualArg + ");");
+              --accu.indent;
+              accu.newLine("}");
+            } else
+              accu.add(");");
+            accu.newLine();
+          }
+          CHECK(errors.empty());
+          if (stage.isDefine)
+            for (auto& elem : fatPointers)
+              if (elem.type->getMangledName()) {
+                accu.newLine("static " + vTableName + " " + vTableName + "_" + *elem.type->getMangledName() + "{");
+                ++accu.indent;
+                for (int i = 0; i < functions.size(); ++i) {
+                  accu.newLine("reinterpret_cast<" + functions[i]->type.retVal->getCodegenName() + " (*)(");
+                  addParams(functions[i]);
+                  accu.add(")>(&" + elem.vTable[i]->getMangledName() +"),");
+                }
+                --accu.indent;
+                accu.newLine("};");
+                accu.newLine();
+              }
+        }
   }
 }
 
@@ -989,4 +1049,8 @@ void UncheckedStatement::codegen(Accu& accu, CodegenStage s) const {
 }
 
 void AttributeDefinition::codegen(Accu&, CodegenStage) const {
+}
+
+void ExternalStatement::codegen(Accu& accu, CodegenStage stage) const {
+  elem->codegen(accu, stage);
 }

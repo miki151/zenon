@@ -1,9 +1,11 @@
 // no_compile
 
-attribute @someattr;
+import "s.znn";
 
-[@someattr]
-struct X;
+S g() {
+  embed {
+  }
+}
 
 int main() {
   return 0;

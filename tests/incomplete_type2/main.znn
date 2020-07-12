@@ -1,6 +1,6 @@
 // no_compile
 
-struct S;
+import "s.znn";
 
 void g(S) {
 }

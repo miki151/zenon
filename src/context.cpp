@@ -2,6 +2,7 @@
 #include "ast.h"
 #include "type.h"
 #include "identifier_type.h"
+#include "type_registry.h"
 
 Context Context::withParent(const Context& c) {
   Context ret(c.typeRegistry);
@@ -71,6 +72,17 @@ void Context::setTemplated(vector<SType> v) {
   state->templateParams = v;
 }
 
+void Context::setTemplateInstance() {
+  state->isTemplateInstance = true;
+}
+
+bool Context::isTemplateInstance() const {
+  for (auto& state : getReversedStates())
+    if (state->isTemplateInstance)
+      return true;
+  return false;
+}
+
 static SType getCapturedType(SType input, LambdaCaptureType type) {
   switch (type) {
     case LambdaCaptureType::REFERENCE:
@@ -82,26 +94,8 @@ static SType getCapturedType(SType input, LambdaCaptureType type) {
   }
 }
 
-WithErrorLine<vector<LambdaCapture>> Context::setLambda(LambdaCaptureInfo* info) {
-  vector<LambdaCapture> ret;
-  for (auto& capture : info->captures) {
-    if (auto type = getTypeOfVariable(capture.name)) {
-      auto underlying = type->get()->removeReference();
-      if (capture.type == LambdaCaptureType::IMPLICIT_COPY && !canConvert(*type, underlying))
-        return capture.codeLoc.getError("Variable " + capture.name + " of type " +
-            quote(underlying->getName()) + " can't be captured by implicit copy");
-      if (capture.type == LambdaCaptureType::COPY) {
-        if (auto f = getCopyFunction(*this, capture.codeLoc, underlying))
-          TRY(f->get()->getDefinition()->addInstance(this, *f));
-        else
-          return capture.codeLoc.getError("No copy function defined for type " + quote(underlying->getName())+ "\n" + f.get_error().error);
-      }
-      ret.push_back(LambdaCapture{capture.name, getCapturedType(*type, capture.type), capture.type});
-    } else
-      return capture.codeLoc.getError(type.get_error());
-  }
+void Context::setLambda(LambdaCaptureInfo* info) {
   state->lambdaInfo = info;
-  return std::move(ret);
 }
 
 bool Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
@@ -215,8 +209,7 @@ void Context::State::print() const {
       cout << overload->prettyString() << "\n";
   }
   for (auto& type : types)
-    cout << "Type: " << (!fullyDefinedTypes.at(type.second.get()) ? "(incomplete) " : "") <<
-        type.second->getName() << "\n";
+    cout << "Type: " << type.second->getName() << "\n";
 }
 
 void Context::print() const {
@@ -287,8 +280,11 @@ void Context::replace(SType from, SType to, ErrorBuffer& errors) {
       //std::cout << "To " << overload->prettyString() << std::endl;
     }
   }
-  for (auto& type : state->types)
+  state->typesSet.clear();
+  for (auto& type : state->types) {
     type.second = type.second->replace(from, to, errors);
+    state->typesSet.insert(type.second.get());
+  }
 }
 
 void Context::expand(SType from, vector<SType> to, ErrorBuffer& errors) {
@@ -386,10 +382,10 @@ optional<pair<string, SType> > Context::getUnexpandedVariablePack() const {
   return none;
 }
 
-void Context::addType(const string& name, SType t, bool fullyDefined) {
-  CHECK(!getType(name));
+void Context::addType(const string& name, SType t) {
+  //CHECK(!getType(name));
   state->types.insert({name, t});
-  state->fullyDefinedTypes.insert({t.get(), fullyDefined});
+  state->typesSet.insert(t.get());
 }
 
 void Context::addSubstitution(SubstitutionInfo info) {
@@ -465,23 +461,18 @@ nullable<SType> Context::getType(const string& s) const {
   for (auto& state : getReversedStates())
     if (state->types.count(s))
       return state->types.at(s);
+  if (typeRegistry)
+    return typeRegistry->getType(s);
   return nullptr;
 }
 
 bool Context::isFullyDefined(const Type* t) const {
-  bool was = true;
+  if (auto s = dynamic_cast<const StructType*>(t))
+    t = s->parent.get().get();
   for (auto& state : getReversedStates())
-    if (auto v = getValueMaybe(state->fullyDefinedTypes, t)) {
-      if (*v)
-        return true;
-      else
-        was = false;
-    }
-  return was;
-}
-
-void Context::setFullyDefined(const Type* t, bool s) {
-  state->fullyDefinedTypes[t] = s;
+    if (state->typesSet.count(t))
+      return true;
+  return false;
 }
 
 vector<SType> Context::getAllTypes() const {
@@ -601,8 +592,9 @@ JustError<string> Context::checkNameConflict(const string& name, const string& t
 
 JustError<std::string> Context::checkNameConflictExcludingFunctions(const string& name, const string& type) const {
   auto desc = type + " " + quote(name);
-  if (getType(name))
-    return desc + " conflicts with an existing type";
+  if (auto t = getType(name))
+    if (isFullyDefined(t.get().get()))
+      return desc + " conflicts with an existing type";
   if (getVariable(name))
     return desc + " conflicts with an existing variable or function";
   return success;

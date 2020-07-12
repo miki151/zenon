@@ -419,7 +419,7 @@ struct LambdaType : public Type {
   vector<LambdaCapture> captures;
   vector<SType> templateParams;
   vector<optional<string>> parameterNames;
-  unique_ptr<StatementBlock> body;
+  unique_ptr<Statement> body;
   unique_ptr<StatementBlock> destructor;
   vector<unique_ptr<Statement>> destructorCalls;
   private:

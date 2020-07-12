@@ -5,8 +5,6 @@ export enum Enum1 {
   E3
 };
 
-export enum Enum2;
-
 enum Enum2 {
   E1,
   E2

@@ -1,6 +1,4 @@
 
-export struct S;
-
 struct S {
 };
 

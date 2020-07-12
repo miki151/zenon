@@ -215,7 +215,7 @@ FunctionType FunctionType::setBuiltin() {
 }
 
 SFunctionInfo FunctionInfo::getDefined(FunctionId id, FunctionType type, FunctionDefinition* definition) {
-  auto args = make_tuple(id, type, definition);
+  auto args = make_tuple(id, type, definition->codeLoc);
   static map<decltype(args), SFunctionInfo> generated;
   if (!generated.count(args)) {
     generated.insert(make_pair(args, shared<FunctionInfo>(Private{}, id, type, definition)));
@@ -520,25 +520,25 @@ static JustError<string> checkMembers(const Context& context, set<const Type*> &
       TRY(checkMembers(context, visited, member.type, onlyIncomplete));
     for (auto& member : s->alternatives)
       TRY(checkMembers(context, visited, member.type, onlyIncomplete));
-    if (s->external)
+    /*if (s->external)
       for (auto& param : s->templateParams)
         if (!visited.count(param.get()))
-          TRY(checkMembers(context, visited, param, true));
+          TRY(checkMembers(context, visited, param, true));*/
     visited.erase(t.get());
   }
   return success;
 }
 
 JustError<string> StructType::getSizeError(const Context& context) const {
+  if (context.isTemplateInstance())
+    return success;
   set<const Type*> visited;
   return checkMembers(context, visited, get_this().get(), false);
 }
 
 JustError<ErrorLoc> PointerType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
-  if (!context.getTemplateParams()) { // only change the expression in non-template context, otherwise it will get changed multiple times
-    statement.expr = unique<UnaryExpression>(statement.codeLoc, Operator::POINTER_DEREFERENCE, std::move(statement.expr));
-    CHECK(!!statement.expr->getTypeImpl(context));
-  }
+  statement.expr = unique<UnaryExpression>(statement.codeLoc, Operator::POINTER_DEREFERENCE, std::move(statement.expr));
+  CHECK(!!statement.expr->getTypeImpl(context));
   return underlying->handleSwitchStatement(statement, context, SwitchArgument::REFERENCE);
 }
 
@@ -561,10 +561,8 @@ SType ReferenceType::removePointer() const {
 }
 
 JustError<ErrorLoc> MutablePointerType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
-  if (!context.getTemplateParams()) { // only change the expression in non-template context, otherwise it will get changed multiple times
-    statement.expr = unique<UnaryExpression>(statement.codeLoc, Operator::POINTER_DEREFERENCE, std::move(statement.expr));
-    CHECK(!!statement.expr->getTypeImpl(context));
-  }
+  statement.expr = unique<UnaryExpression>(statement.codeLoc, Operator::POINTER_DEREFERENCE, std::move(statement.expr));
+  CHECK(!!statement.expr->getTypeImpl(context));
   return underlying->handleSwitchStatement(statement, context, SwitchArgument::MUTABLE_REFERENCE);
 }
 

@@ -1,7 +1,5 @@
 // 2
 
-struct X;
-
 void destruct(X* x) {
   ++*x->cnt;
 }

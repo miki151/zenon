@@ -42,7 +42,7 @@ class Context : public owned_object<Context> {
   void expand(SType, vector<SType> to, ErrorBuffer&);
   ReturnTypeChecker* getReturnTypeChecker() const;
   void addReturnTypeChecker(ReturnTypeChecker*);
-  void addType(const string& name, SType, bool fullyDefined = true);
+  void addType(const string& name, SType);
   void addExpandedTypePack(const string& name, vector<SType>);
   void addUnexpandedTypePack(string, SType);
   void addUnexpandedVariablePack(string, SType);
@@ -62,7 +62,6 @@ class Context : public owned_object<Context> {
   WithErrorLine<SType> getTypeFromString(IdentifierInfo, optional<bool> typePack = false) const;
   nullable<SType> getType(const string&) const;
   bool isFullyDefined(const Type*) const;
-  void setFullyDefined(const Type*, bool);
   vector<SType> getAllTypes() const;
   NODISCARD JustError<string> addImplicitFunction(FunctionId, FunctionType);
   NODISCARD JustError<string> addFunction(SFunctionInfo);
@@ -86,7 +85,9 @@ class Context : public owned_object<Context> {
   bool areParamsEquivalent(FunctionType, FunctionType) const;
   optional<vector<SType>> getTemplateParams() const;
   void setTemplated(vector<SType>);
-  NODISCARD WithErrorLine<vector<LambdaCapture>> setLambda(LambdaCaptureInfo*);
+  void setTemplateInstance();
+  bool isTemplateInstance() const;
+  void setLambda(LambdaCaptureInfo*);
 
   struct BuiltInFunctionInfo {
     vector<SType> argTypes;
@@ -104,17 +105,17 @@ class Context : public owned_object<Context> {
     map<string, VariableInfo> vars;
     vector<string> varsList;
     map<string, SType> types;
+    set<const Type*> typesSet;
     optional<pair<string, vector<SType>>> expandedTypePack;
     optional<pair<string, vector<SType>>> expandedVariablePack;
     optional<pair<string, SType>> unexpandedVariablePack;
     optional<pair<string, SType>> unexpandedTypePack;
-    map<const Type*, bool> fullyDefinedTypes;
     map<FunctionId, vector<SFunctionInfo>> functions;
     ReturnTypeChecker* returnTypeChecker = nullptr;
     map<string, shared_ptr<Concept>> concepts;
     map<string, BuiltInFunctionInfo> builtInFunctions;
     optional<int> loopId;
-    bool isBuiltInModule = false;
+    bool isTemplateInstance = false;
     vector<SType> templateParams;
     LambdaCaptureInfo* lambdaInfo;
     vector<SubstitutionInfo> substitutions;

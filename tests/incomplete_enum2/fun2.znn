@@ -1,6 +1,4 @@
 
-export enum E;
-
 export template <T>
 void f() {
   const e = E::E1;

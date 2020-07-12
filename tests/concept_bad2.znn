@@ -1,11 +1,8 @@
 // no_compile
 
-struct S;
-
-S g() {
-  embed {
-  }
-}
+template <foo A>
+concept C {
+};
 
 int main() {
   return 0;

@@ -569,7 +569,7 @@ WithErrorLine<unique_ptr<StructDefinition>> parseStructDefinition(Tokens& tokens
       TRY(tokens.eat(Keyword::SEMICOLON));
     }
   else if (!external)
-    ret->incomplete = true;
+    return tokens.peek().codeLoc.getError("Expected struct definition");
   TRY(tokens.eat(Keyword::SEMICOLON));
   return std::move(ret);
 }
@@ -920,7 +920,7 @@ WithErrorLine<unique_ptr<Statement>> parseEnumStatement(Tokens& tokens, bool ext
         break;
     }
   else
-    ret->fullyDefined = false;
+    return tokens.peek().codeLoc.getError("Expected enum definition");
   TRY(tokens.eat(Keyword::SEMICOLON));
   return cast<Statement>(std::move(ret));
 }
@@ -1108,6 +1108,8 @@ WithErrorLine<unique_ptr<Statement>> parseTopLevelStatement(Tokens& tokens) {
 
 WithErrorLine<AST> parse(Tokens tokens) {
   AST ret;
+  ret.elems.push_back(unique<ImportStatement>(CodeLoc(tokens.peek().codeLoc.file, 0, 0), "std/builtin.znn", true));
+  ret.elems.front()->exported = true;
   while (1) {
     auto s = TRY(parseTopLevelStatement(tokens));
     if (s == nullptr)

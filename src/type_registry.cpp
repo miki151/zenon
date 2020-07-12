@@ -2,25 +2,63 @@
 #include "type_registry.h"
 #include "type.h"
 
-shared_ptr<StructType> TypeRegistry::getStruct(const string& name) {
-  if (!structs.count(name)) {
-    auto s = shared<StructType>(name, StructType::Private{});
-    s->parent = s;
-    structs.insert(make_pair(name, std::move(s)));
-  }
-  return structs.at(name);
+JustError<string> TypeRegistry::addStruct(const string& name, bool external, CodeLoc definition) {
+  TRY(checkNameConflict(name));
+  auto s = shared<StructType>(name, StructType::Private{});
+  s->parent = s;
+  s->external = external;
+  s->definition = definition;
+  structs.insert(make_pair(name, s));
+  return success;
 }
 
-shared_ptr<EnumType> TypeRegistry::getEnum(const string& name) {
-  if (!enums.count(name))
-    enums.insert(make_pair(name, shared<EnumType>(name, EnumType::Private{})));
-  return enums.at(name);
+JustError<string> TypeRegistry::addEnum(const string& name, bool external, CodeLoc definition) {
+  TRY(checkNameConflict(name));
+  auto e = shared<EnumType>(name, EnumType::Private{});
+  e->external = external;
+  e->definition = definition;
+  enums.insert(make_pair(name, e));
+  return success;
 }
 
-const vector<shared_ptr<LambdaType>>& TypeRegistry::getLambdas() const {
-  return lambdas;
+nullable<shared_ptr<StructType>> TypeRegistry::getStruct(const string& name) const {
+  if (auto s = getValueMaybe(structs, name))
+    return *s;
+  return nullptr;
 }
 
-void TypeRegistry::addLambda(shared_ptr<LambdaType> l) {
-  lambdas.push_back(std::move(l));
+nullable<shared_ptr<EnumType>> TypeRegistry::getEnum(const string& name) const {
+  if (auto s = getValueMaybe(enums, name))
+    return *s;
+  return nullptr;
+}
+
+nullable<SType> TypeRegistry::getType(const string& name) const {
+  if (auto s = getStruct(name))
+    return SType(s.get());
+  if (auto s = getEnum(name))
+    return SType(s.get());
+  return nullptr;
+}
+
+JustError<string> TypeRegistry::checkNameConflict(const string& name) const {
+  if (auto s = getStruct(name))
+    return quote(name) + " conflicts with existing type declared at: " + s->definition->toString();
+  if (auto s = getEnum(name))
+    return quote(name) + " conflicts with existing type declared at: " + s->definition->toString();
+  return success;
+}
+
+vector<shared_ptr<StructType>> TypeRegistry::getAllStructs() const {
+  vector<shared_ptr<StructType>> ret;
+  for (auto& elem : structs)
+    ret.push_back(elem.second);
+  return ret;
+}
+
+vector<shared_ptr<EnumType>> TypeRegistry::getAllEnums() const {
+  vector<shared_ptr<EnumType>> ret;
+  for (auto& elem : enums)
+    ret.push_back(elem.second);
+  return ret;
 }

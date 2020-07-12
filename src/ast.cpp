@@ -8,6 +8,8 @@
 #include "identifier_type.h"
 #include "type_registry.h"
 #include "move_checker.h"
+#include "import_cache.h"
+#include "ast_cache.h"
 
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
@@ -15,6 +17,24 @@ unique_ptr<Expression> Expression::replaceVar(string from, string to) const {
   return transform(
       [&](Statement* expr) { return expr->replaceVar(from, to); },
       [&](Expression* expr) { return expr->replaceVar(from, to); });
+}
+
+void Expression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+  visit(
+      [&](Statement* expr) { expr->addFunctionCalls(fun); },
+      [&](Expression* expr) { expr->addFunctionCalls(fun); });
+}
+
+void Expression::addLambdas(LambdasSet& lambdas) const {
+  visit(
+      [&](Statement* expr) { expr->addLambdas(lambdas); },
+      [&](Expression* expr) { expr->addLambdas(lambdas); });
+}
+
+void Expression::addConceptTypes(ConceptsSet& types) const {
+  visit(
+      [&](Statement* expr) { expr->addConceptTypes(types); },
+      [&](Expression* expr) { expr->addConceptTypes(types); });
 }
 
 unique_ptr<Statement> identityStmt(Statement* expr) {
@@ -332,6 +352,19 @@ unique_ptr<Expression> BinaryExpression::transform(const StmtTransformFun&, cons
   return get(codeLoc, op, fun(expr[0].get()), fun(expr[1].get()));
 }
 
+void BinaryExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  for (auto& e : expr)
+    f2(e.get());
+}
+
+void BinaryExpression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+  this->Expression::addFunctionCalls(fun);
+  fun(functionInfo.get());
+  for (int i = 0; i < 2; ++i)
+    if (!!destructorCall[i])
+      fun(destructorCall[i].get());
+}
+
 JustError<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
   for (auto& e : expr)
     TRY(e->checkMoves(checker));
@@ -366,6 +399,17 @@ unique_ptr<Expression> UnaryExpression::transform(const StmtTransformFun&, const
   return unique<UnaryExpression>(codeLoc, op, fun(expr.get()));
 }
 
+void UnaryExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f2(expr.get());
+}
+
+void UnaryExpression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+  this->Expression::addFunctionCalls(fun);
+  fun(functionInfo.get());
+  if (destructorCall)
+    fun(destructorCall.get());
+}
+
 JustError<ErrorLoc> UnaryExpression::checkMoves(MoveChecker& checker) const {
   return expr->checkMoves(checker);
 }
@@ -390,6 +434,11 @@ unique_ptr<Statement> StatementBlock::transform(const StmtTransformFun& fun, con
   for (auto& elem : elems)
     ret->elems.push_back(fun(elem.get()));
   return ret;
+}
+
+void StatementBlock::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  for (auto& elem : elems)
+    f1(elem.get());
 }
 
 JustError<ErrorLoc> IfStatement::check(Context& context, bool) {
@@ -440,6 +489,16 @@ unique_ptr<Statement> IfStatement::transform(const StmtTransformFun& fun,
       condition ? exprFun(condition.get()) : nullptr,
       fun(ifTrue.get()),
       ifFalse ? fun(ifFalse.get()) : nullptr);
+}
+
+void IfStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  if (declaration)
+    f1(declaration.get());
+  if (condition)
+    f2(condition.get());
+  f1(ifTrue.get());
+  if (ifFalse)
+    f1(ifFalse.get());
 }
 
 static JustError<string> getVariableInitializationError(const char* action, const Context& context, const SType& varType,
@@ -501,6 +560,12 @@ unique_ptr<Statement> VariableDeclaration::transform(const StmtTransformFun&,
   return ret;
 }
 
+void VariableDeclaration::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f2(initExpr.get());
+  if (destructorCall)
+    f1(destructorCall.get());
+}
+
 JustError<ErrorLoc> ReturnStatement::check(Context& context, bool) {
   auto returnType = TRY([&]() -> WithErrorLine<SType> {
     if (expr)
@@ -521,6 +586,11 @@ JustError<ErrorLoc> ReturnStatement::checkMovesImpl(MoveChecker& checker) const 
 
 unique_ptr<Statement> ReturnStatement::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
   return unique<ReturnStatement>(codeLoc, expr ? fun(expr.get()) : nullptr);
+}
+
+void ReturnStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  if (expr)
+    f2(expr.get());
 }
 
 JustError<ErrorLoc> Statement::addToContext(Context&) {
@@ -554,6 +624,24 @@ bool Statement::hasReturnStatement(const Context&) const {
 
 unique_ptr<Statement> Statement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
   fail();
+}
+
+void Statement::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+  visit(
+      [&](Statement* s) { s->addFunctionCalls(fun); },
+      [&](Expression* s) { s->addFunctionCalls(fun); });
+}
+
+void Statement::addLambdas(LambdasSet& lambdas) const {
+  visit(
+      [&](Statement* s) { s->addLambdas(lambdas); },
+      [&](Expression* s) { s->addLambdas(lambdas); });
+}
+
+void Statement::addConceptTypes(ConceptsSet& types) const {
+  visit(
+      [&](Statement* expr) { expr->addConceptTypes(types); },
+      [&](Expression* expr) { expr->addConceptTypes(types); });
 }
 
 unique_ptr<Statement> Statement::deepCopy() const {
@@ -697,6 +785,8 @@ static WithErrorLine<vector<SType>> getTemplateParams(const TemplateInfo& info, 
 
 JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, nullable<SConcept> concept,
     bool builtInImport) {
+  if (functionInfo)
+    return success;
   for (int i = 0; i < parameters.size(); ++i)
     if (!parameters[i].name)
       parameters[i].name = "parameter" + to_string(i);
@@ -712,7 +802,7 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
   auto templateTypes = TRY(getTemplateParams(templateInfo, context));
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];
-    contextWithTemplateParams.addType(param.name, templateTypes[i], true);
+    contextWithTemplateParams.addType(param.name, templateTypes[i]);
     if (i == templateInfo.params.size() - 1 && templateInfo.variadic)
       contextWithTemplateParams.addUnexpandedTypePack(param.name, templateTypes[i]);
   }
@@ -748,6 +838,7 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
     functionType.generatedConstructor = true;
   if (external)
     functionType.setBuiltin();
+  CHECK(!functionInfo);
   functionInfo = FunctionInfo::getDefined(name, std::move(functionType), this);
   if (functionInfo->isMainFunction()) {
     auto expectedParam = SliceType::get(BuiltinType::STRING);
@@ -1140,7 +1231,10 @@ void FunctionDefinition::addParamsToContext(Context& context, const FunctionInfo
       }
     }
   }
-  context.setTemplated(templateParams);
+  if (!templateParams.empty())
+    context.setTemplated(templateParams);
+  else if (!templateInfo.params.empty())
+    context.setTemplateInstance();
   for (int i = 0; i < parameters.size(); ++i) {
     if (i >= instanceInfo.type.params.size()) {
       if (parameters[i].name) {
@@ -1286,9 +1380,6 @@ JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCac
     if (auto structType = destructedType.dynamicCast<StructType>()) {
       if (!structType->alternatives.empty())
         return codeLoc.getError("User-defined destructors for union types are not supported");
-      if (structType->destructor)
-        return codeLoc.getError("Destructor function for type " + quote(destructedType->getName()) + " already defined here: "
-            + structType->destructor->getDefinition()->codeLoc.toString());
       auto adjusted = functionInfo.get();
       if (functionInfo->type.templateParams.size() != structType->templateParams.size())
         return codeLoc.getError("Number of template parameters of destructor function must match destructed type");
@@ -1297,14 +1388,26 @@ JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCac
           return codeLoc.getError("Template parameters of destructor function must match destructed type");
       ErrorBuffer errors;
       for (int i = 0; i < structType->parent->templateParams.size(); ++i)
-        adjusted = replaceInFunction(adjusted, functionInfo->type.templateParams[i], structType->parent->templateParams[i], errors);
+        adjusted = replaceInFunction(adjusted, functionInfo->type.templateParams[i],
+            structType->parent->templateParams[i], errors);
       CHECK(errors.empty());
+      if (structType->parent->destructor && structType->parent->destructor != adjusted)
+        return codeLoc.getError("Destructor function for type " + quote(destructedType->getName())
+            + " already defined here: " + structType->destructor->getDefinition()->codeLoc.toString());
       structType->parent->destructor = adjusted;
     } else
     if (!cache.isCurrentlyBuiltIn())
       return codeLoc.getError("User-defined destructor is allowed only for struct types");
   }
   return success;
+}
+
+void FunctionDefinition::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  if (body && templateInfo.params.empty())
+    f1(body.get());
+  for (auto& call : destructorCalls)
+    if (call)
+      f1(call.get());
 }
 
 static void addBuiltInConcepts(Context& context) {
@@ -1421,27 +1524,11 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   return context;
 }
 
-static void addBuiltInImport(AST& ast) {
-  auto tmpVec = std::move(ast.elems);
-  ast.elems = makeVec<unique_ptr<Statement>>(
-      unique<ImportStatement>(CodeLoc{}, "std/builtin.znn", true)
-  );
-  for (auto& elem : ast.elems)
-    elem->exported = true;
-  for (auto& elem : tmpVec)
-    ast.elems.push_back(std::move(elem));
-}
-
 static JustError<ErrorLoc> addExportedContext(const Context& primaryContext, ImportCache& cache, AST& ast,
-    const string& path, bool isBuiltIn, const vector<string>& importDirs) {
-  INFO << "Parsing import " << path;
+    const string& path, bool isBuiltIn) {
   cache.pushCurrentImport(path, isBuiltIn);
-  if (!isBuiltIn && !cache.isCurrentlyBuiltIn())
-    addBuiltInImport(ast);
   auto importContext = Context::withParent(primaryContext);
   for (auto& elem : ast.elems) {
-    if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
-      import->setImportDirs(importDirs);
     if (elem->exported) {
       TRY(elem->addToContext(importContext, cache, primaryContext));
       elem->addGeneratedConstructor(importContext, ast);
@@ -1455,10 +1542,9 @@ static JustError<ErrorLoc> addExportedContext(const Context& primaryContext, Imp
   return success;
 }
 
-WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST& ast, Context& context, const Context& primaryContext,
-    const vector<string>& importPaths, bool isBuiltInModule) {
-  ImportCache cache(isBuiltInModule);
-  TRY(addExportedContext(primaryContext, cache, ast, path, isBuiltInModule, importPaths));
+WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST& ast, Context& context,
+    const Context& primaryContext, ImportCache& cache, bool isBuiltInModule) {
+  TRY(addExportedContext(primaryContext, cache, ast, path, isBuiltInModule));
   context.merge(cache.getContext(path));
   for (auto& elem : ast.elems)
     if (!elem->exported) {
@@ -1491,6 +1577,10 @@ unique_ptr<Statement> ExpressionStatement::transform(const StmtTransformFun&, co
   ret->canDiscard = canDiscard;
   ret->noReturnExpr = noReturnExpr;
   return ret;
+}
+
+void ExpressionStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f2(expr.get());
 }
 
 JustError<ErrorLoc> ExpressionStatement::checkMovesImpl(MoveChecker& checker) const {
@@ -1697,6 +1787,18 @@ unique_ptr<Expression> FunctionCall::transform(const StmtTransformFun&, const Ex
   return ret;
 }
 
+void FunctionCall::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  for (auto& arg : arguments)
+    f2(arg.get());
+}
+
+void FunctionCall::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+  this->Expression::addFunctionCalls(fun);
+  fun(functionInfo.get());
+  if (!!destructorCall)
+    fun(destructorCall.get());
+}
+
 JustError<ErrorLoc> FunctionCall::checkMoves(MoveChecker& checker) const {
   for (auto& e : arguments)
     TRY(e->checkMoves(checker));
@@ -1713,7 +1815,7 @@ JustError<ErrorLoc> SwitchStatement::check(Context& context, bool) {
     destructorCall = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(type)}, {codeLoc}));
     TRY(destructorCall->addInstance(context));
   }
-  if (!context.isFullyDefined(type->removeReference().get()))
+  if (!context.isFullyDefined(type->removePointer().get()))
     return codeLoc.getError("Type " + quote(type->getName()) + " is incomplete in this context");
   if (type->isReference() && !type->isBuiltinCopyable(context, expr))
     return codeLoc.getError("Type " + quote(type->getName()) + " is not implicitly copyable. Consider moving or passing as pointer.");
@@ -1750,6 +1852,20 @@ unique_ptr<Statement> SwitchStatement::transform(const StmtTransformFun& fun,
   return ret;
 }
 
+void SwitchStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f2(expr.get());
+  for (auto& elem : caseElems)
+    elem.visit(f1, f2);
+  if (defaultBlock)
+    f1(defaultBlock.get());
+}
+
+void SwitchStatement::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+  Statement::addFunctionCalls(fun);
+  if (destructorCall)
+    fun(destructorCall.get());
+}
+
 bool SwitchStatement::hasReturnStatement(const Context& context) const {
   for (auto& elem : caseElems)
     if (!elem.block->hasReturnStatement(context))
@@ -1762,58 +1878,41 @@ bool SwitchStatement::hasReturnStatement(const Context& context) const {
 UnionDefinition::UnionDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-static WithErrorLine<shared_ptr<StructType>> getNewOrIncompleteStruct(Context& context, string name, CodeLoc codeLoc,
-    const TemplateInfo& templateInfo, bool incomplete) {
-  if (auto existing = context.getType(name)) {
-    auto asStruct = existing.get().dynamicCast<StructType>();
-    if (context.isFullyDefined(existing.get().get()) || !asStruct)
-      // if it's not an incomplete struct type then this returns a conflict error
-      return codeLoc.getError(context.checkNameConflict(name, "Type").get_error());
-    return asStruct;
-  } else {
-    TRY(context.checkNameConflict(name, "Type").addCodeLoc(codeLoc));
-    auto paramsContext = Context::withParent(context);
-    auto returnType = context.typeRegistry->getStruct(name);
-    for (auto& t : TRY(getTemplateParams(templateInfo, context)))
-      returnType->templateParams.push_back(std::move(t));
-    context.addType(name, returnType, !incomplete);
-    return returnType;
+JustError<ErrorLoc> UnionDefinition::registerTypes(const Context& primaryContext, TypeRegistry* r) {
+  if (!type) {
+    auto ret = r->addStruct(name, false, codeLoc).addCodeLoc(codeLoc);
+    if (ret) {
+      type = r->getStruct(name);
+      type->templateParams = TRY(getTemplateParams(templateInfo, primaryContext));
+    }
+    return ret;
   }
-}
-
-static JustError<string> getRedefinitionError(const string& typeName, const optional<CodeLoc>& definition) {
-  if (definition)
-    return "Type " + quote(typeName) + " has already been defined at " +
-        definition->file + ", line " + to_string(definition->line);
-  else
-    return success;
+  return success;
 }
 
 JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
-  type = TRY(getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, false));
-  context.setFullyDefined(type.get().get(), true);
-  TRY(getRedefinitionError(type->getName(), type->definition).addCodeLoc(codeLoc));
+  TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
+  context.addType(name, type.get());
   type->definition = codeLoc;
   auto membersContext = Context::withParent(context);
-  if (templateInfo.params.size() != type->templateParams.size())
-    return codeLoc.getError("Number of template parameters differs from forward declaration");
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
   type->requirements = TRY(applyRequirements(membersContext, templateInfo));
   unordered_set<string> subtypeNames;
-  for (auto& subtype : elements) {
-    if (subtypeNames.count(subtype.name))
-      return subtype.codeLoc.getError("Duplicate union member: " + quote(subtype.name));
-    subtypeNames.insert(subtype.name);
-    type->alternatives.push_back({subtype.name, TRY(membersContext.getTypeFromString(subtype.type))});
-    vector<SType> params;
-    auto subtypeInfo = TRY(membersContext.getTypeFromString(subtype.type));
-    if (subtypeInfo != BuiltinType::VOID)
-      params.push_back(subtypeInfo);
-    auto constructor = FunctionType(type.get(), params, {});
-    constructor.parentType = type.get();
-    CHECK(type->staticContext.addImplicitFunction(subtype.name, constructor));
-  }
+  if (elements.size() > type->alternatives.size())
+    for (auto& subtype : elements) {
+      if (subtypeNames.count(subtype.name))
+        return subtype.codeLoc.getError("Duplicate union member: " + quote(subtype.name));
+      subtypeNames.insert(subtype.name);
+      type->alternatives.push_back({subtype.name, TRY(membersContext.getTypeFromString(subtype.type))});
+      vector<SType> params;
+      auto subtypeInfo = TRY(membersContext.getTypeFromString(subtype.type));
+      if (subtypeInfo != BuiltinType::VOID)
+        params.push_back(subtypeInfo);
+      auto constructor = FunctionType(type.get(), params, {});
+      constructor.parentType = type.get();
+      CHECK(type->staticContext.addImplicitFunction(subtype.name, constructor));
+    }
   return success;
 }
 
@@ -1840,32 +1939,35 @@ static WithErrorLine<set<shared_ptr<AttributeType>>> getAttributeTypes(const Con
   return ret;
 }
 
+JustError<ErrorLoc> StructDefinition::registerTypes(const Context& primaryContext, TypeRegistry* r) {
+  if (!type) {
+    auto ret = r->addStruct(name, external, codeLoc).addCodeLoc(codeLoc);
+    if (ret) {
+      type = r->getStruct(name);
+      type->templateParams = TRY(getTemplateParams(templateInfo, primaryContext));
+    }
+    return ret;
+  }
+  return success;
+}
+
 JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
-  type = TRY(getNewOrIncompleteStruct(context, name, codeLoc, templateInfo, incomplete));
-  if (!incomplete) {
-    TRY(getRedefinitionError(type->getName(), type->definition).addCodeLoc(codeLoc));
-    for (auto& attr : TRY(getAttributeTypes(context, attributes)))
-      context.setAttribute(type.get(), attr);
-    type->definition = codeLoc;
-    context.setFullyDefined(type.get().get(), true);
-    if (templateInfo.params.size() != type->templateParams.size())
-      return codeLoc.getError("Number of template parameters of type " + quote(type->getName()) +
-          " differs from forward declaration.");
-    auto membersContext = Context::withParent(context);
-    addTemplateParams(membersContext, type->templateParams, false);
-    type->requirements = TRY(applyRequirements(membersContext, templateInfo));
+  TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
+  context.addType(name, type.get());
+  for (auto& attr : TRY(getAttributeTypes(context, attributes)))
+    context.setAttribute(type.get(), attr);
+  auto membersContext = Context::withParent(context);
+  addTemplateParams(membersContext, type->templateParams, false);
+  type->requirements = TRY(applyRequirements(membersContext, templateInfo));
+  if (members.size() > type->members.size())
     for (auto& member : members)
-        type->members.push_back({member.name, TRY(membersContext.getTypeFromString(member.type))});
-    for (auto& member : members)
-      TRY(type->members.back().type->getSizeError(membersContext).addCodeLoc(member.codeLoc));
-    for (int i = 0; i < members.size(); ++i)
-      for (int j = i + 1; j < members.size(); ++j)
-        if (members[i].name == members[j].name)
-          return members[j].codeLoc.getError("Duplicate member: " + quote(members[j].name));
-    type->external = external;
-  } else
-  if (!attributes.empty())
-    return codeLoc.getError("Forward declaration can't contain any attributes.");
+      type->members.push_back({member.name, TRY(membersContext.getTypeFromString(member.type))});
+  for (auto& member : members)
+    TRY(type->members.back().type->getSizeError(membersContext).addCodeLoc(member.codeLoc));
+  for (int i = 0; i < members.size(); ++i)
+    for (int j = i + 1; j < members.size(); ++j)
+      if (members[i].name == members[j].name)
+        return members[j].codeLoc.getError("Duplicate member: " + quote(members[j].name));
   return success;
 }
 
@@ -1874,8 +1976,7 @@ JustError<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) 
   addTemplateParams(methodBodyContext, type->templateParams, false);
   CHECK(!!applyRequirements(methodBodyContext, templateInfo));
   type->updateInstantations();
-  if (!incomplete)
-    TRY(type->getSizeError(context).addCodeLoc(codeLoc));
+  TRY(type->getSizeError(context).addCodeLoc(codeLoc));
   if (exported && type->destructor && !type->destructor->getDefinition()->exported)
     return type->destructor->getDefinition()->codeLoc.getError(
         "Destuctor function of an exported type must also be exported");
@@ -1883,25 +1984,23 @@ JustError<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) 
 }
 
 void StructDefinition::addGeneratedConstructor(Context& context, const AST& ast) const {
-  if (!incomplete) {
-    bool hasUserDefinedConstructors = false;
-    for (auto& elem : ast.elems)
-      if (auto functionDef = dynamic_cast<const FunctionDefinition*>(elem.get()))
-        if (functionDef->name.contains<ConstructorTag>() && functionDef->returnType.parts[0].name == name)
-          hasUserDefinedConstructors = true;
-    if (!external) {
-      vector<SType> constructorParams;
-      for (auto& member : type->members)
-        constructorParams.push_back(member.type);
-      auto fun = FunctionType(type.get(), std::move(constructorParams), type->templateParams);
-      fun.generatedConstructor = true;
-      if (!hasUserDefinedConstructors)
-        CHECK(context.addImplicitFunction(ConstructorTag{}, fun));
-      fun.templateParams.clear();
-      fun.parentType = type.get();
-      CHECK(type->getStaticContext().addImplicitFunction(ConstructorTag{}, fun));
-      type->getStaticContext().addType(name, type.get());
-    }
+  bool hasUserDefinedConstructors = false;
+  for (auto& elem : ast.elems)
+    if (auto functionDef = dynamic_cast<const FunctionDefinition*>(elem.get()))
+      if (functionDef->name.contains<ConstructorTag>() && functionDef->returnType.parts[0].name == name)
+        hasUserDefinedConstructors = true;
+  if (!external && type->getStaticContext().getAllFunctions().empty()) {
+    vector<SType> constructorParams;
+    for (auto& member : type->members)
+      constructorParams.push_back(member.type);
+    auto fun = FunctionType(type.get(), std::move(constructorParams), type->templateParams);
+    fun.generatedConstructor = true;
+    if (!hasUserDefinedConstructors)
+      CHECK(context.addImplicitFunction(ConstructorTag{}, fun));
+    fun.templateParams.clear();
+    fun.parentType = type.get();
+    CHECK(type->getStaticContext().addImplicitFunction(ConstructorTag{}, fun));
+    type->getStaticContext().addType(name, type.get());
   }
 }
 
@@ -1995,6 +2094,13 @@ unique_ptr<Statement> ForLoopStatement::transform(const StmtTransformFun& fun,
       fun(body.get()));
 }
 
+void ForLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f1(init.get());
+  f2(cond.get());
+  f2(iter.get());
+  f1(body.get());
+}
+
 StaticForLoopStatement::StaticForLoopStatement(CodeLoc l, string counter, unique_ptr<Expression> init, unique_ptr<Expression> cond,
     unique_ptr<Expression> iter, unique_ptr<Statement> body) : Statement(l), counter(std::move(counter)), init(std::move(init)),
   cond(std::move(cond)), iter(std::move(iter)), body(std::move(body)) {
@@ -2082,6 +2188,14 @@ unique_ptr<Statement> StaticForLoopStatement::transform(const StmtTransformFun& 
       fun(body.get()));
 }
 
+void StaticForLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f2(init.get());
+  f2(cond.get());
+  f2(iter.get());
+  for (auto& elem : unrolled)
+    f1(elem.get());
+}
+
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
   : Statement(l), cond(std::move(c)), body(std::move(b)) {}
 
@@ -2111,45 +2225,52 @@ unique_ptr<Statement> WhileLoopStatement::transform(const StmtTransformFun& fun,
       fun(body.get()));
 }
 
+void WhileLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f2(cond.get());
+  f1(body.get());
+}
+
 ImportStatement::ImportStatement(CodeLoc l, string p, bool isBuiltIn)
     : Statement(l), path(p), isBuiltIn(isBuiltIn) {
 }
 
-void ImportStatement::setImportDirs(const vector<string>& p) {
-  importDirs = p;
-}
-
-JustError<ErrorLoc> ImportStatement::check(Context&, bool) {
-  return success;
-}
-
-JustError<ErrorLoc> ImportStatement::processImport(const Context& primaryContext, Context& context, ImportCache& cache, const string& content,
-    const string& path) {
-  if (cache.isCurrentlyImported(path))
-    return codeLoc.getError("Public import cycle: " + combine(cache.getCurrentImports(), ", "));
-  if (!cache.contains(path)) {
-    INFO << "Parsing import " << path;
-    ast = unique<AST>(TRY(parse(TRY(lex(content, CodeLoc(path, 0, 0), "end of file")))));
-    TRY(addExportedContext(primaryContext, cache, *ast, path, isBuiltIn, importDirs));
-  } else
-    INFO << "Import " << path << " already cached";
-  context.merge(cache.getContext(path));
+JustError<ErrorLoc> ImportStatement::registerTypes(const Context& context, TypeRegistry* r, ASTCache& cache,
+    const vector<string>& importDirs) {
+  if (ast)
+    return success;
+  for (auto importDir : concat({getParentPath(codeLoc.file)}, importDirs)) {
+    auto importPath = fs::path(importDir) / path;
+    if (auto content = readFromFile(importPath.c_str())) {
+      absolutePath = string(fs::canonical(importPath));
+      bool firstTime = !cache.hasAST(*absolutePath);
+      ast = TRY(cache.getAST(*absolutePath));
+      if (firstTime)
+        for (auto& elem : ast->elems)
+          TRY(elem->registerTypes(context, r, cache, importDirs));
+      break;
+    }
+  }
+  if (!ast)
+    return codeLoc.getError("Couldn't resolve import path: " + path);
   return success;
 }
 
 JustError<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
-  INFO << "Resolving import " << path << " from " << codeLoc.file;
-  for (auto importDir : concat({getParentPath(codeLoc.file)}, importDirs)) {
-    INFO << "Trying directory " << importDir;
-    auto importPath = fs::path(importDir)  / path;
-    if (auto content = readFromFile(importPath.c_str())) {
-      importPath = fs::canonical(importPath);
-      INFO << "Imported file " << importPath;
-      TRY(processImport(primaryContext, context, cache, content->value, importPath));
-      return success;
-    }
+  if (cache.isCurrentlyBuiltIn() && isBuiltIn) {
+    return success;
   }
-  return codeLoc.getError("Couldn't resolve import path: " + path);
+  if (cache.isCurrentlyImported(*absolutePath))
+    return codeLoc.getError("Exported import cycle: " + combine(cache.getCurrentImports(), ", "));
+  if (!cache.contains(*absolutePath)) {
+    TRY(addExportedContext(primaryContext, cache, *ast, *absolutePath, isBuiltIn));
+  } else
+    INFO << "Import " << *absolutePath << " already cached";
+  context.merge(cache.getContext(*absolutePath));
+  return success;
+}
+
+JustError<ErrorLoc> ImportStatement::check(Context& context, bool) {
+  return success;
 }
 
 WithEvalError<EvalResult> Expression::eval(const Context&) const {
@@ -2158,23 +2279,23 @@ WithEvalError<EvalResult> Expression::eval(const Context&) const {
 
 EnumDefinition::EnumDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
 
+JustError<ErrorLoc> EnumDefinition::registerTypes(const Context&, TypeRegistry* r) {
+  return r->addEnum(name, external, codeLoc).addCodeLoc(codeLoc);
+}
+
 JustError<ErrorLoc> EnumDefinition::addToContext(Context& context) {
-  auto type = context.typeRegistry->getEnum(name);
-  context.setFullyDefined(type.get(), fullyDefined);
-  if (fullyDefined) {
-    if (elements.empty())
-      return codeLoc.getError("Enum requires at least one element");
-    TRY(getRedefinitionError(type->getName(), type->definition).addCodeLoc(codeLoc));
-    type->definition = codeLoc;
-    type->elements = elements;
-    type->external = external;
-    unordered_set<string> occurences;
-    for (auto& e : elements)
-      if (occurences.count(e))
-        return codeLoc.getError("Duplicate enum element: " + quote(e));
-  }
-  if (!context.getType(name))
-    context.addType(name, std::move(type));
+  TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
+  auto type = context.typeRegistry->getEnum(name).get();
+  if (elements.empty())
+    return codeLoc.getError("Enum requires at least one element");
+  type->definition = codeLoc;
+  type->elements = elements;
+  type->external = external;
+  unordered_set<string> occurences;
+  for (auto& e : elements)
+    if (occurences.count(e))
+      return codeLoc.getError("Duplicate enum element: " + quote(e));
+  context.addType(name, std::move(type));
   return success;
 }
 
@@ -2233,7 +2354,7 @@ JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
     if (param.type)
       return param.codeLoc.getError("Concept value template parameters are not supported.");
     concept->modParams().push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
-    declarationsContext.addType(param.name, concept->modParams().back(), true);
+    declarationsContext.addType(param.name, concept->modParams().back());
     if (templateInfo.variadic && i == templateInfo.params.size() - 1)
       context.addUnexpandedTypePack(templateInfo.params[i].name, concept->modParams().back());
   }
@@ -2333,6 +2454,15 @@ unique_ptr<Statement> RangedLoopStatement::transform(const StmtTransformFun& fun
   return ret;
 }
 
+void RangedLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f1(init.get());
+  f2(container.get());
+  f2(condition.get());
+  f2(increment.get());
+  f1(body.get());
+  f1(containerEnd.get());
+}
+
 JustError<ErrorLoc> BreakStatement::check(Context& context, bool) {
   if (auto id = context.getLoopId()) {
     loopId = *id;
@@ -2388,6 +2518,11 @@ unique_ptr<Expression> ArrayLiteral::transform(const StmtTransformFun&, const Ex
   return ret;
 }
 
+void ArrayLiteral::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  for (auto& elem : contents)
+    f2(elem.get());
+}
+
 JustError<ErrorLoc> ArrayLiteral::checkMoves(MoveChecker& checker) const {
   for (auto& e : contents)
     TRY(e->checkMoves(checker));
@@ -2424,6 +2559,10 @@ SwitchStatement::CaseElem SwitchStatement::CaseElem::transform(const StmtTransfo
   return ret;
 }
 
+void SwitchStatement::CaseElem::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f1(block.get());
+}
+
 ExternConstantDeclaration::ExternConstantDeclaration(CodeLoc l, IdentifierInfo type, string identifier)
   : Statement(l), type(type), identifier(identifier) {
 }
@@ -2444,6 +2583,49 @@ LambdaExpression::LambdaExpression(CodeLoc l, vector<FunctionParameter> params, 
       captureInfo(std::move(captureInfo)) {
 }
 
+static SType getCapturedType(SType input, LambdaCaptureType type) {
+  switch (type) {
+    case LambdaCaptureType::REFERENCE:
+      return convertReferenceToPointer(input);
+    case LambdaCaptureType::COPY:
+    case LambdaCaptureType::IMPLICIT_COPY:
+    case LambdaCaptureType::MOVE:
+      return input->removeReference();
+  }
+}
+
+WithErrorLine<vector<LambdaCapture>> LambdaExpression::setLambda(Context& context) {
+  vector<LambdaCapture> ret;
+  for (auto& capture : captureInfo.captures) {
+    if (auto type = context.getTypeOfVariable(capture.name)) {
+      auto underlying = type->get()->removeReference();
+/*      if (capture.type == LambdaCaptureType::IMPLICIT_COPY && !context.canConvert(*type, underlying))
+        return capture.codeLoc.getError("Variable " + capture.name + " of type " +
+            quote(underlying->getName()) + " can't be captured by implicit copy");*/
+      if (capture.type == LambdaCaptureType::IMPLICIT_COPY) {
+        if (auto f = getImplicitCopyFunction(context, capture.codeLoc, underlying)) {
+          TRY(f->get()->getDefinition()->addInstance(&context, *f));
+          functionCalls.push_back(*f);
+        } else
+          return capture.codeLoc.getError("No implicit copy function defined for type " +
+              quote(underlying->getName())+ "\n" + f.get_error().error);
+      }
+      if (capture.type == LambdaCaptureType::COPY) {
+        if (auto f = getCopyFunction(context, capture.codeLoc, underlying)) {
+          TRY(f->get()->getDefinition()->addInstance(&context, *f));
+          functionCalls.push_back(*f);
+        } else
+          return capture.codeLoc.getError("No copy function defined for type " +
+              quote(underlying->getName())+ "\n" + f.get_error().error);
+      }
+      ret.push_back(LambdaCapture{capture.name, getCapturedType(*type, capture.type), capture.type});
+    } else
+      return capture.codeLoc.getError(type.get_error());
+  }
+  context.setLambda(&captureInfo);
+  return ret;
+}
+
 WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
   if (type)
     return SType(type.get());
@@ -2456,7 +2638,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
   auto bodyContext = Context::withParent(context);
   ReturnTypeChecker returnChecker(retType);
   bodyContext.addReturnTypeChecker(&returnChecker);
-  auto captureTypes = TRY(bodyContext.setLambda(&captureInfo));
+  auto captureTypes = TRY(setLambda(bodyContext));
   vector<SType> params;
   type = LambdaType::get(context.getTemplateParams().value_or(vector<SType>()));
   type->captures = captureTypes;
@@ -2488,20 +2670,15 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
     type->functionInfo = std::move(functioInfo);
   }
   TRY(checkBodyMoves());
-  auto blockCopy = block->deepCopy();
-  auto res = blockCopy->check(bodyContext);
-  CHECK(!!res) << res.get_error();
   if (!block->hasReturnStatement(context) && retType != BuiltinType::VOID)
     return block->codeLoc.getError("Not all paths lead to a return statement in a lambda expression returning non-void");
-  type->body = cast<StatementBlock>(std::move(blockCopy));
+  type->body = cast<Statement>(unique<ExternalStatement>(block.get()));
   type->destructorCalls = getDestructorCalls(codeLoc,
       parameters.transform([](auto& p) { return *p.name;}),
       getSubsequence(type->functionInfo->type.params, 1));
   for (auto& elem : type->destructorCalls)
     if (elem)
       TRY(elem->check(bodyContext));
-  context.typeRegistry->addLambda(type.get());
-  //context.addType(type->getName(), type.get());
   vector<unique_ptr<Statement>> toDestruct;
   for (auto& capture : type->captures) {
     if (capture.captureType != LambdaCaptureType::REFERENCE && capture.type->hasDestructor()) {
@@ -2542,6 +2719,21 @@ JustError<ErrorLoc> LambdaExpression::checkMoves(MoveChecker& checker) const {
 unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, const ExprTransformFun& exprFun) const {
   auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->transform(fun, exprFun)), returnType, captureInfo);
   return ret;
+}
+
+void LambdaExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f1(block.get());
+}
+
+void LambdaExpression::addLambdas(LambdasSet& lambdas) const {
+  Expression::addLambdas(lambdas);
+  lambdas.insert(type.get().get());
+}
+
+void LambdaExpression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+  Expression::addFunctionCalls(fun);
+  for (auto& f : functionCalls)
+    fun(f);
 }
 
 CountOfExpression::CountOfExpression(CodeLoc l, string id) : Expression(l), identifier(std::move(id)) {
@@ -2652,6 +2844,16 @@ unique_ptr<Expression> MemberAccessExpression::transform(const StmtTransformFun&
   return unique<MemberAccessExpression>(codeLoc, lhs->transform(fun1, fun2), identifier);
 }
 
+void MemberAccessExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f2(lhs.get());
+}
+
+void MemberAccessExpression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+  Expression::addFunctionCalls(fun);
+  if (destructorCall)
+    fun(destructorCall.get());
+}
+
 JustError<ErrorLoc> MemberAccessExpression::checkMoves(MoveChecker& checker) const {
   return lhs->checkMoves(checker);
 }
@@ -2660,6 +2862,7 @@ MemberIndexExpression::MemberIndexExpression(CodeLoc l, unique_ptr<Expression> l
   : Expression(l), lhs(std::move(lhs)), index(std::move(index)) {}
 
 WithErrorLine<SType> MemberIndexExpression::getTypeImpl(const Context& context) {
+  TRY(index->getTypeImpl(context));
   auto value = TRY(index->eval(context).addNoEvalError(
       index->codeLoc.getError("Unable to evaluate constant expression at compile-time")));
   auto leftType = TRY(lhs->getTypeImpl(context));
@@ -2674,6 +2877,17 @@ WithErrorLine<SType> MemberIndexExpression::getTypeImpl(const Context& context) 
 
 unique_ptr<Expression> MemberIndexExpression::transform(const StmtTransformFun& fun1, const ExprTransformFun& fun2) const {
   return unique<MemberIndexExpression>(codeLoc, lhs->transform(fun1, fun2), index->transform(fun1, fun2));
+}
+
+void MemberIndexExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f2(lhs.get());
+  f2(index.get());
+}
+
+void MemberIndexExpression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+  Expression::addFunctionCalls(fun);
+  if (destructorCall)
+    fun(destructorCall.get());
 }
 
 JustError<ErrorLoc> MemberIndexExpression::checkMoves(MoveChecker& checker) const {
@@ -2717,6 +2931,12 @@ unique_ptr<Expression> TernaryExpression::transform(const StmtTransformFun& f1, 
   return unique<TernaryExpression>(codeLoc, f2(condExpr.get()), f2(e1.get()), f2(e2.get()));
 }
 
+void TernaryExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f2(condExpr.get());
+  f2(e1.get());
+  f2(e2.get());
+}
+
 JustError<ErrorLoc> TernaryExpression::checkMoves(MoveChecker& checker) const {
   TRY(condExpr->checkMoves(checker));
   checker.startBlock();
@@ -2757,7 +2977,7 @@ WithErrorLine<SType> FatPointerConversion::getTypeImpl(const Context& context) {
     auto concept = conceptType->getConceptFor(argType->removePointer());
     if (ret.dynamicCast<MutablePointerType>() && !argType.get().dynamicCast<MutablePointerType>())
       return toType.codeLoc.getError("Cannot cast value of type " + quote(argType->getName()) + " to a mutable pointer");
-    auto functions = TRY(getRequiredFunctionsForConceptType(context, *concept, codeLoc));
+    functions = TRY(getRequiredFunctionsForConceptType(context, *concept, codeLoc));
     for (auto& fun : functions)
       fun->addInstance(context);
     concept->def->addFatPointer({argType->removePointer(), functions}, conceptType.get());
@@ -2772,7 +2992,7 @@ WithErrorLine<SType> FatPointerConversion::getTypeImpl(const Context& context) {
       TRY(context.canConvert(argType.get(), argType->removeReference(), arg).addCodeLoc(arg->codeLoc));
       CHECK(!!getType(context, arg));
     }
-    auto functions = TRY(getRequiredFunctionsForConceptType(context, *concept, codeLoc));
+    functions = TRY(getRequiredFunctionsForConceptType(context, *concept, codeLoc));
     for (auto& fun : functions)
       fun->addInstance(context);
     concept->def->addFatPointer({argType.get(), functions}, conceptType.get());
@@ -2782,6 +3002,20 @@ WithErrorLine<SType> FatPointerConversion::getTypeImpl(const Context& context) {
 
 unique_ptr<Expression> FatPointerConversion::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
   return unique<FatPointerConversion>(codeLoc, toType, arg->transform(f1, f2));
+}
+
+void FatPointerConversion::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f2(arg.get());
+}
+
+void FatPointerConversion::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+  for (auto& f : functions)
+    fun(f);
+}
+
+void FatPointerConversion::addConceptTypes(ConceptsSet& types) const {
+  Expression::addConceptTypes(types);
+  types.insert(conceptType.get().get());
 }
 
 JustError<ErrorLoc> FatPointerConversion::checkMoves(MoveChecker& c) const {
@@ -2811,6 +3045,10 @@ unique_ptr<Statement> UncheckedStatement::transform(const StmtTransformFun& f1, 
   return unique<UncheckedStatement>(codeLoc, elem->transform(f1, f2));
 }
 
+void UncheckedStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f1(elem.get());
+}
+
 AttributeDefinition::AttributeDefinition(CodeLoc l, string name) : Statement(l), name(std::move(name)) {
 }
 
@@ -2822,4 +3060,26 @@ JustError<ErrorLoc> AttributeDefinition::addToContext(Context& context) {
 
 JustError<ErrorLoc> AttributeDefinition::check(Context&, bool) {
   return success;
+}
+
+ExternalStatement::ExternalStatement(Statement* s) : Statement(s->codeLoc), elem(s) {}
+
+bool ExternalStatement::hasReturnStatement(const Context& context) const {
+  return elem->hasReturnStatement(context);
+}
+
+JustError<ErrorLoc> ExternalStatement::check(Context& context, bool b) {
+  return elem->check(context, b);
+}
+
+JustError<ErrorLoc> ExternalStatement::checkMovesImpl(MoveChecker& checker) const {
+  return elem->checkMoves(checker);
+}
+
+unique_ptr<Statement> ExternalStatement::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
+  return elem->transform(f1, f2);
+}
+
+void ExternalStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f1(elem);
 }

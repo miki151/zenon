@@ -1,7 +1,6 @@
 // no_compile
 
-
-struct X;
+import "x.znn";
 
 template <T>
 struct Y {
