@@ -648,7 +648,8 @@ WithError<IdentifierType> Context::getIdentifierType(const IdentifierInfo& id) c
 vector<SFunctionInfo> Context::getFunctionTemplate(IdentifierType id) const {
   vector<SFunctionInfo> ret;
   if (id.parts.size() > 1)
-    return (*id.parts[0].name.getReferenceMaybe<SType>())->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
+    return (*id.parts[0].name.getReferenceMaybe<SType>())->getStaticContext()
+        .getFunctionTemplate(id.getWithoutFirstPart());
   else
     return id.parts[0].name.visit(
           [&](const SType& type) { return getConstructorsFor(type); },
