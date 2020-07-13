@@ -1,0 +1,17 @@
+
+export template <T>
+concept G {
+  int g(T*);
+};
+
+export template <T>
+int g(T*) { return 0; }
+
+export template <T, Members...> requires is_struct<T>, has_members<T, Members...>, G<Members>...
+int f(T t) {
+  mutable ret = 0;
+  static for (mutable i = 0; i < struct_count(T); ++i)
+    unchecked ret += g(&t.(i));
+  return ret;
+}
+

@@ -59,6 +59,7 @@ class Context : public owned_object<Context> {
   void addSubstitution(SubstitutionInfo);
   vector<SubstitutionInfo> getSubstitutions() const;
   void setAttribute(SType, SType);
+  void setStructMembers(SType structType, vector<SType> members, vector<SType> templateParams);
   WithErrorLine<SType> getTypeFromString(IdentifierInfo, optional<bool> typePack = false) const;
   nullable<SType> getType(const string&) const;
   bool isFullyDefined(const Type*) const;

@@ -402,6 +402,11 @@ void Context::setAttribute(SType t, SType attr) {
   CHECK(addFunction(FunctionInfo::getImplicit(AttributeTag{}, FunctionType(BuiltinType::VOID, {t, attr}, {}))));
 }
 
+void Context::setStructMembers(SType t, vector<SType> members, vector<SType> templateParams) {
+  CHECK(addFunction(FunctionInfo::getImplicit(StructMembersTag{},
+      FunctionType(BuiltinType::VOID, concat({std::move(t)}, std::move(members)), std::move(templateParams)))));
+}
+
 WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameterInfo>& ids, bool variadic) const {
   vector<SType> params;
   for (int i = 0; i < ids.size(); ++i) {

@@ -454,6 +454,8 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionSignature(IdentifierI
       return token2.codeLoc.getError("Expected identifier, got: " + quote(token2.value));
     if (token2.value == "builtin_has_attribute")
       ret = unique<FunctionDefinition>(type.codeLoc, type, AttributeTag{});
+    else if (token2.value == "builtin_has_members")
+      ret = unique<FunctionDefinition>(type.codeLoc, type, StructMembersTag{});
     else
       ret = unique<FunctionDefinition>(type.codeLoc, type, token2.value);
   }

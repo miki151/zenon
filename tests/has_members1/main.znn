@@ -1,0 +1,19 @@
+// 12
+
+import "f.znn";
+
+struct X {};
+
+struct Y {
+  X a;
+  int b;
+  string c;
+};
+
+int g(X*) { return 1; }
+int g(int* a) { return *a; }
+int g(string* s) { return s->size(); }
+
+int main() {
+  return f<Y, X, int, string>(Y(X(), 3, "12345678"));
+}

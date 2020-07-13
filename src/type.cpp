@@ -279,7 +279,7 @@ string FunctionInfo::getMangledName() const {
         else
           return "construct_" + type.retVal->getCodegenName();
       },
-      [](AttributeTag) -> string {
+      [](auto&) -> string {
         fail();
       }
   );

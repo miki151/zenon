@@ -843,10 +843,7 @@ static string getVTableFunName(const FunctionId id) {
       [](Operator op) {
         return getCodegenName(op);
       },
-      [](ConstructorTag) -> string {
-        fail();
-      },
-      [](AttributeTag) -> string {
+      [](auto&) -> string {
         fail();
       }
   );

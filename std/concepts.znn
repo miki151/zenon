@@ -34,3 +34,9 @@ export template <T, A>
 concept has_attribute {
   void builtin_has_attribute(T, A);
 };
+
+export template <T, Members...>
+concept has_members {
+  void builtin_has_members(T, Members...);
+};
+

@@ -1,0 +1,18 @@
+// no_compile
+
+struct X {};
+
+struct Y {
+  X a;
+  int b;
+  string c;
+};
+
+template <T, Members...> requires is_struct<T>, has_members<T, Members...>
+void f() {
+}
+
+int main() {
+  f<Y, X, int>();
+  return 0;
+}
