@@ -18,19 +18,19 @@ unique_ptr<Expression> Expression::replaceVar(string from, string to) const {
       [&](Expression* expr) { return expr->replaceVar(from, to); });
 }
 
-void Expression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+void Node::addFunctionCalls(const FunctionCallVisitFun& fun) const {
   visit(
       [&](Statement* expr) { expr->addFunctionCalls(fun); },
       [&](Expression* expr) { expr->addFunctionCalls(fun); });
 }
 
-void Expression::addLambdas(LambdasSet& lambdas) const {
+void Node::addLambdas(LambdasSet& lambdas) const {
   visit(
       [&](Statement* expr) { expr->addLambdas(lambdas); },
       [&](Expression* expr) { expr->addLambdas(lambdas); });
 }
 
-void Expression::addConceptTypes(ConceptsSet& types) const {
+void Node::addConceptTypes(ConceptsSet& types) const {
   visit(
       [&](Statement* expr) { expr->addConceptTypes(types); },
       [&](Expression* expr) { expr->addConceptTypes(types); });
@@ -612,24 +612,6 @@ bool Statement::hasReturnStatement(const Context&) const {
 
 unique_ptr<Statement> Statement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
   fail();
-}
-
-void Statement::addFunctionCalls(const FunctionCallVisitFun& fun) const {
-  visit(
-      [&](Statement* s) { s->addFunctionCalls(fun); },
-      [&](Expression* s) { s->addFunctionCalls(fun); });
-}
-
-void Statement::addLambdas(LambdasSet& lambdas) const {
-  visit(
-      [&](Statement* s) { s->addLambdas(lambdas); },
-      [&](Expression* s) { s->addLambdas(lambdas); });
-}
-
-void Statement::addConceptTypes(ConceptsSet& types) const {
-  visit(
-      [&](Statement* expr) { expr->addConceptTypes(types); },
-      [&](Expression* expr) { expr->addConceptTypes(types); });
 }
 
 unique_ptr<Statement> Statement::deepCopy() const {

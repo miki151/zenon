@@ -47,6 +47,10 @@ struct Node {
   Node(CodeLoc);
   CodeLoc codeLoc;
   virtual void codegen(Accu&, CodegenStage) const {}
+  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const {}
+  virtual void addFunctionCalls(const FunctionCallVisitFun&) const;
+  virtual void addLambdas(LambdasSet&) const;
+  virtual void addConceptTypes(ConceptsSet&) const;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const { return success; }
   virtual ~Node() {}
 };
@@ -65,10 +69,6 @@ struct Expression : Node {
   virtual unique_ptr<Expression> replaceVar(string from, string to) const;
   virtual WithEvalError<EvalResult> eval(const Context&) const;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const = 0;
-  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const {}
-  virtual void addFunctionCalls(const FunctionCallVisitFun&) const;
-  virtual void addLambdas(LambdasSet&) const;
-  virtual void addConceptTypes(ConceptsSet&) const;
   unique_ptr<Expression> deepCopy() const;
 };
 
@@ -323,10 +323,6 @@ struct Statement : Node {
   virtual void codegen(Accu&, CodegenStage) const override {}
   virtual unique_ptr<Statement> replaceVar(string from, string to) const;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const;
-  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const {}
-  virtual void addFunctionCalls(const FunctionCallVisitFun&) const;
-  virtual void addLambdas(LambdasSet&) const;
-  virtual void addConceptTypes(ConceptsSet&) const;
   virtual bool canHaveAttributes() const { return false; }
   virtual JustError<ErrorLoc> registerTypes(const Context&, TypeRegistry*) { return success; }
   virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry* r, ASTCache&,
