@@ -1,7 +1,6 @@
 #include "context.h"
 #include "ast.h"
 #include "type.h"
-#include "identifier_type.h"
 #include "type_registry.h"
 
 Context Context::withParent(const Context& c) {
@@ -626,35 +625,21 @@ vector<SFunctionInfo> Context::getConstructorsFor(const SType& type) const {
   return ret;
 }
 
-WithError<IdentifierType> Context::getIdentifierType(const IdentifierInfo& id) const {
-  if (id.parts.size() > 1) {
-    if (auto type = getTypeFromString(IdentifierInfo(id.parts[0], id.codeLoc))) {
-      if (auto ret = type.get()->getStaticContext().getIdentifierType(id.getWithoutFirstPart())) {
-        ret->parts = concat({IdentifierType::Part{{type.get()}}}, ret->parts);
-        return ret;
-      }
-    }
-    return "Type not found: " + id.prettyString();
-  } else {
-    string name = id.parts[0].name;
-    if (auto type = getType(name))
-      // Should this also instantiate the type if there are template arguments?
-      return IdentifierType(type.get());
-    else
-      return IdentifierType(name);
-  }
-}
-
-vector<SFunctionInfo> Context::getFunctionTemplate(IdentifierType id) const {
+WithError<vector<SFunctionInfo>> Context::getFunctionTemplate(IdentifierInfo id) const {
   vector<SFunctionInfo> ret;
-  if (id.parts.size() > 1)
-    return (*id.parts[0].name.getReferenceMaybe<SType>())->getStaticContext()
-        .getFunctionTemplate(id.getWithoutFirstPart());
-  else
-    return id.parts[0].name.visit(
-          [&](const SType& type) { return getConstructorsFor(type); },
-          [&](const string& name) { return getFunctions(name);}
-    );
+    if (id.parts.size() > 1) {
+      if (auto type = getTypeFromString(IdentifierInfo(id.parts[0], id.codeLoc)))
+        return (*type)->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
+      else
+        return "Type not found: " + id.prettyString();
+    } else {
+      string funName = id.parts[0].name;
+      if (auto type = getType(funName))
+        ret = getConstructorsFor(type.get());
+      else
+        ret = getFunctions(funName);
+    }
+    return ret;
 }
 
 WithEvalError<SType> Context::BuiltInFunctionInfo::invokeFunction(const string& id, CodeLoc loc, vector<SType> args,

@@ -7,7 +7,6 @@
 #include "operator.h"
 #include "identifier.h"
 #include "type.h"
-#include "identifier_type.h"
 
 struct Accu;
 class MoveChecker;
@@ -278,7 +277,6 @@ enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_
 struct FunctionCall : Expression {
   FunctionCall(CodeLoc, IdentifierInfo, bool methodCall);
   FunctionCall(CodeLoc, IdentifierInfo, unique_ptr<Expression> arg, bool methodCall);
-  static unique_ptr<FunctionCall> constructor(CodeLoc, SType type);
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
@@ -288,7 +286,6 @@ struct FunctionCall : Expression {
   virtual void addFunctionCalls(const FunctionCallVisitFun&) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   optional<IdentifierInfo> identifier;
-  optional<IdentifierType> identifierType;
   optional<vector<SType>> templateArgs;
   nullable<SFunctionInfo> functionInfo;
   vector<unique_ptr<Expression>> arguments;
@@ -302,7 +299,7 @@ struct FunctionCall : Expression {
   FunctionCall(CodeLoc, bool methodCall, Private);
 
   private:
-  JustError<ErrorLoc> initializeTemplateArgsAndIdentifierType(const Context&);
+  JustError<ErrorLoc> initializeTemplateArgs(const Context&);
   JustError<ErrorLoc> checkNamedArgs() const;
   JustError<ErrorLoc> checkVariadicCall(const Context&);
 };

@@ -5,7 +5,6 @@
 #include "lexer.h"
 #include "parser.h"
 #include "code_loc.h"
-#include "identifier_type.h"
 #include "type_registry.h"
 #include "move_checker.h"
 #include "import_cache.h"
@@ -68,18 +67,6 @@ FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id, bool methodCall) : Expr
 
 FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id, unique_ptr<Expression> arg, bool methodCall) : FunctionCall(l, id, methodCall) {
   arguments.push_back(std::move(arg));
-}
-
-unique_ptr<FunctionCall> FunctionCall::constructor(CodeLoc l, SType type) {
-  auto ret = unique<FunctionCall>(l, false, Private{});
-  vector<SType> templateArgs;
-  if (auto structType = type.dynamicCast<StructType>()) {
-    templateArgs = structType->templateParams;
-    type = structType->parent.get();
-  }
-  ret->templateArgs = std::move(templateArgs);
-  ret->identifierType = IdentifierType(type);
-  return ret;
 }
 
 VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, string id, unique_ptr<Expression> ini)
@@ -246,11 +233,11 @@ static WithErrorLine<SFunctionInfo> handleOperatorOverloads(const Context& conte
 }
 
 static WithErrorLine<SFunctionInfo> getFunction(const Context&,
-    CodeLoc, IdentifierType, vector<SType> templateArgs, const vector<SType>& argTypes,
+    CodeLoc, IdentifierInfo, vector<SType> templateArgs, const vector<SType>& argTypes,
     const vector<CodeLoc>&);
 
 static WithErrorLine<SFunctionInfo> getFunction(const Context&,
-    CodeLoc, IdentifierType, vector<SType> templateArgs, const vector<SType>& argTypes,
+    CodeLoc, IdentifierInfo, vector<SType> templateArgs, const vector<SType>& argTypes,
     const vector<CodeLoc>&, vector<unique_ptr<Expression>>&);
 
 unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr) {
@@ -331,7 +318,8 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(const Context& context) {
 }
 
 WithErrorLine<SFunctionInfo> getDestructor(const Context& context, const SType& type) {
-  return getFunction(context, CodeLoc(), "destruct"s, {}, {PointerType::get(type)}, {CodeLoc()});
+  return getFunction(context, CodeLoc(), IdentifierInfo("destruct"s, CodeLoc()), {},
+      {PointerType::get(type)}, {CodeLoc()});
 }
 
 JustError<ErrorLoc> BinaryExpression::considerDestructorCall(const Context& context, int index, const SType& argType) {
@@ -384,7 +372,7 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(const Context& context) {
   TRY(functionInfo->addInstance(context));
   if (right->hasDestructor() && !right->isReference() &&
       (functionInfo->type.params[0].dynamicCast<ReferenceType>() || op == Operator::GET_ADDRESS)) {
-    destructorCall = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(right)}, {codeLoc}));
+    destructorCall = TRY(getDestructor(context, right));
     TRY(destructorCall->addInstance(context));
   }
   return functionInfo->type.retVal;
@@ -860,11 +848,11 @@ static FunctionId translateDestructorId(const FunctionId& id) {
   return id;
 }
 
-static IdentifierType translateDestructorId(const IdentifierType& id) {
-  if (id.isSimpleString("destruct"))
-    return IdentifierType("destruct_full");
-  if (id.isSimpleString("destruct_impl_dont_call"))
-    return IdentifierType("destruct");
+static IdentifierInfo translateDestructorId(IdentifierInfo id) {
+  if (id.parts[0].name == "destruct")
+    id.parts[0].name = "destruct_full";
+  if (id.parts[0].name == "destruct_impl_dont_call")
+    id.parts[0].name = "destruct";
   return id;
 }
 
@@ -915,15 +903,16 @@ static WithError<SFunctionInfo> getFunction(const Context& context,
 }
 
 static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
-    CodeLoc codeLoc, IdentifierType id, vector<SType> templateArgs, const vector<SType>& argTypes,
+    CodeLoc codeLoc, IdentifierInfo id, vector<SType> templateArgs, const vector<SType>& argTypes,
     const vector<CodeLoc>& argLoc) {
-  auto candidates = context.getFunctionTemplate(translateDestructorId(id));
+  auto candidates = TRY(context.getFunctionTemplate(translateDestructorId(id)).addCodeLoc(codeLoc));
   auto error =  codeLoc.getError("Couldn't find function " + id.prettyString() +
       " matching arguments: (" + joinTypeList(argTypes) + ")");
   if (candidates.empty())
     return error;
   auto functionId = candidates[0]->id;
-  if (auto res = getFunction(context, codeLoc, functionId, std::move(candidates), std::move(templateArgs), argTypes, argLoc))
+  if (auto res = getFunction(context, codeLoc, functionId, std::move(candidates), std::move(templateArgs),
+      argTypes, argLoc))
     return *res;
   else {
     error.error += res.get_error();
@@ -932,7 +921,7 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
 }
 
 static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
-    CodeLoc codeLoc, IdentifierType id, vector<SType> templateArgs, const vector<SType>& argTypes,
+    CodeLoc codeLoc, IdentifierInfo id, vector<SType> templateArgs, const vector<SType>& argTypes,
     const vector<CodeLoc>& argLoc, vector<unique_ptr<Expression>>& expr) {
   auto fun = TRY(getFunction(context, codeLoc, std::move(id), std::move(templateArgs), std::move(argTypes), std::move(argLoc)));
   generateConversions(context, fun->type.params, argTypes, expr);
@@ -940,11 +929,11 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
 }
 
 WithErrorLine<SFunctionInfo> getCopyFunction(const Context& context, CodeLoc callLoc, const SType& t) {
-  return getFunction(context, callLoc, IdentifierType("copy"), {}, {PointerType::get(t)}, {callLoc});
+  return getFunction(context, callLoc, IdentifierInfo("copy", callLoc), {}, {PointerType::get(t)}, {callLoc});
 }
 
 WithErrorLine<SFunctionInfo> getImplicitCopyFunction(const Context& context, CodeLoc callLoc, const SType& t) {
-  return getFunction(context, callLoc, IdentifierType("implicit_copy"), {}, {PointerType::get(t)}, {callLoc});
+  return getFunction(context, callLoc, IdentifierInfo("implicit_copy", callLoc), {}, {PointerType::get(t)}, {callLoc});
 }
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
@@ -959,7 +948,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
       functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
       args.push_back(alternativeType);
     }
-  TRY(getFunction(context, codeLoc, IdentifierType(funName), {}, args,
+  TRY(getFunction(context, codeLoc, IdentifierInfo(funName, codeLoc), {}, args,
       vector<CodeLoc>(args.size(), codeLoc)));
   return unique_ptr<Expression>(std::move(functionCall));
 }
@@ -1594,11 +1583,9 @@ bool ExpressionStatement::hasReturnStatement(const Context& context) const {
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-JustError<ErrorLoc> FunctionCall::initializeTemplateArgsAndIdentifierType(const Context& context) {
+JustError<ErrorLoc> FunctionCall::initializeTemplateArgs(const Context& context) {
   if (!templateArgs)
     templateArgs = TRY(context.getTypeList(identifier->parts.back().templateArguments, variadicTemplateArgs));
-  if (!identifierType)
-      identifierType = TRY(context.getIdentifierType(*identifier).addCodeLoc(identifier->codeLoc));
   return success;
 }
 
@@ -1678,7 +1665,7 @@ if (variablePack) {
 }*/
 
 WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
-  TRY(initializeTemplateArgsAndIdentifierType(callContext));
+  TRY(initializeTemplateArgs(callContext));
   optional<ErrorLoc> error;
   if (!functionInfo) {
     vector<SType> argTypes;
@@ -1707,12 +1694,12 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
 //      std::cout << "Function argument " << argTypes.back()->getName() << std::endl;
     }
     auto tryMethodCall = [&](MethodCallType thisCallType, const Type& origType) -> JustError<ErrorLoc> {
-      auto res = getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs, arguments);
+      auto res = getFunction(callContext, codeLoc, *identifier, *templateArgs, argTypes, argLocs, arguments);
       if (res)
         callType = thisCallType;
       if (callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
         if (!origType.isReference() && argTypes[0]->removePointer()->hasDestructor()) {
-          destructorCall = TRY(getFunction(callContext, codeLoc, "destruct"s, {}, {argTypes[0]}, {codeLoc}));
+          destructorCall = TRY(getDestructor(callContext, argTypes[0]->removePointer()));
           TRY(destructorCall->addInstance(callContext));
         }
       }
@@ -1734,7 +1721,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
           : SType(PointerType::get(leftType->removeReference()));
       TRY(tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER, *leftType));
     } else
-      getFunction(callContext, codeLoc, *identifierType, *templateArgs, argTypes, argLocs, arguments)
+      getFunction(callContext, codeLoc, *identifier, *templateArgs, argTypes, argLocs, arguments)
           .unpack(functionInfo, error);
 //    if (functionInfo)
 //      std::cout << "Arguments \"" << joinTypeList(argTypes) << "\" " << functionInfo->prettyString() << std::endl;
@@ -1781,7 +1768,6 @@ unique_ptr<Expression> FunctionCall::transform(const StmtTransformFun&, const Ex
     ret->arguments.push_back(fun(arg.get()));
   ret->templateArgs = templateArgs;
   ret->argNames = argNames;
-  ret->identifierType = identifierType;
   ret->variadicArgs = variadicArgs;
   ret->variadicTemplateArgs = variadicTemplateArgs;
   return ret;
@@ -1812,7 +1798,7 @@ SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statemen
 JustError<ErrorLoc> SwitchStatement::check(Context& context, bool) {
   auto type = TRY(getType(context, expr));
   if (type->hasDestructor()) {
-    destructorCall = TRY(getFunction(context, codeLoc, "destruct"s, {}, {PointerType::get(type)}, {codeLoc}));
+    destructorCall = TRY(getDestructor(context, type));
     TRY(destructorCall->addInstance(context));
   }
   if (!context.isFullyDefined(type->removePointer().get()))
@@ -2689,8 +2675,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
           elem.hasConstructor = true;
     }
     if (capture.captureType == LambdaCaptureType::IMPLICIT_COPY) {
-      TRY(getFunction(bodyContext, codeLoc, "implicit_copy"s, {}, {PointerType::get(capture.type)}, {codeLoc}).get()
-          ->addInstance(bodyContext));
+      TRY(getImplicitCopyFunction(bodyContext, codeLoc, capture.type).get()->addInstance(bodyContext));
     }
   }
   if (!toDestruct.empty())
@@ -2821,8 +2806,8 @@ static JustError<ErrorLoc> initializeDestructor(const Context& context, const ST
     if (structType->hasDestructor()) {
       for (int i = 0; i < structType->members.size(); ++i)
         if (structType->members[i].name == member) {
-          destructorCall = TRY(getFunction(context, codeLoc, "destruct_except"s, {CompileTimeValue::get(i)},
-              {PointerType::get(type)}, {codeLoc}));
+          destructorCall = TRY(getFunction(context, codeLoc, IdentifierInfo("destruct_except", codeLoc),
+              {CompileTimeValue::get(i)}, {PointerType::get(type)}, {codeLoc}));
           TRY(destructorCall->addInstance(context));
         }
     }

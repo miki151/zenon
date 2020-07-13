@@ -65,8 +65,7 @@ class Context : public owned_object<Context> {
   vector<SType> getAllTypes() const;
   NODISCARD JustError<string> addImplicitFunction(FunctionId, FunctionType);
   NODISCARD JustError<string> addFunction(SFunctionInfo);
-  WithError<IdentifierType> getIdentifierType(const IdentifierInfo&) const;
-  vector<SFunctionInfo> getFunctionTemplate(IdentifierType) const;
+  WithError<vector<SFunctionInfo>> getFunctionTemplate(IdentifierInfo) const;
   WithEvalError<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
   using BuiltInFunction = function<WithError<SType>(vector<SType>)>;
   void addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction);
