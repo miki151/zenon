@@ -1016,7 +1016,7 @@ static string getCantBindError(const SType& from, const SType& to) {
   return "Can't bind type " + quote(from->getName()) + " to parameter of type " + quote(to->getName());
 }
 
-static JustError<string> getDeductionError(const Context& context, TypeMapping& mapping, SType paramType, SType argType) {
+static JustError<string> getDeductionError(TypeMapping& mapping, SType paramType, SType argType) {
   if (auto index = mapping.getParamIndex(paramType)) {
     auto& arg = mapping.templateArgs[*index];
     if (arg && arg != argType)
@@ -1024,27 +1024,27 @@ static JustError<string> getDeductionError(const Context& context, TypeMapping& 
     arg = argType;
     return success;
   } else
-    return paramType->getMappingError(context, mapping, argType);
+    return paramType->getMappingError(mapping, argType);
 }
 
-JustError<string> StructType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> StructType::getMappingError(TypeMapping& mapping, SType argType) const {
   auto argStruct = argType.dynamicCast<StructType>();
   if (!argStruct || parent.get() != argStruct->parent.get())
     return "Can't bind type " + quote(argType->getName()) + " to struct type " + quote(getName());
   for (int i = 0; i < templateParams.size(); ++i)
-    TRY(::getDeductionError(context, mapping, templateParams[i], argStruct->templateParams[i]));
+    TRY(::getDeductionError(mapping, templateParams[i], argStruct->templateParams[i]));
   return success;
 }
 
-JustError<string> PointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> PointerType::getMappingError(TypeMapping& mapping, SType argType) const {
   if (auto argPointer = argType.dynamicCast<PointerType>())
-    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+    return ::getDeductionError(mapping, underlying, argPointer->underlying);
   return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
 }
 
-JustError<string> MutablePointerType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> MutablePointerType::getMappingError(TypeMapping& mapping, SType argType) const {
   if (auto argPointer = argType.dynamicCast<MutablePointerType>())
-    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+    return ::getDeductionError(mapping, underlying, argPointer->underlying);
   return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
 }
 
@@ -1056,18 +1056,18 @@ SType MutablePointerType::removePointer() const {
   return underlying;
 }
 
-JustError<string> ReferenceType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
-  return ::getDeductionError(context, mapping, underlying, from->removeReference());
+JustError<string> ReferenceType::getMappingError(TypeMapping& mapping, SType from) const {
+  return ::getDeductionError(mapping, underlying, from->removeReference());
 }
 
-JustError<string> MutableReferenceType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
+JustError<string> MutableReferenceType::getMappingError(TypeMapping& mapping, SType from) const {
   if (auto argRef = from.dynamicCast<MutableReferenceType>())
-    return ::getDeductionError(context, mapping, underlying, argRef->underlying);
+    return ::getDeductionError(mapping, underlying, argRef->underlying);
   else
     return getCantBindError(from, get_this().get());
 }
 
-JustError<string> Type::getMappingError(const Context&, TypeMapping&, SType argType) const {
+JustError<string> Type::getMappingError(TypeMapping&, SType argType) const {
   if (argType == get_this().get())
     return success;
   else
@@ -1204,7 +1204,7 @@ static JustError<ErrorLoc> getConversionError(const Context& context, const SFun
       for (auto tArg : context.getConversions(argTypes[i]))
         if (!input->id.contains<Operator>() || tArg == argTypes[i] ||
             (tArg.dynamicCast<BuiltinType>() && argTypes[i].dynamicCast<BuiltinType>())) {
-          if (auto res = getDeductionError(context, mapping, funParams[i], tArg); !res) {
+          if (auto res = getDeductionError(mapping, funParams[i], tArg); !res) {
             if (!firstError)
               firstError = argLoc[i].getError(res.get_error());
           } else {
@@ -1437,10 +1437,10 @@ JustError<string> ArrayType::getSizeError(const Context& context) const {
 ArrayType::ArrayType(SType type, SCompileTimeValue size) : size(std::move(size)), underlying(type) {
 }
 
-JustError<string> ArrayType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> ArrayType::getMappingError(TypeMapping& mapping, SType argType) const {
   if (auto argPointer = argType.dynamicCast<ArrayType>()) {
-    TRY(::getDeductionError(context, mapping, size, argPointer->size));
-    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+    TRY(::getDeductionError(mapping, size, argPointer->size));
+    return ::getDeductionError(mapping, underlying, argPointer->underlying);
   }
   return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
 }
@@ -1560,10 +1560,10 @@ shared_ptr<CompileTimeValue> CompileTimeValue::getTemplateValue(SType type, stri
   return get(TemplateValue{std::move(type), std::move(name)});
 }
 
-JustError<string> CompileTimeValue::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> CompileTimeValue::getMappingError(TypeMapping& mapping, SType argType) const {
   if (auto argValue = argType.dynamicCast<CompileTimeValue>()) {
     auto argType = argValue->getType();
-    return getDeductionError(context, mapping, getType(), argType);
+    return getDeductionError(mapping, getType(), argType);
   } else
     return "Trying to bind type " + quote(argType->getName()) + " to a value template parameter";
 }
@@ -1629,9 +1629,9 @@ SType SliceType::transform(function<SType(const Type*)> fun) const {
   return get(fun(underlying.get()));
 }
 
-JustError<string> SliceType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> SliceType::getMappingError(TypeMapping& mapping, SType argType) const {
   if (auto argPointer = argType.dynamicCast<SliceType>())
-    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+    return ::getDeductionError(mapping, underlying, argPointer->underlying);
   else
     return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
 }
@@ -1686,9 +1686,9 @@ string OptionalType::getCodegenName() const {
   return "std::optional<" + underlying->getCodegenName() + ">";
 }
 
-JustError<string> OptionalType::getMappingError(const Context& context, TypeMapping& mapping, SType from) const {
+JustError<string> OptionalType::getMappingError(TypeMapping& mapping, SType from) const {
   if (auto argPointer = from.dynamicCast<OptionalType>())
-    return ::getDeductionError(context, mapping, underlying, argPointer->underlying);
+    return ::getDeductionError(mapping, underlying, argPointer->underlying);
   return "Can't bind type " + quote(from->getName()) + " to type " + quote(getName());
 }
 
@@ -1757,7 +1757,7 @@ SType LambdaType::replaceImpl(SType from, SType to, ErrorBuffer& errors) const {
   return ret;
 }
 
-JustError<string> LambdaType::getMappingError(const Context&, TypeMapping&, SType argType) const {
+JustError<string> LambdaType::getMappingError(TypeMapping&, SType argType) const {
   return success;
 }
 
@@ -1869,12 +1869,12 @@ JustError<string> ConceptType::getSizeError(const Context&) const {
   return success;
 }
 
-JustError<string> ConceptType::getMappingError(const Context& context, TypeMapping& mapping, SType argType) const {
+JustError<string> ConceptType::getMappingError(TypeMapping& mapping, SType argType) const {
   auto arg = argType.dynamicCast<ConceptType>();
   if (!arg || concept != arg->concept)
     return "Can't bind type " + quote(argType->getName()) + " to concept type " + quote(getName());
   for (int i = 0; i < min(params.size(), arg->params.size()); ++i)
-    TRY(::getDeductionError(context, mapping, params[i], arg->params[i]));
+    TRY(::getDeductionError(mapping, params[i], arg->params[i]));
   return success;
 }
 

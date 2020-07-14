@@ -22,7 +22,7 @@ struct Type : public owned_object<Type> {
   virtual string getName(bool withTemplateArguments = true) const = 0;
   virtual string getCodegenName() const;
   virtual optional<string> getMangledName() const;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const;
+  virtual JustError<string> getMappingError(TypeMapping&, SType argType) const;
   SType replace(SType from, SType to, ErrorBuffer&) const;
   virtual bool canReplaceBy(SType) const;
   virtual SType transform(function<SType(const Type*)>) const;
@@ -109,7 +109,7 @@ struct ReferenceType : public Type {
   virtual optional<string> getMangledName() const override;
   virtual string getCodegenName() const override;
   virtual SType removeReference() const override;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
+  virtual JustError<string> getMappingError(TypeMapping& mapping, SType from) const override;
   virtual SType transform(function<SType(const Type*)>) const override;
   virtual WithError<MemberInfo> getTypeOfMember(const SType&) const override;
   virtual WithError<SType> getTypeOfMember(const string& name) const override;
@@ -125,7 +125,7 @@ struct MutableReferenceType : public Type {
   virtual optional<string> getMangledName() const override;
   virtual string getCodegenName() const override;
   virtual SType removeReference() const override;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
+  virtual JustError<string> getMappingError(TypeMapping& mapping, SType from) const override;
   virtual SType transform(function<SType(const Type*)>) const override;
   virtual WithError<MemberInfo> getTypeOfMember(const SType&) const override;
   virtual WithError<SType> getTypeOfMember(const string& name) const override;
@@ -142,7 +142,7 @@ struct PointerType : public Type {
   virtual string getCodegenName() const override;
   virtual optional<string> getMangledName() const override;
   virtual SType transform(function<SType(const Type*)>) const override;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual SType removePointer() const override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
@@ -158,7 +158,7 @@ struct MutablePointerType : public Type {
   virtual string getCodegenName() const override;
   virtual optional<string> getMangledName() const override;
   virtual SType transform(function<SType(const Type*)>) const override;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual SType removePointer() const override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
@@ -173,7 +173,7 @@ struct OptionalType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual optional<string> getMangledName() const override;
   virtual string getCodegenName() const override;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping& mapping, SType from) const override;
+  virtual JustError<string> getMappingError(TypeMapping& mapping, SType from) const override;
   virtual SType transform(function<SType(const Type*)>) const override;
   void codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const override;
   virtual bool hasDestructor() const override;
@@ -189,7 +189,7 @@ struct EnumType;
 struct CompileTimeValue : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual bool canReplaceBy(SType) const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual SType expand(SType pack, vector<SType> to, ErrorBuffer&) const override;
@@ -284,7 +284,7 @@ struct StructType : public Type {
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual SType expand(SType pack, vector<SType> to, ErrorBuffer&) const override;
   virtual WithErrorLine<SType> instantiate(const Context&, vector<SType> templateArgs, CodeLoc) const override;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
   virtual JustError<string> getSizeError(const Context&) const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
@@ -333,7 +333,7 @@ struct ArrayType : public Type {
   virtual optional<string> getMangledName() const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual SType expand(SType pack, vector<SType> to, ErrorBuffer&) const override;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   static shared_ptr<ArrayType> get(SType, SCompileTimeValue size);
   virtual JustError<string> getSizeError(const Context&) const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
@@ -348,7 +348,7 @@ struct SliceType : public Type {
   virtual string getCodegenName() const override;
   virtual optional<string> getMangledName() const override;
   virtual SType transform(function<SType(const Type*)>) const override;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   static shared_ptr<SliceType> get(SType);
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   struct Private {};
@@ -408,7 +408,7 @@ struct LambdaType : public Type {
   virtual optional<string> getMangledName() const override;
   virtual string getCodegenName() const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
   virtual bool hasDestructor() const override;
   static shared_ptr<LambdaType> get(string name, vector<SType> templateParams);
@@ -458,7 +458,7 @@ struct ConceptType : public Type {
   virtual optional<string> getMangledName() const override;
   virtual SType replaceImpl(SType from, SType to, ErrorBuffer&) const override;
   virtual JustError<string> getSizeError(const Context&) const override;
-  virtual JustError<string> getMappingError(const Context&, TypeMapping&, SType argType) const override;
+  virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual SType expand(SType pack, vector<SType> to, ErrorBuffer&) const override;
   virtual bool hasDestructor() const override;
   SConcept getConceptFor(const SType&) const;
