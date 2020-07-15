@@ -65,6 +65,7 @@ class vector {
   }
 
   void pop_back() {
+    CHECK(!empty());
     impl.pop_back();
     ++modCounter;
   }

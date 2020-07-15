@@ -1002,7 +1002,7 @@ WithErrorLine<SType> StructType::instantiate(const Context& context, vector<STyp
 }
 
 struct TypeMapping {
-  vector<SType> templateParams;
+  const vector<SType>& templateParams;
   vector<nullable<SType>> templateArgs;
   optional<int> getParamIndex(const SType& t) {
     for (int i = 0; i < templateParams.size(); ++i)
@@ -1180,8 +1180,8 @@ void generateConversions(const Context& context, const vector<SType>& paramTypes
   }
 }
 
-static JustError<ErrorLoc> checkImplicitCopies(const Context& context, const vector<SType>& paramTypes, vector<SType>& argTypes,
-    const vector<CodeLoc>& argLoc) {
+static JustError<ErrorLoc> checkImplicitCopies(const Context& context, const vector<SType>& paramTypes,
+    vector<SType>& argTypes, const vector<CodeLoc>& argLoc) {
   for (int i = 0; i < paramTypes.size(); ++i) {
     auto& paramType = paramTypes[i];
     auto& argType = argTypes[i];
@@ -1196,8 +1196,8 @@ static JustError<ErrorLoc> checkImplicitCopies(const Context& context, const vec
   return success;
 }
 
-static JustError<ErrorLoc> getConversionError(const Context& context, const SFunctionInfo& input, const vector<SType>& argTypes,
-    const vector<CodeLoc>& argLoc, const vector<SType>& funParams, TypeMapping& mapping) {
+static JustError<ErrorLoc> getConversionError(const Context& context, const SFunctionInfo& input,
+    const vector<SType>& argTypes, const vector<CodeLoc>& argLoc, const vector<SType>& funParams, TypeMapping& mapping) {
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
     if (argTypes[i] != BuiltinType::NULL_TYPE || !funParams[i].dynamicCast<OptionalType>())
@@ -1218,6 +1218,67 @@ static JustError<ErrorLoc> getConversionError(const Context& context, const SFun
   return success;
 }
 
+static SFunctionInfo getWithRetval(const FunctionInfo& info) {
+  auto type = info.type;
+  type.params.push_back(type.retVal);
+  return FunctionInfo::getImplicit(info.id, type);
+}
+
+static bool isTemplatedWith(const SFunctionInfo& function, const SType& type) {
+  ErrorBuffer errors;
+  return replaceInFunction(function, type, BuiltinType::INT, errors) != function;
+}
+
+static JustError<string> deduceTemplateArgsFromConcepts(const Context& context,
+    TypeMapping& mapping, const vector<TemplateRequirement>& requirements, ErrorBuffer& errors) {
+  for (auto& elem : requirements)
+    if (auto req1 = elem.base.getReferenceMaybe<SConcept>()) {
+      auto req = *req1;
+      for (int i = 0; i < mapping.templateParams.size(); ++i)
+        if (!!mapping.templateArgs[i])
+          req = req->replace(mapping.templateParams[i], mapping.templateArgs[i].get(), errors);
+      for (auto function : req->getContext().getAllFunctions()) {
+        vector<SType> funTemplateParams;
+        for (int i = 0; i < mapping.templateParams.size(); ++i)
+          if (!mapping.templateArgs[i] && isTemplatedWith(function, mapping.templateParams[i])) {
+            funTemplateParams.push_back(mapping.templateParams[i]);
+          }
+        if (funTemplateParams.empty())
+          continue;
+        function = addTemplateParams(function, funTemplateParams, req->isVariadic());
+        vector<SFunctionInfo> found;
+        for (auto& candidate : context.getFunctions(function->id))
+          if (!candidate->type.concept && context.isGeneralization(getWithRetval(*function), getWithRetval(*candidate)))
+            found.push_back(candidate);
+        if (found.size() == 1) {
+          for (int i = 0; i < function->type.params.size(); ++i)
+            TRY(getDeductionError(mapping, function->type.params[i], found[0]->type.params[i]));
+          TRY(getDeductionError(mapping, function->type.retVal, found[0]->type.retVal));
+        }
+      }
+    }
+  return success;
+}
+
+static WithError<vector<SType>> deduceTemplateArgs(const Context& context,
+    TypeMapping& mapping, const vector<TemplateRequirement>& requirements, ErrorBuffer& errors) {
+  vector<SType> ret;
+  for (auto& arg : mapping.templateArgs)
+    if (!arg) {
+      TRY(deduceTemplateArgsFromConcepts(context, mapping, requirements, errors));
+      break;
+    }
+  for (int i = 0; i < mapping.templateParams.size(); ++i) {
+    if (!!mapping.templateArgs[i])
+      ret.push_back(mapping.templateArgs[i].get());
+    else
+      return "Couldn't deduce template argument " + quote(mapping.templateParams[i]->getName());
+    if (ret.back().dynamicCast<CompileTimeValue>() && !ret.back()->getType()->canBeValueTemplateParam())
+      return "Value template parameter cannot have type " + quote(ret.back()->getType()->getName());
+  }
+  return ret;
+}
+
 WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo& input, CodeLoc codeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing) {
   FunctionType type = input->type;
@@ -1233,17 +1294,8 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const S
   for (int i = 0; i < templateArgs.size(); ++i)
     mapping.templateArgs[i] = templateArgs[i];
   TRY(getConversionError(context, input, argTypes, argLoc, type.params, mapping));
-  for (int i = 0; i < type.templateParams.size(); ++i) {
-    if (i >= templateArgs.size()) {
-      if (auto deduced = mapping.templateArgs[i])
-        templateArgs.push_back(deduced.get());
-      else
-       return codeLoc.getError("Couldn't deduce template argument " + quote(type.templateParams[i]->getName()));
-    }
-    if (templateArgs[i].dynamicCast<CompileTimeValue>() && !templateArgs[i]->getType()->canBeValueTemplateParam())
-      return codeLoc.getError("Value template parameter cannot have type " + quote(templateArgs[i]->getType()->getName()));
-  }
   ErrorBuffer errors;
+  templateArgs = TRY(deduceTemplateArgs(context, mapping, type.requirements, errors).addCodeLoc(codeLoc));
   for (int i = 0; i < type.templateParams.size(); ++i) {
     if (!type.templateParams[i]->canReplaceBy(templateArgs[i]))
       return codeLoc.getError(getCantSubstituteError(type.templateParams[i], templateArgs[i]));

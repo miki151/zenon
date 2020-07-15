@@ -1,0 +1,28 @@
+// 14
+
+struct X { };
+struct Y { };
+
+template <T>
+int res() {
+  return get_name(T).size();
+}
+
+void f(X, int) { }
+void f(Y, string) { }
+void f(int, bool) { }
+void f(string, double) { }
+
+template <T, U>
+concept F {
+  void f(T, U);
+};
+
+template <T, U, V> requires F<T, U>, F<U, V>
+int get() {
+  return res<V>();
+}
+
+int main() {
+  return get<Y>() + get<X>() * 2;
+}

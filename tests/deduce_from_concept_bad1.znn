@@ -1,0 +1,25 @@
+// no_compile
+
+struct X { };
+
+template <T>
+int res() {
+  return get_name(T).size();
+}
+
+void f(X, int) { }
+void f(X, string) { }
+
+template <T, U>
+concept F {
+  void f(T, U);
+};
+
+template <T, U> requires F<T, U>
+int get() {
+  return res<U>();
+}
+
+int main() {
+  return get<X>();
+}

@@ -1,0 +1,22 @@
+// 6
+
+struct X { int a;};
+struct Y { string s; };
+
+X f(Y* y) { return X(y->s.size()); }
+int f(int) { return 1;}
+void f() {}
+
+template <T, U>
+concept F {
+  T f(U*);
+};
+
+template <T, U> requires F<T, U>
+T get(U* u) {
+  return f(u);
+}
+
+int main() {
+  return get(&Y("pokpak")).a;
+}

@@ -1,0 +1,25 @@
+// 5
+
+struct X {};
+
+template <T>
+struct U {};
+
+
+int f(U<X>*) { return 5; }
+int f(bool) { return 4; }
+void f(string) {}
+
+template <T>
+concept F {
+  int f(T*);
+};
+
+template <T> requires F<U<T>>
+int get() {
+  return f(&U<T>());
+}
+
+int main() {
+  return get();
+}
