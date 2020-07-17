@@ -36,7 +36,6 @@ struct Accu {
   string buf;
   bool includeLineNumbers;
   unordered_set<const FunctionInfo*> instances;
-  unordered_set<const LambdaType*> lambdas;
   unordered_set<const ConceptType*> conceptTypes;
   set<pair<AST*, CodegenStage>> generated;
 };
@@ -469,9 +468,12 @@ static unique_ptr<StatementBlock> generateLambdaBody(Statement* body, const Lamb
   return ret;
 }
 
-void codegenLambdas(Accu& accu, const AST& ast, CodegenStage stage, set<const Type*>& visited) {
-  vector<unique_ptr<FunctionDefinition>> lambdas;
-  for (const auto& lambda : accu.lambdas)
+using LambdaSet = unordered_set<const LambdaType*>;
+
+void codegenLambdas(const LambdasSet& lambdas, Accu& accu, const AST& ast, CodegenStage stage,
+    set<const Type*>& visited) {
+  vector<unique_ptr<FunctionDefinition>> defs;
+  for (const auto& lambda : lambdas)
     if (lambda->functionInfo->getMangledSuffix()) {
       if (stage.isTypes)
         lambda->codegenDefinition(visited, accu);
@@ -497,16 +499,16 @@ void codegenLambdas(Accu& accu, const AST& ast, CodegenStage stage, set<const Ty
       }
       mainBody->functionInfo = FunctionInfo::getDefined(lambda->functionInfo->id, std::move(functionType),
           mainBody.get());
-      lambdas.push_back(std::move(mainBody));
+      defs.push_back(std::move(mainBody));
       if (lambda->destructor) {
         auto destructorBody = getLambdaBody(lambda->destructor.get());
         destructorBody->destructorCalls.emplace_back();
         destructorBody->functionInfo = FunctionInfo::getImplicit("destruct"s,
             FunctionType(BuiltinType::VOID, {PointerType::get(lambda->get_this().get())}, {}));
-        lambdas.push_back(std::move(destructorBody));
+        defs.push_back(std::move(destructorBody));
       }
     }
-  for (auto& elem : lambdas) {
+  for (auto& elem : defs) {
     elem->codegen(accu, stage);
   }
 }
@@ -514,6 +516,7 @@ void codegenLambdas(Accu& accu, const AST& ast, CodegenStage stage, set<const Ty
 string codegen(const AST& ast, TypeRegistry& registry, const Context& context, const string& codegenInclude,
     bool includeLineNumbers) {
   Accu accu(includeLineNumbers);
+  LambdaSet lambdas;
   FunctionCallVisitFun visitFun = [&](SFunctionInfo call) {
     call = call->getWithoutRequirements();
     if (!accu.instances.count(call.get())) {
@@ -524,12 +527,12 @@ string codegen(const AST& ast, TypeRegistry& registry, const Context& context, c
             for (auto& instance : def->instances)
               if (instance.functionInfo->getWithoutRequirements() == call) {
                 instance.body->addFunctionCalls(visitFun);
-                instance.body->addLambdas(accu.lambdas);
+                instance.body->addLambdas(lambdas);
                 instance.body->addConceptTypes(accu.conceptTypes);
                 for (auto& call : instance.destructorCalls)
                   if (call) {
                     call->addFunctionCalls(visitFun);
-                    call->addLambdas(accu.lambdas);
+                    call->addLambdas(lambdas);
                     call->addConceptTypes(accu.conceptTypes);
                   }
                 return;
@@ -540,12 +543,12 @@ string codegen(const AST& ast, TypeRegistry& registry, const Context& context, c
   };
   for (auto& elem : ast.elems) {
     elem->addFunctionCalls(visitFun);
-    elem->addLambdas(accu.lambdas);
+    elem->addLambdas(lambdas);
     elem->addConceptTypes(accu.conceptTypes);
   }
   accu.add("#include \"" + codegenInclude + "/all.h\"");
   accu.newLine();
-  for (auto& l : accu.lambdas)
+  for (auto& l : lambdas)
     accu.newLine("struct " + l->getCodegenName() + ";");
   for (auto& t : registry.getAllStructs())
     if (!t->external) {
@@ -566,15 +569,15 @@ string codegen(const AST& ast, TypeRegistry& registry, const Context& context, c
     if (context.isFullyDefined(type.get()))
       type->codegenDefinition(visitedTypes, accu);
   }
-  codegenLambdas(accu, ast, CodegenStage::types(), visitedTypes);
+  codegenLambdas(lambdas, accu, ast, CodegenStage::types(), visitedTypes);
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::declare());
   }
-  codegenLambdas(accu, ast, CodegenStage::declare(), visitedTypes);
+  codegenLambdas(lambdas, accu, ast, CodegenStage::declare(), visitedTypes);
   for (auto& elem : ast.elems) {
     elem->codegen(accu, CodegenStage::define());
   }
-  codegenLambdas(accu, ast, CodegenStage::define(), visitedTypes);
+  codegenLambdas(lambdas, accu, ast, CodegenStage::define(), visitedTypes);
   for (auto& elem : ast.elems) {
     if (auto fun = dynamic_cast<const FunctionDefinition*>(elem.get()))
       if (fun->name == "main"s) {
