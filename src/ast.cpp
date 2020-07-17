@@ -1565,12 +1565,6 @@ bool ExpressionStatement::hasReturnStatement(const Context& context) const {
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 }
 
-JustError<ErrorLoc> FunctionCall::initializeTemplateArgs(const Context& context) {
-  if (!templateArgs)
-    templateArgs = TRY(context.getTypeList(identifier->parts.back().templateArguments, variadicTemplateArgs));
-  return success;
-}
-
 JustError<ErrorLoc> FunctionCall::checkNamedArgs() const {
   int cnt = argNames.size();
   if (variadicArgs)
@@ -1647,9 +1641,9 @@ if (variablePack) {
 }*/
 
 WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
-  TRY(initializeTemplateArgs(callContext));
   optional<ErrorLoc> error;
   if (!functionInfo) {
+    templateArgs = TRY(callContext.getTypeList(identifier->parts.back().templateArguments, variadicTemplateArgs));
     vector<SType> argTypes;
     vector<CodeLoc> argLocs;
     for (int i = 0; i < arguments.size(); ++i) {

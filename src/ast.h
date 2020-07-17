@@ -299,7 +299,6 @@ struct FunctionCall : Expression {
   FunctionCall(CodeLoc, bool methodCall, Private);
 
   private:
-  JustError<ErrorLoc> initializeTemplateArgs(const Context&);
   JustError<ErrorLoc> checkNamedArgs() const;
   JustError<ErrorLoc> checkVariadicCall(const Context&);
 };
