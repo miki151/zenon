@@ -7,7 +7,7 @@ int main() {
     const g = [y] {
       return y;
     };
-    return g.invoke();
+    return g();
   };
-  return f.invoke();
+  return f();
 }

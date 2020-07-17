@@ -2,5 +2,5 @@
 
 int main() {
   const f = [] -> int { return 1; };
-  return f.invoke(1);
+  return f(1);
 }

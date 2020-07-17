@@ -15,7 +15,7 @@ enum_map(Value* value) {
 export template <Key, Value, Fun> requires is_enum<Key>, can_invoke<Fun, Value, Key>
 enum_map<Key, Value> enum_map_generate(Fun fun) {
   return enum_map<Key, Value>::enum_map(
-      array_generate<(enum_count(Key)), Value>([&](int value) { return fun.invoke(fromInt<Key>(value)); }));
+      array_generate<(enum_count(Key)), Value>([&](int value) { return fun(fromInt<Key>(value)); }));
 }
 
 export template <Key, Value> requires is_enum<Key>

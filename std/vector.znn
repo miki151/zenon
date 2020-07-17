@@ -224,7 +224,7 @@ vector<U> transform(vector<T>* v, Fun f) {
   mutable ret = vector<U>();
   ret.reserve(v->size());
   for (mutable it : *v)
-    ret.push_back(f.invoke(&*it));
+    ret.push_back(f(&*it));
   return move(ret);
 }
 
@@ -232,7 +232,7 @@ export template <T, Fun> requires can_invoke<Fun, bool, T*>, can_copy<T>
 vector<T> filter(vector<T>* v, Fun f) {
   mutable ret = vector<T>();
   for (mutable it : *v)
-    if (f.invoke(&*it))
+    if (f(&*it))
       ret.push_back(it->copy());
   return move(ret);
 }

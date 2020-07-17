@@ -9,6 +9,6 @@ int main() {
   const x = X(&a);
   mutable y = 1;
   const f = [move(x), y]{ *x.v = y;};
-  f.invoke();
+  f();
   return a;
 }

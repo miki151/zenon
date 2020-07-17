@@ -3,5 +3,5 @@
 int main() {
   mutable value = 5;
   const f = [] -> int { return value; };
-  return f.invoke();
+  return f();
 }

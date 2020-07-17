@@ -17,5 +17,5 @@ X implicit_copy(X* x) {
 int main() {
   const x = X(3);
   const f = [x]{ return *x.a;};
-  return f.invoke();
+  return f();
 }

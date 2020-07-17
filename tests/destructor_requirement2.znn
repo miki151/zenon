@@ -7,7 +7,7 @@ struct X {
 
 template <T> requires can_invoke<T, void>
 void destruct(X<T>* x) {
-  x->elem.invoke();
+  x->elem();
 }
 
 template <T>

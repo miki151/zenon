@@ -301,6 +301,7 @@ struct FunctionCall : Expression {
   private:
   JustError<ErrorLoc> checkNamedArgs() const;
   JustError<ErrorLoc> checkVariadicCall(const Context&);
+  JustError<ErrorLoc> considerLambdaCall(const Context&);
 };
 
 struct AST;

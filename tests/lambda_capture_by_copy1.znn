@@ -11,5 +11,5 @@ X copy(X* x) {
 int main() {
   const x = X(3);
   const f = [copy(x)]{ return x.a;};
-  return f.invoke();
+  return f();
 }

@@ -412,7 +412,15 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
 }
 
 WithErrorLine<unique_ptr<Expression>> parseExpression(Tokens& tokens, int minPrecedence) {
-  return parseExpressionImpl(tokens, TRY(parsePrimary(tokens)), minPrecedence);
+  auto res = TRY(parseExpressionImpl(tokens, TRY(parsePrimary(tokens)), minPrecedence));
+  while (tokens.peek() == Keyword::OPEN_BRACKET) {
+    auto codeLoc = res->codeLoc;
+    auto call = TRY(parseFunctionCall(IdentifierInfo("invoke", codeLoc), tokens));
+    call->arguments = concat(makeVec(std::move(res)), std::move(call->arguments));
+    call->methodCall = true;
+    res = cast<Expression>(std::move(call));
+  }
+  return std::move(res);
 }
 
 WithErrorLine<unique_ptr<Statement>> parseNonTopLevelStatement(Tokens&);

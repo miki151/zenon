@@ -11,5 +11,5 @@ int main() {
   const y = x.u.get();
   const f = [move(x)]{ return *x.u; };
   *y = 4;
-  return f.invoke();
+  return f();
 }

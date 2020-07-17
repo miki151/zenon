@@ -7,7 +7,7 @@ concept can_invoke {
 
 template <T, Fun> requires can_invoke<Fun, T>
 T run(Fun f) {
-  return f.invoke();
+  return f();
 }
 
 int main() {

@@ -3,7 +3,7 @@
 template <T>
 T get(T a) {
   const f = [](T t) { return move(t); };
-  return f.invoke(move(a));
+  return f(move(a));
 }
 
 struct X {

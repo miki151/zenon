@@ -7,6 +7,6 @@ struct X {
 int main() {
   mutable x = X(5);
   const f = [&x]{ x.v = 1;};
-  f.invoke();
+  f();
   return x.v;
 }

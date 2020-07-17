@@ -2,5 +2,5 @@
 
 int main() {
   const f = [] (int index)->int { return move(index); };
-  return f.invoke(6);
+  return f(6);
 }

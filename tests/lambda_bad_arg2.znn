@@ -2,5 +2,5 @@
 
 int main() {
   const f = [](int a) -> int { return a; };
-  return f.invoke("pok");
+  return f("pok");
 }

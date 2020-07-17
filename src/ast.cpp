@@ -1640,10 +1640,33 @@ if (variablePack) {
     return codeLoc.getError(errors[0]);
 }*/
 
+JustError<ErrorLoc> FunctionCall::considerLambdaCall(const Context& context) {
+  if (auto var = identifier.asBasicIdentifier()) {
+    if (!methodCall) {
+      if (auto type = context.getTypeOfVariable(*var)) {
+        auto tmp = std::move(arguments);
+        arguments.clear();
+        arguments.push_back(unique<Variable>(identifier));
+        methodCall = true;
+        arguments.append(std::move(tmp));
+        identifier = IdentifierInfo("invoke", codeLoc);
+      }
+    } else if (!arguments.empty()) {
+      auto argType = TRY(getType(context, arguments[0]));
+      if (argType->getTypeOfMember(*var)) {
+        arguments[0] = unique<MemberAccessExpression>(codeLoc, std::move(arguments[0]), *var);
+        identifier = IdentifierInfo("invoke", codeLoc);
+      }
+    }
+  }
+  return success;
+}
+
 WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
   optional<ErrorLoc> error;
   if (!functionInfo) {
     templateArgs = TRY(callContext.getTypeList(identifier.parts.back().templateArguments, variadicTemplateArgs));
+    TRY(considerLambdaCall(callContext));
     vector<SType> argTypes;
     vector<CodeLoc> argLocs;
     for (int i = 0; i < arguments.size(); ++i) {
@@ -2775,8 +2798,8 @@ unique_ptr<MemberAccessExpression> MemberAccessExpression::getPointerAccess(Code
 MemberAccessExpression::MemberAccessExpression(CodeLoc l , unique_ptr<Expression> lhs, string id)
   : Expression(l), lhs(std::move(lhs)), identifier(id) { }
 
-static JustError<ErrorLoc> initializeDestructor(const Context& context, const SType& type, const string& member, CodeLoc codeLoc,
-    nullable<SFunctionInfo>& destructorCall) {
+static JustError<ErrorLoc> initializeDestructor(const Context& context, const SType& type, const string& member,
+    CodeLoc codeLoc, nullable<SFunctionInfo>& destructorCall) {
   if (auto structType = type.dynamicCast<StructType>()) {
     if (structType->destructor)
       return codeLoc.getError("Can't move member from a value with a user-defined destructor");

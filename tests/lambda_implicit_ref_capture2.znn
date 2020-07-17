@@ -6,5 +6,5 @@ int main() {
   const f = [&] { return x + y; };
   ++x;
   ++y;
-  return f.invoke();
+  return f();
 }

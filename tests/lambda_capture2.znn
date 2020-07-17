@@ -6,6 +6,6 @@ struct X {
 int main() {
   mutable x = 5;
   const f = [x]{ return 1 + x;};
-  const g = [x, &f]{ return 1 + f.invoke();};
-  return g.invoke();
+  const g = [x, &f]{ return 1 + f();};
+  return g();
 }

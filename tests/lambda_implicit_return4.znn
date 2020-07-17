@@ -2,5 +2,5 @@
 
 int main() {
   const f = [] (bool b, int a) { if (!b) return 0; else return a; };
-  return f.invoke(true, 4);
+  return f(true, 4);
 }

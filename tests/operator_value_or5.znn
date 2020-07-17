@@ -13,6 +13,6 @@ int main() {
   const x2 = X(2);
   mutable cnt = 0;
   const f = [&] (int a) { cnt += a; return &x2; };
-  const res = (x1 ?? *f.invoke(10)).get();
+  const res = (x1 ?? *f(10)).get();
   return res + cnt;
 }

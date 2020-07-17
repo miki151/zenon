@@ -5,6 +5,6 @@ int main() {
   const f = [](int mutable* a) {
     *a = 2;
   };
-  f.invoke(&a);
+  f(&a);
   return a;
 }

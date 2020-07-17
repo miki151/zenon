@@ -11,6 +11,6 @@ void destruct(X<T>*) {}
 int main() {
   mutable a = 5;
   const x = X([&]{ ++a;});
-  x.elem.invoke();
+  x.elem();
   return a;
 }

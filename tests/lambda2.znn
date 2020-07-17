@@ -6,5 +6,5 @@ int g() {
 
 int main() {
   const f = [] (int) -> int { return g(); };
-  return f.invoke(1);
+  return f(1);
 }

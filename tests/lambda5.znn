@@ -7,7 +7,7 @@ concept can_get {
 
 template <T> requires can_get<T>
 int getFrom(T t) {
-  return [](T t) -> int { return get(&t); }.invoke(move(t));
+  return [](T t) -> int { return get(&t); }(move(t));
 }
 
 struct X { int a; };

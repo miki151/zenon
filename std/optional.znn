@@ -57,7 +57,7 @@ T* operator ?? (T?* elem, Fun f) {
   if (*elem)
     return &**elem;
   else
-    return f.invoke();
+    return f();
 }
 
 export template <T, Fun> requires can_invoke<Fun, T mutable*>
@@ -65,7 +65,7 @@ T mutable* operator ?? (T? mutable* elem, Fun f) {
   if (*elem)
     return &**elem;
   else
-    return f.invoke();
+    return f();
 }
 
 export template <T, Fun> requires can_invoke<Fun, T>
@@ -73,7 +73,7 @@ T operator ?? (T? elem, Fun f) {
   if (elem)
     return *move(elem);
   else
-    return f.invoke();
+    return f();
 }
 
 export bool operator ! (null_type*) {

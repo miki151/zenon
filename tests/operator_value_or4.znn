@@ -13,9 +13,9 @@ int main() {
   mutable x2 = X(2);
   mutable cnt = 0;
   const f = [&] (int a) { cnt += a; return &x2; };
-  (x1 ?? *f.invoke(10)).inc();
+  (x1 ?? *f(10)).inc();
   const res1 = x1->a;
   x1 = null;
-  (x1 ?? *f.invoke(20)).inc();
+  (x1 ?? *f(20)).inc();
   return res1 + x2.a + cnt;
 }

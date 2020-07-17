@@ -3,6 +3,6 @@
 int main() {
   const f = [](bool a) {
   };
-  const x = f.invoke(true);
+  const x = f(true);
   return 0;
 }

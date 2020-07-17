@@ -6,5 +6,5 @@ int main() {
     const y = 2 * x;
     return index;
   };
-  return f.invoke(6);
+  return f(6);
 }

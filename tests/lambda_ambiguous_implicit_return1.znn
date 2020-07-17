@@ -7,5 +7,5 @@ int main() {
     else
       return 2.0;
   };
-  return f.invoke(true);
+  return f(true);
 }

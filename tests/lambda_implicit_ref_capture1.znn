@@ -4,6 +4,6 @@ int main() {
   mutable x = 1;
   mutable y = 2;
   const f = [&] { ++x; ++y; };
-  f.invoke();
+  f();
   return y + x;
 }

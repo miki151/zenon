@@ -8,7 +8,7 @@ concept can_construct {
 template <T> requires can_construct<T>
 T get() {
   const f = [] () -> T { return T(); };
-  return f.invoke();
+  return f();
 }
 
 struct X {

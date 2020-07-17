@@ -1,0 +1,23 @@
+// 6
+
+struct X {
+  int elem;
+};
+
+X implicit_copy(X* x) {
+  return X(x->elem + 1);
+}
+
+struct Y {
+  X x;
+};
+
+void destruct(Y*) {}
+
+Y get(int a) {
+  return Y(X(a));
+}
+
+int main() {
+  return get(5).x.elem;
+}
