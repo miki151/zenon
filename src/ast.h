@@ -285,7 +285,7 @@ struct FunctionCall : Expression {
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
   virtual void addFunctionCalls(const FunctionCallVisitFun&) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
-  optional<IdentifierInfo> identifier;
+  IdentifierInfo identifier;
   optional<vector<SType>> templateArgs;
   nullable<SFunctionInfo> functionInfo;
   vector<unique_ptr<Expression>> arguments;

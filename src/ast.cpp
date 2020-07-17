@@ -61,7 +61,7 @@ Variable::Variable(IdentifierInfo s) : Expression(s.codeLoc), identifier(std::mo
 }
 
 FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id, bool methodCall) : Expression(l), identifier(std::move(id)),
-    methodCall(methodCall), variadicTemplateArgs(identifier->parts.back().variadic) {
+    methodCall(methodCall), variadicTemplateArgs(identifier.parts.back().variadic) {
   INFO << "Function call " << id.prettyString();;
 }
 
@@ -1643,7 +1643,7 @@ if (variablePack) {
 WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
   optional<ErrorLoc> error;
   if (!functionInfo) {
-    templateArgs = TRY(callContext.getTypeList(identifier->parts.back().templateArguments, variadicTemplateArgs));
+    templateArgs = TRY(callContext.getTypeList(identifier.parts.back().templateArguments, variadicTemplateArgs));
     vector<SType> argTypes;
     vector<CodeLoc> argLocs;
     for (int i = 0; i < arguments.size(); ++i) {
@@ -1670,7 +1670,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
 //      std::cout << "Function argument " << argTypes.back()->getName() << std::endl;
     }
     auto tryMethodCall = [&](MethodCallType thisCallType, const Type& origType) -> JustError<ErrorLoc> {
-      auto res = getFunction(callContext, codeLoc, *identifier, *templateArgs, argTypes, argLocs, arguments);
+      auto res = getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argLocs, arguments);
       if (res)
         callType = thisCallType;
       if (callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
@@ -1697,7 +1697,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
           : SType(PointerType::get(leftType->removeReference()));
       TRY(tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER, *leftType));
     } else
-      getFunction(callContext, codeLoc, *identifier, *templateArgs, argTypes, argLocs, arguments)
+      getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argLocs, arguments)
           .unpack(functionInfo, error);
 //    if (functionInfo)
 //      std::cout << "Arguments \"" << joinTypeList(argTypes) << "\" " << functionInfo->prettyString() << std::endl;
@@ -1716,16 +1716,15 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
 }
 
 WithEvalError<EvalResult> FunctionCall::eval(const Context& context) const {
-  if (identifier)
-    if (auto name = identifier->asBasicIdentifier()) {
-      vector<SType> args;
-      vector<CodeLoc> locs;
-      for (auto& e : arguments) {
-        locs.push_back(e->codeLoc);
-        args.push_back(TRY(e->eval(context)).value);
-      }
-      return EvalResult{TRY(context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs))), true};
+  if (auto name = identifier.asBasicIdentifier()) {
+    vector<SType> args;
+    vector<CodeLoc> locs;
+    for (auto& e : arguments) {
+      locs.push_back(e->codeLoc);
+      args.push_back(TRY(e->eval(context)).value);
     }
+    return EvalResult{TRY(context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs))), true};
+  }
   return EvalError::noEval();
 }
 
