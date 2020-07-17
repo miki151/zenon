@@ -341,6 +341,17 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
   );
 }
 
+WithErrorLine<unique_ptr<Expression>> parseFunctionCall(Tokens& tokens, unique_ptr<Expression> lhs) {
+  while (tokens.peek() == Keyword::OPEN_BRACKET) {
+    auto codeLoc = lhs->codeLoc;
+    auto call = TRY(parseFunctionCall(IdentifierInfo("invoke", codeLoc), tokens));
+    call->arguments = concat(makeVec(std::move(lhs)), std::move(call->arguments));
+    call->methodCall = true;
+    lhs = cast<Expression>(std::move(call));
+  }
+  return std::move(lhs);
+}
+
 WithErrorLine<unique_ptr<Expression>> parseMemberAccess(Tokens& tokens, unique_ptr<Expression> lhs) {
   auto token = tokens.popNext();
   if (token == Keyword::ARROW_MEMBER_ACCESS)
@@ -389,6 +400,8 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
         } else
         if (token == Keyword::MEMBER_ACCESS || token == Keyword::ARROW_MEMBER_ACCESS)
           rhs = TRY(parseMemberAccess(tokens, std::move(rhs)));
+        else if (token == Keyword::OPEN_BRACKET)
+          rhs = TRY(parseFunctionCall(tokens, std::move(rhs)));
         else
           break;
       }
@@ -406,21 +419,16 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
     if (token == Keyword::MEMBER_ACCESS || token == Keyword::ARROW_MEMBER_ACCESS) {
       lhs = TRY(parseMemberAccess(tokens, std::move(lhs)));
     } else
+    if (token == Keyword::OPEN_BRACKET)
+     lhs = TRY(parseFunctionCall(tokens, std::move(lhs)));
+    else
       break;
   }
   return std::move(lhs);
 }
 
 WithErrorLine<unique_ptr<Expression>> parseExpression(Tokens& tokens, int minPrecedence) {
-  auto res = TRY(parseExpressionImpl(tokens, TRY(parsePrimary(tokens)), minPrecedence));
-  while (tokens.peek() == Keyword::OPEN_BRACKET) {
-    auto codeLoc = res->codeLoc;
-    auto call = TRY(parseFunctionCall(IdentifierInfo("invoke", codeLoc), tokens));
-    call->arguments = concat(makeVec(std::move(res)), std::move(call->arguments));
-    call->methodCall = true;
-    res = cast<Expression>(std::move(call));
-  }
-  return std::move(res);
+  return parseExpressionImpl(tokens, TRY(parsePrimary(tokens)), minPrecedence);
 }
 
 WithErrorLine<unique_ptr<Statement>> parseNonTopLevelStatement(Tokens&);
