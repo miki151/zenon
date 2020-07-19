@@ -2,7 +2,7 @@
 
 int main() {
   mutable sum = 0;
-  for (mutable it : 5) {
+  for (it : 5) {
   }
   return 0;
 }

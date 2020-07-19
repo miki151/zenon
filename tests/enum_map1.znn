@@ -18,7 +18,7 @@ int main() {
       case (E4) { return 23; }
     }});
   mutable res = 0;
-  for (mutable e : enum_range<E>())
+  for (e : enum_range<E>())
     res += map[*e];
   return res;
 }

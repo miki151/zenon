@@ -2,7 +2,7 @@
 
 int main() {
   mutable sum = 0;
-  for (mutable i = 0; i < 10; ++i) {
+  for (i = 0; i < 10; ++i) {
     if (i > 5)
       continue;
     sum = sum + i;

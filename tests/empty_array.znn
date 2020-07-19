@@ -3,7 +3,7 @@
 int main() {
   const a = {<int>};
   mutable sum = 1;
-  for (mutable x : a)
+  for (x : a)
     sum += *x;
   return sum;
 }

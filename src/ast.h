@@ -459,9 +459,9 @@ struct ExpressionStatement : Statement {
 };
 
 struct ForLoopStatement : Statement {
-  ForLoopStatement(CodeLoc l, unique_ptr<Statement> init, unique_ptr<Expression> cond, unique_ptr<Expression> iter,
-      unique_ptr<Statement> body);
-  unique_ptr<Statement> init;
+  ForLoopStatement(CodeLoc l, unique_ptr<VariableDeclaration> init, unique_ptr<Expression> cond,
+      unique_ptr<Expression> iter, unique_ptr<Statement> body);
+  unique_ptr<VariableDeclaration> init;
   unique_ptr<Expression> cond;
   unique_ptr<Expression> iter;
   unique_ptr<Statement> body;

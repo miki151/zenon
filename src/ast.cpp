@@ -2044,17 +2044,21 @@ bool EmbedStatement::hasReturnStatement(const Context&) const {
   return true;
 }
 
-ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<Statement> i, unique_ptr<Expression> c,
+ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<VariableDeclaration> i, unique_ptr<Expression> c,
                                    unique_ptr<Expression> it, unique_ptr<Statement> b)
   : Statement(l), init(std::move(i)), cond(std::move(c)), iter(std::move(it)), body(std::move(b)) {}
 
 JustError<ErrorLoc> ForLoopStatement::check(Context& context, bool) {
   auto bodyContext = Context::withParent(context);
+  auto mutInit = cast<VariableDeclaration>(init->deepCopy());
   TRY(init->check(bodyContext));
-  auto condType = TRY(getType(bodyContext, cond));
+  auto loopContext = Context::withParent(context);
+  mutInit->isMutable = true;
+  TRY(mutInit->check(loopContext));
+  auto condType = TRY(getType(loopContext, cond));
   if (condType != BuiltinType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
-  TRY(getType(bodyContext, iter));
+  TRY(getType(loopContext, iter));
   loopId = bodyContext.setIsInLoop();
   return body->check(bodyContext);
 }
@@ -2074,7 +2078,7 @@ JustError<ErrorLoc> ForLoopStatement::checkMovesImpl(MoveChecker& checker) const
 unique_ptr<Statement> ForLoopStatement::transform(const StmtTransformFun& fun,
     const ExprTransformFun& exprFun) const {
   return unique<ForLoopStatement>(codeLoc,
-      fun(init.get()),
+      cast<VariableDeclaration>(fun(init.get())),
       exprFun(cond.get()),
       exprFun(iter.get()),
       fun(body.get()));

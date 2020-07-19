@@ -4,7 +4,7 @@ import "std/enum.znn";
 
 int main() {
   mutable i = 0;
-  for (mutable e : enum_range<int>()) {
+  for (e : enum_range<int>()) {
     i += e->asInt();
   }
   return i;

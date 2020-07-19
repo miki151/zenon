@@ -7,7 +7,7 @@ int get() {
 
 int main() {
   mutable res = 0;
-  static for (mutable i = 0; i < 6; ++i) {
+  static for (i = 0; i < 6; ++i) {
     foobar();
     res += get<i>();
   }

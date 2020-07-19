@@ -8,10 +8,10 @@ int as_int(double d) {
 
 int main() {
   mutable a = {<double>1, 2, 3, 4};
-  for (mutable it : a)
+  for (it : a)
     *it += 0.5;
   mutable sum = 0.0;
-  for (mutable it : a)
+  for (it : a)
     sum += *it;
   return sum.as_int();
 }

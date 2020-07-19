@@ -3,7 +3,7 @@
 template <string T>
 int f() {
   mutable res = 0;
-  static for (mutable i = 0; i < string_length(T); ++i)
+  static for (i = 0; i < string_length(T); ++i)
     ++res;
   return res;
 }

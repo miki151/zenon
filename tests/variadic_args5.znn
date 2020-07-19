@@ -16,7 +16,7 @@ int sum() {
 template <Arg, Args...>
 int sum(Arg a, Args... args) {
   mutable i = 0;
-  for (mutable k = get(move(a)) + sum(move(args)...); k > 0; --k)
+  for (k = get(move(a)) + sum(move(args)...); k > 0; --k)
     ++i;
   return i;
 }

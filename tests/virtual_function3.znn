@@ -64,10 +64,10 @@ int main() {
   v.push_back(Shape<Circle<bool>>::triangle(Triangle(1, 5, 5)));
   v.push_back(Shape<Circle<bool>>::rectangle(Rectangle(2, 4)));
   v.push_back(Shape<Circle<bool>>::circle(Circle<bool>(3)));
-  for (mutable i = 0; i < v.size(); ++i)
+  for (i = 0; i < v.size(); ++i)
     v[i].set(4);
   mutable ret = 0;
-  for (mutable i = 0; i < v.size(); ++i)
+  for (i = 0; i < v.size(); ++i)
     ret += v[i].get(123);
   return ret;
 }

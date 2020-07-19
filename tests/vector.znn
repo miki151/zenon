@@ -9,10 +9,10 @@ int f() {
 
 int main() {
   mutable v = vector<int>();
-  for (mutable i = 0; i < 6; i = i + 1)
+  for (i = 0; i < 6; i = i + 1)
     v.push_back(i * i);
   mutable sum = 0;
-  for (mutable i = 0; i < v.size(); i = i + 1)
+  for (i = 0; i < v.size(); i = i + 1)
     sum = sum + v[i];
   return sum + f();
 }

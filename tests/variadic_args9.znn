@@ -8,7 +8,7 @@ concept C1 {
 template <T, Args...> requires C1<T, Args>...
 int f(T t, Args... args) {
   mutable int ret = 1;
-  static for (mutable i = 0; i < countof(args); ++i)
+  static for (i = 0; i < countof(args); ++i)
     ret += g(&t, &args...[i]);
   return ret;
 }

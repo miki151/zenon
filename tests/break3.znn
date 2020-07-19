@@ -7,7 +7,7 @@ enum E {
 int main() {
   mutable int sum = 7;
   const e = E::ELEM1;
-  for (mutable i = 0; i < 100; ++i) {
+  for (i = 0; i < 100; ++i) {
     switch (e) {
       default {
         break;

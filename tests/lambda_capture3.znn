@@ -7,7 +7,7 @@ int runFun(Fun f, T t) {
 
 int main() {
   mutable res = 0;
-  for (mutable i = 0; i < 5; ++i)
+  for (i = 0; i < 5; ++i)
     res += runFun([i] (int a) { return i + a; }, 5);
   return res;
 }

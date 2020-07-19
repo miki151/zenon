@@ -24,8 +24,8 @@ bool operator > (S<T>* s1, S<T>* s2) {
 
 int main() {
   mutable sum = 0;
-  for (mutable i = 0; i < 3; ++i)
-    for (mutable j = 0; j < 3; ++j) {
+  for (i = 0; i < 3; ++i)
+    for (j = 0; j < 3; ++j) {
       const x = S(i);
       const y = S(j);
       if (x < y)

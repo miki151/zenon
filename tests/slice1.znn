@@ -5,7 +5,7 @@ import "std/vector.znn";
 
 int sum(int[] elems) {
   mutable res = 0;
-  for (mutable it : elems)
+  for (it : elems)
     res += *it;
   return res;
 }

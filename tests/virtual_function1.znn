@@ -62,7 +62,7 @@ int main() {
   v.push_back(Shape<Circle<bool>>::rectangle(Rectangle(2, 4)));
   v.push_back(Shape<Circle<bool>>::circle(Circle<bool>(3)));
   mutable ret = 0;
-  for (mutable i = 0; i < v.size(); ++i)
+  for (i = 0; i < v.size(); ++i)
     ret += v[i].copy().get(123);
   return ret;
 }

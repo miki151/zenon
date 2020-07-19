@@ -13,22 +13,22 @@ void destruct_full(T* t) {
 export template <T> requires is_struct<T>
 void destruct_full(T* t) {
   destruct_impl_dont_call(t);
-  static for (mutable i = 0; i < struct_count(T); ++i)
+  static for (i = 0; i < struct_count(T); ++i)
     destruct(&t->(i));
 }
 
 export template <int Except, T> requires is_struct<T>
 void destruct_except(T* t) {
-  static for (mutable i = 0; i < Except; ++i)
+  static for (i = 0; i < Except; ++i)
     destruct(&t->(i));
-  static for (mutable i = Except + 1; i < struct_count(T); ++i)
+  static for (i = Except + 1; i < struct_count(T); ++i)
     destruct(&t->(i));
 }
 
 export template <T> requires is_union<T>
 void destruct_full(T* t) {
   destruct_impl_dont_call(t);
-  static for (mutable i = 0; i < union_count(T); ++i)
+  static for (i = 0; i < union_count(T); ++i)
     if (i == t->get_index())
       destruct(&t->(i));
 }
@@ -53,7 +53,7 @@ T mutable* operator [] (T[Size] mutable* a, int index) {
 
 export template <T, int Size>
 void destruct(T[Size]* array) {
-  for (mutable i = 0; i < Size; ++i)
+  for (i = 0; i < Size; ++i)
     (*array)[i].destruct();
 }
 

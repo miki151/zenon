@@ -4,7 +4,7 @@ int main() {
   int n = 5;
   const m = &n;
   mutable a = 5;
-  for (mutable i = 0; i < (*m); i = i + 1)
+  for (i = 0; i < (*m); i = i + 1)
     a = a + i;
   return a;
 }

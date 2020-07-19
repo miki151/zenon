@@ -29,7 +29,7 @@ int get_value(bool* b) {
 template <T> requires is_struct<T>
 int sum_fields(T* t) {
   mutable res = 0;
-  static for (mutable i = 0; i < struct_count(T); ++i)
+  static for (i = 0; i < struct_count(T); ++i)
     res += get_value(&t->(i));
   return res;
 }

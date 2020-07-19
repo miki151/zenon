@@ -7,6 +7,8 @@
 WithErrorLine<unique_ptr<Expression>> parseExpression(Tokens&, int minPrecedence = 0);
 WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens&);
 WithErrorLine<unique_ptr<Statement>> parseTopLevelStatement(Tokens&);
+WithErrorLine<unique_ptr<VariableDeclaration>> parseVariableDeclaration(Tokens&, bool eatSemicolon = true,
+    bool forLoop = false);
 
 template <typename T>
 static shared_ptr<T> getSharedPtr(unique_ptr<T> p) {
@@ -678,21 +680,19 @@ WithErrorLine<unique_ptr<Statement>> parseForLoopStatement(Tokens& tokens) {
   TRY(tokens.eat(Keyword::FOR));
   TRY(tokens.eat(Keyword::OPEN_BRACKET));
   auto normalForBookmark = tokens.getBookmark();
-  if (tokens.eatMaybe(Keyword::MUTABLE))
-    if (tokens.peek().contains<IdentifierToken>()) {
-      auto id = tokens.popNext();
-      if (tokens.eatMaybe(Keyword::COLON)) {
-        auto container = TRY(parseExpression(tokens));
-        TRY(tokens.eat(Keyword::CLOSE_BRACKET));
-        auto body = TRY(parseNonTopLevelStatement(tokens));
-        return cast<Statement>(unique<RangedLoopStatement>(codeLoc,
-            unique<VariableDeclaration>(codeLoc, none, id.value, nullptr),
-            std::move(container),
-            std::move(body)));
-      }
-    }
+  if (tokens.peekNext() == Keyword::COLON) {
+    auto id = tokens.popNext();
+    CHECK(!!tokens.eat(Keyword::COLON));
+    auto container = TRY(parseExpression(tokens));
+    TRY(tokens.eat(Keyword::CLOSE_BRACKET));
+    auto body = TRY(parseNonTopLevelStatement(tokens));
+    return cast<Statement>(unique<RangedLoopStatement>(codeLoc,
+        unique<VariableDeclaration>(codeLoc, none, id.value, nullptr),
+        std::move(container),
+        std::move(body)));
+  }
   tokens.rewind(normalForBookmark);
-  auto init = TRY(parseNonTopLevelStatement(tokens));
+  auto init = TRY(parseVariableDeclaration(tokens, true, true));
   auto cond = TRY(parseExpression(tokens));
   TRY(tokens.eat(Keyword::SEMICOLON));
   auto iter = TRY(parseExpression(tokens));
@@ -717,7 +717,6 @@ WithErrorLine<unique_ptr<Statement>> parseStaticForLoopStatement(Tokens& tokens)
   TRY(tokens.eat(Keyword::STATIC));
   TRY(tokens.eat(Keyword::FOR));
   TRY(tokens.eat(Keyword::OPEN_BRACKET));
-  TRY(tokens.eat(Keyword::MUTABLE));
   auto counter = tokens.popNext();
   if (!counter.contains<IdentifierToken>())
     return counter.codeLoc.getError("Expected static loop counter variable");
@@ -784,7 +783,8 @@ WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) 
   return std::move(ret);
 }
 
-WithErrorLine<unique_ptr<VariableDeclaration>> parseVariableDeclaration(Tokens& tokens, bool eatSemicolon = true) {
+WithErrorLine<unique_ptr<VariableDeclaration>> parseVariableDeclaration(Tokens& tokens, bool eatSemicolon,
+    bool forLoop) {
   auto typeLoc = tokens.peek().codeLoc;
   optional<IdentifierInfo> type;
   bool isMutable = false;
@@ -792,7 +792,8 @@ WithErrorLine<unique_ptr<VariableDeclaration>> parseVariableDeclaration(Tokens& 
   if (tokens.eatMaybe(Keyword::MUTABLE)) {
     isMutable = true;
     isDeclaration = true;
-  } else if (tokens.eatMaybe(Keyword::CONST))
+  } else
+  if (forLoop || tokens.eatMaybe(Keyword::CONST))
     isDeclaration = true;
   auto id1 = TRY(parseIdentifier(tokens, true));
   string variableName;

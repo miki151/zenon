@@ -3,7 +3,7 @@
 template <Args...>
 int f() {
   mutable res = 0;
-  static for (mutable i = 0; i < countof(Args); ++i)
+  static for (i = 0; i < countof(Args); ++i)
     ++res;
   return res;
 }

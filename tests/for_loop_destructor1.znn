@@ -1,0 +1,19 @@
+// 27
+
+struct X {
+  int mutable* cnt;
+  int value;
+};
+
+void destruct(X* x) {
+  *x->cnt += x->value;
+}
+
+int main() {
+  const a = {1, 2, 3, 4, 5, 6};
+  mutable res = 0;
+  for (x = X(&res, 0); x.value < a.size(); ++x.value) {
+    res += a[x.value];
+  }
+  return res;
+}

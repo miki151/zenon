@@ -4,7 +4,7 @@ import "std/range.znn";
 
 int get() {
   int ret = 1;
-  for (mutable i : range(0, 10)) {
+  for (i : range(0, 10)) {
     return move(ret);
   }
   return 0;

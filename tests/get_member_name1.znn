@@ -11,7 +11,7 @@ struct Y {};
 template <T> requires is_struct<T>
 int get() {
   mutable ret = 0;
-  static for (mutable i = 0; i < struct_count(T); ++i)
+  static for (i = 0; i < struct_count(T); ++i)
     ret += get_member_name(T, i).size();
   return ret;
 }

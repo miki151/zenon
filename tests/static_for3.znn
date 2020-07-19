@@ -8,7 +8,7 @@ int round(double d) {
 
 int main() {
   mutable res = 0.0;
-  static for (mutable i = 0.0; i <= 5.5; i += 0.5)
+  static for (i = 0.0; i <= 5.5; i += 0.5)
     res += i;
   return round(res);
 }

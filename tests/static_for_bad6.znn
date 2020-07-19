@@ -2,7 +2,7 @@
 
 int main() {
   mutable res = 0;
-  static for (mutable i = 0; i < int; i += 2)
+  static for (i = 0; i < int; i += 2)
     res += i;
   return res;
 }
