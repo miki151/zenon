@@ -9,12 +9,12 @@ union V {
 
 int main() {
   const v = V::ptr(make_unique(1));
-  switch (&v) {
-    case (unique_ptr<int>* ptr) {
-      return **ptr;
+  switch (v) {
+    case (ptr) {
+      return *ptr;
     }
-    case (int* value) {
-      return *value;
+    case (value) {
+      return value;
     }
   }
 }

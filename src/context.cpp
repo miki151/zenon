@@ -197,6 +197,17 @@ void Context::addVariable(const string& ident, SType t, CodeLoc codeLoc) {
   state->varsList.push_back(ident);
 }
 
+void Context::setNonMovable(const string& variable) {
+  state->nonMovableVars.insert(variable);
+}
+
+bool Context::isNonMovable(const string& variable) const {
+  for (auto& state : getReversedStates())
+    if (state->nonMovableVars.count(variable))
+      return true;
+  return false;
+}
+
 void Context::State::print() const {
   for (auto& varName : varsList) {
     auto& var = vars.at(varName);

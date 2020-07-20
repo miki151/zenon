@@ -15,10 +15,10 @@ V1 getVariant2(bool b) {
 
 int getValue() {
   switch (getVariant(4)) {
-    case (int x) {
+    case (x) {
       return x;
     }
-    case (bool b) {
+    case (b) {
       if (b)
         return 1;
       else
@@ -29,10 +29,10 @@ int getValue() {
 
 int getValue2() {
   switch (getVariant2(false)) {
-    case (int x) {
+    case (x) {
       return 5;
     }
-    case (bool b) {
+    case (b) {
       if (b)
         return 1;
       else

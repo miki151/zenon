@@ -693,12 +693,10 @@ void SwitchStatement::codegenUnion(Accu& accu) const {
     auto caseId = *getOnlyElement(caseElem.ids);
     accu.newLine("case "s + *targetType->getMangledName() + "::" + unionEnumeratorPrefix + caseId + ": {");
     ++accu.indent;
-    if (caseElem.varType == caseElem.VALUE) {
+    if (!!caseElem.declaredVar)
       accu.newLine("auto&& "s + caseId + " = " + unionTmpRef + "." + unionEntryPrefix + caseId + ";");
-      if (destructorCall)
-        accu.newLine("auto& "s + getDestructorName(caseId) + " = " + getDestructorName(unionTmpRef) + ";");
-    } else if (caseElem.varType == caseElem.POINTER)
-      accu.newLine("auto "s + caseId + " = &" + unionTmpRef + "." + unionEntryPrefix + caseId + ";");
+    if (destructorCall)
+      accu.newLine("auto& "s + getDestructorName(caseId) + " = " + getDestructorName(unionTmpRef) + ";");
     accu.newLine();
     caseElem.block->codegen(accu, CodegenStage::define());
     accu.newLine("break;");

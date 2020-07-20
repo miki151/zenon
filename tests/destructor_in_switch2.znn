@@ -26,7 +26,7 @@ void f(T) {}
 
 void handle(V v) {
   switch (move(v)) {
-    case (X x) {
+    case (x) {
       f(move(x));
     }
     default {

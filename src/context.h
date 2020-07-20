@@ -38,6 +38,8 @@ class Context : public owned_object<Context> {
   WithError<SType> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
   void addVariable(const string& ident, SType, CodeLoc);
+  void setNonMovable(const string& variable);
+  bool isNonMovable(const string& variable) const;
   void replace(SType from, SType to, ErrorBuffer&);
   void expand(SType, vector<SType> to, ErrorBuffer&);
   ReturnTypeChecker* getReturnTypeChecker() const;
@@ -119,6 +121,7 @@ class Context : public owned_object<Context> {
     vector<SType> templateParams;
     LambdaCaptureInfo* lambdaInfo;
     vector<SubstitutionInfo> substitutions;
+    unordered_set<string> nonMovableVars;
     void merge(const State&);
     void print() const;
   };

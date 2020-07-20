@@ -114,6 +114,7 @@ struct ReferenceType : public Type {
   virtual WithError<MemberInfo> getTypeOfMember(const SType&) const override;
   virtual WithError<SType> getTypeOfMember(const string& name) const override;
   virtual SType removePointer() const override;
+  virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
 
   static shared_ptr<ReferenceType> get(SType);
   SType underlying;
@@ -130,6 +131,7 @@ struct MutableReferenceType : public Type {
   virtual WithError<MemberInfo> getTypeOfMember(const SType&) const override;
   virtual WithError<SType> getTypeOfMember(const string& name) const override;
   virtual SType removePointer() const override;
+  virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
 
   static shared_ptr<MutableReferenceType> get(SType);
   const SType underlying;
@@ -145,7 +147,6 @@ struct PointerType : public Type {
   virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual SType removePointer() const override;
-  virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
 
   static shared_ptr<PointerType> get(SType);
   const SType underlying;
@@ -161,7 +162,6 @@ struct MutablePointerType : public Type {
   virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual SType removePointer() const override;
-  virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, SwitchArgument) const override;
 
   static shared_ptr<MutablePointerType> get(SType);
   const SType underlying;

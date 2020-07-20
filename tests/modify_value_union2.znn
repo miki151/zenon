@@ -12,8 +12,8 @@ V getV() {
 int main() {
   const v = V::i(5);
   switch (getV()) {
-    case (string mutable* s) {
-      *s = "pak";
+    case (s) {
+      s = "pak";
     }
     default {
     }

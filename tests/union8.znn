@@ -9,23 +9,23 @@ union V {
 };
 
 int getValue(V<bool, int mutable*, string, char> mutable* w) {
-  switch (w) {
-    case (bool* a1) {
+  switch (*w) {
+    case (a1) {
       return 1;
     }
-    case (string mutable* a3) {
-      *a3 = "pok";
+    case (a3) {
+      a3 = "pok";
     }
-    case (int mutable** a2) {
-      **a2 = 4;
+    case (a2) {
+      *a2 = 4;
     }
     default {
       return 0;
     }
   }
-  switch (w) {
-    case (string mutable* a3) {
-      if (*a3 == "pok")
+  switch (*w) {
+    case (a3) {
+      if (a3 == "pok")
         return 5;
       else
         return 10;

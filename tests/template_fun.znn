@@ -15,7 +15,7 @@ union V {
 template<T>
 T get(V<T> v, T def) {
   switch (move(v)) {
-    case (T elem) {
+    case (elem) {
       return move(elem);
     }
     default {

@@ -1,7 +1,5 @@
 // 4
 
-import "std/concepts.znn";
-
 template <T>
 union V {
   T value;
@@ -9,10 +7,10 @@ union V {
 };
 
 template<U, T> requires can_copy<T>
-T getValueOr(V<T>* v, U u, mutable T a) {
-  switch (v) {
-    case (T* value) {
-      return value->copy();
+T getValueOr(V<T>* v, U u, T a) {
+  switch (*v) {
+    case (value) {
+      return value.copy();
     }
     case (isNull) {
       return move(a);

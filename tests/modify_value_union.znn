@@ -10,9 +10,9 @@ V getV() {
 }
 
 int main() {
-  mutable v = V::i(5);
-  switch (&v) {
-    case (string s) {
+  const v = V::i(5);
+  switch (v) {
+    case (s) {
       s = "pak";
     }
     default {

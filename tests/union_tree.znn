@@ -39,13 +39,13 @@ concept CanAdd {
 
 template <T> requires CanAdd<T>
 T calculateSum(Node<T>* node, T neutralElem) {
-  switch (node) {
-    case (Leaf<T>* leaf) {
-      return leaf->value.copy();
+  switch (*node) {
+    case (leaf) {
+      return leaf.value.copy();
     }
-    case (NonLeaf<T>* nonLeaf) {
+    case (nonLeaf) {
       mutable T ret = neutralElem.copy();
-      for (elem : nonLeaf->nodes)
+      for (elem : nonLeaf.nodes)
         ret = ret + calculateSum(&*elem, neutralElem.copy());
       return move(ret);
     }

@@ -624,13 +624,9 @@ struct SwitchStatement : Statement {
   SwitchStatement(CodeLoc, unique_ptr<Expression>);
   struct CaseElem {
     CodeLoc codeloc;
-    // returns null if there is no type in the element or error if there was an error getting the type
-    WithErrorLine<nullable<SType>> getType(const Context&);
-    optional<IdentifierInfo> type;
     vector<string> ids;
     optional<string> declaredVar;
     unique_ptr<StatementBlock> block;
-    enum VarType { VALUE, POINTER, NONE } varType = NONE;
     CaseElem transform(const StmtTransformFun&, const ExprTransformFun&) const;
     void visit(const StmtVisitFun&, const ExprVisitFun&) const;
   };
@@ -688,9 +684,9 @@ struct FunctionDefinition : Statement {
   void addStacktraceGenerator(Accu&, const StatementBlock*) const;
   NODISCARD JustError<ErrorLoc> generateVirtualDispatchBody(Context& bodyContext);
   WithErrorLine<unique_ptr<Expression>> getVirtualFunctionCallExpr(const Context&, const string& funName,
-      const string& alternativeName, const SType& alternativeType, int virtualIndex);
+      const string& alternativeName, const SType& alternativeType, int virtualIndex, bool lvalueParam);
   WithErrorLine<unique_ptr<Expression>> getVirtualOperatorCallExpr(Context&, Operator,
-      const string& alternativeName, const SType& alternativeType, int virtualIndex);
+      const string& alternativeName, const SType& alternativeType, int virtualIndex, int lvalueParam);
   NODISCARD JustError<ErrorLoc> checkAndGenerateCopyFunction(const Context&, const string&);
   NODISCARD JustError<ErrorLoc> checkAndGenerateDefaultConstructor(const Context&);
   NODISCARD JustError<ErrorLoc> addInstance(const Context* callContext, const SFunctionInfo&);

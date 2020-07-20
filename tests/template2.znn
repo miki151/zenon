@@ -44,7 +44,7 @@ bool equal(V2<U,V>* v, U u) {
         }
       }
     }
-    case (nullable<V> e2) {
+    case (e2) {
       return false;
     }
   }

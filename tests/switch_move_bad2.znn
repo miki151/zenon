@@ -1,0 +1,18 @@
+// no_compile
+
+union U {
+  int a;
+  double b;
+  string s;
+};
+
+int main() {
+  mutable u = U::a(1);
+  switch (u) {
+    case (a) {
+      return move(a);
+    }
+    default {}
+  }
+  return 0;
+}

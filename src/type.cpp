@@ -170,14 +170,10 @@ string EnumType::getName(bool withTemplateArguments) const {
 }
 
 JustError<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument argType) const {
-  if (argType != SwitchArgument::VALUE)
-    return statement.codeLoc.getError("Switching on an enum type is only possible by value");
   statement.type = SwitchStatement::ENUM;
   statement.targetType = (SType)get_this();
   unordered_set<string> handledElems;
   for (auto& caseElem : statement.caseElems) {
-    if (!!caseElem.type)
-      return caseElem.codeloc.getError("Expected enum element");
     for (auto& id : caseElem.ids) {
       if (!contains(elements, id))
         return caseElem.codeloc.getError("Element " + quote(id) + " not present in enum " + quote(name));
@@ -536,9 +532,7 @@ JustError<string> StructType::getSizeError(const Context& context) const {
   return checkMembers(context, visited, get_this().get(), false);
 }
 
-JustError<ErrorLoc> PointerType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
-  statement.expr = unique<UnaryExpression>(statement.codeLoc, Operator::POINTER_DEREFERENCE, std::move(statement.expr));
-  CHECK(!!statement.expr->getTypeImpl(context));
+JustError<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
   return underlying->handleSwitchStatement(statement, context, SwitchArgument::REFERENCE);
 }
 
@@ -560,9 +554,7 @@ SType ReferenceType::removePointer() const {
   return underlying->removePointer();
 }
 
-JustError<ErrorLoc> MutablePointerType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
-  statement.expr = unique<UnaryExpression>(statement.codeLoc, Operator::POINTER_DEREFERENCE, std::move(statement.expr));
-  CHECK(!!statement.expr->getTypeImpl(context));
+JustError<ErrorLoc> MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
   return underlying->handleSwitchStatement(statement, context, SwitchArgument::MUTABLE_REFERENCE);
 }
 
@@ -601,7 +593,6 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
     if (caseElem.ids.size() > 1)
       return caseElem.codeloc.getError("Multiple case elements not allowed in a union switch");
     auto caseId = caseElem.ids[0];
-    caseElem.declaredVar = caseId;
     if (!getAlternativeType(caseId))
       return caseElem.codeloc.getError("Element " + quote(caseId) +
           " not present in union " + quote(getName()));
@@ -611,49 +602,22 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
     handledTypes.insert(caseId);
     auto caseBodyContext = Context::withParent(outsideContext);
     auto realType = getAlternativeType(caseId).get();
-    auto caseType = TRY(caseElem.getType(outsideContext));
-    if (!caseType)
+    if (realType != BuiltinType::VOID) {
+      caseElem.declaredVar = caseId;
       switch (argumentType) {
         case SwitchArgument::VALUE:
-          caseType = realType;
+          caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
           break;
         case SwitchArgument::REFERENCE:
-          caseType = PointerType::get(realType);
+          caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
+          caseBodyContext.setNonMovable(caseId);
           break;
         case SwitchArgument::MUTABLE_REFERENCE:
-          caseType = MutablePointerType::get(realType);
+          caseBodyContext.addVariable(caseId, MutableReferenceType::get(realType), caseElem.codeloc);
+          caseBodyContext.setNonMovable(caseId);
           break;
       }
-    if (caseType != realType && caseType->removePointer() != realType)
-      return caseElem.codeloc.getError(
-          "Can't handle union member " + quote(caseId) + " of type " +
-          quote(realType->getName()) + " as type " + quote(caseType->getName()));
-    if (caseType == MutablePointerType::get(realType)) {
-      caseElem.varType = caseElem.POINTER;
-      if (argumentType != SwitchArgument::MUTABLE_REFERENCE)
-        return caseElem.codeloc.getError(
-            "Can only bind element to mutable pointer when switch argument is a mutable pointer.");
-      if (realType != BuiltinType::VOID)
-        //return caseElem.codeloc.getError("Can't bind void element to pointer");
-        caseBodyContext.addVariable(caseId, ReferenceType::get(MutablePointerType::get(realType)), caseElem.codeloc);
-    } else
-    if (caseType == PointerType::get(realType)) {
-      caseElem.varType = caseElem.POINTER;
-      if (argumentType == SwitchArgument::VALUE)
-        return caseElem.codeloc.getError(
-            "Can only bind element to pointer when switch argument is a pointer. Consider binding to a value instead.");
-      if (realType != BuiltinType::VOID)
-        //return caseElem.codeloc.getError("Can't bind void element to pointer");
-        caseBodyContext.addVariable(caseId, ReferenceType::get(PointerType::get(realType)), caseElem.codeloc);
-    } else {
-      caseElem.varType = caseElem.VALUE;
-      if (argumentType != SwitchArgument::VALUE)
-        return caseElem.codeloc.getError(
-            "Can only bind element to value when the switch argument is a value. Consider binding to a pointer instead.");
-      caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
     }
-    if (realType == BuiltinType::VOID)
-      caseElem.varType = caseElem.NONE;
     TRY(caseElem.block->check(caseBodyContext));
   }
   if (!statement.defaultBlock) {

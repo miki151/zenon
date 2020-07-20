@@ -12,8 +12,8 @@ V() {
 int main() {
   const v = V();
   switch (move(v)) {
-    case (int a) { return a; }
-    case (bool b) { return 0; }
+    case (a) { return a; }
+    case (b) { return 0; }
   }
 }
 

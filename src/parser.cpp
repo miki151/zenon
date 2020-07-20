@@ -740,41 +740,27 @@ WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) 
   TRY(tokens.eat(Keyword::OPEN_BLOCK));
   auto ret = unique<SwitchStatement>(switchToken.codeLoc, std::move(expr));
   while (1) {
-    auto token2 = tokens.peek();
-    if (token2 == Keyword::CLOSE_BLOCK) {
+    auto token = tokens.peek();
+    if (token == Keyword::CLOSE_BLOCK) {
       tokens.popNext();
       break;
     }
-    if (token2 == Keyword::DEFAULT) {
+    if (token == Keyword::DEFAULT) {
       if (ret->defaultBlock)
-        return token2.codeLoc.getError("Default switch statement is repeated");
+        return token.codeLoc.getError("Default switch statement is repeated");
       tokens.popNext();
       ret->defaultBlock = TRY(parseBlock(tokens));
     } else {
       TRY(tokens.eat(Keyword::CASE));
       TRY(tokens.eat(Keyword::OPEN_BRACKET));
       SwitchStatement::CaseElem caseElem;
-      auto identifier = TRY(parseIdentifier(tokens, true));
-      caseElem.codeloc = token2.codeLoc;
-      token2 = tokens.popNext();
-      if (token2 != Keyword::CLOSE_BRACKET && token2 != Keyword::COMMA) {
-        if (!token2.contains<IdentifierToken>())
-          return token2.codeLoc.getError("Expected variable identifier, got " + quote(token2.value));
-        caseElem.ids.push_back(token2.value);
-        caseElem.type = identifier;
-        if (auto t = tokens.eat(Keyword::CLOSE_BRACKET); !t)
-          return t.get_error();
-      } else {
-        while (1) {
-          if (auto s = identifier.asBasicIdentifier())
-            caseElem.ids.push_back(*s);
-          else
-            return identifier.codeLoc.getError("Expected union member name, got " + quote(identifier.prettyString()));
-          if (token2 == Keyword::CLOSE_BRACKET)
-            break;
-          identifier = TRY(parseIdentifier(tokens, true));
-          token2 = tokens.popNext();
-        }
+      caseElem.codeloc = token.codeLoc;
+      while (1) {
+        caseElem.ids.push_back(TRY(tokens.eat<IdentifierToken>("Expected union or enum element")).value);
+        if (tokens.eatMaybe(Keyword::CLOSE_BRACKET))
+          break;
+        else
+          CHECK(!!tokens.eat(Keyword::COMMA));
       }
       caseElem.block = TRY(parseBlock(tokens));
       ret->caseElems.push_back(std::move(caseElem));

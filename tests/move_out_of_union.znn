@@ -12,10 +12,10 @@ int main() {
   mutable res = 0;
   mutable resS = "";
   switch (move(v)) {
-    case (int x) {
+    case (x) {
       res = move(x);
     }
-    case (string s) {
+    case (s) {
       resS = move(s);
     }
   }

@@ -1,7 +1,5 @@
 // 12
 
-import "std/concepts.znn";
-
 template<T>
 union X {
   T elem;
@@ -9,10 +7,10 @@ union X {
 };
 
 template<T> requires can_copy<T>
-T operator[](X<T>* x, mutable T a) {
-  switch (x) {
-    case (T* elem) {
-      return elem->copy();
+T operator[](X<T>* x, T a) {
+  switch (*x) {
+    case (elem) {
+      return elem.copy();
     }
     case (isNull) {
       return move(a);

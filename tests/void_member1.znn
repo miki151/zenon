@@ -9,8 +9,8 @@ union V {
 
 int main() {
   const v = V<bool, int, void>::a1(true);
-  switch (&v) {
-    case (bool* a1) {
+  switch (v) {
+    case (a1) {
       return 1;
     }
     default {

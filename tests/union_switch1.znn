@@ -12,30 +12,30 @@ union X {
 int main() {
   mutable result = 0;
   const x1 = X::i(5);
-  switch (&x1) {
-    case (A* a) {
-      result += a->value;
+  switch (x1) {
+    case (a) {
+      result += a.value;
     }
-    case (int* i) {
-      result += *i;
+    case (i) {
+      result += i;
     }
   }
   mutable x2 = X::a(A(6));
-  switch (&x2) {
-    case (A mutable* a) {
-      a->value = 10;
-      result += a->value;
+  switch (x2) {
+    case (a) {
+      a.value = 10;
+      result += a.value;
     }
-    case (int* i) {
-      result += *i;
+    case (i) {
+      result += i;
     }
   }
   switch (move(x1)) {
-    case (A a) {
+    case (a) {
       const tmp = move(a);
       result += tmp.value;
     }
-    case (int i) {
+    case (i) {
       result += i;
     }
   }

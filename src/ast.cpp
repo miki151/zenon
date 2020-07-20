@@ -919,7 +919,8 @@ WithErrorLine<SFunctionInfo> getImplicitCopyFunction(const Context& context, Cod
 }
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
-    const string& funName, const string& alternativeName, const SType& alternativeType, int virtualIndex) {
+    const string& funName, const string& alternativeName, const SType& alternativeType, int virtualIndex,
+    bool lvalueParam) {
   auto functionCall = unique<FunctionCall>(codeLoc, IdentifierInfo(funName, codeLoc), false);
   vector<SType> args;
   for (int i = 0; i < parameters.size(); ++i)
@@ -927,8 +928,14 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
       functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
       args.push_back(functionInfo->type.params[i]);
     } else {
-      functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
-      args.push_back(alternativeType);
+      if (lvalueParam) {
+        functionCall->arguments.push_back(unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
+            unique<Variable>(IdentifierInfo(alternativeName, codeLoc))));
+        args.push_back(convertReferenceToPointer(alternativeType));
+      } else {
+        functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
+        args.push_back(alternativeType);
+      }
     }
   TRY(getFunction(context, codeLoc, IdentifierInfo(funName, codeLoc), {}, args,
       vector<CodeLoc>(args.size(), codeLoc)));
@@ -936,7 +943,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
 }
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCallExpr(Context& context,
-    Operator op, const string& alternativeName, const SType& alternativeType, int virtualIndex) {
+    Operator op, const string& alternativeName, const SType& alternativeType, int virtualIndex, int lvalueParam) {
   vector<unique_ptr<Expression>> arguments;
   vector<SType> argTypes;
   for (int i = 0; i < parameters.size(); ++i)
@@ -944,12 +951,11 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCall
       arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
       argTypes.push_back(functionInfo->type.params[i]);
     } else {
-      arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
+      if (lvalueParam) {
+        arguments.push_back(unique<Variable>(IdentifierInfo(alternativeName, codeLoc)));
+      } else
+        arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
       argTypes.push_back(alternativeType);
-      if (i == 0 && (alternativeType.dynamicCast<PointerType>() || alternativeType.dynamicCast<MutablePointerType>())) {
-        arguments.back() = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(arguments.back()));
-        argTypes.back() = argTypes.back()->removePointer();
-      }
     }
   TRY(handleOperatorOverloads(context, codeLoc, op, argTypes, vector<CodeLoc>(argTypes.size(), codeLoc), arguments));
   if (parameters.size() == 1)
@@ -982,14 +988,17 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
   }
   auto& virtualParam = parameters[virtualIndex];
   auto virtualType = bodyContext.getTypeFromString(virtualParam.type);
-  unique_ptr<Expression> switchExpr = unique<MoveExpression>(codeLoc, *virtualParam.name);
+  unique_ptr<Expression> switchExpr;
   body = unique<StatementBlock>(codeLoc);
   auto unionType = virtualType->dynamicCast<StructType>();
-  bool isPointerParam = false;
+  bool lvalueParam = false;
   if (!unionType) {
     unionType = virtualType.get()->removePointer().dynamicCast<StructType>();
-    isPointerParam = true;
-  }
+    lvalueParam = true;
+    switchExpr = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
+        unique<Variable>(IdentifierInfo(*virtualParam.name, codeLoc)));
+  } else
+    switchExpr = unique<MoveExpression>(codeLoc, *virtualParam.name);
   if (!unionType || unionType->alternatives.empty())
     return codeLoc.getError("Virtual parameter must be of a union type or a pointer to one");
   auto switchStatementPtr = unique<SwitchStatement>(codeLoc, std::move(switchExpr));
@@ -998,14 +1007,15 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
   for (auto& alternative : unionType->alternatives) {
     auto alternativeType = alternative.type;
     if (virtualType->dynamicCast<MutablePointerType>())
-      alternativeType = MutablePointerType::get(std::move(alternativeType));
+      alternativeType = MutableReferenceType::get(std::move(alternativeType));
     else if (virtualType->dynamicCast<PointerType>())
-      alternativeType = PointerType::get(std::move(alternativeType));
+      alternativeType = ReferenceType::get(std::move(alternativeType));
     WithErrorLine<unique_ptr<Expression>> call = [&] {
       if (auto regularName = name.getReferenceMaybe<string>())
-        return getVirtualFunctionCallExpr(bodyContext, *regularName, alternative.name, alternativeType, virtualIndex);
+        return getVirtualFunctionCallExpr(bodyContext, *regularName, alternative.name, alternativeType, virtualIndex,
+            lvalueParam);
       else if (auto op = name.getValueMaybe<Operator>())
-        return getVirtualOperatorCallExpr(bodyContext, *op, alternative.name, alternativeType, virtualIndex);
+        return getVirtualOperatorCallExpr(bodyContext, *op, alternative.name, alternativeType, virtualIndex, lvalueParam);
       else
         fail();
     }();
@@ -1021,7 +1031,6 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
     switchStatement.caseElems.push_back(
         SwitchStatement::CaseElem {
           codeLoc,
-          none,
           {alternative.name},
           alternative.name,
           std::move(block)
@@ -1052,7 +1061,8 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
       }
       body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
     } else {
-      auto copiedParam = unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc));
+      auto copiedParam = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
+          unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc)));
       auto topSwitch = unique<SwitchStatement>(codeLoc, std::move(copiedParam));
       for (auto& alternative : structType->alternatives) {
         auto block = unique<StatementBlock>(codeLoc);
@@ -1061,12 +1071,12 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
         auto constructorCall = unique<FunctionCall>(codeLoc, constructorName, false);
         if (alternative.type != BuiltinType::VOID)
           constructorCall->arguments.push_back(unique<FunctionCall>(codeLoc, IdentifierInfo(functionName, codeLoc),
-              unique<Variable>(IdentifierInfo(alternative.name, codeLoc)), false));
+              unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
+                  unique<Variable>(IdentifierInfo(alternative.name, codeLoc))), false));
         block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(constructorCall)));
         topSwitch->caseElems.push_back(
             SwitchStatement::CaseElem {
               codeLoc,
-              none,
               {alternative.name},
               alternative.name,
               std::move(block)
@@ -1801,9 +1811,7 @@ JustError<ErrorLoc> SwitchStatement::check(Context& context, bool) {
   }
   if (!context.isFullyDefined(type->removePointer().get()))
     return codeLoc.getError("Type " + quote(type->getName()) + " is incomplete in this context");
-  if (type->isReference() && !type->isBuiltinCopyable(context, expr))
-    return codeLoc.getError("Type " + quote(type->getName()) + " is not implicitly copyable. Consider moving or passing as pointer.");
-  return type->removeReference()->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
+  return type->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
 }
 
 JustError<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const {
@@ -1996,6 +2004,8 @@ MoveExpression::MoveExpression(CodeLoc l, string id, bool hasDestructor)
 WithErrorLine<SType> MoveExpression::getTypeImpl(const Context& context) {
   if (!type) {
     if (auto ret = context.getTypeOfVariable(identifier)) {
+      if (context.isNonMovable(identifier))
+        return codeLoc.getError("Can't move " + quote(identifier) + ", because the switch condition is an l-value");
       if (context.isCapturedVariable(identifier))
         return codeLoc.getError("Can't move from a captured value");
       if (!ret.get_value().dynamicCast<MutableReferenceType>() &&
@@ -2533,19 +2543,11 @@ WithErrorLine<SType> getType(const Context& context, unique_ptr<Expression>& exp
   return type;
 }
 
-WithErrorLine<nullable<SType>> SwitchStatement::CaseElem::getType(const Context& context) {
-  if (type)
-    return nullable<SType>(TRY(context.getTypeFromString(*type)));
-  else
-    return nullable<SType>();
-}
-
 SwitchStatement::CaseElem SwitchStatement::CaseElem::transform(const StmtTransformFun& fun, const ExprTransformFun&) const {
   CaseElem ret;
   ret.codeloc = codeloc;
   ret.ids = ids;
   ret.block = cast<StatementBlock>(fun(block.get()));
-  ret.type = type;
   return ret;
 }
 
