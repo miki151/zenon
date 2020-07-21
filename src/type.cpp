@@ -639,8 +639,11 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
 
 WithError<SType> StructType::getTypeOfMember(const string& name) const {
   for (auto& member : (alternatives.empty() ? members : alternatives))
-    if (member.name == name)
+    if (member.name == name) {
+      if (!!destructor)
+        return SType(ReferenceType::get(member.type));
       return member.type;
+    }
   return "No " + (alternatives.empty() ? "member"s : "alternative"s) + " named " + quote(name) + " in type " + quote(getName());
 }
 
@@ -698,20 +701,25 @@ void StructType::updateInstantations() {
 }
 
 WithError<Type::MemberInfo> StructType::getTypeOfMember(const SType& v1) const {
+  auto modType = [&] (SType t) -> SType {
+    if (!!destructor)
+      return ReferenceType::get(std::move(t));
+    return t;
+  };
   if (auto v = v1.dynamicCast<CompileTimeValue>()) {
     if (auto ref = v->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
       v = ref->value;
     if (auto intValue = v->value.getValueMaybe<int>()) {
       auto& membersOrAlt = (alternatives.empty() ? members : alternatives);
       if (*intValue >= 0 && *intValue < membersOrAlt.size())
-        return MemberInfo{membersOrAlt[*intValue].type, membersOrAlt[*intValue].name};
+        return MemberInfo{modType(membersOrAlt[*intValue].type), membersOrAlt[*intValue].name};
       else
         return (alternatives.empty() ? "Member"s : "Alternative"s) + " index for type "
             + quote(getName()) + " must be between 0 and " + to_string(alternatives.size() - 1) +
             ", got " + to_string(*intValue);
     }
     if (v->getType() == BuiltinType::INT)
-      return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), v), "bad_member_name"};
+      return MemberInfo{modType(TemplateStructMemberType::get(this->get_this().get(), v)), "bad_member_name"};
   }
   return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + v1->getType()->getName();
 }

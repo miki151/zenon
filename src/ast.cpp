@@ -2805,10 +2805,13 @@ MemberAccessExpression::MemberAccessExpression(CodeLoc l , unique_ptr<Expression
   : Expression(l), lhs(std::move(lhs)), identifier(id) { }
 
 static JustError<ErrorLoc> initializeDestructor(const Context& context, const SType& type, const string& member,
-    CodeLoc codeLoc, nullable<SFunctionInfo>& destructorCall) {
+    CodeLoc codeLoc, nullable<SFunctionInfo>& destructorCall, bool& mainDestructor) {
   if (auto structType = type.dynamicCast<StructType>()) {
-    if (structType->destructor)
-      return codeLoc.getError("Can't move member from a value with a user-defined destructor");
+    if (structType->destructor) {
+      mainDestructor = true;
+      destructorCall = TRY(getDestructor(context, structType));
+      TRY(destructorCall->addInstance(context));
+    } else
     if (structType->hasDestructor()) {
       for (int i = 0; i < structType->members.size(); ++i)
         if (structType->members[i].name == member) {
@@ -2827,7 +2830,7 @@ WithErrorLine<SType> MemberAccessExpression::getTypeImpl(const Context& context)
     return codeLoc.getError(leftType->getName() + res.get_error());
   isUnion = leftType->removeReference()->getType() == BuiltinType::UNION_TYPE;
   auto ret = TRY(leftType->getTypeOfMember(identifier).addCodeLoc(codeLoc));
-  TRY(initializeDestructor(context, leftType, identifier, codeLoc, destructorCall));
+  TRY(initializeDestructor(context, leftType, identifier, codeLoc, destructorCall, isMainDestructor));
   return ret;
 }
 
@@ -2862,7 +2865,7 @@ WithErrorLine<SType> MemberIndexExpression::getTypeImpl(const Context& context) 
   auto member = TRY(leftType->getTypeOfMember(value.value).addCodeLoc(codeLoc));
   memberName = member.name;
   isUnion = leftType->removeReference()->getType() == BuiltinType::UNION_TYPE;
-  TRY(initializeDestructor(context, leftType, *memberName, codeLoc, destructorCall));
+  TRY(initializeDestructor(context, leftType, *memberName, codeLoc, destructorCall, isMainDestructor));
   return member.type;
 }
 

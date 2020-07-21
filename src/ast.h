@@ -117,6 +117,7 @@ struct MemberAccessExpression : Expression {
   string identifier;
   bool isUnion = false;
   nullable<SFunctionInfo> destructorCall;
+  bool isMainDestructor = false;
 };
 
 struct MemberIndexExpression : Expression {
@@ -132,6 +133,7 @@ struct MemberIndexExpression : Expression {
   optional<string> memberName;
   bool isUnion = false;
   nullable<SFunctionInfo> destructorCall;
+  bool isMainDestructor = false;
 };
 
 struct BinaryExpression : Expression {

@@ -21,6 +21,6 @@ Y get(int mutable* a) {
 
 int main() {
   mutable n = 2;
-  const ret = get(&n).x;
+  const ret = get(&n).0;
   return n;
 }

@@ -994,32 +994,33 @@ void VariablePackElement::codegen(Accu& accu, CodegenStage) const {
   accu.add(*codegenName);
 }
 
-
-void MemberAccessExpression::codegen(Accu& accu, CodegenStage stage) const {
+static void codegenMember(Accu& accu, CodegenStage stage, const nullable<SFunctionInfo>& destructorCall,
+    bool isMainDestructor, const string& identifier, const Expression& lhs, bool isUnion) {
   accu.add("(");
   if (destructorCall) {
-    accu.add("{auto&& tmp = ");
+    if (isMainDestructor)
+      accu.add("(*get_temporary_holder(");
+    else
+      accu.add("{auto&& tmp = ");
   }
-  lhs->codegen(accu, stage);
+  lhs.codegen(accu, stage);
   if (destructorCall) {
-    accu.add(";" + destructorCall->getMangledName() + "(&tmp); std::move(tmp)." + identifier +";})");
+    if (isMainDestructor)
+      accu.add(", &::" + destructorCall->getMangledName() + "))." + identifier + ")");
+    else
+      accu.add(";" + destructorCall->getMangledName() + "(&tmp); std::move(tmp)." + identifier +";})");
   } else
     accu.add(")."s + (isUnion ? unionEntryPrefix : "") + identifier);
 }
 
-
-void MemberIndexExpression::codegen(Accu& accu, CodegenStage stage) const {
-  accu.add("(");
-  if (destructorCall) {
-    accu.add("{auto&& tmp = ");
-  }
-  lhs->codegen(accu, stage);
-  if (destructorCall) {
-    accu.add(";" + destructorCall->getMangledName() + "(&tmp); std::move(tmp)." + *memberName +";})");
-  } else
-    accu.add(")."s + (isUnion ? unionEntryPrefix : "") + *memberName);
+void MemberAccessExpression::codegen(Accu& accu, CodegenStage stage) const {
+  codegenMember(accu, stage, destructorCall, isMainDestructor, identifier, *lhs, isUnion);
 }
 
+
+void MemberIndexExpression::codegen(Accu& accu, CodegenStage stage) const {
+  codegenMember(accu, stage, destructorCall, isMainDestructor, *memberName, *lhs, isUnion);
+}
 
 void TernaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   accu.add("(");
