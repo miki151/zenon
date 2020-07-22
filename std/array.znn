@@ -46,6 +46,11 @@ T[Size] array_generate(Fun fun) {
   }
 }
 
+export template <int Size, T, Ret, Fun> requires can_invoke<Fun, Ret, T*>
+Ret[Size] transform(T[Size]* input, Fun f) {
+  return array_generate<Size>([&] (int index) { return f(&(*input)[index]); });
+}
+
 export template <int Size, T>
 int size(T[Size]* array) {
   return Size;
