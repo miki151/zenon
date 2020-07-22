@@ -1,0 +1,11 @@
+// 6
+
+template <Ret, Fun, Arg...> requires can_invoke<Fun, Ret, Arg...>
+Ret run_fun(Fun f, Arg... a) {
+  return f(move(a)...);
+}
+
+int main(string[] args) {
+  return run_fun([](string s) { return s.size(); }, "pokpok");
+}
+

@@ -121,11 +121,10 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
             if (isGeneralization(myFun, function, existing))
               return myFun->getWithoutRequirements();
           }
-          if (overloads.first == "invoke"s)
-            if (!function->type.params.empty())
-              if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
-                if (isGeneralization(lambda->functionInfo.get(), function, existing))
-                  return lambda->functionInfo->getWithoutRequirements();
+          if (overloads.first == "invoke"s && !function->type.params.empty())
+            if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
+              if (isGeneralization(lambda->functionInfo.get(), function, existing))
+                return lambda->functionInfo->getWithoutRequirements();
           return none;
         };
         if (auto res = getFunction())
@@ -643,19 +642,19 @@ vector<SFunctionInfo> Context::getConstructorsFor(const SType& type) const {
 
 WithError<vector<SFunctionInfo>> Context::getFunctionTemplate(IdentifierInfo id) const {
   vector<SFunctionInfo> ret;
-    if (id.parts.size() > 1) {
-      if (auto type = getTypeFromString(IdentifierInfo(id.parts[0], id.codeLoc)))
-        return (*type)->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
-      else
-        return "Type not found: " + id.prettyString();
-    } else {
-      string funName = id.parts[0].name;
-      if (auto type = getType(funName))
-        ret = getConstructorsFor(type.get());
-      else
-        ret = getFunctions(funName);
-    }
-    return ret;
+  if (id.parts.size() > 1) {
+    if (auto type = getTypeFromString(IdentifierInfo(id.parts[0], id.codeLoc)))
+      return (*type)->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
+    else
+      return "Type not found: " + id.prettyString();
+  } else {
+    string funName = id.parts[0].name;
+    if (auto type = getType(funName))
+      ret = getConstructorsFor(type.get());
+    else
+      ret = getFunctions(funName);
+  }
+  return ret;
 }
 
 WithEvalError<SType> Context::BuiltInFunctionInfo::invokeFunction(const string& id, CodeLoc loc, vector<SType> args,

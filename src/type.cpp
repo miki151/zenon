@@ -1219,6 +1219,9 @@ static JustError<string> deduceTemplateArgsFromConcepts(const Context& context,
           continue;
         function = addTemplateParams(function, funTemplateParams, req->isVariadic());
         vector<SFunctionInfo> found;
+        if (function->id == "invoke"s && !function->type.params.empty())
+          if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
+            found.push_back(lambda->functionInfo.get());
         for (auto& candidate : context.getFunctions(function->id))
           if (!candidate->type.concept && context.isGeneralization(getWithRetval(*function), getWithRetval(*candidate)))
             found.push_back(candidate);
