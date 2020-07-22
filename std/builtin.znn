@@ -7,36 +7,7 @@ export import "std/optional.znn";
 export import "std/pointer.znn";
 export import "std/destruct.znn";
 export import "std/operator_helpers.znn";
-
-export int implicit_copy(int* b) {
-  embed {
-    return *b;
-  }
-}
-
-export string implicit_copy(string* b) {
-  embed {
-    return *b;
-  }
-}
-
-export bool implicit_copy(bool* b) {
-  embed {
-    return *b;
-  }
-}
-
-export char implicit_copy(char* b) {
-  embed {
-    return *b;
-  }
-}
-
-export double implicit_copy(double* b) {
-  embed {
-    return *b;
-  }
-}
+export import "std/builtin_types.znn";
 
 export template <T> requires can_implicit_copy<T>
 T copy(T* b) {

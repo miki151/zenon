@@ -1,0 +1,12 @@
+// 20
+
+int main() {
+  mutable a = {0, 0, 0, 0};
+  for (it : a)
+    *it = it.index + 1;
+  mutable res = 0;
+  for (it : a)
+    res += it.index * *it;
+  return res;
+}
+

@@ -1,4 +1,5 @@
 export import "std/pointer.znn";
+export import "std/builtin_types.znn";
 
 export template <T>
 int size(T[]* s) {
@@ -29,6 +30,7 @@ T* operator[](T[]* s, int index) {
 export template <T>
 struct slice_iterator {
   T* elem;
+  int index;
 };
 
 export template <T>
@@ -37,22 +39,21 @@ slice_iterator<T> implicit_copy(slice_iterator<T>*) = default;
 export template <T>
 slice_iterator<T> begin(T[]* v) {
   embed {
-  return {v->begin};
+  return {v->begin, 0};
   }
 }
 
 export template <T>
 slice_iterator<T> end(T[]* v) {
+  const size = v->size();
   embed {
-  return {v->end};
+  return {v->end, size};
   }
 }
 
 export template <T>
 T* operator *(slice_iterator<T>* it) {
-  embed {
   return it->elem;
-  }
 }
 
 export template <T>
@@ -60,6 +61,7 @@ slice_iterator<T> operator ++(slice_iterator<T> mutable* it) {
   embed {
     ++it->elem;
   }
+  ++it->index;
   return implicit_copy(it);
 }
 
