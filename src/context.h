@@ -23,8 +23,7 @@ struct LambdaCapture;
 
 class Context : public owned_object<Context> {
   public:
-  static Context withParent(const Context&);
-  static Context withParent(vector<const Context*>);
+  Context getChild() const;
   void merge(const Context&);
   Context(TypeRegistry*);
   Context(const Context&) = delete;

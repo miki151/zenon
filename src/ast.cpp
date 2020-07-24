@@ -403,7 +403,7 @@ JustError<ErrorLoc> UnaryExpression::checkMoves(MoveChecker& checker) const {
 }
 
 JustError<ErrorLoc> StatementBlock::check(Context& context, bool) {
-  auto bodyContext = Context::withParent(context);
+  auto bodyContext = context.getChild();
   for (auto& s : elems)
     TRY(s->check(bodyContext));
   return success;
@@ -430,7 +430,7 @@ void StatementBlock::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const
 }
 
 JustError<ErrorLoc> IfStatement::check(Context& context, bool) {
-  auto ifContext = Context::withParent(context);
+  auto ifContext = context.getChild();
   if (declaration)
     TRY(declaration->check(ifContext));
   auto negate = [&] (unique_ptr<Expression> expr) {
@@ -735,7 +735,7 @@ WithErrorLine<SType> FunctionDefinition::getReturnType(const Context& context) c
 
 static WithErrorLine<vector<SType>> getTemplateParams(const TemplateInfo& info, const Context& context) {
   vector<SType> ret;
-  auto paramsContext = Context::withParent(context);
+  auto paramsContext = context.getChild();
   for (auto& param : info.params) {
     if (param.type) {
       if (auto type = paramsContext.getType(*param.type)) {
@@ -768,7 +768,7 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
       return codeLoc.getError("Can't overload operator " + quote(getString(*op)) +
           " with " + to_string(parameters.size()) + " arguments.");
   }
-  Context contextWithTemplateParams = Context::withParent(context);
+  Context contextWithTemplateParams = context.getChild();
   auto templateTypes = TRY(getTemplateParams(templateInfo, context));
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];
@@ -777,7 +777,7 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
       contextWithTemplateParams.addUnexpandedTypePack(param.name, templateTypes[i]);
   }
   auto requirements = TRY(applyRequirements(contextWithTemplateParams, templateInfo));
-  definitionContext.emplace(Context::withParent(contextWithTemplateParams));
+  definitionContext.emplace(contextWithTemplateParams.getChild());
   auto returnType = TRY(getReturnType(contextWithTemplateParams));
   if (name.contains<Operator>())
     returnType = convertPointerToReference(returnType);
@@ -1173,7 +1173,7 @@ static void addTemplateParams(Context& context, vector<SType> params, bool varia
 }
 
 JustError<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
-  Context bodyContext = Context::withParent(context);
+  Context bodyContext = context.getChild();
   addTemplateParams(bodyContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
   auto res = TRY(applyRequirements(bodyContext, templateInfo));
   if (isVirtual)
@@ -1252,7 +1252,7 @@ void FunctionDefinition::addParamsToContext(Context& context, const FunctionInfo
 
 JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& requirements,
     StatementBlock& myBody, const FunctionInfo& instanceInfo, vector<unique_ptr<Statement>>& destructorCalls) const {
-  auto bodyContext = Context::withParent(*definitionContext);
+  auto bodyContext = definitionContext->getChild();
   for (auto& f : requirements) {
     if (!contains(bodyContext.getFunctions(f->id), f->getParent()))
       CHECK(bodyContext.addFunction(f));
@@ -1312,7 +1312,7 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
   if (body && !origBody && (!templateInfo.params.empty() || notInImport)) {
     // save the original unchecked body to use by template instances
     origBody = cast<StatementBlock>(body->deepCopy());
-    Context paramsContext = Context::withParent(context);
+    Context paramsContext = context.getChild();
     // use a temporary FunctionInfo with fresh template types to avoid clashes if the function
     // is calling itself with changed parameter order
     auto thisFunctionInfo = functionInfo.get();
@@ -1327,10 +1327,10 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
     CHECK(errors.empty());
     TRY(checkForIncompleteTypes(paramsContext));
     // For checking the template we use the Context that includes the template params.
-    definitionContext.emplace(Context::withParent(paramsContext));
+    definitionContext.emplace(paramsContext.getChild());
     TRY(checkBody({}, *body, *thisFunctionInfo, destructorCalls));
     // For checking instances we just use the top level context.
-    definitionContext.emplace(Context::withParent(context));
+    definitionContext.emplace(context.getChild());
     wasChecked = true;
     for (int i = 0; i < instances.size(); ++i)
       if (!instances[i].body) {
@@ -1508,7 +1508,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
 static JustError<ErrorLoc> addExportedContext(const Context& primaryContext, ImportCache& cache, AST& ast,
     const string& path, bool isBuiltIn) {
   cache.pushCurrentImport(path, isBuiltIn);
-  auto importContext = Context::withParent(primaryContext);
+  auto importContext = primaryContext.getChild();
   for (auto& elem : ast.elems) {
     if (elem->exported) {
       TRY(elem->addToContext(importContext, cache, primaryContext));
@@ -1603,7 +1603,7 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
   unordered_set<FunctionInfo*> allCalls;
   while (true) {
     auto call = cast<FunctionCall>(deepCopy());
-    auto context = Context::withParent(callContext);
+    auto context = callContext.getChild();
     if (variadicTemplateCall)
       context.addExpandedTypePack(templateArgs->back()->getName(), expanded);
     if (variadicCall)
@@ -1680,7 +1680,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
     vector<SType> argTypes;
     vector<CodeLoc> argLocs;
     for (int i = 0; i < arguments.size(); ++i) {
-      auto context = Context::withParent(callContext);
+      auto context = callContext.getChild();
       if (variadicArgs && i == arguments.size() - 1) {
         if (auto types = callContext.getExpandedVariablePack().addCodeLoc(arguments[i]->codeLoc)) {
           auto origArg = arguments[i]->deepCopy();
@@ -1688,7 +1688,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
           for (int j = 0; j < types->second.size(); ++j) {
             auto varName = getExpandedParamName(types->first, j);
             arguments.push_back(origArg->replaceVar(types->first, varName));
-            auto argContext = Context::withParent(callContext);
+            auto argContext = callContext.getChild();
             argContext.addVariable(varName, ReferenceType::get(types->second[j]), arguments.back()->codeLoc);
             argTypes.push_back(TRY(getType(argContext, arguments.back())));
             argLocs.push_back(arguments.back()->codeLoc);
@@ -1886,7 +1886,7 @@ JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
   TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
   context.addType(name, type.get());
   type->definition = codeLoc;
-  auto membersContext = Context::withParent(context);
+  auto membersContext = context.getChild();
   for (auto& param : type->templateParams)
     membersContext.addType(param->getName(), param);
   type->requirements = TRY(applyRequirements(membersContext, templateInfo));
@@ -1909,7 +1909,7 @@ JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
 }
 
 JustError<ErrorLoc> UnionDefinition::check(Context& context, bool) {
-  auto bodyContext = Context::withParent(context);
+  auto bodyContext = context.getChild();
   for (auto& param : type->templateParams)
     bodyContext.addType(param->getName(), param);
   CHECK(!!applyRequirements(bodyContext, templateInfo));
@@ -1948,7 +1948,7 @@ JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
   context.addType(name, type.get());
   for (auto& attr : TRY(getAttributeTypes(context, attributes)))
     context.setAttribute(type.get(), attr);
-  auto membersContext = Context::withParent(context);
+  auto membersContext = context.getChild();
   addTemplateParams(membersContext, type->templateParams, false);
   type->requirements = TRY(applyRequirements(membersContext, templateInfo));
   if (members.size() > type->members.size())
@@ -1966,7 +1966,7 @@ JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
 }
 
 JustError<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
-  auto methodBodyContext = Context::withParent(context);
+  auto methodBodyContext = context.getChild();
   addTemplateParams(methodBodyContext, type->templateParams, false);
   CHECK(!!applyRequirements(methodBodyContext, templateInfo));
   type->updateInstantations();
@@ -2059,10 +2059,10 @@ ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<VariableDeclaration> i,
   : Statement(l), init(std::move(i)), cond(std::move(c)), iter(std::move(it)), body(std::move(b)) {}
 
 JustError<ErrorLoc> ForLoopStatement::check(Context& context, bool) {
-  auto bodyContext = Context::withParent(context);
+  auto bodyContext = context.getChild();
   auto mutInit = cast<VariableDeclaration>(init->deepCopy());
   TRY(init->check(bodyContext));
-  auto loopContext = Context::withParent(context);
+  auto loopContext = context.getChild();
   mutInit->isMutable = true;
   TRY(mutInit->check(loopContext));
   auto condType = TRY(getType(loopContext, cond));
@@ -2107,7 +2107,7 @@ StaticForLoopStatement::StaticForLoopStatement(CodeLoc l, string counter, unique
 }
 
 JustError<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& bodyContext) const {
-  auto context = Context::withParent(bodyContext);
+  auto context = bodyContext.getChild();
   auto initVal = TRY(init->eval(context).addNoEvalError(init->codeLoc.getError("Unable to evaluate expression at compile time")));
   context.addType(counter, CompileTimeValue::getReference(initVal.value.dynamicCast<CompileTimeValue>()));
   auto condVal = TRY(cond->eval(context).addNoEvalError(cond->codeLoc.getError("Unable to evaluate expression at compile time")));
@@ -2124,8 +2124,8 @@ WithErrorLine<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled
   const int maxIterations = 500;
   int countIter = 0;
   while (1) {
-    auto evalContext = Context::withParent(context);
-    auto iterContext = Context::withParent(context);
+    auto evalContext = context.getChild();
+    auto iterContext = context.getChild();
     iterContext.addType(counter, counterValue);
     auto currentCounter = counterValue->value.getValueMaybe<CompileTimeValue::ReferenceValue>()->value;
     evalContext.addType(counter, currentCounter);
@@ -2146,7 +2146,7 @@ WithErrorLine<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled
 
 JustError<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
   TRY(context.checkNameConflictExcludingFunctions(counter, "variable").addCodeLoc(codeLoc));
-  auto bodyContext = Context::withParent(context);
+  auto bodyContext = context.getChild();
   TRY(checkExpressions(bodyContext));
   auto initType = TRY(getType(bodyContext, init));
   bodyContext.addVariable(counter, MutableReferenceType::get(getType(bodyContext, init).get()), init->codeLoc);
@@ -2156,7 +2156,7 @@ JustError<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
   auto res = TRY(getType(bodyContext, iter));
   auto counterType = CompileTimeValue::getTemplateValue(initType, counter);
   bodyContext.addType(counter, counterType);
-  auto bodyTemplateContext = Context::withParent(bodyContext);
+  auto bodyTemplateContext = bodyContext.getChild();
   bodyTemplateContext.setTemplated({counterType});
   if (!bodyContext.getTemplateParams())
     unrolled = TRY(getUnrolled(context, counterType));
@@ -2200,7 +2200,7 @@ WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, uniq
   : Statement(l), cond(std::move(c)), body(std::move(b)) {}
 
 JustError<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
-  auto bodyContext = Context::withParent(context);
+  auto bodyContext = context.getChild();
   auto condType = TRY(getType(bodyContext, cond));
   if (condType != BuiltinType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
@@ -2348,7 +2348,7 @@ void ConceptDefinition::addFatPointer(ConceptDefinition::FatPointerInfo info, sh
 
 JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
   auto concept = shared<Concept>(name, this, Context(context.typeRegistry), templateInfo.variadic);
-  auto declarationsContext = Context::withParent(context);
+  auto declarationsContext = context.getChild();
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];
     if (param.type)
@@ -2407,7 +2407,7 @@ RangedLoopStatement::RangedLoopStatement(CodeLoc l, unique_ptr<VariableDeclarati
     : Statement(l), init(std::move(init)), container(std::move(container)), body(std::move(body)) {}
 
 JustError<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
-  auto bodyContext = Context::withParent(context);
+  auto bodyContext = context.getChild();
   auto containerType = TRY(getType(context, container));
   if (!containerType->isReference())
     containerType = ReferenceType::get(containerType);
@@ -2628,7 +2628,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
       parameters[i].name = "parameter" + to_string(i);
   if (returnType)
     retType = TRY(context.getTypeFromString(*returnType));
-  auto bodyContext = Context::withParent(context);
+  auto bodyContext = context.getChild();
   ReturnTypeChecker returnChecker(retType);
   bodyContext.addReturnTypeChecker(&returnChecker);
   auto captureTypes = TRY(setLambda(bodyContext));
@@ -2652,7 +2652,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
       paramNames.insert(*param.name);
     }
   }
-  auto bodyContext2 = Context::withParent(bodyContext);
+  auto bodyContext2 = bodyContext.getChild();
   TRY(block->check(bodyContext2));
   type->captures.append(captureInfo.implicitCaptures);
   if (!returnType)

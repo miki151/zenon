@@ -3,19 +3,10 @@
 #include "type.h"
 #include "type_registry.h"
 
-Context Context::withParent(const Context& c) {
-  Context ret(c.typeRegistry);
-  ret.parentStates = c.parentStates;
-  ret.parentStates.push_back(c.state);
-  return ret;
-}
-
-Context Context::withParent(vector<const Context*> parents) {
-  Context ret(parents[0]->typeRegistry);
-  for (auto context : parents) {
-    append(ret.parentStates, context->parentStates);
-    ret.parentStates.push_back(context->state);
-  }
+Context Context::getChild() const {
+  Context ret(typeRegistry);
+  ret.parentStates = parentStates;
+  ret.parentStates.push_back(state);
   return ret;
 }
 
@@ -435,7 +426,7 @@ WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameter
     if (variadic && i == ids.size() - 1) {
       if (auto pack = getExpandedTypePack()) {
         for (auto& type : pack->second) {
-          auto elemContext = withParent(*this);
+          auto elemContext = getChild();
           if (!elemContext.getType(pack->first))
             elemContext.addType(pack->first, type);
           params.push_back(TRY(getType(elemContext, true)));

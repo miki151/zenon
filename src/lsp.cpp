@@ -223,7 +223,7 @@ void printDiagnostics(const char* installDir, const string& text, const string& 
           add(res.get_error().error, res.get_error().loc);
           return;
         }
-      auto context = Context::withParent(primaryContext);
+      auto context = primaryContext.getChild();
       auto imported = correctness(fs::system_complete(path), *ast, context, primaryContext, importCache, false);
       if (!imported) {
         cerr << "Type error" << endl;

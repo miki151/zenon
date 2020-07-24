@@ -472,7 +472,7 @@ bool Type::isBuiltinCopyable(const Context& context, unique_ptr<Expression>& exp
   else
   if (auto fun = getImplicitCopyFunction(context, CodeLoc(), get_this().get())) {
     if (expr) {
-      auto tmpContext = Context::withParent(context);
+      auto tmpContext = context.getChild();
       auto codeLoc = expr->codeLoc;
       expr = unique<FunctionCall>(expr->codeLoc, IdentifierInfo("implicit_copy", expr->codeLoc),
           unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false);
@@ -600,7 +600,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
       return caseElem.codeloc.getError("Union member " + quote(caseId)
         + " handled more than once in switch statement");
     handledTypes.insert(caseId);
-    auto caseBodyContext = Context::withParent(outsideContext);
+    auto caseBodyContext = outsideContext.getChild();
     auto realType = getAlternativeType(caseId).get();
     if (realType != BuiltinType::VOID) {
       caseElem.declaredVar = caseId;
@@ -941,7 +941,7 @@ static JustError<ErrorLoc> checkRequirements(const Context& context, vector<STyp
         return codeLoc.getError(res.get_error());
     } else
     if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
-      auto reqContext = Context::withParent(context);
+      auto reqContext = context.getChild();
       for (int i = 0; i < templateParams.size(); ++i)
         //if (!reqContext.getType(templateParams[i]->getName()))
           reqContext.addType(templateParams[i]->getName(), templateArgs[i]);
