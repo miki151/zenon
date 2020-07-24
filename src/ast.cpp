@@ -2515,6 +2515,7 @@ unique_ptr<Expression> ArrayLiteral::transform(const StmtTransformFun&, const Ex
   auto ret = unique<ArrayLiteral>(codeLoc);
   for (auto& elem : contents)
     ret->contents.push_back(fun(elem.get()));
+  ret->typeId = typeId;
   return ret;
 }
 

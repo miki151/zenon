@@ -1,0 +1,10 @@
+// 1
+
+template <T>
+T[0] get_empty() {
+  return {<T>};
+}
+
+int main() {
+  return get_empty<int>().size() + 1;
+}
