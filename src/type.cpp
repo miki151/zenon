@@ -943,8 +943,7 @@ static JustError<ErrorLoc> checkRequirements(const Context& context, vector<STyp
     if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
       auto reqContext = context.getChild();
       for (int i = 0; i < templateParams.size(); ++i)
-        //if (!reqContext.getType(templateParams[i]->getName()))
-          reqContext.addType(templateParams[i]->getName(), templateArgs[i]);
+        reqContext.addType(templateParams[i]->getName(), templateArgs[i]);
       if (expr1->get()->eval(reqContext)->value == CompileTimeValue::get(false))
         return expr1->get()->codeLoc.getError("Predicate evaluates to false");
     }
@@ -1254,8 +1253,9 @@ static WithError<vector<SType>> deduceTemplateArgs(const Context& context,
   return ret;
 }
 
-WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo& input, CodeLoc codeLoc,
+WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context1, const SFunctionInfo& input, CodeLoc codeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing) {
+  auto context = context1.getTopLevel();
   FunctionType type = input->type;
   auto origParams = type.templateParams;
   TRY(expandVariadicTemplate(type, codeLoc, templateArgs, argTypes));
@@ -1309,7 +1309,7 @@ string Concept::getName(bool withTemplateParams) const {
 }
 
 SConcept Concept::translate(vector<SType> newParams, bool variadicParams, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name, def, Context(context.typeRegistry), variadicParams);
+  auto ret = shared<Concept>(name, def, Context(context.typeRegistry, true), variadicParams);
   ret->context.deepCopyFrom(context);
   ret->params = newParams;
   if (!variadic || variadicParams) {
@@ -1326,7 +1326,7 @@ SConcept Concept::translate(vector<SType> newParams, bool variadicParams, ErrorB
 }
 
 SConcept Concept::expand(SType from, vector<SType> newParams, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name, def, Context(context.typeRegistry), variadic);
+  auto ret = shared<Concept>(name, def, Context(context.typeRegistry, true), variadic);
   ret->context.deepCopyFrom(context);
   ret->params = params;
   ret->variadic = false;
@@ -1336,7 +1336,7 @@ SConcept Concept::expand(SType from, vector<SType> newParams, ErrorBuffer& error
 }
 
 SConcept Concept::replace(SType from, SType to, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name, def, Context(context.typeRegistry), variadic);
+  auto ret = shared<Concept>(name, def, Context(context.typeRegistry, true), variadic);
   ret->context.deepCopyFrom(context);
   ret->params = params;
   ret->variadic = variadic;

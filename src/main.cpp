@@ -126,7 +126,7 @@ int main(int argc, char* argv[]) {
     auto ast = getOrCompileError(astCache.getAST(path));
     if (builtInModule)
       importCache.setBuiltIn();
-    auto context = primaryContext.getChild();
+    auto context = primaryContext.getChild(true);
     auto imported = getOrCompileError(correctness(path, *ast, context, primaryContext, importCache, builtInModule));
     if (builtInModule)
       importCache.popBuiltIn();

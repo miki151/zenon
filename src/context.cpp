@@ -3,10 +3,16 @@
 #include "type.h"
 #include "type_registry.h"
 
-Context Context::getChild() const {
-  Context ret(typeRegistry);
+Context Context::getChild(bool isTopLevel) const {
+  Context ret(typeRegistry, isTopLevel);
   ret.parentStates = parentStates;
   ret.parentStates.push_back(state);
+  return ret;
+}
+
+Context Context::getTopLevel() const {
+  auto ret = getChild();
+  ret.parentStates = ret.parentStates.filter([](auto& state) { return state->isTopLevel; } );
   return ret;
 }
 
@@ -22,7 +28,8 @@ void Context::merge(const Context& context) {
     parentStates.push_back(context.state);
 }
 
-Context::Context(TypeRegistry* t) : typeRegistry(t), state(shared<State>()) {
+Context::Context(TypeRegistry* t, bool isTopLevel) : typeRegistry(t), state(shared<State>()) {
+  state->isTopLevel = isTopLevel;
 }
 
 void Context::State::merge(const Context::State& o) {
@@ -128,12 +135,6 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
               ", required by concept: " + quote(required.getName());
       }
   }
-  return ret;
-}
-
-Context Context::withStates(TypeRegistry* t, ConstStates states) {
-  Context ret(t);
-  ret.parentStates = std::move(states);
   return ret;
 }
 
@@ -383,7 +384,7 @@ optional<pair<string, SType> > Context::getUnexpandedVariablePack() const {
 }
 
 void Context::addType(const string& name, SType t) {
-  //CHECK(!getType(name));
+  CHECK(!getType(name) || !isFullyDefined(getType(name).get().get())) << name;
   state->types.insert({name, t});
   state->typesSet.insert(t.get());
 }
@@ -543,7 +544,7 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
     auto templateArgs = TRY(getTypeList(id.parts[0].templateArguments, variadicParams));
     if (variadicParams)
       return id.codeLoc.getError("Type " + quote(name) + " is not a variadic template");
-    return topType->instantiate(*this, templateArgs, id.codeLoc);
+    return topType->instantiate(getTopLevel(), templateArgs, id.codeLoc);
   }();
   if (ret)
     for (auto& elem : id.typeOperator) {

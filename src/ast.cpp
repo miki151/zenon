@@ -1252,11 +1252,12 @@ void FunctionDefinition::addParamsToContext(Context& context, const FunctionInfo
 
 JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& requirements,
     StatementBlock& myBody, const FunctionInfo& instanceInfo, vector<unique_ptr<Statement>>& destructorCalls) const {
-  auto bodyContext = definitionContext->getChild();
+  auto requirementsContext = definitionContext->getChild(true);
   for (auto& f : requirements) {
-    if (!contains(bodyContext.getFunctions(f->id), f->getParent()))
-      CHECK(bodyContext.addFunction(f));
+    if (!contains(requirementsContext.getFunctions(f->id), f->getParent()))
+      CHECK(requirementsContext.addFunction(f));
   }
+  auto bodyContext = requirementsContext.getChild();
   addParamsToContext(bodyContext, instanceInfo);
   vector<SType> templateParams;
 //  std::cout << "Checking " << instanceInfo.prettyString() << std::endl;
@@ -1393,7 +1394,7 @@ void FunctionDefinition::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) c
 
 static void addBuiltInConcepts(Context& context) {
   auto addType = [&context](const char* name, SType type) {
-    shared_ptr<Concept> concept = shared<Concept>(name, nullptr, Context(context.typeRegistry), false);
+    shared_ptr<Concept> concept = shared<Concept>(name, nullptr, Context(context.typeRegistry, true), false);
     concept->modParams().push_back(shared<TemplateParameterType>(type, "T", CodeLoc()));
     context.addConcept(name, concept);
   };
@@ -1403,7 +1404,7 @@ static void addBuiltInConcepts(Context& context) {
 }
 
 Context createPrimaryContext(TypeRegistry* typeRegistry) {
-  Context context(typeRegistry);
+  Context context(typeRegistry, true);
   for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE, BuiltinType::BOOL,
        BuiltinType::VOID, BuiltinType::CHAR, BuiltinType::STRING, BuiltinType::NULL_TYPE})
     context.addType(type->getName(), type);
@@ -1508,7 +1509,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
 static JustError<ErrorLoc> addExportedContext(const Context& primaryContext, ImportCache& cache, AST& ast,
     const string& path, bool isBuiltIn) {
   cache.pushCurrentImport(path, isBuiltIn);
-  auto importContext = primaryContext.getChild();
+  auto importContext = primaryContext.getChild(true);
   for (auto& elem : ast.elems) {
     if (elem->exported) {
       TRY(elem->addToContext(importContext, cache, primaryContext));
@@ -1608,18 +1609,20 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
       context.addExpandedTypePack(templateArgs->back()->getName(), expanded);
     if (variadicCall)
       context.addExpandedVariablePack(callContext.getUnexpandedVariablePack()->first, expanded);
+    auto funContext = Context(context.typeRegistry, true);
     for (auto& e : expanded)
-    for (auto& fun : callContext.getAllFunctions())
-      if (!!fun->type.concept) {
-        ErrorBuffer errors;
-        auto replaced = fun;
-        auto from = callContext.getUnexpandedTypePack()->second;
-//          std::cout << "Replacing in " << replaced->prettyString() << " from " << from->getName() << " to " << e->getName() << std::endl;
-          replaced = replaceInFunction(replaced, from, e, errors);
-        if (errors.empty() && replaced != fun)
-          ignore(context.addFunction(replaced));
-        CHECK(errors.empty()); // not sure if any errors should appear here, so checking just in case
-      }
+      for (auto& fun : callContext.getAllFunctions())
+        if (!!fun->type.concept) {
+          ErrorBuffer errors;
+          auto replaced = fun;
+          auto from = callContext.getUnexpandedTypePack()->second;
+  //          std::cout << "Replacing in " << replaced->prettyString() << " from " << from->getName() << " to " << e->getName() << std::endl;
+            replaced = replaceInFunction(replaced, from, e, errors);
+          if (errors.empty() && replaced != fun)
+            ignore(funContext.addFunction(replaced));
+          CHECK(errors.empty()); // not sure if any errors should appear here, so checking just in case
+        }
+    context.merge(funContext);
     auto type = TRY(call->getTypeImpl(context));
     if (!!returnType && returnType != type)
       return codeLoc.getError("Return type mismatch between called functions in variadic function call");
@@ -2347,7 +2350,7 @@ void ConceptDefinition::addFatPointer(ConceptDefinition::FatPointerInfo info, sh
 }
 
 JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
-  auto concept = shared<Concept>(name, this, Context(context.typeRegistry), templateInfo.variadic);
+  auto concept = shared<Concept>(name, this, Context(context.typeRegistry, true), templateInfo.variadic);
   auto declarationsContext = context.getChild();
   for (int i = 0; i < templateInfo.params.size(); ++i) {
     auto& param = templateInfo.params[i];

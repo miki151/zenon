@@ -23,9 +23,10 @@ struct LambdaCapture;
 
 class Context : public owned_object<Context> {
   public:
-  Context getChild() const;
+  Context getChild(bool isTopLevel = false) const;
+  Context getTopLevel() const;
   void merge(const Context&);
-  Context(TypeRegistry*);
+  Context(TypeRegistry*, bool isTopLevel = false);
   Context(const Context&) = delete;
   Context(Context&&) = default;
   void operator = (const Context&) = delete;
@@ -121,12 +122,12 @@ class Context : public owned_object<Context> {
     LambdaCaptureInfo* lambdaInfo;
     vector<SubstitutionInfo> substitutions;
     unordered_set<string> nonMovableVars;
+    bool isTopLevel = false;
     void merge(const State&);
     void print() const;
   };
 
   using ConstStates = vector<shared_ptr<const State>>;
-  static Context withStates(TypeRegistry*, ConstStates);
 
   WithErrorLine<vector<SType> > getTypeList(const vector<TemplateParameterInfo>&, bool variadic) const;
   vector<SFunctionInfo> getFunctions(FunctionId) const;
