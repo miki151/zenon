@@ -889,7 +889,7 @@ void ConceptDefinition::codegen(Accu& accu, CodegenStage stage) const {
           }
           ErrorBuffer errors;
           for (auto fun : functions) {
-            fun = replaceInFunction(fun, conceptType->concept->getParams()[0], conceptType, errors);
+            fun = replaceInFunction(conceptType->concept->getContext(), fun, conceptType->concept->getParams()[0], conceptType, errors);
             accu.newLine("inline " + fun->type.retVal->getCodegenName() + " " + fun->getMangledName() + "(");
             auto getArgName = [](int i) { return "_arg" + to_string(i); };
             string virtualArg;

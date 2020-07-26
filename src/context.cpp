@@ -51,7 +51,7 @@ bool Context::areParamsEquivalent(FunctionType f1, FunctionType f2) const {
   for (int i = 0; i < f1.templateParams.size(); ++i) {
     auto tParam = f2.templateParams[i];
     ErrorBuffer errors;
-    f2 = replaceInFunction(std::move(f2), std::move(tParam), f1.templateParams[i], errors);
+    f2 = replaceInFunction(*this, std::move(f2), std::move(tParam), f1.templateParams[i], errors);
     if (!errors.empty())
       return false;
   }
@@ -277,13 +277,13 @@ void Context::replace(SType from, SType to, ErrorBuffer& errors) {
   for (auto& function : state->functions) {
     for (auto& overload : function.second) {
       //std::cout << "Replaced " << overload->prettyString() << std::endl;
-      overload = replaceInFunction(overload, from, to, errors);
+      overload = replaceInFunction(*this, overload, from, to, errors);
       //std::cout << "To " << overload->prettyString() << std::endl;
     }
   }
   state->typesSet.clear();
   for (auto& type : state->types) {
-    type.second = type.second->replace(from, to, errors);
+    type.second = type.second->replace(*this, from, to, errors);
     state->typesSet.insert(type.second.get());
   }
 }
@@ -448,8 +448,8 @@ void Context::addConcept(const string& name, SConcept i) {
     for (auto& fun : i->getContext().getAllFunctions()) {
       auto typeParams = i->getParams().getSubsequence(1);
       CHECK(!!addFunction(addTemplateParams(
-            replaceInFunction(fun, i->getParams()[0], ConceptType::get(i, typeParams, i->isVariadic()), errors),
-            typeParams, i->isVariadic())));
+          replaceInFunction(*this, fun, i->getParams()[0], ConceptType::get(i, typeParams, i->isVariadic()), errors),
+          typeParams, i->isVariadic())));
     }
     CHECK(errors.empty());
   }

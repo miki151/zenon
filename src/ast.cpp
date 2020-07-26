@@ -1322,10 +1322,11 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
     TRY(applyRequirements(paramsContext, templateInfo));
     ErrorBuffer errors;
     for (int i = 0; i < newParams.size(); ++i) {
-      thisFunctionInfo = replaceInFunction(thisFunctionInfo, functionInfo->type.templateParams[i], newParams[i],
-        errors);
+      thisFunctionInfo = replaceInFunction(paramsContext, thisFunctionInfo,
+        functionInfo->type.templateParams[i], newParams[i], errors);
     }
-    CHECK(errors.empty());
+    if (!errors.empty())
+      return codeLoc.getError(errors[0]);
     TRY(checkForIncompleteTypes(paramsContext));
     // For checking the template we use the Context that includes the template params.
     definitionContext.emplace(paramsContext.getChild());
@@ -1370,7 +1371,7 @@ JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCac
           return codeLoc.getError("Template parameters of destructor function must match destructed type");
       ErrorBuffer errors;
       for (int i = 0; i < structType->parent->templateParams.size(); ++i)
-        adjusted = replaceInFunction(adjusted, functionInfo->type.templateParams[i],
+        adjusted = replaceInFunction(context, adjusted, functionInfo->type.templateParams[i],
             structType->parent->templateParams[i], errors);
       CHECK(errors.empty());
       if (structType->parent->destructor && structType->parent->destructor != adjusted)
@@ -1617,7 +1618,7 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
           auto replaced = fun;
           auto from = callContext.getUnexpandedTypePack()->second;
   //          std::cout << "Replacing in " << replaced->prettyString() << " from " << from->getName() << " to " << e->getName() << std::endl;
-            replaced = replaceInFunction(replaced, from, e, errors);
+            replaced = replaceInFunction(funContext, replaced, from, e, errors);
           if (errors.empty() && replaced != fun)
             ignore(funContext.addFunction(replaced));
           CHECK(errors.empty()); // not sure if any errors should appear here, so checking just in case
@@ -1916,7 +1917,7 @@ JustError<ErrorLoc> UnionDefinition::check(Context& context, bool) {
   for (auto& param : type->templateParams)
     bodyContext.addType(param->getName(), param);
   CHECK(!!applyRequirements(bodyContext, templateInfo));
-  type->updateInstantations();
+  type->updateInstantations(context);
   return success;
 }
 
@@ -1972,7 +1973,7 @@ JustError<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) 
   auto methodBodyContext = context.getChild();
   addTemplateParams(methodBodyContext, type->templateParams, false);
   CHECK(!!applyRequirements(methodBodyContext, templateInfo));
-  type->updateInstantations();
+  type->updateInstantations(context);
   TRY(type->getSizeError(context).addCodeLoc(codeLoc));
   if (exported && type->destructor && !type->destructor->getDefinition()->exported)
     return type->destructor->getDefinition()->codeLoc.getError(
