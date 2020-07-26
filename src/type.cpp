@@ -211,7 +211,7 @@ FunctionType FunctionType::setBuiltin() {
 }
 
 SFunctionInfo FunctionInfo::getDefined(FunctionId id, FunctionType type, FunctionDefinition* definition) {
-  auto args = make_tuple(id, type, definition->codeLoc);
+  auto args = make_tuple(id, type, definition);
   static map<decltype(args), SFunctionInfo> generated;
   if (!generated.count(args)) {
     generated.insert(make_pair(args, shared<FunctionInfo>(Private{}, id, type, definition)));
