@@ -296,7 +296,7 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
         auto identifier = TRY(parseIdentifier(tokens, false));
         if (tokens.peek() == Keyword::OPEN_BRACKET)
           return cast<Expression>(TRY(parseFunctionCall(identifier, tokens)));
-        else if (tokens.peek() == Keyword::ELLIPSIS) {
+        else if (tokens.peek() == Keyword::ELLIPSIS && tokens.peekNext() == Keyword::OPEN_SQUARE_BRACKET) {
           tokens.popNext();
           TRY(tokens.eat(Keyword::OPEN_SQUARE_BRACKET));
           auto expr = TRY(parseExpression(tokens));

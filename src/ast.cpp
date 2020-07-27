@@ -1601,23 +1601,23 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
     return success;
   nullable<SType> returnType;
   vector<SType> expanded;
-  vector<string> expandedVars;
+  vector<SType> expandedArgs;
   unordered_set<FunctionInfo*> allCalls;
+  auto typePack = callContext.getUnexpandedTypePack()->second;
   while (true) {
     auto call = cast<FunctionCall>(deepCopy());
     auto context = callContext.getChild();
     if (variadicTemplateCall)
       context.addExpandedTypePack(templateArgs->back()->getName(), expanded);
     if (variadicCall)
-      context.addExpandedVariablePack(callContext.getUnexpandedVariablePack()->first, expanded);
+      context.addExpandedVariablePack(callContext.getUnexpandedVariablePack()->first, expandedArgs);
     auto funContext = Context(context.typeRegistry, true);
+    ErrorBuffer errors;
     for (auto& e : expanded)
       for (auto& fun : callContext.getAllFunctions())
         if (!!fun->type.concept) {
-          ErrorBuffer errors;
           auto replaced = fun;
           auto from = callContext.getUnexpandedTypePack()->second;
-  //          std::cout << "Replacing in " << replaced->prettyString() << " from " << from->getName() << " to " << e->getName() << std::endl;
             replaced = replaceInFunction(funContext, replaced, from, e, errors);
           if (errors.empty() && replaced != fun)
             ignore(funContext.addFunction(replaced));
@@ -1629,8 +1629,10 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
       return codeLoc.getError("Return type mismatch between called functions in variadic function call");
     returnType = type;
     expanded.push_back(shared<TemplateParameterType>(getExpandedParamName(
-        callContext.getUnexpandedTypePack()->second->getName(), expanded.size()), codeLoc));
-    //std::cout << "Calling " << call->functionInfo->prettyString() << std::endl;
+        typePack->getName(), expanded.size()), codeLoc));
+    if (auto variablePack = callContext.getUnexpandedVariablePack())
+      expandedArgs.push_back(variablePack->second->replace(callContext, typePack, expanded.back(), errors));
+    CHECK(errors.empty());
     auto target = call->functionInfo->getParent();
     if (allCalls.count(target.get()))
       break;
@@ -1638,21 +1640,6 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
   }
   return success;
 }
-
-/*// Check if we found a function that we can call with any arguments / template arguments expansion.
-// The condition might have to be improved if some corner cases fail
-expanded.push_back(shared<TemplateParameterType>(getExpandedParamName(
-    callContext.getUnexpandedTypePack()->getName(), expanded.size()), codeLoc));
-// Go through all functions coming from a concept and try to expand them from the current type pack into 'expanded'.
-// Otherwise one of the types in 'expanded' might fail a requirement in the checked call
-if (variablePack) {
-  expandedVars.push_back(getExpandedParamName("SomeVar", expanded.size()));
-  ErrorBuffer errors;
-  context.addVariable(expandedVars.back(),
-      variablePack->type->replace(callContext.getUnexpandedTypePack().get(), expanded.back(), errors), codeLoc);
-  if (!errors.empty())
-    return codeLoc.getError(errors[0]);
-}*/
 
 JustError<ErrorLoc> FunctionCall::considerLambdaCall(const Context& context) {
   if (auto var = identifier.asBasicIdentifier()) {
