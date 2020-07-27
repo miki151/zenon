@@ -1442,32 +1442,32 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionType(BuiltinType::BOOL, {{BuiltinType::ANY_TYPE}, {BuiltinType::ANY_TYPE}}, {}).setBuiltin()));
   addBuiltInConcepts(context);
   context.addBuiltInFunction("enum_count", BuiltinType::INT, {SType(BuiltinType::ENUM_TYPE)},
-      [](vector<SType> args) -> WithError<SType> {
+      [](const Context&, vector<SType> args) -> WithError<SType> {
         if (auto enumType = args[0].dynamicCast<EnumType>())
           return (SType) CompileTimeValue::get((int) enumType->elements.size());
         else
           fail();
       });
   context.addBuiltInFunction("struct_count", BuiltinType::INT, {SType(BuiltinType::STRUCT_TYPE)},
-      [](vector<SType> args) -> WithError<SType> {
+      [](const Context&, vector<SType> args) -> WithError<SType> {
         if (auto structType = args[0].dynamicCast<StructType>())
           return (SType) CompileTimeValue::get((int) structType->members.size());
         else
           fail();
       });
   context.addBuiltInFunction("union_count", BuiltinType::INT, {SType(BuiltinType::UNION_TYPE)},
-      [](vector<SType> args) -> WithError<SType> {
+      [](const Context&, vector<SType> args) -> WithError<SType> {
         if (auto structType = args[0].dynamicCast<StructType>())
           return (SType) CompileTimeValue::get((int) structType->alternatives.size());
         else
           fail();
       });
   context.addBuiltInFunction("get_name", BuiltinType::STRING, {SType(BuiltinType::ANY_TYPE)},
-      [](vector<SType> args) -> WithError<SType> {
+      [](const Context&, vector<SType> args) -> WithError<SType> {
         return (SType) CompileTimeValue::get(args[0]->getName());
       });
   context.addBuiltInFunction("get_member_name", BuiltinType::STRING, {SType(BuiltinType::STRUCT_TYPE), SType(BuiltinType::INT)},
-      [](vector<SType> args) -> WithError<SType> {
+      [](const Context&, vector<SType> args) -> WithError<SType> {
         if (auto structType = args[0].dynamicCast<StructType>())
           if (auto value = args[1].dynamicCast<CompileTimeValue>())
             if (auto intValue = value->value.getReferenceMaybe<int>()) {
@@ -1478,7 +1478,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
         fail();
       });
   context.addBuiltInFunction("get_alternative_name", BuiltinType::STRING, {SType(BuiltinType::UNION_TYPE), SType(BuiltinType::INT)},
-      [](vector<SType> args) -> WithError<SType> {
+      [](const Context&, vector<SType> args) -> WithError<SType> {
         if (auto structType = args[0].dynamicCast<StructType>())
           if (auto value = args[1].dynamicCast<CompileTimeValue>())
             if (auto intValue = value->value.getReferenceMaybe<int>()) {
@@ -1489,7 +1489,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
         fail();
       });
   context.addBuiltInFunction("string_length", BuiltinType::INT, {SType(BuiltinType::STRING)},
-      [](vector<SType> args) -> WithError<SType> {
+      [](const Context&, vector<SType> args) -> WithError<SType> {
         if (auto value = args[0].dynamicCast<CompileTimeValue>())
           if (auto s = value->value.getReferenceMaybe<string>())
             return (SType) CompileTimeValue::get((int) s->size());
@@ -1497,7 +1497,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
       });
   context.addBuiltInFunction("enum_strings", ArrayType::get(BuiltinType::STRING, CompileTimeValue::get(0)),
           {SType(BuiltinType::ENUM_TYPE)},
-      [](vector<SType> args) -> WithError<SType> {
+      [](const Context&, vector<SType> args) -> WithError<SType> {
         auto enumType = args[0].dynamicCast<EnumType>();
         vector<SCompileTimeValue> values;
         for (auto& elem : enumType->elements)

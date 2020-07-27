@@ -70,7 +70,7 @@ class Context : public owned_object<Context> {
   NODISCARD JustError<string> addFunction(SFunctionInfo);
   WithError<vector<SFunctionInfo>> getFunctionTemplate(IdentifierInfo) const;
   WithEvalError<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
-  using BuiltInFunction = function<WithError<SType>(vector<SType>)>;
+  using BuiltInFunction = function<WithError<SType>(const Context&, vector<SType>)>;
   void addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction);
   vector<SFunctionInfo> getOperatorType(Operator) const;
   nullable<SFunctionInfo> getBuiltinOperator(Operator, vector<SType> argTypes) const;
@@ -95,7 +95,8 @@ class Context : public owned_object<Context> {
     vector<SType> argTypes;
     SType returnType;
     BuiltInFunction fun;
-    WithEvalError<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
+    WithEvalError<SType> invokeFunction(const Context&, const string& id, CodeLoc loc, vector<SType> args,
+        vector<CodeLoc> argLoc) const;
   };
 
   struct VariableInfo {

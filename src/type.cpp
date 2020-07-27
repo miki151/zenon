@@ -754,8 +754,8 @@ SType Type::replaceImpl(const Context& context, SType from, SType to, ErrorBuffe
   return transform([&](const Type* t) { return t->replace(context, from, to, errors); });
 }
 
-SType Type::expand(SType from, vector<SType> to, ErrorBuffer& errors) const {
-  return transform([&](const Type* t) { return t->expand(from, to, errors); });
+SType Type::expand(const Context& context, SType from, vector<SType> to, ErrorBuffer& errors) const {
+  return transform([&](const Type* t) { return t->expand(context, from, to, errors); });
 }
 
 SType Type::getType() const {
@@ -859,10 +859,10 @@ SType StructType::replaceImpl(const Context& context, SType from, SType to, Erro
   return std::move(ret);
 }
 
-SType StructType::expand(SType pack, vector<SType> to, ErrorBuffer& errors) const {
+SType StructType::expand(const Context& context, SType pack, vector<SType> to, ErrorBuffer& errors) const {
   vector<SType> newTemplateParams;
   for (auto& param : templateParams)
-    newTemplateParams.push_back(param->expand(pack, to, errors));
+    newTemplateParams.push_back(param->expand(context, pack, to, errors));
   auto ret = parent->getInstance(newTemplateParams);
   // This is how we check if instantiate gave us a new type to fill
   if (ret->templateParams != newTemplateParams) {
@@ -872,12 +872,12 @@ SType StructType::expand(SType pack, vector<SType> to, ErrorBuffer& errors) cons
     ret->alternatives = alternatives;
     for (auto& alternative : ret->alternatives) {
       //checkNonVoidMember(alternative.type, to, errors);
-      alternative.type = alternative.type->expand(pack, to, errors);
+      alternative.type = alternative.type->expand(context, pack, to, errors);
     }
     ret->members = members;
     for (auto& members : ret->members) {
       //checkNonVoidMember(members.type, to, errors);
-      members.type = members.type->expand(pack, to, errors);
+      members.type = members.type->expand(context, pack, to, errors);
     }
     ret->requirements = requirements;
     /*for (auto& req : ret->requirements)
@@ -1128,7 +1128,7 @@ static JustError<ErrorLoc> expandVariadicTemplate(const Context& context, Functi
       newRequirements.push_back(requirement);
       if (auto concept = newRequirements.back().base.getReferenceMaybe<SConcept>())
         if (concept->get()->isVariadic() && concept->get()->getParams().back() == lastTemplateParam.get())
-          newRequirements.back().base = concept->get()->expand(lastTemplateParam.get(), expandedTypes, errors);
+          newRequirements.back().base = concept->get()->expand(context, lastTemplateParam.get(), expandedTypes, errors);
     } else {
       for (auto& expanded : expandedTypes)
         newRequirements.push_back(requirement.base.visit(
@@ -1143,7 +1143,7 @@ static JustError<ErrorLoc> expandVariadicTemplate(const Context& context, Functi
     }
   if (lastTemplateParam)
     for (auto& param : type.params)
-      param = param->expand(lastTemplateParam.get(), expandedTypes, errors);
+      param = param->expand(context, lastTemplateParam.get(), expandedTypes, errors);
   type.requirements = std::move(newRequirements);
   if (!errors.empty())
     return codeLoc.getError(errors.front());
@@ -1338,7 +1338,7 @@ SConcept Concept::translate(vector<SType> newParams, bool variadicParams, ErrorB
   return ret;
 }
 
-SConcept Concept::expand(SType from, vector<SType> newParams, ErrorBuffer& errors) const {
+SConcept Concept::expand(const Context&, SType from, vector<SType> newParams, ErrorBuffer& errors) const {
   auto ret = shared<Concept>(name, def, Context(context.typeRegistry, false), variadic);
   ret->context.deepCopyFrom(context);
   ret->params = params;
@@ -1458,8 +1458,8 @@ SType ArrayType::replaceImpl(const Context& context, SType from, SType to, Error
       size->replace(context, from, to, errors).dynamicCast<CompileTimeValue>());
 }
 
-SType ArrayType::expand(SType pack, vector<SType> to, ErrorBuffer& errors) const {
-  return get(underlying->expand(pack, to, errors), size);
+SType ArrayType::expand(const Context& context, SType pack, vector<SType> to, ErrorBuffer& errors) const {
+  return get(underlying->expand(context, pack, to, errors), size);
 }
 
 shared_ptr<ArrayType> ArrayType::get(SType type, SCompileTimeValue size) {
@@ -1617,7 +1617,7 @@ bool CompileTimeValue::canReplaceBy(SType t) const {
 }
 
 template <typename Fun>
-SType static compileTimeValueVisit(const CompileTimeValue& v, Fun f, ErrorBuffer& errors) {
+SType static compileTimeValueVisit(const CompileTimeValue& v, const Context& context, Fun f, ErrorBuffer& errors) {
   return v.value.visit(
       [&](const CompileTimeValue::TemplateValue& value) {
         return CompileTimeValue::getTemplateValue(f(value.type.get()), value.name);
@@ -1632,7 +1632,7 @@ SType static compileTimeValueVisit(const CompileTimeValue& v, Fun f, ErrorBuffer
         }
       },
       [&](const CompileTimeValue::TemplateFunctionCall& value) {
-        if (auto ret = value.functionInfo.invokeFunction(value.name, value.loc, ::transform(value.args,
+        if (auto ret = value.functionInfo.invokeFunction(context, value.name, value.loc, ::transform(value.args,
             [&](const SType& t){ return f(t.get()); }), value.argLoc))
           return *ret;
         else {
@@ -1645,12 +1645,13 @@ SType static compileTimeValueVisit(const CompileTimeValue& v, Fun f, ErrorBuffer
 }
 
 SType CompileTimeValue::replaceImpl(const Context& context, SType from, SType to, ErrorBuffer& errors) const {
-  return compileTimeValueVisit(*this,
+  return compileTimeValueVisit(*this, context,
       [&](const Type* type) { return type->replace(context, from, to, errors); }, errors);
 }
 
-SType CompileTimeValue::expand(SType pack, vector<SType> to, ErrorBuffer& errors) const {
-  return compileTimeValueVisit(*this, [&](const Type* type) { return type->expand(pack, to, errors); }, errors);
+SType CompileTimeValue::expand(const Context& context, SType pack, vector<SType> to, ErrorBuffer& errors) const {
+  return compileTimeValueVisit(*this, context,
+      [&](const Type* type) { return type->expand(context, pack, to, errors); }, errors);
 }
 
 string SliceType::getName(bool withTemplateArguments) const {
@@ -1922,14 +1923,14 @@ JustError<string> ConceptType::getMappingError(TypeMapping& mapping, SType argTy
   return success;
 }
 
-SType ConceptType::expand(SType pack, vector<SType> to, ErrorBuffer& errors) const {
+SType ConceptType::expand(const Context& context, SType pack, vector<SType> to, ErrorBuffer& errors) const {
   if (variadic && params.back() == pack) {
     auto p = params;
     p.pop_back();
     p.append(to);
     return get(concept, std::move(p), false);
   }
-  return Type::expand(std::move(pack), std::move(to), errors);
+  return Type::expand(context, std::move(pack), std::move(to), errors);
 }
 
 bool ConceptType::hasDestructor() const {
