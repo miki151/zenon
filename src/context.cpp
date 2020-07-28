@@ -139,37 +139,32 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
 }
 
 WithError<SType> Context::getTypeOfVariable(const string& id) const {
-  LambdaCaptureInfo* lambdaInfo = nullptr;
+  vector<LambdaCaptureInfo*> lambdas;
+  bool makeConstReference = false;
   for (auto& state : getReversedStates()) {
     if (state->vars.count(id)) {
-      if (lambdaInfo) {
+      for (auto lambdaInfo : lambdas) {
         if (auto info = lambdaInfo->find(id)) {
-          switch (info->type) {
-            case LambdaCaptureType::REFERENCE:
-              return state->vars.at(id).type;
-            case LambdaCaptureType::MOVE:
-            case LambdaCaptureType::COPY:
-            case LambdaCaptureType::IMPLICIT_COPY:
-              return (SType) ReferenceType::get(state->vars.at(id).type->removeReference());
-          }
-        } else {
-          if (auto captureType = lambdaInfo->defaultCapture) {
-            auto& varInfo = state->vars.at(id);
-            lambdaInfo->captures.push_back(LambdaCaptureInfo::Var{id, varInfo.declarationLoc, *captureType, false});
-            lambdaInfo->implicitCaptures.push_back(LambdaCapture{id, getCapturedType(varInfo.type, *captureType), *captureType});
-            return varInfo.type;
-          } else
-            return "Variable " + quote(id) + " is not captured by lambda";
-        }
-      } else
-        return state->vars.at(id).type;
+          if (info->type != LambdaCaptureType::REFERENCE)
+            makeConstReference = true;
+        } else
+        if (auto captureType = lambdaInfo->defaultCapture) {
+          auto& varInfo = state->vars.at(id);
+          lambdaInfo->captures.push_back(LambdaCaptureInfo::Var{id, varInfo.declarationLoc, *captureType, false});
+          lambdaInfo->implicitCaptures.push_back(LambdaCapture{id, getCapturedType(varInfo.type, *captureType), *captureType});
+        } else
+          return "Variable " + quote(id) + " is not captured by lambda";
+      }
+      return makeConstReference
+          ? ReferenceType::get(state->vars.at(id).type->removeReference())
+          : state->vars.at(id).type;
     }
     if (state->lambdaInfo)
-      lambdaInfo = state->lambdaInfo;
+      lambdas.push_back(state->lambdaInfo);
   }
   for (auto& state : getReversedStates())
     if (state->unexpandedVariablePack && state->unexpandedVariablePack->first == id)
-      return "Parameter pack must be unpacked using the '...' operator before being used"s;
+      return "Variable pack must be unpacked using the '...' operator"s;
   return "Variable not found: " + id;
 }
 

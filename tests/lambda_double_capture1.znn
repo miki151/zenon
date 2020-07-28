@@ -1,0 +1,6 @@
+// 2
+
+int main() {
+  const x = 2;
+  return [&] { return [&] { return x; }();}();
+}

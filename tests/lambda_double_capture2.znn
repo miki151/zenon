@@ -1,0 +1,6 @@
+// 3
+
+int main() {
+  mutable x = 2;
+  return [&] { return [&] { x = 3; return x; }();}();
+}
