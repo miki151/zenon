@@ -96,7 +96,7 @@ class Token : public variant<Number, RealNumber, IdentifierToken, Keyword, Opera
     CharToken, EofToken> {
   public:
   using variant::variant;
-  bool operator == (const Token& t) {
+  bool operator == (const Token& t) const {
     return variant::operator==(t);
   }
   string value;
@@ -106,9 +106,9 @@ class Token : public variant<Number, RealNumber, IdentifierToken, Keyword, Opera
 class Tokens {
   public:
   Tokens(vector<Token>);
-  Token peek() const;
-  Token peekNext() const;
-  Token popNext();
+  const Token& peek() const;
+  const Token& peekNext() const;
+  const Token& popNext();
   const Token& peekPrevious() const;
   bool empty() const;
   void rewind();

@@ -108,23 +108,19 @@ string getString(Token t) {
 
 Tokens::Tokens(vector<Token> d) : data(d) {}
 
-Token Tokens::peek() const {
-  CHECK(index < data.size());
+const Token& Tokens::peek() const {
   return data[index];
 }
 
-Token Tokens::peekNext() const {
-  CHECK(index < data.size() - 1);
+const Token& Tokens::peekNext() const {
   return data[index + 1];
 }
 
-Token Tokens::popNext() {
-  CHECK(index < data.size());
+const Token& Tokens::popNext() {
   return data[index++];
 }
 
 const Token& Tokens::peekPrevious() const {
-  CHECK(index > 0);
   return data[index - 1];
 }
 
@@ -146,10 +142,9 @@ void Tokens::rewind(Tokens::Bookmark b){
 }
 
 WithErrorLine<Token> Tokens::eat(Token t) {
-  auto expected = "Expected "s + quote(getString(t));
   auto token = peek();
   if (!(token == t))
-    return peek().codeLoc.getError(expected + ", got " + quote(token.value));
+    return peek().codeLoc.getError("Expected "s + quote(getString(t)) + ", got " + quote(token.value));
   return popNext();
 }
 

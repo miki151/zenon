@@ -22,7 +22,7 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
     if (!tokens.peek().contains<IdentifierToken>())
       return tokens.peek().codeLoc.getError("Expected identifier");
     ret.parts.emplace_back();
-    auto token = tokens.popNext();
+    auto& token = tokens.popNext();
     ret.codeLoc = token.codeLoc;
     ret.parts.back().name = token.value;
     auto beforeLessThan = tokens.getBookmark();
@@ -237,7 +237,7 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
 }
 
 WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
-  auto token = tokens.peek();
+  auto& token = tokens.peek();
   return token.visit(
       [&](const Keyword& k) -> WithErrorLine<unique_ptr<Expression>> {
         switch (k) {
@@ -375,7 +375,7 @@ WithErrorLine<unique_ptr<Expression>> parseFunctionCall(Tokens& tokens, unique_p
 }
 
 WithErrorLine<unique_ptr<Expression>> parseMemberAccess(Tokens& tokens, unique_ptr<Expression> lhs) {
-  auto token = tokens.popNext();
+  auto& token = tokens.popNext();
   if (token == Keyword::ARROW_MEMBER_ACCESS)
     lhs = cast<Expression>(unique<UnaryExpression>(lhs->codeLoc, Operator::POINTER_DEREFERENCE, std::move(lhs)));
   if (auto id = parseIdentifier(tokens, false)) {
@@ -398,8 +398,8 @@ WithErrorLine<unique_ptr<Expression>> parseMemberAccess(Tokens& tokens, unique_p
 WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression> lhs,
     int minPrecedence) {
   while (1) {
-    auto token = tokens.peek();
-    if (auto op1 = token.getValueMaybe<Operator>()) {
+    auto* token = &tokens.peek();
+    if (auto op1 = token->getValueMaybe<Operator>()) {
       if (getPrecedence(*op1) < minPrecedence)
         break;
       unique_ptr<Expression> mhs;
@@ -410,9 +410,9 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
       }
       auto rhs = TRY(parsePrimary(tokens));
       while (1) {
-        token = tokens.peek();
-        auto op2 = token.getValueMaybe<Operator>();
-        if (token == Keyword::OPEN_SQUARE_BRACKET)
+        token = &tokens.peek();
+        auto op2 = token->getValueMaybe<Operator>();
+        if (*token == Keyword::OPEN_SQUARE_BRACKET)
           op2 = Operator::SUBSCRIPT;
         if (op2) {
           if (getPrecedence(*op2) <= getPrecedence(*op1) &&
@@ -420,28 +420,28 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
             break;
           rhs = TRY(parseExpressionImpl(tokens, std::move(rhs), getPrecedence(*op2)));
         } else
-        if (token == Keyword::MEMBER_ACCESS || token == Keyword::ARROW_MEMBER_ACCESS)
+        if (*token == Keyword::MEMBER_ACCESS || *token == Keyword::ARROW_MEMBER_ACCESS)
           rhs = TRY(parseMemberAccess(tokens, std::move(rhs)));
-        else if (token == Keyword::OPEN_BRACKET)
+        else if (*token == Keyword::OPEN_BRACKET)
           rhs = TRY(parseFunctionCall(tokens, std::move(rhs)));
         else
           break;
       }
       if (mhs)
-        lhs = cast<Expression>(unique<TernaryExpression>(token.codeLoc, std::move(lhs), std::move(mhs), std::move(rhs)));
+        lhs = cast<Expression>(unique<TernaryExpression>(token->codeLoc, std::move(lhs), std::move(mhs), std::move(rhs)));
       else
-        lhs = BinaryExpression::get(token.codeLoc, *op1, std::move(lhs), std::move(rhs));
+        lhs = BinaryExpression::get(token->codeLoc, *op1, std::move(lhs), std::move(rhs));
     } else
-    if (token == Keyword::OPEN_SQUARE_BRACKET) {
+    if (*token == Keyword::OPEN_SQUARE_BRACKET) {
       tokens.popNext();
       auto rhs = TRY(parseExpression(tokens));
       TRY(tokens.eat(Keyword::CLOSE_SQUARE_BRACKET));
-      lhs = BinaryExpression::get(token.codeLoc, Operator::SUBSCRIPT, std::move(lhs), std::move(rhs));
+      lhs = BinaryExpression::get(token->codeLoc, Operator::SUBSCRIPT, std::move(lhs), std::move(rhs));
     } else
-    if (token == Keyword::MEMBER_ACCESS || token == Keyword::ARROW_MEMBER_ACCESS) {
+    if (*token == Keyword::MEMBER_ACCESS || *token == Keyword::ARROW_MEMBER_ACCESS) {
       lhs = TRY(parseMemberAccess(tokens, std::move(lhs)));
     } else
-    if (token == Keyword::OPEN_BRACKET)
+    if (*token == Keyword::OPEN_BRACKET)
      lhs = TRY(parseFunctionCall(tokens, std::move(lhs)));
     else
       break;
@@ -459,7 +459,7 @@ WithErrorLine<unique_ptr<StatementBlock>> parseBlock(Tokens& tokens) {
   auto openBlock = TRY(tokens.eat(Keyword::OPEN_BLOCK));
   auto block = unique<StatementBlock>(openBlock.codeLoc);
   while (1) {
-    auto token2 = tokens.peek();
+    auto& token2 = tokens.peek();
     if (token2 == Keyword::CLOSE_BLOCK) {
       tokens.popNext();
       break;
@@ -470,7 +470,7 @@ WithErrorLine<unique_ptr<StatementBlock>> parseBlock(Tokens& tokens) {
 }
 
 WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionSignature(IdentifierInfo type, Tokens& tokens) {
-  auto token2 = tokens.popNext();
+  auto& token2 = tokens.popNext();
   unique_ptr<FunctionDefinition> ret;
   if (token2 == Keyword::OPERATOR) {
     if (auto op = tokens.peek().getValueMaybe<Operator>()) {
@@ -588,7 +588,7 @@ static WithErrorLine<TemplateInfo> parseTemplateInfo(Tokens& tokens) {
 
 WithErrorLine<unique_ptr<StructDefinition>> parseStructDefinition(Tokens& tokens, bool external) {
   TRY(tokens.eat(Keyword::STRUCT));
-  auto token2 = tokens.popNext();
+  auto& token2 = tokens.popNext();
   if (!token2.contains<IdentifierToken>())
     return token2.codeLoc.getError("Expected struct name");
   auto ret = unique<StructDefinition>(token2.codeLoc, token2.value);
@@ -616,7 +616,7 @@ WithErrorLine<unique_ptr<StructDefinition>> parseStructDefinition(Tokens& tokens
 
 WithErrorLine<unique_ptr<ConceptDefinition>> parseConceptDefinition(Tokens& tokens) {
   TRY(tokens.eat(Keyword::CONCEPT));
-  auto token2 = tokens.popNext();
+  auto& token2 = tokens.popNext();
   if (!token2.contains<IdentifierToken>())
     return token2.codeLoc.getError("Expected struct name");
   auto ret = unique<ConceptDefinition>(token2.codeLoc, token2.value);
@@ -645,7 +645,7 @@ WithErrorLine<unique_ptr<ConceptDefinition>> parseConceptDefinition(Tokens& toke
 WithErrorLine<unique_ptr<ReturnStatement>> parseReturnStatement(Tokens& tokens) {
   auto returnToken = TRY(tokens.eat(Keyword::RETURN));
   auto ret = unique<ReturnStatement>(returnToken.codeLoc);
-  auto token2 = tokens.peek();
+  auto& token2 = tokens.peek();
   if (auto keyword = token2.getReferenceMaybe<Keyword>())
     if (*keyword == Keyword::SEMICOLON) {
       tokens.popNext();
@@ -685,7 +685,7 @@ WithErrorLine<unique_ptr<UnionDefinition>> parseUnionDefinition(Tokens& tokens) 
     if (memberToken == Keyword::TEMPLATE)
       templateParams = TRY(parseTemplateInfo(tokens));
     auto typeIdent = TRY(parseIdentifier(tokens, true));
-    auto token2 = tokens.popNext();
+    auto& token2 = tokens.popNext();
     if (!token2.contains<IdentifierToken>())
       return token2.codeLoc.getError("Expected name of a union member");
     ret->elements.push_back(UnionDefinition::Element{typeIdent, token2.value, token2.codeLoc});
@@ -760,7 +760,7 @@ WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) 
   TRY(tokens.eat(Keyword::OPEN_BLOCK));
   auto ret = unique<SwitchStatement>(switchToken.codeLoc, std::move(expr));
   while (1) {
-    auto token = tokens.peek();
+    auto& token = tokens.peek();
     if (token == Keyword::CLOSE_BLOCK) {
       tokens.popNext();
       break;
@@ -848,7 +848,7 @@ WithErrorLine<unique_ptr<Statement>> parseIfStatement(Tokens& tokens) {
   auto ifTrue = TRY(parseNonTopLevelStatement(tokens));
   unique_ptr<Statement> ifFalse;
   if (!tokens.empty()) {
-    auto token2 = tokens.peek();
+    auto& token2 = tokens.peek();
     if (auto k1 = token2.getReferenceMaybe<Keyword>())
       if (*k1 == Keyword::ELSE) {
         tokens.popNext();
@@ -994,7 +994,7 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
     TRY(tokens.eat(Keyword::SEMICOLON));
     return unique<ExpressionStatement>(std::move(ret));
   };
-  auto token = tokens.peek();
+  auto& token = tokens.peek();
   return token.visit(
       [](EofToken) -> WithErrorLine<unique_ptr<Statement>> {
         return unique_ptr<Statement>();
