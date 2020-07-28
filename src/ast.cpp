@@ -1173,17 +1173,24 @@ static void addTemplateParams(Context& context, vector<SType> params, bool varia
 }
 
 JustError<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) {
-  Context bodyContext = context.getChild();
-  addTemplateParams(bodyContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
-  auto res = TRY(applyRequirements(bodyContext, templateInfo));
-  if (isVirtual)
+  auto getContext = [&] () -> WithErrorLine<Context> {
+    Context bodyContext = context.getChild();
+    addTemplateParams(bodyContext, functionInfo->type.templateParams, functionInfo->type.variadicTemplate);
+    auto res = TRY(applyRequirements(bodyContext, templateInfo));
+    return std::move(bodyContext);
+  };
+  if (isVirtual) {
+    auto bodyContext = TRY(getContext());
     TRY(generateVirtualDispatchBody(bodyContext));
-  if (name == "copy"s || name == "implicit_copy"s)
+  } else
+  if (name == "copy"s || name == "implicit_copy"s) {
+    auto bodyContext = TRY(getContext());
     TRY(checkAndGenerateCopyFunction(bodyContext, name.get<string>()));
-  else
-  if (name == ConstructorTag{})
+  } else
+  if (name == ConstructorTag{}) {
+    auto bodyContext = TRY(getContext());
     TRY(checkAndGenerateDefaultConstructor(bodyContext));
-  else
+  } else
   if (isDefault)
     return codeLoc.getError("Cannot generate a default body for this function");
   return success;
