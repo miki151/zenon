@@ -1053,3 +1053,13 @@ void AttributeDefinition::codegen(Accu&, CodegenStage) const {
 void ExternalStatement::codegen(Accu& accu, CodegenStage stage) const {
   elem->codegen(accu, stage);
 }
+
+void StatementExpression::codegen(Accu& accu, CodegenStage stage) const {
+  accu.add("({");
+  for (auto& s : statements) {
+    s->codegen(accu, stage);
+    accu.add("; ");
+  }
+  value->codegen(accu, stage);
+  accu.add(";})");
+}

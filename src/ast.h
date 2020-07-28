@@ -216,6 +216,17 @@ struct VariablePackElement : Expression {
   optional<string> codegenName;
 };
 
+struct StatementExpression : Expression {
+  StatementExpression(CodeLoc, vector<unique_ptr<Statement>> statements, unique_ptr<Expression> value);
+  virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
+  virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
+  virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
+  vector<unique_ptr<Statement>> statements;
+  unique_ptr<Expression> value;
+};
+
 struct StatementBlock;
 
 struct FunctionParameter {

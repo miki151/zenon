@@ -1,0 +1,17 @@
+// 2
+
+struct X {
+  int? a;
+};
+
+X get(int a) {
+  return X(a);
+}
+
+int? f() {
+  return try get(1).a + 1;
+}
+
+int main() {
+  return f() ?? 3;
+}

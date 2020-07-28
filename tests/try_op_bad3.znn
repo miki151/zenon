@@ -1,0 +1,19 @@
+// no_compile
+
+struct X {
+  int? a;
+};
+
+X get(int a) {
+  return X(a);
+}
+
+int? f() {
+  const x = 1;
+  const ret = try get(move(x)).a + 1;
+  return ret + x;
+}
+
+int main() {
+  return f() ?? 3;
+}

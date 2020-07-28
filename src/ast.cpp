@@ -3069,3 +3069,33 @@ unique_ptr<Statement> ExternalStatement::transform(const StmtTransformFun& f1, c
 void ExternalStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
   f1(elem);
 }
+
+StatementExpression::StatementExpression(CodeLoc l, vector<unique_ptr<Statement>> s, unique_ptr<Expression> v)
+    : Expression(l), statements(std::move(s)), value(std::move(v)) {
+}
+
+WithErrorLine<SType> StatementExpression::getTypeImpl(const Context& context) {
+  auto bodyContext = context.getChild();
+  for (auto& s : statements)
+    TRY(s->check(bodyContext));
+  return TRY(getType(bodyContext, value));
+}
+
+unique_ptr<Expression> StatementExpression::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
+  return unique<StatementExpression>(codeLoc,
+      statements.transform([&](auto& s) { return s->transform(f1, f2); }),
+      value->transform(f1, f2));
+}
+
+void StatementExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  for (auto& s : statements)
+    f1(s.get());
+  f2(value.get());
+}
+
+JustError<ErrorLoc> StatementExpression::checkMoves(MoveChecker& checker) const {
+  for (auto& s : statements)
+    TRY(s->checkMoves(checker));
+  TRY(value->checkMoves(checker));
+  return success;
+}

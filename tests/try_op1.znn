@@ -1,0 +1,22 @@
+// 10
+
+string? get(int a) {
+  if (a < 0)
+    return null;
+  mutable ret = "";
+  for (i = 0; i < a; ++i)
+    ret += "x";
+  return move(ret);
+}
+
+int? getSum(int[] values) {
+  mutable res = 0;
+  for (v : values)
+    res += (try get(*v)).size();
+  return res;
+}
+
+int main() {
+  return getSum({1, 2, -1, 4}.slice())
+    ?? getSum({1, 2, 3, 4}.slice()) ?? 0;
+}

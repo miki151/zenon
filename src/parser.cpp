@@ -257,7 +257,26 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
             if (!var.contains<IdentifierToken>())
               return var.codeLoc.getError("Expected variable identifier");
             return cast<Expression>(unique<MoveExpression>(token.codeLoc, var.value));
-          } 
+          }
+          case Keyword::TRY : {
+            tokens.popNext();
+// try(expr) = ({ const x = expr; if (!x) return x.get_error(); return *move(x); })
+            auto varName = "var1234"s;
+            auto codeLoc = token.codeLoc;
+            auto varExpr = cast<Expression>(unique<Variable>(IdentifierInfo(varName, codeLoc)));
+            auto statements = makeVec<unique_ptr<Statement>>(
+                cast<Statement>(unique<VariableDeclaration>(codeLoc, none, varName, TRY(parseExpression(tokens, 10)))),
+                cast<Statement>(unique<IfStatement>(codeLoc, nullptr,
+                    cast<Expression>(unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT, varExpr->deepCopy())),
+                    cast<Statement>(unique<ReturnStatement>(codeLoc,
+                        cast<Expression>(unique<FunctionCall>(codeLoc, IdentifierInfo("get_error", codeLoc),
+                            cast<Expression>(unique<MoveExpression>(codeLoc, varName)), true)))),
+                    nullptr
+                ))
+            );
+            return cast<Expression>(unique<StatementExpression>(codeLoc, std::move(statements),
+                cast<Expression>(unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(varExpr)))));
+          }
           case Keyword::COUNTOF: {
             tokens.popNext();
             TRY(tokens.eat(Keyword::OPEN_BRACKET));

@@ -26,6 +26,11 @@ T? implicit_copy(T?* elem) {
 }
 
 export template <T>
+null_type get_error(T?* elem) {
+  return null;
+}
+
+export template <T>
 T mutable* operator * (T? mutable* elem) {
   if (!*elem)
     panic("Attempted to dereference a null value from " + get_name(T) + "?");

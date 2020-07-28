@@ -67,7 +67,8 @@ enum class Keyword {
   QUESTION_MARK,
   CAST,
   UNCHECKED,
-  ATTRIBUTE
+  ATTRIBUTE,
+  TRY
 };
 
 struct EmbedToken {

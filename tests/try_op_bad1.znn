@@ -1,0 +1,15 @@
+// no_compile
+
+struct X {
+  int a;
+};
+
+extern X? get(int a);
+
+int? f() {
+  return try get(1).a;
+}
+
+int main() {
+  return f() ?? 1;
+}
