@@ -10,7 +10,11 @@ The Zenon compiler is currently in the prototype phase, and if you’d like to t
 
     git clone https://github.com/miki151/zenon.git
 
-Zenon doesn’t have any compile-time dependencies, so just run make to build it:
+Zenon requires boost-regex. You can install it on Ubuntu with:
+
+    apt install libboost-regex-dev
+
+Now you can just run make to build it:
 
     cd zenon
     make

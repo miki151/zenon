@@ -9,15 +9,17 @@
 #include "operator.h"
 #include "util.h"
 
+static bool needsEscape(char c) {
+  return !isalpha(c) && c != '<' && c != '>';
+}
 
-static string getKeywords() {
+static string getKeywords(vector<string> all) {
   string keywords;
-  auto all = getAllKeywords();
   sort(all.begin(), all.end(), [](const string& o1, const string& o2) { return o1.size() > o2.size(); });
   for (auto& k : all) {
     for (auto& c : k) {
-      if (!isalpha(c))
-      keywords.append("\\");
+      if (needsEscape(c))
+        keywords.append("\\");
       keywords.push_back(c);
     }
     if (all_of(k.begin(), k.end(), [](char c) { return isalpha(c); }))
@@ -28,27 +30,14 @@ static string getKeywords() {
   return keywords;
 }
 
-static string getOperators() {
-  string ret;
-  auto ops = getAllOperators();
-  sort(ops.begin(), ops.end(), [](const string& o1, const string& o2) { return o1.size() > o2.size(); });
-  for (auto& k : ops) {
-    for (char c : k)
-      ret += "\\" + string(1, c);
-    ret.append("|");
-  }
-  ret.pop_back();
-  return ret;
-}
-
 WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string& eofTokenValue) {
   string idLetterFirst = "a-zA-Z@";
   string idLetter = idLetterFirst + "0-9_";
   vector<pair<string, function<optional<Token>(const string&)>>> v {
       {"//.*", [](const string&) -> optional<Token> { return none;}},
       {"/\\*[\\s\\S]*?\\*/", [](const string&) -> optional<Token> { return none;}},
-      {getKeywords(), [](const string& s) -> optional<Token> { return Token(getKeyword(s));}},
-      {getOperators(), [](const string& s) -> optional<Token> {
+      {getKeywords(getAllKeywords()), [](const string& s) -> optional<Token> { return Token(getKeyword(s));}},
+      {getKeywords(getAllOperators()), [](const string& s) -> optional<Token> {
           return Token(*getOperator(s));}},
       {"\"(?:[^\"\\\\]|\\\\.)*?\"" , [](const string&) -> optional<Token> { return Token(StringToken{}); } },
       {"'.'" , [](const string&) -> optional<Token> { return Token(CharToken{}); } },
@@ -75,8 +64,7 @@ WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string&
     reg += "(" + x.first + ")|"; // parenthesize the submatches
 
   reg.pop_back();
-
-  regex re(reg);
+  regex re(reg, boost::regex::ECMAScript | boost::regex::no_mod_s);
   auto words_begin = sregex_iterator(input.begin(), input.end(), re);
   auto words_end = sregex_iterator();
 

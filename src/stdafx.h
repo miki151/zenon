@@ -65,7 +65,7 @@
 #include <numeric>
 #include <chrono>
 #include <cstddef>
-#include <regex>
+#include <boost/regex.hpp>
 #include <experimental/filesystem>
 namespace fs = std::experimental::filesystem;
 
@@ -113,8 +113,9 @@ using std::ostringstream;
 using std::endl;
 using std::cerr;
 using std::cout;
-using std::regex;
-using std::sregex_iterator;
+using boost::regex;
+using boost::sregex_iterator;
+using boost::regex_replace;
 using std::priority_queue;
 using std::make_pair;
 using std::stack;

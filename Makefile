@@ -24,7 +24,7 @@ SRCS = $(shell ls -t src/*.cpp)
 INSTALL_DIR = $(shell pwd)
 CFLAGS += "-DINSTALL_DIR=\"$(INSTALL_DIR)\""
 
-LIBS = -L/usr/lib/x86_64-linux-gnu -lstdc++fs ${LDFLAGS}
+LIBS = -L/usr/lib/x86_64-linux-gnu -lstdc++fs -lboost_regex ${LDFLAGS}
 
 
 OBJS = $(addprefix $(OBJDIR)/,$(SRCS:.cpp=.o))

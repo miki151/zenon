@@ -142,7 +142,7 @@ WithErrorLine<unique_ptr<Expression>> parseStringLiteral(CodeLoc initialLoc, str
         //cout << "Matched \"" << it->str() << "\" with rule " << index << " at " << loc.line << ":" << loc.column << endl;
         if (index == 0) {
           addElem(unique<Constant>(loc, CompileTimeValue::get(
-              std::regex_replace(it->str(), std::regex("\\\\([\\{\\}])"), "$1"))), loc);
+              regex_replace(it->str(), regex("\\\\([\\{\\}])"), "$1"))), loc);
         } else if (index == 1) {
           loc = loc.plus(0, 2);
           auto tokens = lex(it->str().substr(1, it->str().size() - 2), loc, "end of expression").get();
