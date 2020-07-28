@@ -2965,7 +2965,7 @@ WithErrorLine<SType> FatPointerConversion::getTypeImpl(const Context& context) {
       return toType.codeLoc.getError("Cannot cast value of type " + quote(argType->getName()) + " to a mutable pointer");
     functions = TRY(getRequiredFunctionsForConceptType(context, *concept, codeLoc));
     for (auto& fun : functions)
-      fun->addInstance(context);
+      CHECK(!!fun->addInstance(context));
     concept->def->addFatPointer({argType->removePointer(), functions}, conceptType.get());
     return ret;
   } else {
@@ -2980,7 +2980,7 @@ WithErrorLine<SType> FatPointerConversion::getTypeImpl(const Context& context) {
     }
     functions = TRY(getRequiredFunctionsForConceptType(context, *concept, codeLoc));
     for (auto& fun : functions)
-      fun->addInstance(context);
+      CHECK(!!fun->addInstance(context));
     concept->def->addFatPointer({argType.get(), functions}, conceptType.get());
     return ret;
   }
