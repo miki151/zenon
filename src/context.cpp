@@ -40,8 +40,12 @@ Context Context::getChild(bool isTopLevel) const {
 }
 
 Context Context::getTopLevel() const {
-  auto ret = getChild();
-  ret.parentStates = ret.parentStates.filter([](auto& state) { return state->isTopLevel; } );
+  Context ret(typeRegistry, false);
+  for (auto& s : parentStates)
+    if (s->isTopLevel)
+      ret.parentStates.push_back(s);
+  if (state->isTopLevel)
+    ret.parentStates.push_back(state);
   return ret;
 }
 
