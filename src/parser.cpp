@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include <vector>
 #include "parser.h"
 #include "token.h"
