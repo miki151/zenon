@@ -20,6 +20,7 @@ class IdentifierType;
 class TypeRegistry;
 struct LambdaCaptureInfo;
 struct LambdaCapture;
+struct StateContainer;
 
 class Context : public owned_object<Context> {
   public:
@@ -138,10 +139,13 @@ class Context : public owned_object<Context> {
 
   private:
 
+  friend struct StateIterator;
+  friend struct StateContainer;
+
   ConstStates parentStates;
   shared_ptr<State> state;
 
-  vector<shared_ptr<const State>> getReversedStates() const;
+  StateContainer getReversedStates() const;
   nullable<SType> getVariable(const string&) const;
   vector<SFunctionInfo> getConstructorsFor(const SType&) const;
 };

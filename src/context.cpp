@@ -3,6 +3,35 @@
 #include "type.h"
 #include "type_registry.h"
 
+
+struct StateIterator {
+  const Context* context;
+  int index;
+  decltype(auto) operator ++() {
+    ++index;
+    return *this;
+  }
+  const Context::State* operator* () const {
+    if (index == 0)
+      return context->state.get();
+    return context->parentStates[context->parentStates.size() - index].get();
+  }
+  bool operator != (const StateIterator& o) {
+    return index != o.index;
+  }
+};
+
+struct StateContainer {
+  const Context* context;
+  StateIterator begin() {
+    return StateIterator { context, 0 };
+  }
+
+  StateIterator end() {
+    return StateIterator { context, context->parentStates.size() + 1 };
+  }
+};
+
 Context Context::getChild(bool isTopLevel) const {
   Context ret(typeRegistry, isTopLevel);
   ret.parentStates = parentStates;
@@ -59,7 +88,7 @@ bool Context::areParamsEquivalent(FunctionType f1, FunctionType f2) const {
 }
 
 optional<vector<SType>> Context::getTemplateParams() const {
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (!state->templateParams.empty())
       return state->templateParams;
   return none;
@@ -74,7 +103,7 @@ void Context::setTemplateInstance() {
 }
 
 bool Context::isTemplateInstance() const {
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (state->isTemplateInstance)
       return true;
   return false;
@@ -141,7 +170,7 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
 WithError<SType> Context::getTypeOfVariable(const string& id) const {
   vector<LambdaCaptureInfo*> lambdas;
   bool makeConstReference = false;
-  for (auto& state : getReversedStates()) {
+  for (auto state : getReversedStates()) {
     if (state->vars.count(id)) {
       for (auto lambdaInfo : lambdas) {
         if (auto info = lambdaInfo->find(id)) {
@@ -162,14 +191,14 @@ WithError<SType> Context::getTypeOfVariable(const string& id) const {
     if (state->lambdaInfo)
       lambdas.push_back(state->lambdaInfo);
   }
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (state->unexpandedVariablePack && state->unexpandedVariablePack->first == id)
       return "Variable pack must be unpacked using the '...' operator"s;
   return "Variable not found: " + id;
 }
 
 bool Context::isCapturedVariable(const string& id) const {
-  for (auto& state : getReversedStates()) {
+  for (auto state : getReversedStates()) {
     if (state->vars.count(id))
       return false;
     if (state->lambdaInfo)
@@ -188,7 +217,7 @@ void Context::setNonMovable(const string& variable) {
 }
 
 bool Context::isNonMovable(const string& variable) const {
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (state->nonMovableVars.count(variable))
       return true;
   return false;
@@ -209,7 +238,7 @@ void Context::State::print() const {
 }
 
 void Context::print() const {
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     state->print();
 }
 
@@ -310,7 +339,7 @@ void Context::expand(SType from, vector<SType> to, ErrorBuffer& errors) {
 }
 
 ReturnTypeChecker* Context::getReturnTypeChecker() const {
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (state->returnTypeChecker)
       return state->returnTypeChecker;
   return nullptr;
@@ -321,11 +350,8 @@ void Context::addReturnTypeChecker(ReturnTypeChecker* c) {
   state->returnTypeChecker = c;
 }
 
-vector<shared_ptr<const Context::State>> Context::getReversedStates() const {
-  vector<shared_ptr<const Context::State>> ret { state };
-  for (auto& state : reverse(parentStates))
-    ret.push_back(state);
-  return ret;
+StateContainer Context::getReversedStates() const {
+  return StateContainer{this};
 }
 
 void Context::addExpandedTypePack(const string& name, vector<SType> t) {
@@ -345,21 +371,21 @@ void Context::addExpandedVariablePack(const string& name, vector<SType> t) {
 }
 
 WithError<pair<string, vector<SType>>> Context::getExpandedVariablePack() const {
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (state->expandedVariablePack)
       return *state->expandedVariablePack;
   return "No variable pack is present in this context"s;
 }
 
 optional<pair<string, vector<SType>>> Context::getExpandedTypePack() const {
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (state->expandedTypePack)
       return state->expandedTypePack;
   return none;
 }
 
 optional<pair<string, SType> > Context::getUnexpandedTypePack() const {
-  for (auto& state : getReversedStates()) {
+  for (auto state : getReversedStates()) {
     if (state->expandedTypePack)
       return none;
     if (state->unexpandedTypePack)
@@ -369,7 +395,7 @@ optional<pair<string, SType> > Context::getUnexpandedTypePack() const {
 }
 
 optional<pair<string, SType> > Context::getUnexpandedVariablePack() const {
-  for (auto& state : getReversedStates()) {
+  for (auto state : getReversedStates()) {
     if (state->expandedVariablePack)
       return none;
     if (state->unexpandedVariablePack)
@@ -390,7 +416,7 @@ void Context::addSubstitution(SubstitutionInfo info) {
 
 vector<Context::SubstitutionInfo> Context::getSubstitutions() const {
   vector<SubstitutionInfo> ret;
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     ret.append(state->substitutions);
   return ret;
 }
@@ -451,7 +477,7 @@ void Context::addConcept(const string& name, SConcept i) {
 }
 
 nullable<SConcept> Context::getConcept(const string& name) const {
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (state->concepts.count(name))
       return state->concepts.at(name);
   return nullptr;
@@ -459,7 +485,7 @@ nullable<SConcept> Context::getConcept(const string& name) const {
 }
 
 nullable<SType> Context::getType(const string& s) const {
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (state->types.count(s))
       return state->types.at(s);
   if (typeRegistry)
@@ -470,7 +496,7 @@ nullable<SType> Context::getType(const string& s) const {
 bool Context::isFullyDefined(const Type* t) const {
   if (auto s = dynamic_cast<const StructType*>(t))
     t = s->parent.get().get();
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (state->typesSet.count(t))
       return true;
   return false;
@@ -478,7 +504,7 @@ bool Context::isFullyDefined(const Type* t) const {
 
 vector<SType> Context::getAllTypes() const {
   vector<SType> ret;
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     for (auto& type : state->types)
       ret.push_back(type.second);
   return ret;
@@ -490,7 +516,7 @@ JustError<string> Context::addImplicitFunction(FunctionId id, FunctionType type)
 
 vector<SFunctionInfo> Context::getFunctions(FunctionId name) const {
   vector<SFunctionInfo> ret;
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (state->functions.count(name))
       append(ret, state->functions.at(name));
   return ret;
@@ -498,7 +524,7 @@ vector<SFunctionInfo> Context::getFunctions(FunctionId name) const {
 
 vector<SFunctionInfo> Context::getAllFunctions() const {
   vector<SFunctionInfo> ret;
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     for (auto& overloadSet : state->functions)
       for (auto& fun : overloadSet.second)
         ret.push_back(fun);
@@ -506,7 +532,7 @@ vector<SFunctionInfo> Context::getAllFunctions() const {
 }
 
 nullable<SType> Context::getVariable(const string& name) const {
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (state->vars.count(name))
       return state->vars.at(name).type;
   return nullptr;
@@ -660,7 +686,7 @@ WithEvalError<SType> Context::BuiltInFunctionInfo::invokeFunction(const Context&
 
 WithEvalError<SType> Context::invokeFunction(const string& id, CodeLoc loc, vector<SType> args,
     vector<CodeLoc> argLoc) const {
-  for (auto& state : getReversedStates())
+  for (auto state : getReversedStates())
     if (auto f = getReferenceMaybe(state->builtInFunctions, id))
       return f->invokeFunction(*this, id, loc, args, argLoc);
   return EvalError::noEval();
