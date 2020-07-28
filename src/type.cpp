@@ -474,7 +474,7 @@ bool Type::isBuiltinCopyable(const Context& context, unique_ptr<Expression>& exp
     if (expr) {
       auto tmpContext = context.getChild();
       auto codeLoc = expr->codeLoc;
-      expr = unique<FunctionCall>(expr->codeLoc, IdentifierInfo("implicit_copy", expr->codeLoc),
+      expr = unique<FunctionCall>(codeLoc, IdentifierInfo("implicit_copy", codeLoc),
           unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false);
       auto err = expr->getTypeImpl(tmpContext);
       CHECK(!!err) << err.get_error();
