@@ -146,16 +146,14 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
     for (auto& overloads : otherState->functions)
       for (auto& function : overloads.second) {
         auto getFunction = [&]() -> optional<SFunctionInfo> {
-//          std::cout << "Looking for " << function->prettyString() << std::endl;
-          for (auto& myFun : getFunctions(overloads.first)) {
-//            std::cout << "Considering " << myFun->prettyString() << std::endl;
-            if (isGeneralization(myFun, function, existing))
-              return myFun->getWithoutRequirements();
-          }
           if (overloads.first == "invoke"s && !function->type.params.empty())
             if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
               if (isGeneralization(lambda->functionInfo.get(), function, existing))
                 return lambda->functionInfo->getWithoutRequirements();
+          for (auto& myFun : getFunctions(overloads.first)) {
+            if (isGeneralization(myFun, function, existing))
+              return myFun->getWithoutRequirements();
+          }
           return none;
         };
         if (auto res = getFunction())
