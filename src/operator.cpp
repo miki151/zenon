@@ -109,6 +109,7 @@ bool isRightAssociative(Operator op) {
   switch (op) {
     case Operator::MAYBE:
     case Operator::ASSIGNMENT:
+    case Operator::VALUE_OR:
       return true;
     default:
       return false;
