@@ -2,8 +2,8 @@
 
 import "std/io.znn";
 
-int main() {
-  const path = "tmp.txt";
+int main(string[] args) {
+  const path = args[0] + "tmp.txt";
   const t = "t";
   const n = 13;
   file_output(path).printf("{t} {n}\n");

@@ -69,7 +69,7 @@ function run_test() {
 }
 
 ALL_TESTS=`ls $WILDCARD*{.znn,/main.znn} 2> /dev/null`
-THREADS=12
+THREADS=`nproc`
 
 RUNNING=0
 for I in $ALL_TESTS; do 

@@ -3,8 +3,8 @@
 import "std/io.znn";
 import "std/math.znn";
 
-int main() {
-  const path = "tmp.txt";
+int main(string[] args) {
+  const path = args[0] + "tmp.txt";
   const t = "text";
   const n = 13;
   const d = 1.6;
