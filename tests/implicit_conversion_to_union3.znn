@@ -1,0 +1,19 @@
+// 7
+
+union X {
+  int a;
+  double b;
+};
+
+int f(X x) {
+  switch (x) {
+    case (a) { return a; }
+    case (b) { return 1; }
+  }
+}
+
+int main() {
+  X a = 5;
+  X b = 5.0;
+  return f(move(a)) + f(move(b)) * 2;
+}

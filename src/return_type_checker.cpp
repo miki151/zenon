@@ -21,10 +21,11 @@ JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, 
   else
     returnStatement = underlying;
   auto toConvert = explicitReturn.value_or([&] { return returnStatement.get();});
-  if (context.canConvert(returnType, toConvert, expr))
+  if (auto res = context.canConvert(returnType, toConvert, expr); !!res)
     return success;
   else
-    return "Can't return value of type " + quote(returnType->getName()) + " from a function returning " + toConvert->getName();
+    return "Can't return value of type " + quote(returnType->getName()) +
+        " from a function returning " + toConvert->getName() + ":\n" + res.get_error();
 }
 
 SType ReturnTypeChecker::getReturnType() const {

@@ -1,0 +1,19 @@
+// 13
+
+union X {
+  int a;
+  double b;
+  int c;
+};
+
+X get() {
+  return 5.0;
+}
+
+int main() {
+  const x = get();
+  switch (x) {
+    case (a) { return a; }
+    default { return 13; }
+  }
+}

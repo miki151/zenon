@@ -1,0 +1,18 @@
+// 5
+
+union X {
+  int a;
+  double b;
+};
+
+X get() {
+  return 5;
+}
+
+int main() {
+  const x = get();
+  switch (x) {
+    case (a) { return a; }
+    default { return 13; }
+  }
+}

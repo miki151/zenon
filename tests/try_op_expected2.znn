@@ -1,0 +1,33 @@
+// 13
+
+import "std/expected.znn";
+
+template <T>
+struct X {
+  T value;
+};
+
+template <T, U>
+expected<X<T>, U> get(T a, U? u) {
+  if (u)
+    return *move(u);
+  return X(move(a));
+}
+
+template <T>
+struct Y {
+  T value;
+};
+
+template <T, U>
+expected<Y<T>, U> getY(T a, U? u) {
+  return Y((try get(move(a), move(u))).value);
+}
+
+int main() {
+  const x = getY(5, 1.0);
+  switch (x) {
+    case (value) { return value.value; }
+    default { return 13; }
+  }
+}

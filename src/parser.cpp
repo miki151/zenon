@@ -261,7 +261,7 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
           }
           case Keyword::TRY : {
             tokens.popNext();
-// try(expr) = ({ const x = expr; if (!x) return x.get_error(); return *move(x); })
+// try(expr) = ({ const x = expr; if (!x) return move(x).get_error(); return *move(x); })
             auto varName = "var1234"s;
             auto codeLoc = token.codeLoc;
             auto varExpr = cast<Expression>(unique<Variable>(IdentifierInfo(varName, codeLoc)));
@@ -276,7 +276,8 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
                 ))
             );
             return cast<Expression>(unique<StatementExpression>(codeLoc, std::move(statements),
-                cast<Expression>(unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE, std::move(varExpr)))));
+                cast<Expression>(unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
+                    cast<Expression>(unique<MoveExpression>(codeLoc, varName))))));
           }
           case Keyword::COUNTOF: {
             tokens.popNext();

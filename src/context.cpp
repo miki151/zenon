@@ -271,8 +271,31 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
   if (fromUnderlying == toUnderlying && toUnderlying != to &&
       (!from.dynamicCast<ReferenceType>() || !to.dynamicCast<MutableReferenceType>()))
     return success;
-  if (from != fromUnderlying && to->removeReference() == fromUnderlying && fromUnderlying->isBuiltinCopyable(*this, expr))
+  if (from != fromUnderlying && to->removeReference() == fromUnderlying &&
+      fromUnderlying->isBuiltinCopyable(*this, expr))
     return success;
+  if (auto structType = toUnderlying.dynamicCast<StructType>())
+    if (!structType->alternatives.empty()) {
+      const StructType::Variable* alternative = nullptr;
+      for (auto& alt : structType->alternatives)
+        if (alt.type == fromUnderlying) {
+          if (!!alternative)
+            return "Multiple matching alternatives found in " + quote(toUnderlying->getName()) +
+                ": " + quote(alternative->name) + ", " + quote(alt.name);
+          alternative = &alt;
+        }
+      if (alternative) {
+        if (from != fromUnderlying && !fromUnderlying->isBuiltinCopyable(*this, expr))
+          return "Type " + quote(from->getName()) + " cannot be copied implicitly";
+        auto codeLoc = expr->codeLoc;
+        auto call = unique<FunctionCall>(codeLoc, IdentifierInfo("bogus", codeLoc), std::move(expr), false);
+        call->functionInfo = structType->staticContext.getFunctions(alternative->name).getOnlyElement();
+        expr = std::move(call);
+        auto err = expr->getTypeImpl(*this);
+        CHECK(!!err) << err.get_error();
+        return success;
+      }
+    }
   if (contains(getConversions(from), to) ||
       (from == BuiltinType::NULL_TYPE && to.dynamicCast<OptionalType>() &&
           to.dynamicCast<OptionalType>()->underlying != BuiltinType::NULL_TYPE))

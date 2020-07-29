@@ -1,66 +1,69 @@
 
 import "std/panic.znn";
 
-export template <T>
+export template <T, E>
 union expected {
   T value;
-  string error;
+  E error;
 };
 
-export template <T>
-bool operator !(expected<T>* v) {
-  switch (v) {
-    case (T* value) {
+export template <T, E>
+bool operator !(expected<T, E>* v) {
+  switch (*v) {
+    case (value) {
       return false;
     }
-    case (string* error) {
+    case (error) {
       return true;
     }
   }
 }
 
-export template <T>
-T* operator *(expected<T>* v) {
-  switch (v) {
-    case (T* value) {
-      return value;
+export template <T, E>
+T* operator *(expected<T, E>* v) {
+  switch (*v) {
+    case (value) {
+      return &value;
     }
-    case (string* error) {
-      panic("Expected contains error: " + *error);
+    case (error) {
+      panic("Expected contains error.");
     }
   }
 }
 
-export template <T>
-T operator *(expected<T> v) {
+export template <T, E>
+T operator *(expected<T, E> v) {
   switch (move(v)) {
-    case (T value) {
+    case (value) {
       return move(value);
     }
-    case (string error) {
-      panic(move(error));
+    case (error) {
+      panic("Expected contains error.");
     }
   }
 }
 
-export template <T>
-string get_error(expected<T>* v) {
-  switch (v) {
-    case (T* value) {
+export template <T, E> requires can_copy<E>
+E get_error(expected<T, E>* v) {
+  switch (*v) {
+    case (value) {
       panic("Expected contains valid value");
     }
-    case (string* error) {
-      return *error;
+    case (error) {
+      return error.copy();
     }
   }
 }
 
-export template <T>
-expected<T> result(mutable T v) {
-  return expected<T>::value(move(v));
+export template <T, E>
+E get_error(expected<T, E> v) {
+  switch (move(v)) {
+    case (value) {
+      panic("Expected contains valid value");
+    }
+    case (error) {
+      return move(error);
+    }
+  }
 }
 
-export template <T>
-expected<T> error(string e) {
-  return expected<T>::error(e);
-}
