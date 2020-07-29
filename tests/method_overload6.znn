@@ -1,9 +1,7 @@
-// 22
+// 21
 
 struct X {
 };
-
-X implicit_copy(X*) = default;
 
 int f(X*) { return 1; }
 int f(X) { return 2; }

@@ -1690,7 +1690,6 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
             argContext.addVariable(varName, ReferenceType::get(types->second[j]), arguments.back()->codeLoc);
             argTypes.push_back(TRY(getType(argContext, arguments.back())));
             argLocs.push_back(arguments.back()->codeLoc);
-  //          std::cout << "Function argument " << argTypes.back()->getName() << std::endl;
           }
         }
         break;
@@ -1698,7 +1697,6 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
         argTypes.push_back(TRY(getType(context, arguments[i])));
         argLocs.push_back(arguments[i]->codeLoc);
       }
-//      std::cout << "Function argument " << argTypes.back()->getName() << std::endl;
     }
     auto tryMethodCall = [&](MethodCallType thisCallType, const Type& origType) -> JustError<ErrorLoc> {
       auto res = getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argLocs, arguments);
@@ -1710,12 +1708,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
           TRY(destructorCall->addInstance(callContext));
         }
       }
-      if (res && functionInfo) {
-        error = codeLoc.getError("Ambigous method call:\nCandidate: " + functionInfo->prettyString() +
-            "\nCandidate: " + res.get()->prettyString());
-        functionInfo = nullptr;
-      } else
-        res.unpack(functionInfo, error);
+      res.unpack(functionInfo, error);
       return success;
     };
     if (methodCall) {
@@ -1723,15 +1716,15 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
       if (!leftType->removeReference().dynamicCast<PointerType>() &&
           !leftType->removeReference().dynamicCast<MutablePointerType>())
         TRY(tryMethodCall(MethodCallType::FUNCTION_AS_METHOD, *leftType));
-      argTypes[0] = leftType.dynamicCast<MutableReferenceType>()
-          ? SType(MutablePointerType::get(leftType->removeReference()))
-          : SType(PointerType::get(leftType->removeReference()));
-      TRY(tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER, *leftType));
+      if (!functionInfo) {
+        argTypes[0] = leftType.dynamicCast<MutableReferenceType>()
+            ? SType(MutablePointerType::get(leftType->removeReference()))
+            : SType(PointerType::get(leftType->removeReference()));
+        TRY(tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER, *leftType));
+      }
     } else
       getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argLocs, arguments)
           .unpack(functionInfo, error);
-//    if (functionInfo)
-//      std::cout << "Arguments \"" << joinTypeList(argTypes) << "\" " << functionInfo->prettyString() << std::endl;
   }
   if (functionInfo) {
     TRY(checkVariadicCall(callContext));
