@@ -39,10 +39,10 @@ function compile() {
   fi
 }
 
-BINARY_TMP=$(mktemp)
 
 
 function run_test() {
+  BINARY_TMP=$(mktemp)
   I=$1
   EXPECTED=`head -n 1 $I | cut -c 4-`
   echo -ne "\033[2KRunning $I"\\r
@@ -64,15 +64,23 @@ function run_test() {
     echo -e "$I: $RED Expected $EXPECTED, got $RESULT$NC"
     return
   fi
+  rm $BINARY_TMP
 #echo -e "$GREEN Success$NC"
 }
-for I in `ls $WILDCARD*.znn 2> /dev/null`; do 
-  run_test $I
+
+ALL_TESTS=`ls $WILDCARD*{.znn,/main.znn} 2> /dev/null`
+THREADS=12
+
+RUNNING=0
+for I in $ALL_TESTS; do 
+  run_test $I &
+  let "RUNNING+=1"
+  if [[ "$RUNNING" -gt "$THREADS" ]]; then
+    wait
+    RUNNING=0
+  fi
 done
 
-for I in `ls $WILDCARD*/main.znn 2> /dev/null`; do 
-  run_test $I
-done
+wait
 
 echo -ne "\033[2K"\\r
-rm $BINARY_TMP
