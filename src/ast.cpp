@@ -3094,6 +3094,8 @@ void StatementExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) 
 }
 
 JustError<ErrorLoc> StatementExpression::checkMoves(MoveChecker& checker) const {
+  checker.startBlock();
+  OnExit onExit([&]{ checker.endBlock();});
   for (auto& s : statements)
     TRY(s->checkMoves(checker));
   TRY(value->checkMoves(checker));
