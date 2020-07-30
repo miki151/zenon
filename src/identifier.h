@@ -36,7 +36,7 @@ struct IdentifierInfo {
   };
   struct Optional {
   };
-  vector<variant<PointerType, ArraySize, Slice, Optional>> typeOperator;
+  vector<variant<PointerType, ArraySize, Slice, Optional, IdentifierInfo>> typeOperator;
   CodeLoc codeLoc;
   string prettyString() const;
   bool operator == (const IdentifierInfo&) const;

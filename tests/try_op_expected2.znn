@@ -8,7 +8,7 @@ struct X {
 };
 
 template <T, U>
-expected<X<T>, U> get(T a, U? u) {
+X<T>!U get(T a, U? u) {
   if (u)
     return *move(u);
   return X(move(a));
@@ -20,7 +20,7 @@ struct Y {
 };
 
 template <T, U>
-expected<Y<T>, U> getY(T a, U? u) {
+Y<T>!U getY(T a, U? u) {
   return Y((try get(move(a), move(u))).value);
 }
 

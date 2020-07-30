@@ -626,6 +626,14 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
           },
           [&](IdentifierInfo::Optional) {
             *ret = OptionalType::get(*ret);
+          },
+          [&](const IdentifierInfo& id) {
+            auto errorType = getTypeFromString(id);
+            if (auto expected = getType("expected"))
+              ret = expected->instantiate(getTopLevel(), {*ret, errorType.get()}, id.codeLoc);
+            else
+              ret = id.codeLoc.getError("The template type \"expected\" is not available in this context. "
+                  "Try importing \"std/expected.znn\"");
           }
       );
       if (!ret)

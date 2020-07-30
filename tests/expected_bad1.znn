@@ -1,0 +1,7 @@
+// no_compile
+
+extern int!bool f();
+
+int main() {
+  return 0;
+}

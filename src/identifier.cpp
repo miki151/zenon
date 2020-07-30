@@ -50,6 +50,9 @@ string IdentifierInfo::prettyString() const {
         },
         [&](const Optional&) {
           ret.append("?");
+        },
+        [&](const IdentifierInfo& id) {
+          ret.append("!" + id.prettyString());
         }
     );
   return ret;
