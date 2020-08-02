@@ -1,5 +1,6 @@
 
-import "std/panic.znn";
+export import "std/panic.znn";
+export import "std/concepts.znn";
 
 export template <T, E>
 union expected {
@@ -21,6 +22,18 @@ bool operator !(expected<T, E>* v) {
 
 export template <T, E>
 T* operator *(expected<T, E>* v) {
+  switch (*v) {
+    case (value) {
+      return &value;
+    }
+    case (error) {
+      panic("Expected contains error.");
+    }
+  }
+}
+
+export template <T, E>
+T mutable* operator *(expected<T, E> mutable* v) {
   switch (*v) {
     case (value) {
       return &value;
@@ -65,5 +78,45 @@ E get_error(expected<T, E> v) {
       return move(error);
     }
   }
+}
+
+export template <T, U> requires can_copy<T>, can_copy<U>
+expected<T, U> copy(expected<T, U>* elem) {
+  switch (*elem) {
+    case (value) { return value.copy(); }
+    case (error) { return error.copy(); }
+  }
+}
+
+export template <T, U> requires can_implicit_copy<T>, can_implicit_copy<U>
+expected<T, U> implicit_copy(expected<T, U>* elem) {
+  switch (*elem) {
+    case (value) { return value.implicit_copy(); }
+    case (error) { return error.implicit_copy(); }
+  }
+}
+
+export template <T, U, Fun> requires can_invoke<Fun, T*>
+T* operator ?? (expected<T, U>* elem, Fun f) {
+  if (*elem)
+    return &**elem;
+  else
+    return f();
+}
+
+export template <T, U, Fun> requires can_invoke<Fun, T mutable*>
+T mutable* operator ?? (expected<T, U> mutable* elem, Fun f) {
+  if (*elem)
+    return &**elem;
+  else
+    return f();
+}
+
+export template <T, U, Fun> requires can_invoke<Fun, T>
+T operator ?? (expected<T, U> elem, Fun f) {
+  if (elem)
+    return *move(elem);
+  else
+    return f();
 }
 
