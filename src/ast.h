@@ -331,7 +331,7 @@ struct Statement : Node {
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool topLevelNotInImport = false) { return success; }
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override final;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const;
-  NODISCARD virtual bool hasReturnStatement(const Context&) const;
+  NODISCARD virtual bool hasReturnStatement() const;
   virtual void addGeneratedConstructor(Context&, const AST&) const {}
   virtual void codegen(Accu&, CodegenStage) const override {}
   virtual unique_ptr<Statement> replaceVar(string from, string to) const;
@@ -387,7 +387,7 @@ struct IfStatement : Statement {
   unique_ptr<VariableDeclaration> declaration;
   unique_ptr<Expression> condition;
   unique_ptr<Statement> ifTrue, ifFalse;
-  virtual bool hasReturnStatement(const Context&) const override;
+  virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -399,7 +399,7 @@ struct StatementBlock : Statement {
   using Statement::Statement;
   StatementBlock(CodeLoc, vector<unique_ptr<Statement>>);
   vector<unique_ptr<Statement>> elems;
-  virtual bool hasReturnStatement(const Context&) const override;
+  virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -410,7 +410,7 @@ struct StatementBlock : Statement {
 struct ExternalStatement : Statement {
   ExternalStatement(Statement*);
   Statement* elem;
-  virtual bool hasReturnStatement(const Context&) const override;
+  virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -421,7 +421,7 @@ struct ExternalStatement : Statement {
 struct UncheckedStatement : Statement {
   UncheckedStatement(CodeLoc, unique_ptr<Statement>);
   unique_ptr<Statement> elem;
-  virtual bool hasReturnStatement(const Context&) const override;
+  virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
@@ -433,7 +433,7 @@ struct ReturnStatement : Statement {
   using Statement::Statement;
   ReturnStatement(CodeLoc, unique_ptr<Expression>);
   unique_ptr<Expression> expr;
-  virtual bool hasReturnStatement(const Context&) const override;
+  virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
@@ -466,7 +466,7 @@ struct ExpressionStatement : Statement {
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
-  virtual bool hasReturnStatement(const Context&) const override;
+  virtual bool hasReturnStatement() const override;
   bool canDiscard = false;
   bool noReturnExpr = false;
 };
@@ -655,7 +655,7 @@ struct SwitchStatement : Statement {
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
   virtual void addFunctionCalls(const FunctionCallVisitFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
-  virtual bool hasReturnStatement(const Context&) const override;
+  virtual bool hasReturnStatement() const override;
 
   private:
   void codegenEnum(Accu&) const;
@@ -720,7 +720,7 @@ struct EmbedStatement : Statement {
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual bool hasReturnStatement(const Context&) const override;
+  virtual bool hasReturnStatement() const override;
 };
 
 struct AST;

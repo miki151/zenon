@@ -606,7 +606,7 @@ JustError<ErrorLoc> Statement::checkMovesImpl(MoveChecker&) const {
   return success;
 }
 
-bool Statement::hasReturnStatement(const Context&) const {
+bool Statement::hasReturnStatement() const {
   return false;
 }
 
@@ -618,16 +618,16 @@ unique_ptr<Statement> Statement::deepCopy() const {
   return transform(&identityStmt, &identityExpr);
 }
 
-bool IfStatement::hasReturnStatement(const Context& context) const {
-  return ifTrue->hasReturnStatement(context) && ifFalse && ifFalse->hasReturnStatement(context);
+bool IfStatement::hasReturnStatement() const {
+  return ifTrue->hasReturnStatement() && ifFalse && ifFalse->hasReturnStatement();
 }
 
 StatementBlock::StatementBlock(CodeLoc l, vector<unique_ptr<Statement>> e) : Statement(l), elems(std::move(e)) {
 }
 
-bool StatementBlock::hasReturnStatement(const Context& context) const {
+bool StatementBlock::hasReturnStatement() const {
   for (auto& s : elems)
-    if (s->hasReturnStatement(context))
+    if (s->hasReturnStatement())
       return true;
   return false;
 }
@@ -635,7 +635,7 @@ bool StatementBlock::hasReturnStatement(const Context& context) const {
 ReturnStatement::ReturnStatement(CodeLoc codeLoc, unique_ptr<Expression> expr)
     : Statement(codeLoc), expr(std::move(expr)) {}
 
-bool ReturnStatement::hasReturnStatement(const Context&) const {
+bool ReturnStatement::hasReturnStatement() const {
   return true;
 }
 
@@ -1286,9 +1286,9 @@ JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& r
       if (elem)
         TRY(elem->check(bodyContext));
   }
-  if (retVal == BuiltinType::NORETURN && !myBody.hasReturnStatement(bodyContext))
+  if (retVal == BuiltinType::NORETURN && !myBody.hasReturnStatement())
     return codeLoc.getError("This function should never return");
-  if (retVal != BuiltinType::VOID && !myBody.hasReturnStatement(bodyContext))
+  if (retVal != BuiltinType::VOID && !myBody.hasReturnStatement())
     return codeLoc.getError("Not all paths lead to a return statement in a function returning non-void");
   return success;
 }
@@ -1577,7 +1577,7 @@ JustError<ErrorLoc> ExpressionStatement::checkMovesImpl(MoveChecker& checker) co
   return expr->checkMoves(checker);
 }
 
-bool ExpressionStatement::hasReturnStatement(const Context& context) const {
+bool ExpressionStatement::hasReturnStatement() const {
   return noReturnExpr;
 }
 
@@ -1849,11 +1849,11 @@ void SwitchStatement::addFunctionCalls(const FunctionCallVisitFun& fun) const {
     fun(destructorCall.get());
 }
 
-bool SwitchStatement::hasReturnStatement(const Context& context) const {
+bool SwitchStatement::hasReturnStatement() const {
   for (auto& elem : caseElems)
-    if (!elem.block->hasReturnStatement(context))
+    if (!elem.block->hasReturnStatement())
       return false;
-  if (defaultBlock && !defaultBlock->hasReturnStatement(context))
+  if (defaultBlock && !defaultBlock->hasReturnStatement())
     return false;
   return true;
 }
@@ -2041,7 +2041,7 @@ unique_ptr<Statement> EmbedStatement::transform(const StmtTransformFun&, const E
   return unique<EmbedStatement>(codeLoc, value);
 }
 
-bool EmbedStatement::hasReturnStatement(const Context&) const {
+bool EmbedStatement::hasReturnStatement() const {
   return true;
 }
 
@@ -2654,7 +2654,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
     type->functionInfo = std::move(functioInfo);
   }
   TRY(checkBodyMoves());
-  if (!block->hasReturnStatement(context) && retType != BuiltinType::VOID)
+  if (!block->hasReturnStatement() && retType != BuiltinType::VOID)
     return block->codeLoc.getError("Not all paths lead to a return statement in a lambda expression returning non-void");
   type->body = cast<Statement>(unique<ExternalStatement>(block.get()));
   type->destructorCalls = getDestructorCalls(codeLoc,
@@ -3011,10 +3011,8 @@ JustError<ErrorLoc> FatPointerConversion::checkMoves(MoveChecker& c) const {
 UncheckedStatement::UncheckedStatement(CodeLoc l, unique_ptr<Statement> elem) : Statement(l), elem(std::move(elem)) {
 }
 
-bool UncheckedStatement::hasReturnStatement(const Context& context) const {
-  if (!context.getTemplateParams())
-    return elem->hasReturnStatement(context);
-  return true;
+bool UncheckedStatement::hasReturnStatement() const {
+  return elem->hasReturnStatement();
 }
 
 JustError<ErrorLoc> UncheckedStatement::check(Context& context, bool) {
@@ -3050,8 +3048,8 @@ JustError<ErrorLoc> AttributeDefinition::check(Context&, bool) {
 
 ExternalStatement::ExternalStatement(Statement* s) : Statement(s->codeLoc), elem(s) {}
 
-bool ExternalStatement::hasReturnStatement(const Context& context) const {
-  return elem->hasReturnStatement(context);
+bool ExternalStatement::hasReturnStatement() const {
+  return elem->hasReturnStatement();
 }
 
 JustError<ErrorLoc> ExternalStatement::check(Context& context, bool b) {
