@@ -946,11 +946,9 @@ static JustError<ErrorLoc> checkRequirements(const Context& context, vector<STyp
     vector<SType> templateArgs, const vector<TemplateRequirement>& requirements, CodeLoc codeLoc,
     vector<FunctionType> existing) {
   for (auto& req : requirements)
-    if (auto concept = req.base.getReferenceMaybe<SConcept>()) {
-      if (auto res = context.getRequiredFunctions(**concept, existing); !res)
-        return codeLoc.getError(res.get_error());
-    } else
-    if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
+    if (auto concept = req.base.getReferenceMaybe<SConcept>())
+      TRY(context.getRequiredFunctions(**concept, existing).addCodeLoc(codeLoc));
+    else if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
       if (expr1->get()->eval(context)->value == CompileTimeValue::get(false))
         return expr1->get()->codeLoc.getError("Predicate evaluates to false");
     }
