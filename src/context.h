@@ -135,7 +135,7 @@ class Context : public owned_object<Context> {
   vector<SFunctionInfo> getFunctions(FunctionId) const;
   vector<SFunctionInfo> getAllFunctions() const;
 
-  TypeRegistry* const typeRegistry;
+  TypeRegistry* typeRegistry;
 
   private:
 

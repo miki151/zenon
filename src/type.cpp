@@ -1796,7 +1796,7 @@ SType LambdaType::replaceImpl(const Context& context, SType from, SType to, Erro
           LambdaCapture{capture.name, capture.type->replace(context, from, to, errors), capture.captureType});
     ret->parameterNames = parameterNames;
   }
-  return ret;
+  return std::move(ret);
 }
 
 JustError<string> LambdaType::getMappingError(TypeMapping&, SType argType) const {
