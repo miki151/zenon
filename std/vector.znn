@@ -4,10 +4,6 @@ export embed {
 #include <vector>
 using std::vector;
 #include <algorithm>
-template <typename T>
-using vector_iterator = typename vector<T>::const_iterator;
-template <typename T>
-using vector_mut_iterator = typename vector<T>::iterator;
 }
 
 export import "std/concepts.znn";
@@ -26,79 +22,83 @@ export template <T>
 extern vector();
 
 export template <T>
-extern struct vector_iterator;
+struct vector_iterator {
+  T* elem;
+  int index;
+};
 
 export template <T>
-extern struct vector_mut_iterator;
+struct vector_mut_iterator {
+  T mutable* elem;
+  int index;
+};
 
 export template <T>
 vector_iterator<T> begin(vector<T>* v) {
   embed {
-    return v->begin();
+    return {&(*v)[0], 0};
   }
 }
 
 export template <T>
 vector_iterator<T> end(vector<T>* v) {
+  const size = v->size();
   embed {
-    return v->end();
+    return {&(*v)[v->size()], size};
   }
 }
 
 export template <T>
 T* operator *(vector_iterator<T>* it) {
-  embed {
-    return &**it;
-  }
+  return it->elem;
 }
 
 export template <T>
 vector_iterator<T> operator ++(vector_iterator<T> mutable* it) {
   embed {
-    return ++(*it);
+    return {++it->elem, ++it->index};
   }
 }
 
 export template <T>
 bool operator == (vector_iterator<T>* it1, vector_iterator<T>* it2) {
   embed {
-    return *it1 == *it2;
+    return it1->elem == it2->elem;
   }
 }
 
 export template <T>
 vector_mut_iterator<T> begin(vector<T> mutable* v) {
   embed {
-    return v->begin();
+    return {&(*v)[0], 0};
   }
 }
 
 export template <T>
 vector_mut_iterator<T> end(vector<T> mutable* v) {
+  const size = v->size();
   embed {
-    return v->end();
+    return {&(*v)[v->size()], size};
   }
 }
 
 
 export template <T>
 T mutable* operator *(vector_mut_iterator<T>* it) {
-  embed {
-    return &**it;
-  }
+  return it->elem;
 }
 
 export template <T>
 vector_mut_iterator<T> operator ++(vector_mut_iterator<T> mutable* it) {
   embed {
-    return ++(*it);
+    return {++it->elem, ++it->index};
   }
 }
 
 export template <T>
 bool operator == (vector_mut_iterator<T>* it1, vector_mut_iterator<T>* it2) {
   embed {
-    return *it1 == *it2;
+    return it1->elem == it2->elem;
   }
 }
 
@@ -108,6 +108,15 @@ void push_back(vector<T> mutable* v, T elem) {
     v->push_back(std::move(elem));
   }
   set_moved_in_embed(move(elem));
+}
+
+export template <T>
+T pop_back(vector<T> mutable* v) {
+  embed {
+    T t = std::move(v->back());
+    v->pop_back();
+    return std::move(t);
+  }
 }
 
 export template <T>

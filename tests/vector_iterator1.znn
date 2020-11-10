@@ -1,0 +1,14 @@
+// 55
+
+import "std/vector.znn";
+import "std/range.znn";
+
+int main() {
+  mutable a = vector<int>();
+  for (i : range(1, 6))
+    a.push_back(i);
+  mutable res = 0;
+  for (it : a)
+    res += (it.index + 1) * *it;
+  return res;
+}
