@@ -34,7 +34,7 @@ class Context : public owned_object<Context> {
   Context& operator = (Context&&) = default;
   void deepCopyFrom(const Context&);
   WithError<vector<SFunctionInfo>> getRequiredFunctions(const Concept&, vector<FunctionType> existing) const;
-  bool isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
+  nullable<SFunctionInfo> isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
       vector<FunctionType> existing = {}) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;

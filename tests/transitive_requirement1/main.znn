@@ -1,0 +1,16 @@
+// 11
+
+import "input2.znn";
+
+struct X {
+  int a;
+};
+
+int g(X* x) {
+  return x->a;
+}
+
+int main() {
+  const x = X(5);
+  return u(&x);
+}

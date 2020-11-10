@@ -1,0 +1,21 @@
+// 5
+
+export template <T>
+concept F {
+  int f(T*);
+};
+
+export template <T>
+concept G {
+  int g(T*);
+};
+
+export template <T> requires G<T>
+int f(T* t) {
+  return 2 * g(t);
+}
+
+export template <T> requires F<T>
+int u(T* t) {
+  return f(t) + 1;
+}

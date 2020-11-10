@@ -1122,15 +1122,26 @@ static vector<unique_ptr<Statement>> getDestructorCalls(CodeLoc codeLoc, const v
   return ret;
 }
 
+static JustError<string> addRequirements(const Context& context, vector<SFunctionInfo>& requirements,
+    const FunctionInfo& instance, int depth) {
+  if (depth <= 0)
+     return success;
+  for (auto& req : instance.type.requirements)
+    if (auto concept = req.base.getValueMaybe<SConcept>())
+      for (auto& r : TRY(context.getRequiredFunctions(**concept, {}))) {
+        requirements.push_back(r->getParent());
+        TRY(addRequirements(context, requirements, *r, depth - 1));
+      }
+  return success;
+}
+
 JustError<ErrorLoc> FunctionDefinition::addInstance(const Context* callContext, const SFunctionInfo& instance) {
   if (callContext && callContext->getTemplateParams())
     return success;
   wasUsed = true;
   vector<SFunctionInfo> requirements;
-  for (auto& req : instance->type.requirements)
-    if (auto concept = req.base.getValueMaybe<SConcept>())
-      append(requirements, TRY((callContext ? callContext : &*definitionContext)
-          ->getRequiredFunctions(**concept, {}).addCodeLoc(codeLoc)));
+  TRY(addRequirements(*(callContext ? callContext : &*definitionContext), requirements, *instance, 50)
+      .addCodeLoc(codeLoc));
   for (auto& fun : requirements)
     if (!!fun->type.concept)
       return success;

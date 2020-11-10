@@ -1,0 +1,10 @@
+// 36
+
+int main() {
+  const a = array_repeat<3>(array_repeat<3>(2));
+  mutable res = 0;
+  for (row : a)
+    for (col : *row)
+      res += *col * (row.index + col.index);
+  return res;
+}

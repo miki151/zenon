@@ -128,15 +128,15 @@ void Context::setLambda(LambdaCaptureInfo* info) {
   state->lambdaInfo = info;
 }
 
-bool Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
+nullable<SFunctionInfo> Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
     vector<FunctionType> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
   if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, specific->type.params,
       vector<CodeLoc>(specific->type.params.size(), CodeLoc()), existing)) {
     if (specific->type.retVal == inst.get()->type.retVal)
-      return true;
+      return *inst;
   }
-  return false;
+  return nullptr;
 }
 
 WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& required,
@@ -149,10 +149,10 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
           if (overloads.first == "invoke"s && !function->type.params.empty())
             if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
               if (isGeneralization(lambda->functionInfo.get(), function, existing))
-                return lambda->functionInfo->getWithoutRequirements();
+                return lambda->functionInfo.get();
           for (auto& myFun : getFunctions(overloads.first)) {
-            if (isGeneralization(myFun, function, existing))
-              return myFun->getWithoutRequirements();
+            if (auto gen = isGeneralization(myFun, function, existing))
+              return gen.get();
           }
           return none;
         };
