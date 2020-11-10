@@ -181,6 +181,16 @@ vector<T> copy(vector<T>* v) {
   return move(ret);
 }
 
+export template <T> requires comparable<T>
+bool operator == (vector<T>* v1, vector<T>* v2) {
+  return v1->slice() == v2->slice();
+}
+
+export template <T> requires can_hash<T>
+int get_hash(vector<T>* v) {
+  return v->slice().get_hash();
+}
+
 export template <T> requires ordered<T>
 void sort(vector<T> mutable* v) {
   embed {

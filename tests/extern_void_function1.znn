@@ -1,0 +1,13 @@
+// 5
+
+embed {
+  void f(int* a) { *a = 5; }
+}
+
+extern void f(int mutable*);
+
+int main() {
+  mutable res = 0;
+  void a = f(&res);
+  return res;
+}

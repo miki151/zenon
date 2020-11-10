@@ -40,3 +40,7 @@ concept has_members {
   void builtin_has_members(T, Members...);
 };
 
+export template <T>
+concept can_hash {
+  int get_hash(T*);
+};

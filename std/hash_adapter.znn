@@ -1,0 +1,35 @@
+
+export embed {
+template <typename Key>
+struct hash_adapter {
+  size_t operator() (const Key& key) const {
+    return invoke(this, &key);
+  }
+  bool operator() (const Key& key1, const Key& key2) const {
+    return invoke(this, &key1, &key2);
+  }
+};
+}
+
+export template <T>
+concept hash_key {
+  int get_hash(T*);
+  bool operator == (T*, T*);
+};
+
+export template <Key>
+extern struct hash_adapter;
+
+export template <Key>
+extern hash_adapter();
+
+export template <Key> requires hash_key<Key>
+int invoke(hash_adapter<Key>*, Key* key) {
+  return key->get_hash();
+}
+
+export template <Key> requires hash_key<Key>
+bool invoke(hash_adapter<Key>*, Key* key1, Key* key2) {
+  return *key1 == *key2;
+}
+

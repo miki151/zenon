@@ -1,5 +1,7 @@
 export import "std/pointer.znn";
 export import "std/builtin_types.znn";
+export import "std/concepts.znn";
+export import "std/builtin_types.znn";
 
 export template <T>
 int size(T[]* s) {
@@ -70,6 +72,34 @@ bool operator == (slice_iterator<T>* it1, slice_iterator<T>* it2) {
   embed {
     return it1->elem == it2->elem;
   }
+}
+
+export template <T>
+bool operator != (slice_iterator<T>* it1, slice_iterator<T>* it2) {
+  embed {
+    return it1->elem != it2->elem;
+  }
+}
+
+export template <T> requires can_hash<T>
+int get_hash(T[] v) {
+  mutable res = 0;
+  mutable u = 1;
+  for (elem : v) {
+    res += u * elem->get_hash();
+    u *= 5;
+  }
+  return res;
+}
+
+export template <T> requires comparable<T>
+bool operator == (T[] v1, T[] v2) {
+  if (v1.size() != v2.size())
+    return false;
+  for (i = 0; i < v1.size(); ++i)
+    if (!(v1[i] == v2[i]))
+      return false;
+  return true;
 }
 
 export template <T, int N>

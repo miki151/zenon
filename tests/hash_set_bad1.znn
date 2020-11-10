@@ -1,0 +1,10 @@
+// no_compile
+
+import "std/hash_set.znn";
+
+struct X {};
+
+int main() {
+  const a = hash_set<X>();
+  return 0;
+}

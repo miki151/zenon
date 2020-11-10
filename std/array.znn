@@ -2,6 +2,7 @@
 export import "std/concepts.znn";
 export import "std/operator_helpers.znn";
 export import "std/destruct.znn";
+export import "std/slice.znn";
 
 export template <T, int Size>
 T operator [] (T[Size] a, int index) {
@@ -136,3 +137,12 @@ bool operator == (array_mut_iterator<T>* it1, array_mut_iterator<T>* it2) {
   }
 }
 
+export template <int Size, T> requires comparable<T>
+bool operator == (T[Size]* v1, T[Size]* v2) {
+  return v1->slice() == v2->slice();
+}
+
+export template <int Size, T> requires can_hash<T>
+int get_hash(T[Size]* v) {
+  return v->slice().get_hash();
+}

@@ -1,4 +1,4 @@
-
+import "slice.znn";
 
 export int size(string* s) {
   embed {
@@ -22,3 +22,12 @@ export char operator [](string* s, int index) {
   }
 }
 
+export char[] slice(string* s) {
+  embed {
+    return slice_t<char>{&s->data()[0], &s->data()[s->size()]};
+  }
+}
+
+export int get_hash(string* s) {
+  return s->slice().get_hash();
+}

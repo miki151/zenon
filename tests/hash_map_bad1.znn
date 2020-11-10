@@ -1,0 +1,10 @@
+// no_compile
+
+import "std/hash_map.znn";
+
+struct X {};
+
+int main() {
+  const a = hash_map<X, int>();
+  return 0;
+}

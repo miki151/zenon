@@ -273,7 +273,7 @@ string FunctionInfo::getMangledName() const {
         if (type.generatedConstructor)
           return type.retVal->getCodegenName();
         else
-          return "construct_" + type.retVal->getCodegenName();
+          return "construct_" + *type.retVal->getMangledName();
       },
       [](auto&) -> string {
         fail();
@@ -299,7 +299,9 @@ optional<string> FunctionInfo::getMangledSuffix() const {
       suf += *name;
     else
       return none;
-  if (id != "copy"s && id != "invoke"s && !type.builtinOperator)
+  if (id == "invoke"s)
+    return ""s;
+  if (!type.builtinOperator)
     if (auto def = getParent()->definition)
       suf += to_string(def->codeLoc.line);
   return suf;
@@ -1297,7 +1299,6 @@ WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context1, const 
         // (not instantation). If this causes issues then it needs to be revised.
         return FunctionInfo::getInstance(input->id, type, input);
   existing.push_back(input->type);
-  //cout << "Instantiating " << type.toString() << " " << existing.size() << endl;
   TRY(checkRequirements(reqContext, origParams, templateArgs, type.requirements, codeLoc, existing));
   // The replace() errors need to be checked after returning potential requirement errors.
   if (!errors.empty())

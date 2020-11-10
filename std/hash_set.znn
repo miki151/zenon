@@ -1,0 +1,49 @@
+
+export import "std/concepts.znn";
+export import "std/hash_adapter.znn";
+
+export embed {
+#include <unordered_set>
+template<typename Key>
+using hash_set = std::unordered_set<Key, hash_adapter<Key>, hash_adapter<Key>>;
+using std::pair;
+}
+
+export template <Key>
+extern struct hash_set;
+
+export template<Key> requires hash_key<Key>
+hash_set() {
+  embed {
+  return hash_set<Key>{};
+  }
+  const key = [] -> Key* {
+    embed {
+      return nullptr;
+    }
+  }();
+  discard hash_adapter<Key>().invoke(key);
+  discard hash_adapter<Key>().invoke(key, key);
+}
+
+export template <Key> requires hash_key<Key>
+void insert(hash_set<Key> mutable* m, Key key) {
+  embed {
+    m->insert(std::move(key));
+  }
+}
+
+export template <Key> requires hash_key<Key>
+bool contains(hash_set<Key> mutable* m, Key* key) {
+  embed {
+    return m->count(*key);
+  }
+}
+
+export template <Key> requires hash_key<Key>
+int size(hash_set<Key> mutable* m) {
+  embed {
+    return m->size();
+  }
+}
+

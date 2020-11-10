@@ -1,0 +1,27 @@
+// 95
+
+import "std/hash_set.znn";
+import "std/range.znn";
+
+struct X {
+  int a;
+};
+
+int get_hash(X* x) {
+  return x->a % 2;
+}
+
+bool operator == (X* x1, X* x2) {
+  return x1->a == x2->a;
+}
+
+int main() {
+  mutable a = hash_set<X>();
+  for (i : range(5, 15))
+    a.insert(X(i));
+  mutable res = 0;
+  for (i : range(0, 100))
+    if (a.contains(&X(i)))
+      res += i;
+  return res;
+}
