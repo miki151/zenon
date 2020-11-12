@@ -1,7 +1,7 @@
 import "slice.znn";
 
 export int size(string* s) {
-  embed {
+  embed_returns {
     return s->size();
   }
 }
@@ -11,19 +11,19 @@ export bool empty(string* s) {
 }
 
 export string substring(string* s, int start, int length) {
-  embed {
+  embed_returns {
     return s->substring(start, length);
   }
 }
 
 export char operator [](string* s, int index) {
-  embed {
+  embed_returns {
     return (*s)[index];
   }
 }
 
 export char[] slice(string* s) {
-  embed {
+  embed_returns {
     return slice_t<char>{&s->data()[0], &s->data()[s->size()]};
   }
 }

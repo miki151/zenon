@@ -173,22 +173,23 @@ WithError<SType> Context::getTypeOfVariable(const string& id) const {
   vector<LambdaCaptureInfo*> lambdas;
   bool makeConstReference = false;
   for (auto state : getReversedStates()) {
-    if (state->vars.count(id)) {
-      for (auto lambdaInfo : lambdas) {
-        if (auto info = lambdaInfo->find(id)) {
-          if (info->type != LambdaCaptureType::REFERENCE)
-            makeConstReference = true;
-        } else
-        if (auto captureType = lambdaInfo->defaultCapture) {
-          auto& varInfo = state->vars.at(id);
-          lambdaInfo->captures.push_back(LambdaCaptureInfo::Var{id, varInfo.declarationLoc, *captureType, false});
-          lambdaInfo->implicitCaptures.push_back(LambdaCapture{id, getCapturedType(varInfo.type, *captureType), *captureType});
-        } else
-          return "Variable " + quote(id) + " is not captured by lambda";
-      }
+    if (auto varInfo = getReferenceMaybe(state->vars, id)) {
+      if (!varInfo->global)
+        for (auto lambdaInfo : lambdas) {
+          if (auto info = lambdaInfo->find(id)) {
+            if (info->type != LambdaCaptureType::REFERENCE)
+              makeConstReference = true;
+          } else
+          if (auto captureType = lambdaInfo->defaultCapture) {
+            auto& varInfo = state->vars.at(id);
+            lambdaInfo->captures.push_back(LambdaCaptureInfo::Var{id, varInfo.declarationLoc, *captureType, false});
+            lambdaInfo->implicitCaptures.push_back(LambdaCapture{id, getCapturedType(varInfo.type, *captureType), *captureType});
+          } else
+            return "Variable " + quote(id) + " is not captured by lambda";
+        }
       return makeConstReference
-          ? ReferenceType::get(state->vars.at(id).type->removeReference())
-          : state->vars.at(id).type;
+          ? ReferenceType::get(varInfo->type->removeReference())
+          : varInfo->type;
     }
     if (state->lambdaInfo)
       lambdas.push_back(state->lambdaInfo);
@@ -209,8 +210,8 @@ bool Context::isCapturedVariable(const string& id) const {
   fail();
 }
 
-void Context::addVariable(const string& ident, SType t, CodeLoc codeLoc) {
-  state->vars.insert({ident, VariableInfo{t, codeLoc}});
+void Context::addVariable(const string& ident, SType t, CodeLoc codeLoc, bool global) {
+  state->vars.insert({ident, VariableInfo{t, codeLoc, global}});
   state->varsList.push_back(ident);
 }
 
@@ -287,12 +288,26 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
       if (alternative) {
         if (from != fromUnderlying && !fromUnderlying->isBuiltinCopyable(*this, expr))
           return "Type " + quote(from->getName()) + " cannot be copied implicitly";
-        auto codeLoc = expr->codeLoc;
-        auto call = unique<FunctionCall>(codeLoc, IdentifierInfo("bogus", codeLoc), std::move(expr), false);
-        call->functionInfo = structType->staticContext.getFunctions(alternative->name).getOnlyElement();
-        expr = std::move(call);
-        auto err = expr->getTypeImpl(*this);
-        CHECK(!!err) << err.get_error();
+        if (expr) {
+          auto codeLoc = expr->codeLoc;
+          auto call = [&] () -> unique_ptr<Expression> {
+            if (alternative->type == BuiltinType::VOID) {
+              // This is not needed once there is a generic union constructor for each alternative
+              auto call = unique<FunctionCall>(codeLoc, IdentifierInfo("bogus", codeLoc), false);
+              call->functionInfo = structType->staticContext.getFunctions(alternative->name).getOnlyElement();
+              return unique<StatementExpression>(codeLoc,
+                  makeVec<unique_ptr<Statement>>(unique<ExpressionStatement>(std::move(expr))),
+                  cast<Expression>(std::move(call)));
+            } else {
+              auto call = unique<FunctionCall>(codeLoc, IdentifierInfo("bogus", codeLoc), std::move(expr), false);
+              call->functionInfo = structType->staticContext.getFunctions(alternative->name).getOnlyElement();
+              return call;
+            }
+          }();
+          expr = std::move(call);
+          auto err = expr->getTypeImpl(*this);
+          CHECK(!!err) << err.get_error();
+        }
         return success;
       }
     }

@@ -22,9 +22,13 @@ inline bool runningUnderDebugger() {
 
 struct PanicException {};
 
+#ifdef STACK_TRACE
 #define F_BEGIN try
 #define F_END(FUN) catch(...) {\
   fprintf(stderr, "%s\n", FUN);\
   throw;\
 }
-
+#else
+#define F_BEGIN
+#define F_END(FUN)
+#endif

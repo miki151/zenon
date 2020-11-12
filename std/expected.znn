@@ -8,7 +8,7 @@ union expected {
   E error;
 };
 
-export template <T, E>
+export template <T, E> 
 bool operator !(expected<T, E>* v) {
   switch (*v) {
     case (value) {
@@ -76,6 +76,18 @@ E get_error(expected<T, E> v) {
     }
     case (error) {
       return move(error);
+    }
+  }
+}
+
+export template <T, E> requires can_copy<T>, can_copy<E>
+expected<E, T> flip(expected<T, E>* v) {
+  switch (*v) {
+    case (value) {
+      return value.copy();
+    }
+    case (error) {
+      return error.copy();
     }
   }
 }

@@ -27,28 +27,28 @@ void insert(hash_map<Key, Value> mutable* m, Key key, Value value) {
 
 export template <Key, Value> requires hash_key<Key>
 bool contains(hash_map<Key, Value>* m, Key* key) {
-  embed {
+  embed_returns {
     return m->count(*key);
   }
 }
 
 export template <Key, Value> requires hash_key<Key>
 Value* get(hash_map<Key, Value>* m, Key* key) {
-  embed {
+  embed_returns {
     return &m->at(*key);
   }
 }
 
 export template <Key, Value> requires hash_key<Key>
 Value mutable* get(hash_map<Key, Value> mutable* m, Key* key) {
-  embed {
+  embed_returns {
     return &m->at(*key);
   }
 }
 
 export template <Key, Value> requires hash_key<Key>
 int size(hash_map<Key, Value>* m) {
-  embed {
+  embed_returns {
     return m->size();
   }
 }

@@ -5,7 +5,7 @@ export import "std/builtin_types.znn";
 
 export template <T>
 int size(T[]* s) {
-  embed {
+  embed_returns {
     return s->end - s->begin;
   }
 }
@@ -17,14 +17,14 @@ bool empty(T[]* s) {
 
 export template <T>
 T[] implicit_copy(T[]* s) {
-  embed {
+  embed_returns {
     return *s;
   }
 }
 
 export template <T>
 T* operator[](T[]* s, int index) {
-  embed {
+  embed_returns {
     return &s->begin[index];
   }
 }
@@ -40,16 +40,16 @@ slice_iterator<T> implicit_copy(slice_iterator<T>*) = default;
 
 export template <T>
 slice_iterator<T> begin(T[]* v) {
-  embed {
-  return {v->begin, 0};
+  embed_returns {
+    return {v->begin, 0};
   }
 }
 
 export template <T>
 slice_iterator<T> end(T[]* v) {
   const size = v->size();
-  embed {
-  return {v->end, size};
+  embed_returns {
+    return {v->end, size};
   }
 }
 
@@ -69,14 +69,14 @@ slice_iterator<T> operator ++(slice_iterator<T> mutable* it) {
 
 export template <T>
 bool operator == (slice_iterator<T>* it1, slice_iterator<T>* it2) {
-  embed {
+  embed_returns {
     return it1->elem == it2->elem;
   }
 }
 
 export template <T>
 bool operator != (slice_iterator<T>* it1, slice_iterator<T>* it2) {
-  embed {
+  embed_returns {
     return it1->elem != it2->elem;
   }
 }
@@ -104,7 +104,7 @@ bool operator == (T[] v1, T[] v2) {
 
 export template <T, int N>
 T[] slice(T[N]* array) {
-  embed {
+  embed_returns {
     if (array->empty())
       return slice_t<T>{nullptr, nullptr};
     return slice_t<T>{&array->front(), &array->back() + 1};

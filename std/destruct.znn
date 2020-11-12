@@ -38,14 +38,14 @@ extern void set_moved_in_embed(T);
 
 export template <T, int Size>
 T* operator [] (T[Size]* a, int index) {
-  embed {
+  embed_returns {
     return &a->at(index);
   }
 }
 
 export template <T, int Size>
 T mutable* operator [] (T[Size] mutable* a, int index) {
-  embed {
+  embed_returns {
     return &a->at(index);
   }
 }

@@ -2,7 +2,7 @@
 
 template <T> requires (T == int || T == char)
 int f(T value) {
-  embed {
+  embed_returns {
     return int(value);
   }
 }

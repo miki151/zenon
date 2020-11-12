@@ -35,7 +35,7 @@ struct vector_mut_iterator {
 
 export template <T>
 vector_iterator<T> begin(vector<T>* v) {
-  embed {
+  embed_returns {
     return {&(*v)[0], 0};
   }
 }
@@ -43,7 +43,7 @@ vector_iterator<T> begin(vector<T>* v) {
 export template <T>
 vector_iterator<T> end(vector<T>* v) {
   const size = v->size();
-  embed {
+  embed_returns {
     return {&(*v)[v->size()], size};
   }
 }
@@ -55,21 +55,21 @@ T* operator *(vector_iterator<T>* it) {
 
 export template <T>
 vector_iterator<T> operator ++(vector_iterator<T> mutable* it) {
-  embed {
+  embed_returns {
     return {++it->elem, ++it->index};
   }
 }
 
 export template <T>
 bool operator == (vector_iterator<T>* it1, vector_iterator<T>* it2) {
-  embed {
+  embed_returns {
     return it1->elem == it2->elem;
   }
 }
 
 export template <T>
 vector_mut_iterator<T> begin(vector<T> mutable* v) {
-  embed {
+  embed_returns {
     return {&(*v)[0], 0};
   }
 }
@@ -77,7 +77,7 @@ vector_mut_iterator<T> begin(vector<T> mutable* v) {
 export template <T>
 vector_mut_iterator<T> end(vector<T> mutable* v) {
   const size = v->size();
-  embed {
+  embed_returns {
     return {&(*v)[v->size()], size};
   }
 }
@@ -90,14 +90,14 @@ T mutable* operator *(vector_mut_iterator<T>* it) {
 
 export template <T>
 vector_mut_iterator<T> operator ++(vector_mut_iterator<T> mutable* it) {
-  embed {
+  embed_returns {
     return {++it->elem, ++it->index};
   }
 }
 
 export template <T>
 bool operator == (vector_mut_iterator<T>* it1, vector_mut_iterator<T>* it2) {
-  embed {
+  embed_returns {
     return it1->elem == it2->elem;
   }
 }
@@ -112,7 +112,7 @@ void push_back(vector<T> mutable* v, T elem) {
 
 export template <T>
 T pop_back(vector<T> mutable* v) {
-  embed {
+  embed_returns {
     T t = std::move(v->back());
     v->pop_back();
     return std::move(t);
@@ -121,49 +121,49 @@ T pop_back(vector<T> mutable* v) {
 
 export template <T>
 T* operator [](vector<T>* v, int index) {
-  embed {
+  embed_returns {
     return &v->at(index);
   }
 }
 
 export template <T>
 T mutable* operator [](vector<T> mutable* v, int index) {
-  embed {
+  embed_returns {
     return &v->at(index);
   }
 }
 
 export template <T>
 T* back(vector<T>* v) {
-  embed {
+  embed_returns {
     return &v->back();
   }
 }
 
 export template <T>
 T mutable* back(vector<T> mutable* v) {
-  embed {
+  embed_returns {
     return &v->back();
   }
 }
 
 export template <T>
 T* front(vector<T>* v) {
-  embed {
+  embed_returns {
     return &v->front();
   }
 }
 
 export template <T>
 T mutable* front(vector<T> mutable* v) {
-  embed {
+  embed_returns {
     return &v->front();
   }
 }
 
 export template <T>
 int size(vector<T>* v) {
-  embed {
+  embed_returns {
     return v->size();
   }
 }
@@ -226,7 +226,7 @@ vector<T> as_vector(mutable T[Sz] array) {
 
 export template <T>
 T[] slice(vector<T>* v) {
-  embed {
+  embed_returns {
     return slice_t<T>{&v->front(), &v->back() + 1};
   }
 }

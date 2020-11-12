@@ -1,6 +1,6 @@
-// no_compile
+// 0
 
 int main() {
-  void x;
+  void x = void_value;
   return 0;
 }

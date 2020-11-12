@@ -2,6 +2,15 @@ stdafx.h.*
 Zenon.config
 Zenon.files
 Zenon.includes
+Zenon.creator*
+Zenon.cxxflags
 *.swp
+docs/_build
+.build_cache
+find
+obj/
+tests/.build_cache
+tests/log.out
+zenon
+log.out
 input.znn
-

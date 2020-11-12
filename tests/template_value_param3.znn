@@ -2,7 +2,7 @@
 
 template <char c>
 int f() {
-  embed {
+  embed_returns {
     return int(c);
   }
 }

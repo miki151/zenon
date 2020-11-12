@@ -31,14 +31,14 @@ bool operator ==(enum_iterator<Enum>* e1, enum_iterator<Enum>* e2) {
 
 export template <Enum> requires is_enum<Enum>
 Enum fromInt(int i) {
-  embed {
+  embed_returns {
     return Enum(i);
   }
 }
 
 export template <Enum> requires is_enum<Enum>
 int asInt(Enum e) {
-  embed {
+  embed_returns {
     return int(e);
   }
 }

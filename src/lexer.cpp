@@ -74,6 +74,7 @@ WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string&
     string value;
     int numBrackets;
     CodeLoc codeLoc;
+    bool returns;
   };
   optional<EmbedBlock> embedBlock;
   for (auto it = words_begin; it != words_end; ++it) {
@@ -100,7 +101,10 @@ WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string&
           } else
             embedBlock->value.append(skipped + matched);
           if (embedBlock->numBrackets == 0) {
-            ret.push_back(EmbedToken{});
+            if (embedBlock->returns)
+              ret.push_back(EmbedReturnsToken{});
+            else
+              ret.push_back(EmbedToken{});
             ret.back().value = embedBlock->value;
             ret.back().codeLoc = embedBlock->codeLoc;
             embedBlock = none;
@@ -108,7 +112,11 @@ WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string&
           break;
         } else
         if (v[index].second(matched) == Token(Keyword::EMBED)) {
-          embedBlock = EmbedBlock { "", 0, codeLoc };
+          embedBlock = EmbedBlock { "", 0, codeLoc, false };
+          break;
+        }
+        if (v[index].second(matched) == Token(Keyword::EMBED_RETURNS)) {
+          embedBlock = EmbedBlock { "", 0, codeLoc, true };
           break;
         }
         if (!all_of(skipped.begin(), skipped.end(), [](char c) { return isspace(c); }))

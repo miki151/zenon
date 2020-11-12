@@ -157,11 +157,8 @@ void IfStatement::codegen(Accu& accu, CodegenStage stage) const {
 
 void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
-  accu.add("return");
-  if (expr) {
-    accu.add(" ");
-    expr->codegen(accu, stage);
-  }
+  accu.add("return ");
+  expr->codegen(accu, stage);
   accu.add(";");
 }
 
@@ -180,6 +177,10 @@ static string getFunctionCallName(const FunctionInfo& functionInfo, bool methodC
 void FunctionCall::codegen(Accu& accu, CodegenStage) const {
   string suffix;
   string id = getFunctionCallName(*functionInfo, !!callType);
+  bool voidConversion =
+      functionInfo->type.builtinOperator && functionInfo->type.retVal == BuiltinType::VOID;
+  if (voidConversion)
+    accu.add("({");
   if (functionInfo->type.generatedConstructor) {
     accu.add(id + "{");
     suffix = "}";
@@ -208,6 +209,8 @@ void FunctionCall::codegen(Accu& accu, CodegenStage) const {
     accu.pop_back();
   }
   accu.add(suffix);
+  if (voidConversion)
+    accu.add("; void_value; })");
 }
 
 static string getFunctionSignatureName(const FunctionInfo& function) {
@@ -351,10 +354,8 @@ static void codegenUnion(set<const Type*>& visited, Accu& accu, const StructType
   accu.newLine("union {");
   ++accu.indent;
   accu.newLine("bool dummy;");
-  for (auto& alternative : type->alternatives) {
-    if (alternative.type != BuiltinType::VOID)
-      accu.newLine(alternative.type->getCodegenName() + " " + unionEntryPrefix + alternative.name + ";");
-  }
+  for (auto& alternative : type->alternatives)
+    accu.newLine(alternative.type->getCodegenName() + " " + unionEntryPrefix + alternative.name + ";");
   --accu.indent;
   accu.newLine("};");
   auto visitBody = [&] {
@@ -362,17 +363,10 @@ static void codegenUnion(set<const Type*>& visited, Accu& accu, const StructType
     accu.newLine("switch (unionElem) {");
     ++accu.indent;
     for (auto& alternative : type->alternatives) {
-      if (alternative.type != BuiltinType::VOID) {
-        accu.newLine("case "s + unionEnumeratorPrefix + alternative.name + ":");
-        ++accu.indent;
-        accu.newLine("return std::forward<Visitor>(v)("s + unionEntryPrefix + alternative.name + ");");
-        --accu.indent;
-      } else {
-        accu.newLine("case "s + unionEnumeratorPrefix + alternative.name + ":");
-        ++accu.indent;
-        accu.newLine("return;");
-        --accu.indent;
-      }
+      accu.newLine("case "s + unionEnumeratorPrefix + alternative.name + ":");
+      ++accu.indent;
+      accu.newLine("return std::forward<Visitor>(v)("s + unionEntryPrefix + alternative.name + ");");
+      --accu.indent;
     }
     --accu.indent;
     accu.newLine("}");
@@ -505,6 +499,7 @@ void codegenLambdas(const LambdasSet& lambdas, Accu& accu, const AST& ast, Codeg
         destructorBody->destructorCalls.emplace_back();
         destructorBody->functionInfo = FunctionInfo::getImplicit("destruct"s,
             FunctionType(BuiltinType::VOID, {PointerType::get(lambda->get_this().get())}, {}));
+        destructorBody->body->elems.push_back(unique<ReturnStatement>(destructorBody->codeLoc));
         defs.push_back(std::move(destructorBody));
       }
     }

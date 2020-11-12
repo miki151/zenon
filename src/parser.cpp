@@ -650,11 +650,10 @@ WithErrorLine<unique_ptr<ReturnStatement>> parseReturnStatement(Tokens& tokens) 
   auto returnToken = TRY(tokens.eat(Keyword::RETURN));
   auto ret = unique<ReturnStatement>(returnToken.codeLoc);
   auto& token2 = tokens.peek();
-  if (auto keyword = token2.getReferenceMaybe<Keyword>())
-    if (*keyword == Keyword::SEMICOLON) {
-      tokens.popNext();
-      return std::move(ret);
-    }
+  if (token2 == Keyword::SEMICOLON) {
+    tokens.popNext();
+    return std::move(ret);
+  }
   ret->expr = TRY(parseExpression(tokens));
   TRY(tokens.eat(Keyword::SEMICOLON));
   return std::move(ret);
@@ -1105,6 +1104,14 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
         auto text = token.value;
         auto ret = unique<EmbedStatement>(token.codeLoc, text);
         ret->isTopLevel = topLevel;
+        tokens.popNext();
+        return cast<Statement>(std::move(ret));
+      },
+      [&](EmbedReturnsToken) -> WithErrorLine<unique_ptr<Statement>> {
+        auto text = token.value;
+        auto ret = unique<EmbedStatement>(token.codeLoc, text);
+        ret->isTopLevel = topLevel;
+        ret->returns = true;
         tokens.popNext();
         return cast<Statement>(std::move(ret));
       },

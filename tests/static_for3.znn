@@ -1,7 +1,7 @@
 // 33
 
 int round(double d) {
-  embed {
+  embed_returns {
     return int(d);
   }
 }

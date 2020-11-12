@@ -22,13 +22,13 @@ T max(T a, T b) {
 }
 
 export int as_int(double a) {
-  embed {
+  embed_returns {
     return (int) a;
   }
 }
 
 export double as_double(int a) {
-  embed {
+  embed_returns {
     return (double) a;
   }
 }

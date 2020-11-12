@@ -36,6 +36,7 @@ enum class Keyword {
   STRUCT,
   EXTERN,
   EMBED,
+  EMBED_RETURNS,
   UNION,
   NAMESPACE_ACCESS,
   SWITCH,
@@ -75,6 +76,10 @@ struct EmbedToken {
   bool operator == (const EmbedToken&) const { return true; }
 };
 
+struct EmbedReturnsToken {
+  bool operator == (const EmbedReturnsToken&) const { return true; }
+};
+
 struct StringToken {
   bool operator == (const StringToken&) const { return true; }
 };
@@ -92,8 +97,8 @@ string getString(Token);
 extern vector<string> getAllKeywords();
 string process(Token, string matched);
 
-class Token : public variant<Number, RealNumber, IdentifierToken, Keyword, Operator, EmbedToken, StringToken,
-    CharToken, EofToken> {
+class Token : public variant<Number, RealNumber, IdentifierToken, Keyword, Operator, EmbedToken, EmbedReturnsToken,
+    StringToken, CharToken, EofToken> {
   public:
   using variant::variant;
   bool operator == (const Token& t) const {

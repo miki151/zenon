@@ -11,14 +11,14 @@ extern struct unique_ptr;
 
 template <T>
 T mutable* get(unique_ptr<T> mutable* ptr) {
-  embed {
+  embed_returns {
     return ptr->get();
   }
 }
 
 template <T>
 T* get(unique_ptr<T>* ptr) {
-  embed {
+  embed_returns {
     return ptr->get();
   }
 }
@@ -26,7 +26,7 @@ T* get(unique_ptr<T>* ptr) {
 
 template <T>
 unique_ptr<T> unique(T t) {
-  embed {
+  embed_returns {
     return std::make_unique<T>(std::move(t));
   }
 }

@@ -25,21 +25,21 @@ enum_set() {
 export template <Key> requires is_enum<Key>
 bool contains(enum_set<Key>* set, Key key) {
   const index = key.asInt();
-  embed {
+  embed_returns {
     return set->values.test(index);
   }
 }
 
 export template <Key> requires is_enum<Key>
 int size(enum_set<Key>* set) {
-  embed {
+  embed_returns {
     return set->values.count();
   }
 }
 
 export template <Key> requires is_enum<Key>
 bool empty(enum_set<Key>* set) {
-  embed {
+  embed_returns {
     return set->values.none();
   }
 }

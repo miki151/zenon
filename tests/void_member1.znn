@@ -1,4 +1,4 @@
-// no_compile
+// 1
 
 template<A1, A2, A3>
 union V {

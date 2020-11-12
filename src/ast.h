@@ -430,7 +430,7 @@ struct UncheckedStatement : Statement {
 };
 
 struct ReturnStatement : Statement {
-  using Statement::Statement;
+  ReturnStatement(CodeLoc);
   ReturnStatement(CodeLoc, unique_ptr<Expression>);
   unique_ptr<Expression> expr;
   virtual bool hasReturnStatement() const override;
@@ -716,6 +716,7 @@ struct EmbedStatement : Statement {
   string value;
   bool isTopLevel = false;
   vector<Context::SubstitutionInfo> replacements;
+  bool returns = false;
   virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override;

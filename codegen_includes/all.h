@@ -79,4 +79,11 @@ struct slice_t {
   T const* end;
 };
 
+struct void_t
+{
+  struct init{};
+  constexpr explicit void_t(init){}
+};
+constexpr void_t void_value{void_t::init()};
+
 #endif

@@ -1,21 +1,21 @@
-// no_compile
+// 3
 
 template <T>
 struct X {
   T elem;
+  int res;
 };
 
 template <T>
-X<T> g() {
-  embed {
-  }
+X<T> g(T t) {
+  return X(move(t), 3);
 }
 
-template <T>
-void f() {
-  const x = g<void>();
+int f() {
+  const x = g(void_value);
+  return x.res;
 }
 
 int main() {
-  return 0;
+  return f();
 }

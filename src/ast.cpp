@@ -632,6 +632,10 @@ bool StatementBlock::hasReturnStatement() const {
   return false;
 }
 
+ReturnStatement::ReturnStatement(CodeLoc codeLoc)
+    : Statement(codeLoc), expr(unique<Variable>(IdentifierInfo("void_value", codeLoc))) {
+}
+
 ReturnStatement::ReturnStatement(CodeLoc codeLoc, unique_ptr<Expression> expr)
     : Statement(codeLoc), expr(std::move(expr)) {}
 
@@ -1268,6 +1272,15 @@ void FunctionDefinition::addParamsToContext(Context& context, const FunctionInfo
   }
 }
 
+static void considerAddingVoidReturn(const Context& context, StatementBlock* block, const SType& retVal) {
+  if (context.canConvert(BuiltinType::VOID, retVal)
+      && (block->elems.empty() || !block->elems.back()->hasReturnStatement())) {
+    block->elems.push_back(unique<ReturnStatement>(block->codeLoc));
+    auto c = context.getChild();
+    CHECK(!!block->elems.back()->check(c));
+  }
+}
+
 JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& requirements,
     StatementBlock& myBody, const FunctionInfo& instanceInfo, vector<unique_ptr<Statement>>& destructorCalls) const {
   auto requirementsContext = definitionContext->getChild(true);
@@ -1288,6 +1301,7 @@ JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& r
   ReturnTypeChecker returnChecker(retVal);
   bodyContext.addReturnTypeChecker(&returnChecker);
   TRY(myBody.check(bodyContext));
+  considerAddingVoidReturn(bodyContext, &myBody, retVal);
   if (templateParams.empty()) {
     vector<string> paramNames;
     for (int i = 0; i < instanceInfo.type.params.size(); ++i)
@@ -1424,6 +1438,7 @@ static void addBuiltInConcepts(Context& context) {
 
 Context createPrimaryContext(TypeRegistry* typeRegistry) {
   Context context(typeRegistry, true);
+  context.addVariable("void_value", BuiltinType::VOID, CodeLoc(), true);
   for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE, BuiltinType::BOOL,
        BuiltinType::VOID, BuiltinType::CHAR, BuiltinType::STRING, BuiltinType::NULL_TYPE})
     context.addType(type->getName(), type);
@@ -2045,15 +2060,17 @@ JustError<ErrorLoc> EmbedStatement::check(Context& context, bool) {
 }
 
 Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
-  return TopLevelAllowance::CAN;
+  return returns ? TopLevelAllowance::CANT : TopLevelAllowance::CAN;
 }
 
 unique_ptr<Statement> EmbedStatement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<EmbedStatement>(codeLoc, value);
+  auto ret = unique<EmbedStatement>(codeLoc, value);
+  ret->returns = returns;
+  return std::move(ret);
 }
 
 bool EmbedStatement::hasReturnStatement() const {
-  return true;
+  return returns;
 }
 
 ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<VariableDeclaration> i, unique_ptr<Expression> c,
@@ -2659,6 +2676,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
   type->captures.append(captureInfo.implicitCaptures);
   if (!returnType)
     retType = returnChecker.getReturnType();
+  considerAddingVoidReturn(bodyContext2, block.get(), retType.get());
   if (!type->functionInfo) {
     FunctionType functionType(retType.get(), params, {});
     auto functioInfo = FunctionInfo::getImplicit("invoke"s, std::move(functionType));

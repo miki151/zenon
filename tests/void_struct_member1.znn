@@ -1,13 +1,14 @@
-// no_compile
+// 1
 
 template <T>
 struct X {
   T elem;
 };
 
-void f(X<void> t) {
+int f(X<void> t) {
+  return 1;
 }
 
 int main() {
-  return 0;
+  return f(X(void_value));
 }

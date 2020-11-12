@@ -11,10 +11,6 @@ JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, 
   if (explicitReturn) {
     if (explicitReturn == BuiltinType::NORETURN)
       return "This function should never return"s;
-    if (underlying == BuiltinType::VOID) {
-      if (explicitReturn != BuiltinType::VOID)
-        return "Expected an expression in return statement in a function returning non-void"s;
-    }
   } else
   if (returnStatement && returnStatement != underlying)
     return "Ambigous implicit return type: " + quote(returnStatement->getName()) + " and " + quote(underlying->getName());

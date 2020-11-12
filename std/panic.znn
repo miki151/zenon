@@ -3,7 +3,7 @@ import "std/io.znn";
 import "std/string.znn";
 
 export noreturn panic() {
-  embed {
+  embed_returns {
     if (runningUnderDebugger())
       throw std::exception{};
     else

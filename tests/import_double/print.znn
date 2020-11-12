@@ -4,7 +4,7 @@ embed {
 }
 
 export int getInt(int x) {
-  embed {
+  embed_returns {
     return g + x;
   }
 }

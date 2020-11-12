@@ -14,11 +14,11 @@ extern struct hash_set;
 
 export template<Key> requires hash_key<Key>
 hash_set() {
-  embed {
+  embed_returns {
   return hash_set<Key>{};
   }
   const key = [] -> Key* {
-    embed {
+    embed_returns {
       return nullptr;
     }
   }();
@@ -35,14 +35,14 @@ void insert(hash_set<Key> mutable* m, Key key) {
 
 export template <Key> requires hash_key<Key>
 bool contains(hash_set<Key> mutable* m, Key* key) {
-  embed {
+  embed_returns {
     return m->count(*key);
   }
 }
 
 export template <Key> requires hash_key<Key>
 int size(hash_set<Key> mutable* m) {
-  embed {
+  embed_returns {
     return m->size();
   }
 }

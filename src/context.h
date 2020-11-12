@@ -38,7 +38,7 @@ class Context : public owned_object<Context> {
       vector<FunctionType> existing = {}) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
-  void addVariable(const string& ident, SType, CodeLoc);
+  void addVariable(const string& ident, SType, CodeLoc, bool global = false);
   void setNonMovable(const string& variable);
   bool isNonMovable(const string& variable) const;
   void replace(SType from, SType to, ErrorBuffer&);
@@ -103,6 +103,7 @@ class Context : public owned_object<Context> {
   struct VariableInfo {
     SType type;
     CodeLoc declarationLoc;
+    bool global;
   };
 
   struct State : public owned_object<State> {

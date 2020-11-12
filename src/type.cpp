@@ -4,7 +4,7 @@
 
 BuiltinType::DefType BuiltinType::INT = shared<BuiltinType>("int");
 BuiltinType::DefType BuiltinType::DOUBLE = shared<BuiltinType>("double");
-BuiltinType::DefType BuiltinType::VOID = shared<BuiltinType>("void");
+BuiltinType::DefType BuiltinType::VOID = shared<BuiltinType>("void", "void_t"s);
 BuiltinType::DefType BuiltinType::BOOL = shared<BuiltinType>("bool");
 BuiltinType::DefType BuiltinType::STRING = shared<BuiltinType>("string", "zenon_string"s);
 BuiltinType::DefType BuiltinType::CHAR = shared<BuiltinType>("char");
@@ -440,7 +440,7 @@ bool BuiltinType::canBeValueTemplateParam() const {
 }
 
 bool BuiltinType::canDeclareVariable() const {
-  return INT == this  || BOOL == this || CHAR == this || STRING == this || DOUBLE == this;
+  return INT == this  || BOOL == this || CHAR == this || STRING == this || DOUBLE == this || VOID == this;
 }
 
 bool BuiltinType::isMetaType() const {
@@ -604,21 +604,19 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
     handledTypes.insert(caseId);
     auto caseBodyContext = outsideContext.getChild();
     auto realType = getAlternativeType(caseId).get();
-    if (realType != BuiltinType::VOID) {
-      caseElem.declaredVar = caseId;
-      switch (argumentType) {
-        case SwitchArgument::VALUE:
-          caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
-          break;
-        case SwitchArgument::REFERENCE:
-          caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
-          caseBodyContext.setNonMovable(caseId);
-          break;
-        case SwitchArgument::MUTABLE_REFERENCE:
-          caseBodyContext.addVariable(caseId, MutableReferenceType::get(realType), caseElem.codeloc);
-          caseBodyContext.setNonMovable(caseId);
-          break;
-      }
+    caseElem.declaredVar = caseId;
+    switch (argumentType) {
+      case SwitchArgument::VALUE:
+        caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
+        break;
+      case SwitchArgument::REFERENCE:
+        caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
+        caseBodyContext.setNonMovable(caseId);
+        break;
+      case SwitchArgument::MUTABLE_REFERENCE:
+        caseBodyContext.addVariable(caseId, MutableReferenceType::get(realType), caseElem.codeloc);
+        caseBodyContext.setNonMovable(caseId);
+        break;
     }
     TRY(caseElem.block->check(caseBodyContext));
   }
@@ -792,13 +790,6 @@ SType MutablePointerType::transform(function<SType(const Type*)> fun) const {
   return MutablePointerType::get(fun(underlying.get()));
 }
 
-static void checkNonVoidMember(const SType& type, const SType& to, ErrorBuffer& errors) {
-  if (auto param = type.dynamicCast<TemplateParameterType>())
-    if (to == BuiltinType::VOID)
-      errors.push_back(
-          "Can't instantiate member type with type " + quote(BuiltinType::VOID->getName()));
-}
-
 namespace {
 struct RequirementVisitor {
   const Context& context;
@@ -839,12 +830,10 @@ SType StructType::replaceImpl(const Context& context, SType from, SType to, Erro
     ret->staticContext.deepCopyFrom(staticContext);
     ret->alternatives = alternatives;
     for (auto& alternative : ret->alternatives) {
-      checkNonVoidMember(alternative.type, to, errors);
       alternative.type = alternative.type->replace(context, from, to, errors);
     }
     ret->members = members;
     for (auto& members : ret->members) {
-      checkNonVoidMember(members.type, to, errors);
       members.type = members.type->replace(context, from, to, errors);
     }
     ret->requirements = requirements;
@@ -873,12 +862,10 @@ SType StructType::expand(const Context& context, SType pack, vector<SType> to, E
     ret->staticContext.deepCopyFrom(staticContext);
     ret->alternatives = alternatives;
     for (auto& alternative : ret->alternatives) {
-      //checkNonVoidMember(alternative.type, to, errors);
       alternative.type = alternative.type->expand(context, pack, to, errors);
     }
     ret->members = members;
     for (auto& members : ret->members) {
-      //checkNonVoidMember(members.type, to, errors);
       members.type = members.type->expand(context, pack, to, errors);
     }
     ret->requirements = requirements;

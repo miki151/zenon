@@ -21,28 +21,28 @@ void insert(map<Key, Value> mutable* m, Key key, Value value) {
 
 template <Key, Value> requires comparable<Key>
 Value* operator [] (map<Key, Value>* m, Key* key) {
-  embed {
+  embed_returns {
     return &m->at(*key);
   }
 }
 
 template <Key, Value> requires comparable<Key>
 Value mutable* operator [] (map<Key, Value> mutable* m, Key* key) {
-  embed {
+  embed_returns {
     return &m->at(*key);
   }
 }
 
 template <Key, Value> requires comparable<Key>
 bool contains(map<Key, Value>* m, Key key) {
-  embed {
+  embed_returns {
     return m->count(key);
   }
 }
 
 template <Key, Value> requires comparable<Key>
 Value*? getMaybe(map<Key, Value>* m, Key key) {
-  embed {
+  embed_returns {
     if (m->count(key) > 0)
       return &m->at(key);
     else
@@ -52,7 +52,7 @@ Value*? getMaybe(map<Key, Value>* m, Key key) {
 
 template <Key, Value> requires comparable<Key>
 Value mutable*? getMaybe(map<Key, Value> mutable* m, Key key) {
-  embed {
+  embed_returns {
     if (m->count(key) > 0)
       return &m->at(key);
     else
@@ -62,7 +62,7 @@ Value mutable*? getMaybe(map<Key, Value> mutable* m, Key key) {
 
 template <Key, Value> requires comparable<Key>
 Value mutable* getOrInit(map<Key, Value> mutable* m, Key key) {
-  embed {
+  embed_returns {
     return &(*m)[key];
   }
 }

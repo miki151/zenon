@@ -1,33 +1,36 @@
 
 export int get_hash(int* a) { return *a; }
-export int get_hash(char* a) { embed { return static_cast<int>(*a); } }
+export int get_hash(char* a) { embed_returns { return static_cast<int>(*a); } }
 
 export int implicit_copy(int* b) {
-  embed {
+  embed_returns {
     return *b;
   }
 }
 
 export string implicit_copy(string* b) {
-  embed {
+  embed_returns {
     return *b;
   }
 }
 
 export bool implicit_copy(bool* b) {
-  embed {
+  embed_returns {
     return *b;
   }
 }
 
 export char implicit_copy(char* b) {
-  embed {
+  embed_returns {
     return *b;
   }
 }
 
 export double implicit_copy(double* b) {
-  embed {
+  embed_returns {
     return *b;
   }
+}
+
+export void implicit_copy(void* b) {
 }

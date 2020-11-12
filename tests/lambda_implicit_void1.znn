@@ -1,8 +1,10 @@
-// no_compile
+// 3
 
 int main() {
-  const f = [](bool a) {
+  mutable res = 0;
+  const f = [&](int a) {
+    res = a;
   };
-  const x = f(true);
-  return 0;
+  const x = f(3);
+  return res;
 }

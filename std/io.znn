@@ -4,7 +4,7 @@ embed{
 }
 
 export string to_string(int* i) {
-  embed {
+  embed_returns {
     char buf[12];
     snprintf(buf, 12, "%d", *i);
     return lite_str<>::owned(buf);
@@ -12,7 +12,7 @@ export string to_string(int* i) {
 }
 
 export string to_string(double* i) {
-  embed {
+  embed_returns {
     char buf[20];
     snprintf(buf, 20, "%f", *i);
     return lite_str<>::owned(buf);
@@ -48,7 +48,7 @@ export struct file_output {
 };
 
 export file_output(string path) {
-  embed {
+  embed_returns {
     return file_output{fopen(path.data(), "w")};
   }
 }
@@ -70,7 +70,7 @@ export struct file_input {
 };
 
 export file_input(string path) {
-  embed {
+  embed_returns {
     return file_input{fopen(path.data(), "r")};
   }
 }

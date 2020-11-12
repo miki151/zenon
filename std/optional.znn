@@ -4,7 +4,7 @@ export import "std/concepts.znn";
 
 export template <T>
 bool operator ! (T?* elem) {
-  embed {
+  embed_returns {
     return !*elem;
   }
 }
@@ -34,7 +34,7 @@ export template <T>
 T mutable* operator * (T? mutable* elem) {
   if (!*elem)
     panic("Attempted to dereference a null value from " + get_name(T) + "?");
-  embed {
+  embed_returns {
     return &**elem;
   }
 }
@@ -43,7 +43,7 @@ export template <T>
 T* operator * (T?* elem) {
   if (!*elem)
     panic("Attempted to dereference a null value from " + get_name(T) + "?");
-  embed {
+  embed_returns {
     return &**elem;
   }
 }
@@ -52,7 +52,7 @@ export template <T>
 T operator * (T? elem) {
   if (!elem)
     panic("Attempted to dereference a null value from " + get_name(T) + "?");
-  embed {
+  embed_returns {
     return std::move(*elem);
   }
 }

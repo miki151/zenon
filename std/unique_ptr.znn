@@ -11,7 +11,7 @@ extern struct unique_ptr;
 export template <T>
 unique_ptr<T> make_unique(T t) {
   set_moved_in_embed(move(t));
-  embed {
+  embed_returns {
     return std::make_unique<T>(std::move(t));
   }
 }
@@ -23,7 +23,7 @@ void destruct(unique_ptr<T>* ptr) {
 
 export template <T>
 T mutable* operator * (unique_ptr<T>* ptr) {
-  embed {
+  embed_returns {
     return ptr->get();
   }
 }
