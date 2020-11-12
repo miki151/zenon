@@ -17,6 +17,7 @@ static po::parser getCommandLineFlags() {
   flags["help"].abbreviation('h').description("Print help");
   flags["lsp"].description("Start language server");
   flags["print"].description("Print C++ output.");
+  flags["run"].description("Run the resulting program.");
   flags["o"].type(po::string).description("Binary output path.");
   flags["cpp"].type(po::string).fallback("g++").description("C++ compiler path (default: g++).");
   flags["c"].description("Do not link binary.");
@@ -31,7 +32,11 @@ static int compileCpp(string command, const string& program, const string& outpu
   cerr << command << endl;
   FILE* p = popen(command.c_str(), "w");
   fwrite(program.c_str(), 1, program.size(), p);
-  string out;
+  return pclose(p) / 256;
+}
+
+static int runProgram(string path) {
+  FILE* p = popen(path.c_str(), "w");
   return pclose(p) / 256;
 }
 
@@ -102,6 +107,8 @@ int main(int argc, char* argv[]) {
   string binaryOutput = [&] {
     if (flags["o"].was_set())
       return flags["o"].get().string;
+    else if (flags["run"].was_set())
+      return string(tmpnam(nullptr));
     else
       return getBinaryName(flags[""].begin()->string);
   }();
@@ -175,4 +182,8 @@ int main(int argc, char* argv[]) {
       cerr << "Linking failed" << endl;
       return 2;
     }
+  if (flags["run"].was_set()) {
+    cout << "Process exited with value:" << runProgram(binaryOutput) << "\n";
+    remove(binaryOutput.data());
+  }
 }
