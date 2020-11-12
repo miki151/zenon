@@ -96,7 +96,7 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
 }
 
 WithErrorLine<unique_ptr<FunctionCall>> parseFunctionCall(IdentifierInfo id, Tokens& tokens) {
-  auto ret = unique<FunctionCall>(tokens.peek().codeLoc, id, false);
+  auto ret = unique<FunctionCall>(id, false);
   TRY(tokens.eat(Keyword::OPEN_BRACKET));
   while (tokens.peek() != Keyword::CLOSE_BRACKET) {
     optional<string> argName;
@@ -149,7 +149,7 @@ WithErrorLine<unique_ptr<Expression>> parseStringLiteral(CodeLoc initialLoc, str
         } else if (index == 1) {
           loc = loc.plus(0, 2);
           auto tokens = lex(it->str().substr(1, it->str().size() - 2), loc, "end of expression").get();
-          auto call = cast<Expression>(unique<FunctionCall>(loc, IdentifierInfo("to_string", loc),
+          auto call = cast<Expression>(unique<FunctionCall>(IdentifierInfo("to_string", loc),
               unique<UnaryExpression>(loc, Operator::GET_ADDRESS, TRY(parseExpression(tokens))), false));
           addElem(std::move(call), loc);
         } else {
@@ -273,7 +273,7 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
                 cast<Statement>(unique<IfStatement>(codeLoc, nullptr,
                     cast<Expression>(unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT, varExpr->deepCopy())),
                     cast<Statement>(unique<ReturnStatement>(codeLoc,
-                        cast<Expression>(unique<FunctionCall>(codeLoc, IdentifierInfo("get_error", codeLoc),
+                        cast<Expression>(unique<FunctionCall>(IdentifierInfo("get_error", codeLoc),
                             cast<Expression>(unique<MoveExpression>(codeLoc, varName)), true)))),
                     nullptr
                 ))

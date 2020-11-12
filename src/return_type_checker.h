@@ -3,7 +3,7 @@
 #include "operator.h"
 
 class Context;
-class Expression;
+struct Expression;
 
 class ReturnTypeChecker {
   public:

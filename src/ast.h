@@ -288,8 +288,8 @@ struct FatPointerConversion : Expression {
 enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_POINTER };
 
 struct FunctionCall : Expression {
-  FunctionCall(CodeLoc, IdentifierInfo, bool methodCall);
-  FunctionCall(CodeLoc, IdentifierInfo, unique_ptr<Expression> arg, bool methodCall);
+  FunctionCall(IdentifierInfo, bool methodCall);
+  FunctionCall(IdentifierInfo, unique_ptr<Expression> arg, bool methodCall);
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;

@@ -60,12 +60,13 @@ Constant::Constant(CodeLoc l, SCompileTimeValue v) : Expression(l), value(v) {
 Variable::Variable(IdentifierInfo s) : Expression(s.codeLoc), identifier(std::move(s)) {
 }
 
-FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id, bool methodCall) : Expression(l), identifier(std::move(id)),
+FunctionCall::FunctionCall(IdentifierInfo id, bool methodCall) : Expression(id.codeLoc), identifier(std::move(id)),
     methodCall(methodCall), variadicTemplateArgs(identifier.parts.back().variadic) {
   INFO << "Function call " << id.prettyString();;
 }
 
-FunctionCall::FunctionCall(CodeLoc l, IdentifierInfo id, unique_ptr<Expression> arg, bool methodCall) : FunctionCall(l, id, methodCall) {
+FunctionCall::FunctionCall(IdentifierInfo id, unique_ptr<Expression> arg, bool methodCall)
+    : FunctionCall(id, methodCall) {
   arguments.push_back(std::move(arg));
 }
 
@@ -270,12 +271,12 @@ static vector<unique_ptr<Expression>> transformValueOrArg(vector<unique_ptr<Expr
 
 static unique_ptr<Expression> getDestructAndGetCall(CodeLoc codeLoc, unique_ptr<Expression> expr) {
   return unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
-      (unique<FunctionCall>(codeLoc, IdentifierInfo("destruct_and_get", codeLoc),
+      (unique<FunctionCall>(IdentifierInfo("destruct_and_get", codeLoc),
           unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false)));
 }
 
 static unique_ptr<Expression> getDestructorCall(CodeLoc codeLoc, unique_ptr<Expression> expr) {
-  return unique<FunctionCall>(codeLoc, IdentifierInfo("destruct", codeLoc),
+  return unique<FunctionCall>(IdentifierInfo("destruct", codeLoc),
       unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false);
 }
 
@@ -925,7 +926,7 @@ WithErrorLine<SFunctionInfo> getImplicitCopyFunction(const Context& context, Cod
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
     const string& funName, const string& alternativeName, const SType& alternativeType, int virtualIndex,
     bool lvalueParam) {
-  auto functionCall = unique<FunctionCall>(codeLoc, IdentifierInfo(funName, codeLoc), false);
+  auto functionCall = unique<FunctionCall>(IdentifierInfo(funName, codeLoc), false);
   vector<SType> args;
   for (int i = 0; i < parameters.size(); ++i)
     if (i != virtualIndex) {
@@ -1055,10 +1056,10 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
       return codeLoc.getError("Can only generate copy function for user-defined types");
     body = unique<StatementBlock>(codeLoc);
     if (structType->alternatives.empty()) {
-      auto call = unique<FunctionCall>(codeLoc, returnType, false);
+      auto call = unique<FunctionCall>(returnType, false);
       for (auto elem : structType->members) {
         auto copiedParam = unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc));
-        auto copyCall = unique<FunctionCall>(codeLoc, IdentifierInfo(functionName, codeLoc), false);
+        auto copyCall = unique<FunctionCall>(IdentifierInfo(functionName, codeLoc), false);
         copyCall->arguments.push_back(unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
             MemberAccessExpression::getPointerAccess(codeLoc, std::move(copiedParam), elem.name)));
         call->arguments.push_back(std::move(copyCall));
@@ -1072,9 +1073,9 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
         auto block = unique<StatementBlock>(codeLoc);
         auto constructorName = returnType;
         constructorName.parts.push_back(IdentifierInfo::IdentifierPart { alternative.name, {} });
-        auto constructorCall = unique<FunctionCall>(codeLoc, constructorName, false);
+        auto constructorCall = unique<FunctionCall>(constructorName, false);
         if (alternative.type != BuiltinType::VOID)
-          constructorCall->arguments.push_back(unique<FunctionCall>(codeLoc, IdentifierInfo(functionName, codeLoc),
+          constructorCall->arguments.push_back(unique<FunctionCall>(IdentifierInfo(functionName, codeLoc),
               unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
                   unique<Variable>(IdentifierInfo(alternative.name, codeLoc))), false));
         block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(constructorCall)));
@@ -1105,7 +1106,7 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const
     IdentifierInfo id = returnType;
     id.parts.push_back(returnType.parts[0]);
     id.parts.back().templateArguments.clear();
-    auto call = unique<FunctionCall>(codeLoc, std::move(id), false);
+    auto call = unique<FunctionCall>(std::move(id), false);
     for (int i = 0; i < structType->members.size(); ++i) {
       call->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
     }
@@ -1582,7 +1583,7 @@ JustError<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
   if (canDiscard) {
     if (res == BuiltinType::VOID || res == BuiltinType::NORETURN)
       return codeLoc.getError("Void expression result unnecessarily marked as discarded");
-    expr = unique<FunctionCall>(codeLoc, IdentifierInfo("discard_impl", codeLoc), std::move(expr), false);
+    expr = unique<FunctionCall>(IdentifierInfo("discard_impl", codeLoc), std::move(expr), false);
     CHECK(!!getType(context, expr));
   }
   return success;
@@ -2435,10 +2436,10 @@ JustError<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   auto containerEndName = "container_end"s + uniqueSufix;
   bodyContext.addVariable(*containerName, containerType, codeLoc);
   containerEnd = unique<VariableDeclaration>(codeLoc, none, containerEndName,
-      unique<FunctionCall>(codeLoc, IdentifierInfo("end", codeLoc),
+      unique<FunctionCall>(IdentifierInfo("end", codeLoc),
           unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, unique<Variable>(IdentifierInfo(*containerName, codeLoc))), false));
   TRY(containerEnd->check(bodyContext));
-  init->initExpr = unique<FunctionCall>(codeLoc, IdentifierInfo("begin", codeLoc),
+  init->initExpr = unique<FunctionCall>(IdentifierInfo("begin", codeLoc),
       unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, unique<Variable>(IdentifierInfo(*containerName, codeLoc))), false);
   init->isMutable = true;
   condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)),
