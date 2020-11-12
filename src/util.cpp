@@ -35,3 +35,19 @@ string getParentPath(const string& s) {
   return ".";
 }
 
+bool endsWith(const string& s, const string& suffix) {
+  return s.size() >= suffix.size() && contains(s, suffix, s.size() - suffix.size());
+}
+
+bool startsWith(const string& s, const string& prefix) {
+  return contains(s, prefix, 0);
+}
+
+bool contains(const string& a, const string& substring, unsigned long index) {
+  if (a.size() - index < substring.size())
+    return false;
+  for (auto i = index; i < index + substring.size(); ++i)
+    if (a[i] != substring[i - index])
+      return false;
+  return true;
+}

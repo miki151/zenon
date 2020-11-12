@@ -5,6 +5,9 @@
 
 extern string combine(const vector<string>& adj, const string& separator);
 extern string quote(const string&);
+bool endsWith(const string&, const string& suffix);
+bool startsWith(const string&, const string& prefix);
+bool contains(const string&, const string& substring, unsigned long index);
 
 template <class T>
 class HeapAllocated {

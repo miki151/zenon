@@ -16,6 +16,7 @@ static po::parser getCommandLineFlags() {
   po::parser flags;
   flags["help"].abbreviation('h').description("Print help");
   flags["lsp"].description("Start language server");
+  flags["print"].description("Print C++ output.");
   flags["o"].type(po::string).description("Binary output path.");
   flags["cpp"].type(po::string).fallback("g++").description("C++ compiler path (default: g++).");
   flags["c"].description("Do not link binary.");
@@ -72,6 +73,12 @@ static string getCodegenAllFileName(string s) {
   return s;
 }
 
+static string getBinaryName(const string& sourceFile) {
+  if (endsWith(sourceFile, ".znn"))
+    return sourceFile.substr(0, sourceFile.size() - 4);
+  return sourceFile + ".bin";
+}
+
 int main(int argc, char* argv[]) {
   po::parser flags = getCommandLineFlags();
   if (!flags.parseArgs(argc, argv))
@@ -91,7 +98,13 @@ int main(int argc, char* argv[]) {
     codegenAll = flags["codegen"].get().string;
   auto gccCmd = flags["cpp"].get().string;
   bool fullCompile = !flags["c"].was_set() || codegenAll;
-  bool printCpp = !flags["o"].was_set() && !codegenAll;
+  bool printCpp = flags["print"].was_set() && !codegenAll;
+  string binaryOutput = [&] {
+    if (flags["o"].was_set())
+      return flags["o"].get().string;
+    else
+      return getBinaryName(flags[""].begin()->string);
+  }();
   vector<string> linkFlags;
   for (int i = 0; i < flags["l"].count(); ++i)
     linkFlags.push_back("-l" + flags["l"].get(i).string);
@@ -148,7 +161,7 @@ int main(int argc, char* argv[]) {
     else {
       auto objFile = fullCompile
           ? buildDir + "/"s + to_string(std::hash<string>()(cppCode + gccCmd)) + ".znn.o"
-          : flags["o"].get().string;
+          : binaryOutput;
       if ((!fullCompile || !fs::exists(objFile)) && compileCpp(gccCmd, cppCode, objFile)) {
         cerr << "C++ compilation failed, which is a Zenon bug :(\n\n" << endl;
         //cerr << cppCode << endl;
@@ -158,7 +171,7 @@ int main(int argc, char* argv[]) {
     }
   }
   if (!objFiles.empty())
-    if (linkObjs(gccCmd, objFiles, flags["o"].get().string, linkFlags) != 0) {
+    if (linkObjs(gccCmd, objFiles, binaryOutput, linkFlags) != 0) {
       cerr << "Linking failed" << endl;
       return 2;
     }
