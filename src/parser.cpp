@@ -783,7 +783,7 @@ WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) 
         if (tokens.eatMaybe(Keyword::CLOSE_BRACKET))
           break;
         else
-          CHECK(!!tokens.eat(Keyword::COMMA));
+          TRY(tokens.eat(Keyword::COMMA));
       }
       caseElem.block = TRY(parseBlock(tokens));
       ret->caseElems.push_back(std::move(caseElem));
