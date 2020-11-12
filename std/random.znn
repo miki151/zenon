@@ -13,12 +13,10 @@ export void init_random() {
 }
 
 export int get_random(int max) {
-  embed {
+  embed_returns {
     return rand() % max;
   }
 }
-
-export struct range;
 
 export int get_random(range r) {
   return r.start + get_random(r.finish - r.start);
@@ -27,7 +25,7 @@ export int get_random(range r) {
 export template <T> requires is_enum<T>
 T get_random() {
   const value = get_random(enum_count(T));
-  embed {
+  embed_returns {
     return T(value);
   }
 }
