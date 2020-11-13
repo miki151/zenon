@@ -591,23 +591,6 @@ void ExpressionStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.add(";");
 }
 
-void StructDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (type->external || !stage.isTypes)
-    return;
-  for (auto& instantation : concat({type.get()}, type->instances))
-    if (auto name = instantation->getMangledName()) {
-      accu.add("struct " + *name + ";");
-      accu.newLine();
-    }
-}
-
-void EnumDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (stage.isTypes && !external) {
-    accu.add("enum class " + name + ";");
-    accu.newLine();
-  }
-}
-
 void UnionDefinition::codegen(Accu& accu, CodegenStage stage) const {
   if (stage.isDefine)
     for (auto& instance : concat({type.get()}, type->instances))

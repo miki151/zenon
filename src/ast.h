@@ -576,7 +576,6 @@ struct StructDefinition : Statement {
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual void addGeneratedConstructor(Context&, const AST&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual bool canHaveAttributes() const override { return true; }
   virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry*) override;
@@ -628,7 +627,6 @@ struct EnumDefinition : Statement {
   bool external = false;
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual JustError<ErrorLoc> registerTypes(const Context&, TypeRegistry*) override;
 };
