@@ -129,16 +129,12 @@ int main(int argc, char* argv[]) {
   auto buildDir = ".build_cache";
   if (!fs::is_directory(buildDir))
     fs::create_directory(buildDir);
-  ImportCache importCache;
   ASTCache astCache;
-  TypeRegistry typeRegistry;
-  const auto primaryContext = createPrimaryContext(&typeRegistry);
-  {
-    auto initialAST = getOrCompileError(astCache.getAST(fs::canonical(toCompile.begin()->path)));
-    for (auto& elem : initialAST->elems)
-      checkCompileError(elem->registerTypes(primaryContext, &typeRegistry, astCache, {installDir}));
-  }
   while (!toCompile.empty()) {
+    astCache.clearUnitCache();
+    ImportCache importCache;
+    TypeRegistry typeRegistry;
+    const auto primaryContext = createPrimaryContext(&typeRegistry);
     auto path = string(fs::canonical(toCompile.begin()->path));
     bool builtInModule = toCompile.begin()->builtIn;
     cerr << "Compiling " << path << endl;
@@ -147,6 +143,8 @@ int main(int argc, char* argv[]) {
     auto ast = getOrCompileError(astCache.getAST(path));
     if (builtInModule)
       importCache.setBuiltIn();
+    for (auto& elem : ast->elems)
+      checkCompileError(elem->registerTypes(primaryContext, &typeRegistry, astCache, {installDir}));
     auto context = primaryContext.getChild(true);
     auto imported = getOrCompileError(correctness(path, *ast, context, primaryContext, importCache, builtInModule));
     if (builtInModule)

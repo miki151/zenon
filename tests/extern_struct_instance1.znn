@@ -1,0 +1,17 @@
+// 5
+
+import "std/expected.znn";
+
+embed {
+  struct X {};
+}
+
+extern struct X;
+
+expected<int, X> get() {
+  return 5;
+}
+
+int main() {
+  return get() ?? 1;
+}

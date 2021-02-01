@@ -546,6 +546,7 @@ unique_ptr<Statement> VariableDeclaration::transform(const StmtTransformFun&,
       initExpr ? exprFun(initExpr.get()) : nullptr);
   ret->isMutable = isMutable;
   ret->isStatic = isStatic;
+  ret->type = type;
   return ret;
 }
 
@@ -611,12 +612,10 @@ bool Statement::hasReturnStatement() const {
   return false;
 }
 
-unique_ptr<Statement> Statement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
-  fail();
-}
-
 unique_ptr<Statement> Statement::deepCopy() const {
-  return transform(&identityStmt, &identityExpr);
+  auto ret = transform(&identityStmt, &identityExpr);
+  ret->exported = exported;
+  return ret;
 }
 
 bool IfStatement::hasReturnStatement() const {
@@ -755,6 +754,19 @@ static WithErrorLine<vector<SType>> getTemplateParams(const TemplateInfo& info, 
       paramsContext.addType(param.name, ret.back());
     }
   }
+  return ret;
+}
+
+unique_ptr<Statement> FunctionDefinition::transform(const StmtTransformFun& f1, const ExprTransformFun&) const {
+  auto ret = unique<FunctionDefinition>(codeLoc, returnType, name);
+  ret->parameters = parameters;
+  if (body)
+    ret->body = cast<StatementBlock>(f1(body.get()));
+  ret->templateInfo = templateInfo;
+  ret->external = external;
+  ret->isVirtual = isVirtual;
+  ret->isDefault = isDefault;
+  ret->isVariadicParams = isVariadicParams;
   return ret;
 }
 
@@ -1900,6 +1912,10 @@ JustError<ErrorLoc> UnionDefinition::registerTypes(const Context& primaryContext
   return success;
 }
 
+unique_ptr<Statement> UnionDefinition::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+  return unique<UnionDefinition>(*this);
+}
+
 JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
   TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
   context.addType(name, type.get());
@@ -1959,6 +1975,10 @@ JustError<ErrorLoc> StructDefinition::registerTypes(const Context& primaryContex
     return ret;
   }
   return success;
+}
+
+unique_ptr<Statement> StructDefinition::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+  return unique<StructDefinition>(*this);
 }
 
 JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
@@ -2067,6 +2087,7 @@ Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
 unique_ptr<Statement> EmbedStatement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
   auto ret = unique<EmbedStatement>(codeLoc, value);
   ret->returns = returns;
+  ret->isTopLevel = isTopLevel;
   return std::move(ret);
 }
 
@@ -2262,7 +2283,7 @@ JustError<ErrorLoc> ImportStatement::registerTypes(const Context& context, TypeR
     auto importPath = fs::path(importDir) / path;
     if (auto content = readFromFile(importPath.c_str())) {
       absolutePath = string(fs::canonical(importPath));
-      bool firstTime = !cache.hasAST(*absolutePath);
+      bool firstTime = !cache.hasASTInUnit(*absolutePath);
       ast = TRY(cache.getAST(*absolutePath));
       if (firstTime)
         for (auto& elem : ast->elems)
@@ -2275,8 +2296,13 @@ JustError<ErrorLoc> ImportStatement::registerTypes(const Context& context, TypeR
   return success;
 }
 
+unique_ptr<Statement> ImportStatement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+  return unique<ImportStatement>(codeLoc, path, isBuiltIn);
+}
+
 JustError<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
   if (cache.isCurrentlyBuiltIn() && isBuiltIn) {
+    ast = nullptr;
     return success;
   }
   if (cache.isCurrentlyImported(*absolutePath))
@@ -2301,6 +2327,12 @@ EnumDefinition::EnumDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
 
 JustError<ErrorLoc> EnumDefinition::registerTypes(const Context&, TypeRegistry* r) {
   return r->addEnum(name, external, codeLoc).addCodeLoc(codeLoc);
+}
+
+unique_ptr<Statement> EnumDefinition::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+  auto ret = unique<EnumDefinition>(codeLoc, name);
+  ret->elements = elements;
+  return ret;
 }
 
 JustError<ErrorLoc> EnumDefinition::addToContext(Context& context) {
@@ -2391,6 +2423,14 @@ JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
 
 JustError<ErrorLoc> ConceptDefinition::check(Context& context, bool) {
   return success;
+}
+
+unique_ptr<Statement> ConceptDefinition::transform(const StmtTransformFun& f1, const ExprTransformFun&) const {
+  auto ret = unique<ConceptDefinition>(codeLoc, name);
+  for (auto& f : functions)
+    ret->functions.push_back(cast<FunctionDefinition>(f1(f.get())));
+  ret->templateInfo = templateInfo;
+  return ret;
 }
 
 CodegenStage CodegenStage::types() {
@@ -2588,6 +2628,10 @@ JustError<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
   INFO << "Adding extern constant " << identifier << " of type " << realType.get()->getName();
   context.addVariable(identifier, ReferenceType::get(realType.get()), codeLoc);
   return success;
+}
+
+unique_ptr<Statement> ExternConstantDeclaration::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+  return unique<ExternConstantDeclaration>(codeLoc, type, identifier);
 }
 
 LambdaExpression::LambdaExpression(CodeLoc l, vector<FunctionParameter> params, unique_ptr<StatementBlock> block,
@@ -3076,6 +3120,10 @@ JustError<ErrorLoc> AttributeDefinition::check(Context&, bool) {
   return success;
 }
 
+unique_ptr<Statement> AttributeDefinition::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+  return unique<AttributeDefinition>(codeLoc, name);
+}
+
 ExternalStatement::ExternalStatement(Statement* s) : Statement(s->codeLoc), elem(s) {}
 
 bool ExternalStatement::hasReturnStatement() const {
@@ -3128,4 +3176,8 @@ JustError<ErrorLoc> StatementExpression::checkMoves(MoveChecker& checker) const 
     TRY(s->checkMoves(checker));
   TRY(value->checkMoves(checker));
   return success;
+}
+
+AST AST::clone() {
+  return AST{ elems.transform([](auto& elem) { return elem->deepCopy(); } ) };
 }

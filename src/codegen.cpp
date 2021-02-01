@@ -801,12 +801,14 @@ void WhileLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void ImportStatement::codegen(Accu& accu, CodegenStage stage) const {
-  stage.setImport();
-  if (!accu.generated.count(make_pair(ast, stage))) {
-    accu.generated.insert(make_pair(ast, stage));
-    for (auto& elem : ast->elems)
-      if (elem->exported)
-        elem->codegen(accu, stage);
+  if (ast) {
+    stage.setImport();
+    if (!accu.generated.count(make_pair(ast, stage))) {
+      accu.generated.insert(make_pair(ast, stage));
+      for (auto& elem : ast->elems)
+        if (elem->exported)
+          elem->codegen(accu, stage);
+    }
   }
 }
 

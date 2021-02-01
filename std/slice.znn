@@ -1,7 +1,6 @@
 export import "std/pointer.znn";
 export import "std/builtin_types.znn";
 export import "std/concepts.znn";
-export import "std/builtin_types.znn";
 
 export template <T>
 int size(T[]* s) {

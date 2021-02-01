@@ -335,7 +335,7 @@ struct Statement : Node {
   virtual void addGeneratedConstructor(Context&, const AST&) const {}
   virtual void codegen(Accu&, CodegenStage) const override {}
   virtual unique_ptr<Statement> replaceVar(string from, string to) const;
-  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const;
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const = 0;
   virtual bool canHaveAttributes() const { return false; }
   virtual JustError<ErrorLoc> registerTypes(const Context&, TypeRegistry*) { return success; }
   virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry* r, ASTCache&,
@@ -376,6 +376,7 @@ struct ExternConstantDeclaration : Statement {
   string identifier;
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
 };
 
 struct IfStatement : Statement {
@@ -559,6 +560,7 @@ struct AttributeDefinition : Statement {
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   string name;
 };
 
@@ -579,6 +581,7 @@ struct StructDefinition : Statement {
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual bool canHaveAttributes() const override { return true; }
   virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry*) override;
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   bool external = false;
 };
 
@@ -598,6 +601,7 @@ struct UnionDefinition : Statement {
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry*) override;
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
 };
 
 struct ConceptDefinition : Statement {
@@ -614,6 +618,7 @@ struct ConceptDefinition : Statement {
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
 
   private:
   vector<FatPointerInfo> fatPointers;
@@ -629,6 +634,7 @@ struct EnumDefinition : Statement {
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual JustError<ErrorLoc> registerTypes(const Context&, TypeRegistry*) override;
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
 };
 
 struct SwitchStatement : Statement {
@@ -689,6 +695,7 @@ struct FunctionDefinition : Statement {
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   NODISCARD JustError<ErrorLoc> setFunctionType(const Context&, nullable<SConcept> concept = nullptr, bool builtInImport = false);
   void handlePointerParamsInOperator(Accu&, const StatementBlock*) const;
   void handlePointerReturnInOperator(Accu&, const StatementBlock*) const;
@@ -722,7 +729,10 @@ struct EmbedStatement : Statement {
   virtual bool hasReturnStatement() const override;
 };
 
-struct AST;
+struct AST {
+  vector<unique_ptr<Statement>> elems;
+  AST clone();
+};
 
 struct ImportStatement : Statement {
   ImportStatement(CodeLoc, string path, bool isBuiltIn);
@@ -736,10 +746,7 @@ struct ImportStatement : Statement {
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual JustError<ErrorLoc> registerTypes(const Context&, TypeRegistry*, ASTCache&,
       const vector<string>& importDirs) override;
-};
-
-struct AST {
-  vector<unique_ptr<Statement>> elems;
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
 };
 
 struct ModuleInfo {
