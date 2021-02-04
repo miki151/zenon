@@ -20,6 +20,15 @@ bool operator !(expected<T, E>* v) {
   }
 }
 
+export template <E>
+string get_error_string(E* e) {
+  return "an error.";
+}
+
+export string get_error_string(string* s) {
+  return "error: " + *s + ".";
+}
+
 export template <T, E>
 T* operator *(expected<T, E>* v) {
   switch (*v) {
@@ -27,7 +36,7 @@ T* operator *(expected<T, E>* v) {
       return &value;
     }
     case (error) {
-      panic("Expected contains error.");
+      panic("Expected contains " + get_error_string(&error));
     }
   }
 }
@@ -39,7 +48,7 @@ T mutable* operator *(expected<T, E> mutable* v) {
       return &value;
     }
     case (error) {
-      panic("Expected contains error.");
+      panic("Expected contains " + get_error_string(&error));
     }
   }
 }
@@ -51,7 +60,7 @@ T operator *(expected<T, E> v) {
       return move(value);
     }
     case (error) {
-      panic("Expected contains error.");
+      panic("Expected contains " + get_error_string(&error));
     }
   }
 }
