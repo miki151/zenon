@@ -1,4 +1,6 @@
 
+export import "expected.znn";
+
 embed{
 #include <cstdio>
 }
@@ -47,12 +49,6 @@ export struct file_output {
   FILE mutable* handle;
 };
 
-export file_output(string path) {
-  embed_returns {
-    return file_output{fopen(path.data(), "w")};
-  }
-}
-
 export void printf(file_output* f, string s) {
   embed {
     fprintf(f->handle, "%s", s.data());
@@ -69,10 +65,39 @@ export struct file_input {
   FILE mutable* handle;
 };
 
-export file_input(string path) {
-  embed_returns {
-    return file_input{fopen(path.data(), "r")};
+export void destruct(file_input* f) {
+  embed {
+    fclose(f->handle);
   }
+}
+
+template <T>
+concept file_type_constructor {
+  T(FILE mutable*);
+};
+
+template <file_type> requires file_type_constructor<file_type>
+expected<file_type, string> open_file_impl(string path, string perm) {
+  const gen_error = [&] (string e) -> expected<file_type, string> {
+    return "Error opening \"" + path + "\": " + move(e);
+  };
+  const gen_value = [&] (FILE mutable* h) -> expected<file_type, string> {
+    return file_type(h);
+  };
+  embed_returns {
+    auto handle = fopen(path.data(), perm.data());
+    if (!handle)
+      return invoke(&gen_error, zenon_string::reference(strerror(errno)));
+    return invoke(&gen_value, handle);
+  }
+}
+
+export expected<file_input, string> open_file_r(string path) {
+  return open_file_impl<file_input>(move(path), "r");
+}
+
+export expected<file_output, string> open_file_w(string path) {
+  return open_file_impl<file_output>(move(path), "w");
 }
 
 template <T>
@@ -105,12 +130,6 @@ export string? scan_string(file_input* f, int max_length) {
       return zenon_string::owned(buf);
   }
   return null;
-}
-
-export void destruct(file_input* f) {
-  embed {
-    fclose(f->handle);
-  }
 }
 
 export string? remove_file(string path) {

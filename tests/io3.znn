@@ -7,8 +7,8 @@ int main(string[] args) {
   const path = args[0] + "tmp.txt";
   const t = "text";
   const n = 13;
-  file_output(path).printf("{t} {n}\n");
-  const input = file_input(path);
+  open_file_w(path)->printf("{t} {n}\n");
+  const input = *open_file_r(path);
   const text = *input.scan_string(10);
   const v1 = *input.scan_int();
   const v2 = input.scan_double() ?? 4.6;

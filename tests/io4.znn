@@ -6,8 +6,8 @@ int main(string[] args) {
   const path = args[0] + "tmp.txt";
   const t = "t";
   const n = 13;
-  file_output(path).printf("{t} {n}\n");
-  const input = file_input(path);
+  open_file_w(path)->printf("{t} {n}\n");
+  const input = *open_file_r(path);
   const text = *input.scan_char();
   const v1 = *input.scan_int();
   assert(!remove_file(path));

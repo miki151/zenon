@@ -1,0 +1,9 @@
+// 2
+
+import "std/io.znn";
+
+int main() {
+  if (const file = open_file_r("foobarfoo123"))
+    return 1;
+  return 2;
+}

@@ -3,5 +3,6 @@
 extern int!bool f();
 
 int main() {
+  const a = f();
   return 0;
 }

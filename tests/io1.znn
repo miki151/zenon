@@ -4,8 +4,8 @@ import "std/io.znn";
 
 int main(string[] args) {
   const path = args[0] + "tmp.txt";
-  file_output(path).printf("13\n");
-  const input = file_input(path);
+  open_file_w(path)->printf("13\n");
+  const input = *open_file_r(path);
   const ret = input.scan_int();
   assert(!remove_file(path));
   return ret ?? 0;
