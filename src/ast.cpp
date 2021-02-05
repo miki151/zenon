@@ -2780,6 +2780,11 @@ unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, 
 
 void LambdaExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
   f1(block.get());
+  for (auto& elem : type->destructorCalls)
+    if (elem)
+      f1(elem.get());
+  if (type->destructor)
+    f1(type->destructor.get());
 }
 
 void LambdaExpression::addLambdas(LambdasSet& lambdas) const {
