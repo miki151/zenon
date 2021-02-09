@@ -19,7 +19,7 @@ int add(S* s, bool a) {
     return 2;
 }
 
-template <A, B, C> requires CanAdd<A, B, C>, can_copy<B>
+template <A, B, C> requires CanAdd<A, B, C>, copy<B>
 C add2(A a, mutable B b) {
   return a.add(move(b));
 }
@@ -31,7 +31,7 @@ struct S2 {
 template <A1, B1, C1> requires CanAdd<A1, B1, C1>
 S2<A1, B1, C1> copy(S2<A1, B1, C1>*) = default;
 
-template <A, B, C> requires CanAdd<A, B, C>, can_copy<B>
+template <A, B, C> requires CanAdd<A, B, C>, copy<B>
 C add3(S2<A, B, C> s, A a, mutable B b) {
   return a.add(move(b));
 }

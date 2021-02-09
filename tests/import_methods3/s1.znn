@@ -4,7 +4,7 @@ export struct X {
   int v;
 };
 
-export template<T> requires can_copy<T>
+export template<T> requires copy<T>
 int get(X* x, T u) {
   return x->v;
 }
@@ -14,7 +14,7 @@ struct Y {
   T v;
 };
 
-export template<T, U> requires can_copy<T>
+export template<T, U> requires copy<T>
 T get(Y<T>* x, U u) {
   return x->v.copy();
 }

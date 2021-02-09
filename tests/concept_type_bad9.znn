@@ -15,7 +15,7 @@ concept Not {
   void something(T*);
 };
 
-template <T> requires can_implicit_copy<T>, Not<T>
+template <T> requires implicit_copy<T>, Not<T>
 T get(X<T>* x) {
   return x->a;
 }

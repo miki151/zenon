@@ -6,7 +6,7 @@ union X {
   void isNull;
 };
 
-template<T> requires can_copy<T>
+template<T> requires copy<T>
 T operator[](X<T>* x, T a) {
   switch (*x) {
     case (elem) {

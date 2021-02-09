@@ -7,10 +7,10 @@ struct X {
   T v;
 };
 
-template <T> requires can_copy<T>
+template <T> requires copy<T>
 X<T> copy(X<T>*) = default;
 
-template<T> requires can_copy<T>
+template<T> requires copy<T>
 void set(X<T> mutable* x, T t) {
   x->v = t.copy();
 }

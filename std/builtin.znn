@@ -9,7 +9,7 @@ export import "std/destruct.znn";
 export import "std/operator_helpers.znn";
 export import "std/builtin_types.znn";
 
-export template <T> requires can_implicit_copy<T>
+export template <T> requires implicit_copy<T>
 T copy(T* b) {
   return *b;
 }

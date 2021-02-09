@@ -1,6 +1,6 @@
 // 2
 
-template <T> requires can_construct<T>
+template <T> requires construct<T>
 int f() {
   const l = []() {
     return 1;

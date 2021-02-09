@@ -1,6 +1,6 @@
 // no_compile
 
-int calc(can_invoke<int, int>* f) {
+int calc(invoke<int, int>* f) {
   return 2 * f->invoke(1);
 }
 

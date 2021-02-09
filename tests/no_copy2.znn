@@ -2,7 +2,7 @@
 
 import "std/concepts.znn";
 
-template <T> requires can_copy<T>
+template <T> requires copy<T>
 void f(T t) {
   T t2 = t.copy();
 }

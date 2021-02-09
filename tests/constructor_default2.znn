@@ -9,11 +9,11 @@ template <T>
 X(T) = default;
 
 template <T>
-concept can_construct {
+concept construct {
   T();
 };
 
-template <T> requires can_construct<T>
+template <T> requires construct<T>
 X() {
   return X(T());
 }

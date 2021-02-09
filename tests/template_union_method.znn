@@ -1,12 +1,12 @@
 // 4
 
-template <T> requires can_copy<T>
+template <T> requires copy<T>
 union V {
   T value;
   void isNull;
 };
 
-template <T> requires can_copy<T>
+template <T> requires copy<T>
 T getValueOr(V<T>* v, T a) {
   switch (*v) {
     case (value) {

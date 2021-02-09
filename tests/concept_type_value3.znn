@@ -1,18 +1,18 @@
 // 6
 
 template <Fun, Ret, Args...>
-concept can_invoke2 {
+concept invoke2 {
   Ret invoke(Fun*, Args...);
   void destruct(Fun*);
 };
 
 template <T>
-int get(can_invoke2<int, T> fun, T t) {
+int get(invoke2<int, T> fun, T t) {
   return fun(move(t));
 }
 
 int main() {
   const lam = [](string s) { return s.size(); };
-  const can_invoke2<int, string> fun = move(lam);
+  const invoke2<int, string> fun = move(lam);
   return get(move(fun), "pokpok");
 }

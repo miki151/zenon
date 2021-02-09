@@ -15,7 +15,7 @@ T operator [] (T[Size] a, int index) {
   }
 }
 
-export template <T, int Size> requires can_copy<T>
+export template <T, int Size> requires copy<T>
 T[Size] copy(T[Size]* array) {
   const get = [](T* t) -> T { return t->copy(); };
   embed_returns {
@@ -26,7 +26,7 @@ T[Size] copy(T[Size]* array) {
   }
 }
 
-export template <int Size, T> requires can_copy<T>, (Size >= 0)
+export template <int Size, T> requires copy<T>, (Size >= 0)
 T[Size] array_repeat(T elem) {
   const get = [](T* t) -> T { return t->copy(); };
   embed_returns {
@@ -37,7 +37,7 @@ T[Size] array_repeat(T elem) {
   }
 }
 
-export template <int Size, T, Fun> requires can_invoke<Fun, T, int>, (Size >= 0)
+export template <int Size, T, Fun> requires invoke<Fun, T, int>, (Size >= 0)
 T[Size] array_generate(Fun fun) {
   embed_returns {
     std::array<T, Size> a;
@@ -47,7 +47,7 @@ T[Size] array_generate(Fun fun) {
   }
 }
 
-export template <int Size, T, Ret, Fun> requires can_invoke<Fun, Ret, T*>
+export template <int Size, T, Ret, Fun> requires invoke<Fun, Ret, T*>
 Ret[Size] transform(T[Size]* input, Fun f) {
   return array_generate<Size>([&] (int index) { return f(&(*input)[index]); });
 }
@@ -142,7 +142,7 @@ bool operator == (T[Size]* v1, T[Size]* v2) {
   return v1->slice() == v2->slice();
 }
 
-export template <int Size, T> requires can_hash<T>
+export template <int Size, T> requires get_hash<T>
 int get_hash(T[Size]* v) {
   return v->slice().get_hash();
 }

@@ -8,7 +8,7 @@ struct S {
 
 S copy(S*) = default;
 
-template <T> requires can_copy<T>
+template <T> requires copy<T>
 int f(T t) {
   T u = t.copy();
   return 1;

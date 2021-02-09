@@ -6,13 +6,13 @@ struct enum_map {
   Value[enum_count(Key)] values;
 };
 
-template <Key, Value> requires is_enum<Key>, can_copy<Value>
+template <Key, Value> requires is_enum<Key>, copy<Value>
 enum_map(Value* value) {
   return enum_map<Key, Value>::enum_map(
       array_repeat<(enum_count(Key))>(value->copy()));
 }
 
-export template <Key, Value, Fun> requires is_enum<Key>, can_invoke<Fun, Value, Key>
+export template <Key, Value, Fun> requires is_enum<Key>, invoke<Fun, Value, Key>
 enum_map<Key, Value> enum_map_generate(Fun fun) {
   return enum_map<Key, Value>::enum_map(
       array_generate<(enum_count(Key))>([&](int value) { return fun(fromInt<Key>(value)); }));

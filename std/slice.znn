@@ -80,7 +80,7 @@ bool operator != (slice_iterator<T>* it1, slice_iterator<T>* it2) {
   }
 }
 
-export template <T> requires can_hash<T>
+export template <T> requires get_hash<T>
 int get_hash(T[] v) {
   mutable res = 0;
   mutable u = 1;

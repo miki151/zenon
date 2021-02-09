@@ -18,7 +18,7 @@ struct Y {
   T a;
 };
 
-template <T> requires can_implicit_copy<T>
+template <T> requires implicit_copy<T>
 T get(Y<T>* y) {
   return y->a;
 }

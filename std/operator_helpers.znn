@@ -2,51 +2,51 @@
 export import "std/concepts.znn";
 
 export template <T, U>
-concept can_equality_impl {
+concept equality_impl {
   bool operator == (T*, U*);
 };
 
-export template <T, U> requires can_equality_impl<T, U>
+export template <T, U> requires equality_impl<T, U>
 bool operator != (T* t, U* u) {
   return !(*t == *u);
 }
 
 export template <T, U>
-concept can_increment_by_impl {
+concept increment_by_impl {
   T operator + (T*, U*);
 };
 
-export template <T, U> requires can_increment_by_impl<T, U>
+export template <T, U> requires increment_by_impl<T, U>
 void operator +=(T mutable* t, U* u) {
   *t = *t + *u;
 }
 
 export template <T, U>
-concept can_decrement_by_impl {
+concept decrement_by_impl {
   T operator - (T*, U*);
 };
 
-export template <T, U> requires can_decrement_by_impl<T, U>
+export template <T, U> requires decrement_by_impl<T, U>
 void operator -=(T mutable* t, U* u) {
   *t = *t - *u;
 }
 
 export template <T, U>
-concept can_multiply_by_impl {
+concept multiply_by_impl {
   T operator * (T*, U*);
 };
 
-export template <T, U> requires can_multiply_by_impl<T, U>
+export template <T, U> requires multiply_by_impl<T, U>
 void operator *=(T mutable* t, U* u) {
   *t = *t * *u;
 }
 
 export template <T, U>
-concept can_divide_by_impl {
+concept divide_by_impl {
   T operator / (T*, U*);
 };
 
-export template <T, U> requires can_divide_by_impl<T, U>
+export template <T, U> requires divide_by_impl<T, U>
 void operator /=(T mutable* t, U* u) {
   *t = *t / *u;
 }

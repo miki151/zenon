@@ -5,7 +5,7 @@ struct X {
   T elem;
 };
 
-template <T> requires can_invoke<T, void>
+template <T> requires invoke<T, void>
 void destruct(X<T>* x) {
   x->elem();
 }

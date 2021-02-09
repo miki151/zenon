@@ -6,7 +6,7 @@ struct X {
   T a;
 };
 
-export template <T> requires can_implicit_copy<T>
+export template <T> requires implicit_copy<T>
 T get(X<T>* x) {
   return x->a;
 }

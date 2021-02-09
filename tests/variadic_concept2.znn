@@ -1,11 +1,11 @@
 // 5
 
 template <T, CArgs...>
-concept can_construct {
+concept construct {
   T(CArgs...);
 };
 
-template <T, Args...> requires can_construct<T, Args...>
+template <T, Args...> requires construct<T, Args...>
 T make(Args... args) {
   return T(move(args)...);
 }

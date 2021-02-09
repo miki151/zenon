@@ -32,11 +32,6 @@ export string to_string(bool* b) {
     return "false";
 }
 
-export template <T>
-concept can_print {
-  string to_string(T*);
-};
-
 export void printf(string s) {
   embed {
     printf("%s", s.data());

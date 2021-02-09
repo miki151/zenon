@@ -12,7 +12,7 @@ concept F2 {
   int f2(T mutable*);
 };
 
-template <A> requires F1<A>, can_copy<A>
+template <A> requires F1<A>, copy<A>
 int f2(mutable A mutable* a) {
   return 1 + f1(a->copy());
 }

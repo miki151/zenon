@@ -5,7 +5,7 @@ concept can_call {
   Ret f(Args...);
 };
 
-template <Ret, U> requires can_call<Ret, U, U>, can_copy<U>
+template <Ret, U> requires can_call<Ret, U, U>, copy<U>
 Ret g(U u) {
   return f(copy(&u), copy(&u));
 }

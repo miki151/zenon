@@ -47,7 +47,7 @@ union Shape {
   T circle;
 };
 
-template <T> requires can_copy<T>, ShapeInterface<T>
+template <T> requires copy<T>, ShapeInterface<T>
 Shape<T> copy(Shape<T>*) = default;
 
 template <T> requires ShapeInterface<T>

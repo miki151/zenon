@@ -1,6 +1,6 @@
 // 6
 
-template <Ret, Fun, Arg...> requires can_invoke<Fun, Ret, Arg...>
+template <Ret, Fun, Arg...> requires invoke<Fun, Ret, Arg...>
 Ret run_fun(Fun f, Arg... a) {
   return f(move(a)...);
 }

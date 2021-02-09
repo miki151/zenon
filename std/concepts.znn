@@ -1,11 +1,11 @@
 
 export template <T>
-concept can_copy {
+concept copy {
   T copy(T*);
 };
 
 export template <T>
-concept can_implicit_copy {
+concept implicit_copy {
   T implicit_copy(T*);
 };
 
@@ -21,12 +21,12 @@ concept comparable {
 };
 
 export template <Fun, Ret, Args...>
-concept can_invoke {
+concept invoke {
   Ret invoke(Fun*, Args...);
 };
 
 export template <T, Args...>
-concept can_construct {
+concept construct {
   T(Args...);
 };
 
@@ -41,6 +41,6 @@ concept has_members {
 };
 
 export template <T>
-concept can_hash {
+concept get_hash {
   int get_hash(T*);
 };

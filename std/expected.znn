@@ -65,7 +65,7 @@ T operator *(expected<T, E> v) {
   }
 }
 
-export template <T, E> requires can_copy<E>
+export template <T, E> requires copy<E>
 E get_error(expected<T, E>* v) {
   switch (*v) {
     case (value) {
@@ -89,7 +89,7 @@ E get_error(expected<T, E> v) {
   }
 }
 
-export template <T, E> requires can_copy<T>, can_copy<E>
+export template <T, E> requires copy<T>, copy<E>
 expected<E, T> flip(expected<T, E>* v) {
   switch (*v) {
     case (value) {
@@ -101,7 +101,7 @@ expected<E, T> flip(expected<T, E>* v) {
   }
 }
 
-export template <T, U> requires can_copy<T>, can_copy<U>
+export template <T, U> requires copy<T>, copy<U>
 expected<T, U> copy(expected<T, U>* elem) {
   switch (*elem) {
     case (value) { return value.copy(); }
@@ -109,7 +109,7 @@ expected<T, U> copy(expected<T, U>* elem) {
   }
 }
 
-export template <T, U> requires can_implicit_copy<T>, can_implicit_copy<U>
+export template <T, U> requires implicit_copy<T>, implicit_copy<U>
 expected<T, U> implicit_copy(expected<T, U>* elem) {
   switch (*elem) {
     case (value) { return value.implicit_copy(); }
@@ -117,7 +117,7 @@ expected<T, U> implicit_copy(expected<T, U>* elem) {
   }
 }
 
-export template <T, U, Fun> requires can_invoke<Fun, T*>
+export template <T, U, Fun> requires invoke<Fun, T*>
 T* operator ?? (expected<T, U>* elem, Fun f) {
   if (*elem)
     return &**elem;
@@ -125,7 +125,7 @@ T* operator ?? (expected<T, U>* elem, Fun f) {
     return f();
 }
 
-export template <T, U, Fun> requires can_invoke<Fun, T mutable*>
+export template <T, U, Fun> requires invoke<Fun, T mutable*>
 T mutable* operator ?? (expected<T, U> mutable* elem, Fun f) {
   if (*elem)
     return &**elem;
@@ -133,7 +133,7 @@ T mutable* operator ?? (expected<T, U> mutable* elem, Fun f) {
     return f();
 }
 
-export template <T, U, Fun> requires can_invoke<Fun, T>
+export template <T, U, Fun> requires invoke<Fun, T>
 T operator ?? (expected<T, U> elem, Fun f) {
   if (elem)
     return *move(elem);

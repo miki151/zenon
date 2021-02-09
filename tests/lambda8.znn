@@ -1,6 +1,6 @@
 // 6
 
-template <Fun, T> requires can_invoke<Fun, int, T>
+template <Fun, T> requires invoke<Fun, int, T>
 int runFun(Fun f, T t) {
   return f(move(t));
 }

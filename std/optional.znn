@@ -9,7 +9,7 @@ bool operator ! (T?* elem) {
   }
 }
 
-export template <T> requires can_copy<T>
+export template <T> requires copy<T>
 T? copy(T?* elem) {
   if (*elem)
     return (*elem)->copy();
@@ -17,7 +17,7 @@ T? copy(T?* elem) {
     return null;
 }
 
-export template <T> requires can_implicit_copy<T>
+export template <T> requires implicit_copy<T>
 T? implicit_copy(T?* elem) {
   if (*elem)
     return implicit_copy(&**elem);
@@ -57,7 +57,7 @@ T operator * (T? elem) {
   }
 }
 
-export template <T, Fun> requires can_invoke<Fun, T*>
+export template <T, Fun> requires invoke<Fun, T*>
 T* operator ?? (T?* elem, Fun f) {
   if (*elem)
     return &**elem;
@@ -65,7 +65,7 @@ T* operator ?? (T?* elem, Fun f) {
     return f();
 }
 
-export template <T, Fun> requires can_invoke<Fun, T mutable*>
+export template <T, Fun> requires invoke<Fun, T mutable*>
 T mutable* operator ?? (T? mutable* elem, Fun f) {
   if (*elem)
     return &**elem;
@@ -73,7 +73,7 @@ T mutable* operator ?? (T? mutable* elem, Fun f) {
     return f();
 }
 
-export template <T, Fun> requires can_invoke<Fun, T>
+export template <T, Fun> requires invoke<Fun, T>
 T operator ?? (T? elem, Fun f) {
   if (elem)
     return *move(elem);

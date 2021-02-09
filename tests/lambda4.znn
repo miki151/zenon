@@ -1,11 +1,11 @@
 // 1
 
 template <T, U>
-concept can_invoke {
+concept invoke {
   U invoke(T*);
 };
 
-template <T, Fun> requires can_invoke<Fun, T>
+template <T, Fun> requires invoke<Fun, T>
 T run(Fun f) {
   return f();
 }

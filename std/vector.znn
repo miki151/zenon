@@ -173,7 +173,7 @@ bool empty(vector<T>* v) {
   return v->size() == 0;
 }
 
-export template <T> requires can_copy<T>
+export template <T> requires copy<T>
 vector<T> copy(vector<T>* v) {
   mutable ret = vector<T>();
   for (elem : *v)
@@ -186,7 +186,7 @@ bool operator == (vector<T>* v1, vector<T>* v2) {
   return v1->slice() == v2->slice();
 }
 
-export template <T> requires can_hash<T>
+export template <T> requires get_hash<T>
 int get_hash(vector<T>* v) {
   return v->slice().get_hash();
 }
@@ -238,7 +238,7 @@ void reserve(vector<T> mutable* v, int cnt) {
   }
 }
 
-export template <U, T, Fun> requires can_invoke<Fun, U, T*>
+export template <U, T, Fun> requires invoke<Fun, U, T*>
 vector<U> transform(vector<T>* v, Fun f) {
   mutable ret = vector<U>();
   ret.reserve(v->size());
@@ -247,7 +247,7 @@ vector<U> transform(vector<T>* v, Fun f) {
   return move(ret);
 }
 
-export template <T, Fun> requires can_invoke<Fun, bool, T*>, can_copy<T>
+export template <T, Fun> requires invoke<Fun, bool, T*>, copy<T>
 vector<T> filter(vector<T>* v, Fun f) {
   mutable ret = vector<T>();
   for (it : *v)
