@@ -1,0 +1,15 @@
+// 8
+
+template <Fun, Ret, Args...>
+concept my_fun {
+  Ret invoke(Fun*, Args...);
+  void destruct(Fun*);
+};
+
+int calc(my_fun<int, int> f) {
+  return 2 * f(3);
+}
+
+int main() {
+  return calc([] (int a) { return a + 1; });
+}

@@ -37,7 +37,6 @@ static const unordered_map<string, Keyword> keywords {
   {"null", Keyword::NULL_TOKEN},
   {"static", Keyword::STATIC},
   {"countof", Keyword::COUNTOF},
-  {"cast", Keyword::CAST},
   {"unchecked", Keyword::UNCHECKED},
   {"attribute", Keyword::ATTRIBUTE},
   {"try", Keyword::TRY},

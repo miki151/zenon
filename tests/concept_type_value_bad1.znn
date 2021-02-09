@@ -17,6 +17,6 @@ int get(X* x) {
 
 int main() {
   const x = X(5);
-  mutable c = cast<C1>(move(x));
+  mutable C1 c = move(x);
   return 0;
 }

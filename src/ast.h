@@ -270,7 +270,8 @@ struct ArrayLiteral : Expression {
 };
 
 struct FatPointerConversion : Expression {
-  FatPointerConversion(CodeLoc, IdentifierInfo toType, unique_ptr<Expression> arg);
+  FatPointerConversion(CodeLoc, vector<SFunctionInfo> functions, SType toType, SType argType, unique_ptr<Expression> arg,
+      shared_ptr<ConceptType> conceptType);
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
@@ -278,10 +279,10 @@ struct FatPointerConversion : Expression {
   virtual void addConceptTypes(ConceptsSet&) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
-  IdentifierInfo toType;
+  SType toType;
+  SType argType;
   unique_ptr<Expression> arg;
-  nullable<SType> argType;
-  nullable<shared_ptr<ConceptType>> conceptType;
+  shared_ptr<ConceptType> conceptType;
   vector<SFunctionInfo> functions;
 };
 
@@ -758,3 +759,5 @@ extern WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST&, C
 extern Context createPrimaryContext(TypeRegistry*);
 extern WithErrorLine<SFunctionInfo> getCopyFunction(const Context&, CodeLoc callLoc, const SType&);
 extern WithErrorLine<SFunctionInfo> getImplicitCopyFunction(const Context&, CodeLoc callLoc, const SType&);
+extern WithError<vector<SFunctionInfo> > getRequiredFunctionsForConceptType(const Context& context,
+    const Concept& concept, CodeLoc codeLoc);

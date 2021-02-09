@@ -1013,9 +1013,9 @@ void TernaryExpression::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void FatPointerConversion::codegen(Accu& accu, CodegenStage stage) const {
-  if (argType.get().dynamicCast<PointerType>())
+  if (argType.dynamicCast<PointerType>())
     accu.add("make_const_fat_ptr(");
-  else if (argType.get().dynamicCast<MutablePointerType>())
+  else if (argType.dynamicCast<MutablePointerType>())
     accu.add("make_fat_ptr(");
   else
     accu.add("make_fat_value(");

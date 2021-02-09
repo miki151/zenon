@@ -27,7 +27,7 @@ int main() {
   {
     const x = X(&cnt);
     const y = X(&cnt);
-    mutable c = cast<C1>(move(x));
+    mutable C1 c = move(x);
     cnt += f(move(c));
   }
   return cnt;

@@ -3,6 +3,7 @@
 template <T>
 concept C1 {
   int fun1(T*);
+  void destruct(T*);
 };
 
 struct X {};
@@ -11,12 +12,11 @@ int fun1(X* x) {
   return 2;
 }
 
-template <T> requires C1<T>
-C1* get(T* x) {
-  return x;
+int get(C1 c) {
+  return c.fun1();
 }
+
 int main() {
   const x = X();
-  const c = get(&x);
-  return c->fun1();
+  return get(move(x));
 }

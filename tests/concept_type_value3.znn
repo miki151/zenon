@@ -13,6 +13,6 @@ int get(can_invoke2<int, T> fun, T t) {
 
 int main() {
   const lam = [](string s) { return s.size(); };
-  const fun = cast<can_invoke2<int, string>>(move(lam));
+  const can_invoke2<int, string> fun = move(lam);
   return get(move(fun), "pokpok");
 }

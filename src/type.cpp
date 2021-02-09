@@ -247,7 +247,8 @@ string FunctionInfo::prettyString() const {
       combine(transform(type.params, [](auto& t) { return t->getName(); }), ", ") +
       (type.variadicParams ? "...)" : ")") +
       (!!type.concept ? " [from concept]" : "") +
-      (getParent()->definition ? getParent()->definition->codeLoc.toString() : "");
+      (parent && parent->definition ? parent->definition->codeLoc.toString() : "") +
+      (definition ? definition->codeLoc.toString() : "");
 }
 
 string FunctionInfo::getMangledName() const {
@@ -283,6 +284,13 @@ string FunctionInfo::getMangledName() const {
 
 bool FunctionInfo::isMainFunction() const {
   return id == "main"s;
+}
+
+bool FunctionInfo::isConceptTypeFunction() const {
+  for (auto& p : type.params)
+    if (p->removePointer().dynamicCast<ConceptType>())
+      return true;
+  return !!type.retVal->removePointer().dynamicCast<ConceptType>();
 }
 
 optional<string> FunctionInfo::getMangledSuffix() const {
@@ -1169,7 +1177,7 @@ static JustError<ErrorLoc> getConversionError(const Context& context, const SFun
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
     if (argTypes[i] != BuiltinType::NULL_TYPE || !funParams[i].dynamicCast<OptionalType>())
-      for (auto tArg : context.getConversions(argTypes[i]))
+      for (auto tArg : context.getConversions(argTypes[i], funParams[i]))
         if (!input->id.contains<Operator>() || tArg == argTypes[i] ||
             (tArg.dynamicCast<BuiltinType>() && argTypes[i].dynamicCast<BuiltinType>())) {
           if (auto res = getDeductionError(mapping, funParams[i], tArg); !res) {
@@ -1895,7 +1903,7 @@ SType ConceptType::replaceImpl(const Context& context, SType from, SType to, Err
 
 JustError<string> ConceptType::getSizeError(const Context&) const {
   if (!hasDestructor())
-    return "Concept " + quote(getName(false)) + " has not destructor declared, therefore the "
+    return "Concept " + quote(getName(false)) + " has no destructor declared, therefore the "
         "type cannot be passed by value"s;
   return success;
 }

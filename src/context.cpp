@@ -150,10 +150,10 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
             if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
               if (isGeneralization(lambda->functionInfo.get(), function, existing))
                 return lambda->functionInfo.get();
-          for (auto& myFun : getFunctions(overloads.first)) {
-            if (auto gen = isGeneralization(myFun, function, existing))
-              return gen.get();
-          }
+          for (auto& myFun : getFunctions(overloads.first))
+            if (!myFun->isConceptTypeFunction())
+              if (auto gen = isGeneralization(myFun, function, existing))
+                return gen.get();
           return none;
         };
         if (auto res = getFunction())
@@ -245,7 +245,7 @@ void Context::print() const {
     state->print();
 }
 
-vector<SType> Context::getConversions(SType type) const {
+vector<SType> Context::getConversions(SType type, SType to) const {
   vector<SType> ret = {type};
   if (type->isMetaType() && type != BuiltinType::ANY_TYPE)
     ret.push_back(BuiltinType::ANY_TYPE);
@@ -256,6 +256,16 @@ vector<SType> Context::getConversions(SType type) const {
     ret.push_back(PointerType::get(ptr->underlying));
   if (underlying != BuiltinType::NULL_TYPE)
     ret.push_back(OptionalType::get(underlying));
+  if (underlying->isPointer() &&
+      to->isPointer() &&
+      !underlying->removePointer().dynamicCast<ConceptType>() &&
+      to->removePointer().dynamicCast<ConceptType>() &&
+      (to.dynamicCast<PointerType>() || underlying.dynamicCast<MutablePointerType>()))
+    ret.push_back(to);
+  if (!underlying.dynamicCast<ConceptType>() &&
+      to.dynamicCast<ConceptType>() &&
+      (!type->isReference() || type->isBuiltinCopyable(*this)))
+    ret.push_back(to);
   return ret;
 }
 
@@ -275,6 +285,42 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
   if (from != fromUnderlying && to->removeReference() == fromUnderlying &&
       fromUnderlying->isBuiltinCopyable(*this, expr))
     return success;
+  if (fromUnderlying->isPointer() && to->isPointer() && !fromUnderlying->removePointer().dynamicCast<ConceptType>())
+    if (auto conceptType = to->removePointer().dynamicCast<ConceptType>()) {
+      auto concept = conceptType->getConceptFor(fromUnderlying->removePointer());
+      if (to.dynamicCast<MutablePointerType>() && !fromUnderlying.dynamicCast<MutablePointerType>())
+        return "Cannot cast value of type " + quote(fromUnderlying->getName()) + " to a mutable pointer";
+      auto functions = TRY(getRequiredFunctionsForConceptType(*this, *concept, CodeLoc()));
+    for (auto& fun : functions)
+      CHECK(!!fun->addInstance(*this));
+    concept->def->addFatPointer({fromUnderlying->removePointer(), functions}, conceptType);
+    if (expr) {
+      auto loc = expr->codeLoc;
+      expr = unique<FatPointerConversion>(loc, functions, to, fromUnderlying, std::move(expr), conceptType);
+      auto err = expr->getTypeImpl(*this);
+      CHECK(!!err) << err.get_error();
+    }
+    return success;
+  }
+  if (auto conceptType = to.dynamicCast<ConceptType>()) {
+    auto concept = conceptType->getConceptFor(fromUnderlying);
+    if (from->isReference()) {
+      TRY(canConvert(from, fromUnderlying, expr));
+      if (expr)
+        CHECK(!!::getType(*this, expr));
+    }
+    auto functions = TRY(getRequiredFunctionsForConceptType(*this, *concept, CodeLoc()));
+    for (auto& fun : functions)
+      CHECK(!!fun->addInstance(*this));
+    concept->def->addFatPointer({fromUnderlying, functions}, conceptType);
+    if (expr) {
+      auto loc = expr->codeLoc;
+      expr = unique<FatPointerConversion>(loc, functions, to, fromUnderlying, std::move(expr), conceptType);
+      auto err = expr->getTypeImpl(*this);
+      CHECK(!!err) << err.get_error();
+    }
+    return success;
+  }
   if (auto structType = toUnderlying.dynamicCast<StructType>())
     if (!structType->alternatives.empty()) {
       const StructType::Variable* alternative = nullptr;
@@ -311,7 +357,7 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
         return success;
       }
     }
-  if (contains(getConversions(from), to) ||
+  if (contains(getConversions(from, to), to) ||
       (from == BuiltinType::NULL_TYPE && to.dynamicCast<OptionalType>() &&
           to.dynamicCast<OptionalType>()->underlying != BuiltinType::NULL_TYPE))
     return success;

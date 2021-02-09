@@ -5,5 +5,5 @@ int calc(can_invoke<int, int>* f) {
 }
 
 int main() {
-  return calc(cast<can_invoke<int>*>(&[] { return 1; }));
+  return calc(&[] { return 1; });
 }

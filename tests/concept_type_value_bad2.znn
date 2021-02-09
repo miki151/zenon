@@ -21,6 +21,6 @@ void set(X mutable* x, int a) {
 
 int main() {
   const x = X(5);
-  mutable c = cast<C1>(&x);
+  mutable C1 c = &x;
   return 0;
 }

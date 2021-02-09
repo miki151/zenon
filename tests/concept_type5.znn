@@ -16,6 +16,6 @@ int get(X<int>* x) {
 
 int main() {
   const x = X(5);
-  const c = cast<C1*>(&x);
+  const C1* c = &x;
   return c->get();
 }

@@ -20,7 +20,7 @@ void set(X mutable* x, int a) {
 
 int main() {
   const x = X(5);
-  const c = cast<C1>(&x);
+  const C1 c = &x;
   const res = c->get();
   c->set(4);
   return c->get() + res;

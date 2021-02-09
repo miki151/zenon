@@ -23,10 +23,10 @@ int call(Y*) {
 int main() {
   const x = X(5);
   mutable res = 1;
-  mutable c = cast<C1*>(&x);
+  mutable C1* c = &x;
   res += c->call();
   const y = Y();
-  c = cast<C1*>(&y);
+  c = &y;
   res += call(c);
   return res;
 }

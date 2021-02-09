@@ -80,7 +80,7 @@ class Context : public owned_object<Context> {
   void addConcept(const string& name, SConcept);
   nullable<SConcept> getConcept(const string& name) const;
   void print() const;
-  vector<SType> getConversions(SType) const;
+  vector<SType> getConversions(SType, SType) const;
   JustError<string> canConvert(SType from, SType to, unique_ptr<Expression>&) const;
   JustError<string> canConvert(SType from, SType to) const;
   optional<int> getLoopId() const;

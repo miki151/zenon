@@ -24,7 +24,7 @@ int main() {
   {
     const x = X(&res);
     const lam = [move(x)](string s) { return s.size(); };
-    const fun = cast<can_invoke2<int, string>>(move(lam));
+    const can_invoke2<int, string> fun = move(lam);
     res += get(move(fun), "pokpok");
   }
   return res;

@@ -18,6 +18,6 @@ void set(X<T> mutable* x, T e) {
 
 export int f() {
   const x = X(4);
-  const c = cast<C1*>(&x);
+  const C1* c = &x;
   return c->get();
 }

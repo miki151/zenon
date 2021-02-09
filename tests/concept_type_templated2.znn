@@ -25,11 +25,11 @@ T get(Y<T>* y) {
 
 int main() {
   const x = X(5);
-  mutable c1 = cast<C1<int>*>(&x);
+  mutable C1<int>* c1 = &x;
   const res1 = c1->get();
   const y1 = Y(4);
-  c1 = cast<C1<int>*>(&y1);
+  c1 = &y1;
   const y2 = Y("pokpok");
-  const c2 = cast<C1<string>*>(&y2);
+  const C1<string>* c2 = &y2;
   return res1 + c1->get() + c2->get().size();
 }

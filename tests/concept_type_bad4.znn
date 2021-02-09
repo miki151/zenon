@@ -15,6 +15,6 @@ X call(X*, int) {
 
 int main() {
   const x = X();
-  const c1 = cast<C1*>(&x);
+  const C1* c1 = &x;
   return 0;
 }

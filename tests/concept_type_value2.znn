@@ -25,7 +25,7 @@ int f(C1* c) {
 
 int main() {
   const x = X(5);
-  mutable c = cast<C1>(move(x));
+  mutable C1 c = move(x);
   const res1 = c.get();
   c.set(6);
   return res1 + f(&c);

@@ -199,6 +199,8 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
   filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isExactReferenceArg);}, "first arg exact");
   filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isConstToMutableReferenceArg);}, "all args exact");
   filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isConstToMutableReferenceArg);}, "first arg exact");
+  // filter out functions that have concept type parameters or return value
+  filter([](const vector<SType>&, const SFunctionInfo& f){ return !f->isConceptTypeFunction(); }, "concept type");
   // sometimes a function is both in the global context and in the concept, so prefer the one in the concept
   filter(&fromConcept, "non concept");
   filter(&userDefinedConstructor, "user defined constructor");
@@ -3014,59 +3016,32 @@ JustError<ErrorLoc> TernaryExpression::checkMoves(MoveChecker& checker) const {
   return success;
 }
 
-FatPointerConversion::FatPointerConversion(CodeLoc l, IdentifierInfo toType, unique_ptr<Expression> arg)
-    : Expression(l), toType(toType), arg(std::move(arg)) {
+FatPointerConversion::FatPointerConversion(CodeLoc l, vector<SFunctionInfo> functions, SType toType, SType argType, unique_ptr<Expression> arg, shared_ptr<ConceptType> conceptType)
+    : Expression(l), toType(toType), argType(argType), arg(std::move(arg)), conceptType(std::move(conceptType)), functions(std::move(functions)) {
 }
 
-static WithErrorLine<vector<SFunctionInfo>> getRequiredFunctionsForConceptType(const Context& context,
+WithError<vector<SFunctionInfo>> getRequiredFunctionsForConceptType(const Context& context,
     const Concept& concept, CodeLoc codeLoc) {
   vector<SFunctionInfo> ret;
-  for (auto& fun : concept.getContext().getAllFunctions())
+  for (auto& fun : concept.getContext().getAllFunctions()) {
+    auto candidates = context.getFunctions(translateDestructorId(fun->id)).filter(
+        [](const SFunctionInfo& f) {
+          return !f->isConceptTypeFunction();
+        }
+    );
     ret.push_back(TRY(getFunction(context, codeLoc, translateDestructorId(fun->id),
-        context.getFunctions(translateDestructorId(fun->id)), {}, fun->type.params,
-        vector<CodeLoc>(fun->type.params.size(), codeLoc)).addCodeLoc(codeLoc)));
+        std::move(candidates), {}, fun->type.params,
+        vector<CodeLoc>(fun->type.params.size(), codeLoc))));
+  }
   return ret;
 }
 
 WithErrorLine<SType> FatPointerConversion::getTypeImpl(const Context& context) {
-  argType = TRY(getType(context, arg));
-  auto ret = TRY(context.getTypeFromString(toType));
-  if (argType->isPointer()) {
-    argType = argType->removeReference();
-    if (!ret->isPointer())
-      return toType.codeLoc.getError("Expected pointer to a concept type");
-    if (auto t = ret->removePointer().dynamicCast<ConceptType>())
-      conceptType = t;
-    else
-      return toType.codeLoc.getError("Expected pointer to a concept type");
-    auto concept = conceptType->getConceptFor(argType->removePointer());
-    if (ret.dynamicCast<MutablePointerType>() && !argType.get().dynamicCast<MutablePointerType>())
-      return toType.codeLoc.getError("Cannot cast value of type " + quote(argType->getName()) + " to a mutable pointer");
-    functions = TRY(getRequiredFunctionsForConceptType(context, *concept, codeLoc));
-    for (auto& fun : functions)
-      CHECK(!!fun->addInstance(context));
-    concept->def->addFatPointer({argType->removePointer(), functions}, conceptType.get());
-    return ret;
-  } else {
-    if (auto t = ret.dynamicCast<ConceptType>())
-      conceptType = t;
-    else
-      return toType.codeLoc.getError("Expected a concept type");
-    auto concept = conceptType->getConceptFor(argType.get());
-    if (argType->isReference()) {
-      TRY(context.canConvert(argType.get(), argType->removeReference(), arg).addCodeLoc(arg->codeLoc));
-      CHECK(!!getType(context, arg));
-    }
-    functions = TRY(getRequiredFunctionsForConceptType(context, *concept, codeLoc));
-    for (auto& fun : functions)
-      CHECK(!!fun->addInstance(context));
-    concept->def->addFatPointer({argType.get(), functions}, conceptType.get());
-    return ret;
-  }
+  return toType;
 }
 
 unique_ptr<Expression> FatPointerConversion::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
-  return unique<FatPointerConversion>(codeLoc, toType, arg->transform(f1, f2));
+  return f2(arg.get());
 }
 
 void FatPointerConversion::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
@@ -3080,7 +3055,7 @@ void FatPointerConversion::addFunctionCalls(const FunctionCallVisitFun& fun) con
 
 void FatPointerConversion::addConceptTypes(ConceptsSet& types) const {
   Expression::addConceptTypes(types);
-  types.insert(conceptType.get().get());
+  types.insert(conceptType.get());
 }
 
 JustError<ErrorLoc> FatPointerConversion::checkMoves(MoveChecker& c) const {

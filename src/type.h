@@ -397,6 +397,7 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   SFunctionInfo getParent() const;
   FunctionDefinition* getDefinition() const;
   JustError<ErrorLoc> addInstance(const Context&) const;
+  bool isConceptTypeFunction() const;
 
   private:
   const nullable<SFunctionInfo> parent;
