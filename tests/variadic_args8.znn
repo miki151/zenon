@@ -3,11 +3,11 @@
 int eat(int i) { return i; }
 int drink(int* i) { return 2 * *i; }
 
-concept<T> can_eat {
+concept <T> can_eat {
   int eat(T);
 };
 
-concept<T> can_drink {
+concept <T> can_drink {
   int drink(T*);
 };
 

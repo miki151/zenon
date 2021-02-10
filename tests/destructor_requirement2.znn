@@ -10,7 +10,7 @@ void destruct(X<T>* x) {
   x->elem();
 }
 
-concept<T> can_plusplus {
+concept <T> can_plusplus {
   void operator++(T mutable*);
 };
 

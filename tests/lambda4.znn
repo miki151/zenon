@@ -1,6 +1,6 @@
 // 1
 
-concept<T, U> invoke {
+concept <T, U> invoke {
   U invoke(T*);
 };
 

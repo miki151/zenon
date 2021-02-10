@@ -1,10 +1,10 @@
 // 4
 
-concept<T> CanAdd {
+concept <T> CanAdd {
   T operator + (T* t1, T* t2);
 };
 
-concept<T> CanSubtract {
+concept <T> CanSubtract {
   T operator - (T* t1, T* t2);
 };
 

@@ -1,6 +1,6 @@
 // no_compile
 
-concept<T> can_eat {
+concept <T> can_eat {
   void eat(T);
 };
 

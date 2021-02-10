@@ -11,7 +11,7 @@ struct hash_adapter {
 };
 }
 
-export concept<T> hash_key {
+export concept <T> hash_key {
   int get_hash(T*);
   bool operator == (T*, T*);
 };

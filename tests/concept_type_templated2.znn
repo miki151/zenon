@@ -1,6 +1,6 @@
 // 15
 
-concept<T, U> C1 {
+concept <T, U> C1 {
   U get(T*);
 };
 

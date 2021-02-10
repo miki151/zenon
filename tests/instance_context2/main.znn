@@ -8,7 +8,7 @@ struct X {
 
 int h(X) { return 1; }
 
-concept<T> H {
+concept <T> H {
   int h(T);
 };
 

@@ -1,10 +1,10 @@
 // 5
 
-export concept<T> F {
+export concept <T> F {
   int f(T*);
 };
 
-export concept<T> G {
+export concept <T> G {
   int g(T*);
 };
 

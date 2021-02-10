@@ -1,6 +1,6 @@
 // 5
 
-concept<T> can_get {
+concept <T> can_get {
   int get(T*);
 };
 

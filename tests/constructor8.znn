@@ -5,7 +5,7 @@ struct S {
   T x;
 };
 
-concept<T> GetFun {
+concept <T> GetFun {
   T get();
 };
 

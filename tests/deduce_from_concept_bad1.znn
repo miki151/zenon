@@ -10,7 +10,7 @@ int res() {
 void f(X, int) { }
 void f(X, string) { }
 
-concept<T, U> F {
+concept <T, U> F {
   void f(T, U);
 };
 

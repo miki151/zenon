@@ -1,6 +1,6 @@
 // 3
 
-concept<T> CanAdd {
+concept <T> CanAdd {
   T operator + (T* t1, T* t2);
 };
 

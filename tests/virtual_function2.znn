@@ -28,7 +28,7 @@ struct Triangle {
   int edge3;
 };
 
-concept<T> ShapeInterface {
+concept <T> ShapeInterface {
   int get(T*, int);
 };
 

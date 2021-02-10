@@ -2,7 +2,7 @@
 
 import "std/concepts.znn";
 
-concept<T, U, V> CanAdd {
+concept <T, U, V> CanAdd {
   V add(T* t, U u);
 };
 

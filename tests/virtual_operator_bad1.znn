@@ -35,7 +35,7 @@ union Shape {
   T circle;
 };
 
-concept<T> ShapeInterface {
+concept <T> ShapeInterface {
   int operator[](T*, int);
 };
 

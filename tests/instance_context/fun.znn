@@ -1,5 +1,5 @@
 
-export concept<T> C1 {
+export concept <T> C1 {
   int g(T*);
 };
 

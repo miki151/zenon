@@ -1,6 +1,6 @@
 // 5
 
-concept<Ret, Args...> can_call {
+concept <Ret, Args...> can_call {
   Ret f(Args...);
 };
 

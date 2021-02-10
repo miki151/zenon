@@ -5,7 +5,7 @@ int eat(bool* b) { if (*b) return 1; else return 0; }
 int eat(string*) { return 20; }
 int eat(char*) {return 10; }
 
-concept<T> can_eat {
+concept <T> can_eat {
   int eat(T*);
 };
 

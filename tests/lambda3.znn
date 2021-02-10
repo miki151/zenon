@@ -1,6 +1,6 @@
 // 5
 
-concept<T> construct {
+concept <T> construct {
   T();
 };
 

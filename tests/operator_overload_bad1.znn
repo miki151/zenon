@@ -1,6 +1,6 @@
 // no_compile
 
-concept<A> Arithmetic {
+concept <A> Arithmetic {
   A operator + (A a, A b, A c);
 };
 

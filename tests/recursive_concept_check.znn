@@ -4,7 +4,7 @@ int add(int a, int b) {
   return a + b;
 }
 
-concept<T> CanAdd {
+concept <T> CanAdd {
   T add(T, T);
 };
 
@@ -13,7 +13,7 @@ A add2(mutable A a, mutable A b) {
   return add(move(a), move(b));
 }
 
-concept<T> CanAdd2 {
+concept <T> CanAdd2 {
   T add2(T t1, T t2);
 };
 

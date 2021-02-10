@@ -31,7 +31,7 @@ Node<T> leaf(mutable T a) {
   return Node<T>::leaf(Leaf(move(a)));
 }
 
-concept<T> CanAdd {
+concept <T> CanAdd {
   T operator + (T*, T*);
   T copy(T*);
 };

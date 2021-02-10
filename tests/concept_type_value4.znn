@@ -1,6 +1,6 @@
 // 2
 
-concept<T> C1 {
+concept <T> C1 {
   int fun1(T*);
   void destruct(T*);
 };

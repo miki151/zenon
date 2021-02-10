@@ -1,6 +1,6 @@
 // no_compile
 
-concept<foo A> C {
+concept <foo A> C {
 };
 
 int main() {

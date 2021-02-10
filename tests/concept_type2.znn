@@ -1,6 +1,6 @@
 // 9
 
-concept<T> C1 {
+concept <T> C1 {
   int get(T*);
   void set(T mutable*, int);
 };

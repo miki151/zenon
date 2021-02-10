@@ -1,6 +1,6 @@
 // 3
 
-concept<T, U, V> CanAdd {
+concept <T, U, V> CanAdd {
   V add(T*, U);
 };
 

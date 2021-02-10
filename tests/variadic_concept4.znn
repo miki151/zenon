@@ -1,6 +1,6 @@
 // 3
 
-concept<T, CArgs...> construct {
+concept <T, CArgs...> construct {
   T(CArgs...);
 };
 

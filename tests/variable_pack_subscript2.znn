@@ -1,6 +1,6 @@
 // 3
 
-concept<T> has_value {
+concept <T> has_value {
   int get_value(T*);
 };
 

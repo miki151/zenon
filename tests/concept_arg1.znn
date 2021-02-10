@@ -7,7 +7,7 @@ int transform(bool* b) {
     return 1;
 }
 
-concept<T, U> can_transform {
+concept <T, U> can_transform {
   U transform(T);
 };
 

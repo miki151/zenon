@@ -13,7 +13,7 @@ void f(Y, string) { }
 void f(int, bool) { }
 void f(string, double) { }
 
-concept<T, U> F {
+concept <T, U> F {
   void f(T, U);
 };
 

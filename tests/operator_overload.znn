@@ -2,7 +2,7 @@
 
 import "std/concepts.znn";
 
-concept<A> Arithmetic {
+concept <A> Arithmetic {
   A operator + (A*, A*);
   A operator - (A*, A*);
   A operator - (A*);

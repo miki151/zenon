@@ -1,6 +1,6 @@
 // 5
 
-concept<T> C1 {
+concept <T> C1 {
   T(int);
   int get(T*);
 };

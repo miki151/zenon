@@ -15,7 +15,7 @@ string toString(B* b) {
   return "B";
 }
 
-concept<T> Printable {
+concept <T> Printable {
   string toString(T* t);
 };
 

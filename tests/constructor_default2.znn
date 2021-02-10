@@ -8,7 +8,7 @@ struct X {
 template <T>
 X(T) = default;
 
-concept<T> construct {
+concept <T> construct {
   T();
 };
 

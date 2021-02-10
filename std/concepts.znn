@@ -1,37 +1,37 @@
 
-export concept<T> copy {
+export concept <T> copy {
   T copy(T*);
 };
 
-export concept<T> implicit_copy {
+export concept <T> implicit_copy {
   T implicit_copy(T*);
 };
 
-export concept<T> ordered {
+export concept <T> ordered {
   bool operator < (T*, T*);
   bool operator > (T*, T*);
 };
 
-export concept<T> comparable {
+export concept <T> comparable {
   bool operator == (T*, T*);
 };
 
-export concept<Fun, Ret, Args...> invoke {
+export concept <Fun, Ret, Args...> invoke {
   Ret invoke(Fun*, Args...);
 };
 
-export concept<T, Args...> construct {
+export concept <T, Args...> construct {
   T(Args...);
 };
 
-export concept<T, A> has_attribute {
+export concept <T, A> has_attribute {
   void builtin_has_attribute(T, A);
 };
 
-export concept<T, Members...> has_members {
+export concept <T, Members...> has_members {
   void builtin_has_members(T, Members...);
 };
 
-export concept<T> get_hash {
+export concept <T> get_hash {
   int get_hash(T*);
 };

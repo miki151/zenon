@@ -1,7 +1,7 @@
 
 export import "std/concepts.znn";
 
-export concept<T, U> equality_impl {
+export concept <T, U> equality_impl {
   bool operator == (T*, U*);
 };
 
@@ -10,7 +10,7 @@ bool operator != (T* t, U* u) {
   return !(*t == *u);
 }
 
-export concept<T, U> increment_by_impl {
+export concept <T, U> increment_by_impl {
   T operator + (T*, U*);
 };
 
@@ -19,7 +19,7 @@ void operator +=(T mutable* t, U* u) {
   *t = *t + *u;
 }
 
-export concept<T, U> decrement_by_impl {
+export concept <T, U> decrement_by_impl {
   T operator - (T*, U*);
 };
 
@@ -28,7 +28,7 @@ void operator -=(T mutable* t, U* u) {
   *t = *t - *u;
 }
 
-export concept<T, U> multiply_by_impl {
+export concept <T, U> multiply_by_impl {
   T operator * (T*, U*);
 };
 
@@ -37,7 +37,7 @@ void operator *=(T mutable* t, U* u) {
   *t = *t * *u;
 }
 
-export concept<T, U> divide_by_impl {
+export concept <T, U> divide_by_impl {
   T operator / (T*, U*);
 };
 

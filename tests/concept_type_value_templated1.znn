@@ -1,6 +1,6 @@
 // 8
 
-concept<Fun, Ret, Args...> my_fun {
+concept <Fun, Ret, Args...> my_fun {
   Ret invoke(Fun*, Args...);
   void destruct(Fun*);
 };

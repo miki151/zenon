@@ -1,11 +1,11 @@
 // 3
 
 
-concept<T> F1 {
+concept <T> F1 {
   int f1(T mutable*);
 };
 
-concept<T> F2 {
+concept <T> F2 {
   int f2(T mutable*);
 };
 

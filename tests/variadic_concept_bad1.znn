@@ -1,6 +1,6 @@
 // no_compile
 
-concept<Ret, T, Args...> can_call {
+concept <Ret, T, Args...> can_call {
   Ret f(Args...);
 };
 
