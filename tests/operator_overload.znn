@@ -2,8 +2,7 @@
 
 import "std/concepts.znn";
 
-template <A>
-concept Arithmetic {
+concept<A> Arithmetic {
   A operator + (A*, A*);
   A operator - (A*, A*);
   A operator - (A*);

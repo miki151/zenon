@@ -1,7 +1,6 @@
 // 14
 
-template <T>
-concept can_add {
+concept<T> can_add {
   T operator + (T*, T*);
 };
 
@@ -20,8 +19,7 @@ T add(mutable T t1, mutable T t2) {
   return move(t1) + move(t2);
 }
 
-template <Elem, Container, Key>
-concept can_index {
+concept<Elem, Container, Key> can_index {
   Elem* operator [](Container*, Key*);
 };
 

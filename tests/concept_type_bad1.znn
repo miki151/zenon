@@ -1,7 +1,6 @@
 // no_compile
 
-template <T>
-concept C1 {
+concept<T> C1 {
   void call(int, T*, T*);
 };
 

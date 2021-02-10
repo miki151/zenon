@@ -2,8 +2,7 @@
 
 import "std/concepts.znn";
 
-template <T, U, V>
-concept CanAdd {
+concept<T, U, V> CanAdd {
   V add(T* t, U u);
 };
 

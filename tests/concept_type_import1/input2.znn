@@ -1,6 +1,5 @@
 
-export template <T>
-concept C1 {
+export concept<T> C1 {
   int get(T*);
   void set(T mutable*, int);
 };

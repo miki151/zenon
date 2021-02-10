@@ -537,7 +537,6 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionDefinition(Identifier
 }
 
 static WithErrorLine<TemplateInfo> parseTemplateInfo(Tokens& tokens) {
-  TRY(tokens.eat(Keyword::TEMPLATE));
   TRY(tokens.eat(Operator::LESS_THAN));
   TemplateInfo ret;
   while (tokens.peek() != Operator::MORE_THAN) {
@@ -610,10 +609,12 @@ WithErrorLine<unique_ptr<StructDefinition>> parseStructDefinition(Tokens& tokens
 
 WithErrorLine<unique_ptr<ConceptDefinition>> parseConceptDefinition(Tokens& tokens) {
   TRY(tokens.eat(Keyword::CONCEPT));
+  auto templateInfo = TRY(parseTemplateInfo(tokens));
   auto& token2 = tokens.popNext();
   if (!token2.contains<IdentifierToken>())
-    return token2.codeLoc.getError("Expected struct name");
+    return token2.codeLoc.getError("Expected concept name");
   auto ret = unique<ConceptDefinition>(token2.codeLoc, token2.value);
+  ret->templateInfo = templateInfo;
   TRY(tokens.eat(Keyword::OPEN_BLOCK));
   while (1) {
     auto memberToken = tokens.peek();
@@ -675,8 +676,10 @@ WithErrorLine<unique_ptr<UnionDefinition>> parseUnionDefinition(Tokens& tokens) 
       break;
     }
     TemplateInfo templateParams;
-    if (memberToken == Keyword::TEMPLATE)
+    if (memberToken == Keyword::TEMPLATE) {
+      tokens.popNext();
       templateParams = TRY(parseTemplateInfo(tokens));
+    }
     auto typeIdent = TRY(parseIdentifier(tokens, true));
     auto& token2 = tokens.popNext();
     if (!token2.contains<IdentifierToken>())
@@ -853,6 +856,7 @@ WithErrorLine<unique_ptr<Statement>> parseIfStatement(Tokens& tokens) {
 }
 
 WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
+  TRY(tokens.eat(Keyword::TEMPLATE));
   auto templateInfo = TRY(parseTemplateInfo(tokens));
   auto nextToken = tokens.peek();
   auto checkNameConflict = [&templateInfo] (const string& name, const string& type) -> JustError<ErrorLoc> {
@@ -893,8 +897,6 @@ WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
       return addTemplate(parseStructDefinition(tokens, false), "struct");
     if (nextToken == Keyword::UNION)
       return addTemplate(parseUnionDefinition(tokens), "union");
-    if (nextToken == Keyword::CONCEPT)
-      return addTemplate(parseConceptDefinition(tokens), "concept");
     else {
       unique_ptr<FunctionDefinition> ret;
       ret = TRY(parseFunctionDefinition(TRY(parseIdentifier(tokens, true)), tokens));
@@ -1024,6 +1026,8 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             return cast<Statement>(parseStructDefinition(tokens, false));
           case Keyword::UNION:
             return cast<Statement>(parseUnionDefinition(tokens));
+          case Keyword::CONCEPT:
+            return cast<Statement>(parseConceptDefinition(tokens));
           case Keyword::ATTRIBUTE: {
             tokens.popNext();
             auto name = TRY(tokens.eat<IdentifierToken>("Expected attribute name"));

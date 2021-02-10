@@ -1,7 +1,6 @@
 // 5
 
-template <T>
-concept construct {
+concept<T> construct {
   T();
 };
 

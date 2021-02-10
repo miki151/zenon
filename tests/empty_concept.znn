@@ -1,7 +1,6 @@
 // 3
 
-template <T>
-concept C1 {
+concept<T> C1 {
 };
 
 template <T> requires C1<T>
@@ -13,8 +12,7 @@ int f1(A1<T> a) {
   return 1;
 }
 
-template <T>
-concept C2 {
+concept<T> C2 {
 };
 
 template <T> requires C2<T>

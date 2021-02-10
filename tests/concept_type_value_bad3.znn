@@ -1,7 +1,6 @@
 // no_compile
 
-template <Fun, Ret, Args...>
-concept invoke2 {
+concept<Fun, Ret, Args...> invoke2 {
   Ret invoke(Fun*, Args...);
   void destruct(Fun*);
 };

@@ -15,8 +15,7 @@ int getValue(B* b) {
   return b->a;
 }
 
-template <S>
-concept hasValue {
+concept<S> hasValue {
   int getValue(S* s);
 };
 

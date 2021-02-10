@@ -5,8 +5,7 @@ struct S {
   T x;
 };
 
-template <T>
-concept GetFun {
+concept<T> GetFun {
   T get();
 };
 

@@ -1,7 +1,6 @@
 // no_compile
 
-template <T>
-concept C1 {
+concept<T> C1 {
   int get(T*);
 };
 
@@ -10,8 +9,7 @@ struct X {
   T a;
 };
 
-template <T>
-concept Not {
+concept<T> Not {
   void something(T*);
 };
 

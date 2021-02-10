@@ -1,7 +1,6 @@
 // 10
 
-template <T, U>
-concept C1 {
+concept<T, U> C1 {
   int g(T*, U*);
 };
 

@@ -3,13 +3,11 @@
 int eat(int i) { return i; }
 int drink(int* i) { return 2 * *i; }
 
-template <T>
-concept can_eat {
+concept<T> can_eat {
   int eat(T);
 };
 
-template <T>
-concept can_drink {
+concept<T> can_drink {
   int drink(T*);
 };
 

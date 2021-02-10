@@ -1,8 +1,7 @@
 // 3
 
 
-template <T>
-concept F1 {
+concept<T> F1 {
   int f1(T);
 };
 

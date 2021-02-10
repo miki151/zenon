@@ -1,7 +1,6 @@
 // 6
 
-template <Ret, Args...>
-concept can_call {
+concept<Ret, Args...> can_call {
   Ret f(Args...);
 };
 

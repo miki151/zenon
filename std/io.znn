@@ -66,8 +66,7 @@ export void destruct(file_input* f) {
   }
 }
 
-template <T>
-concept file_type_constructor {
+concept<T> file_type_constructor {
   T(FILE mutable*);
 };
 

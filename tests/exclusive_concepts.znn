@@ -1,12 +1,10 @@
 // 3
 
-template<T>
-concept c1 {
+concept<T> c1 {
   int fun1(T*);
 };
 
-template<T>
-concept c2 {
+concept<T> c2 {
   int fun2(T*);
 };
 

@@ -10,8 +10,7 @@ int res() {
 template <T>
 void f(T, int) { }
 
-template <T, U>
-concept F {
+concept<T, U> F {
   void f(T, U);
 };
 

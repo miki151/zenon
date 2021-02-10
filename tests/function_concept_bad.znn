@@ -1,7 +1,6 @@
 // no_compile
 
-template <T>
-concept CanAdd {
+concept<T> CanAdd {
   T operator + (T* t1, T* t2);
 };
 

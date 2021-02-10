@@ -1,12 +1,10 @@
 // 5
 
-export template <T>
-concept F {
+export concept<T> F {
   int f(T*);
 };
 
-export template <T>
-concept G {
+export concept<T> G {
   int g(T*);
 };
 

@@ -1,7 +1,6 @@
 // 5
 
-template <T, CArgs...>
-concept construct {
+concept<T, CArgs...> construct {
   T(CArgs...);
 };
 

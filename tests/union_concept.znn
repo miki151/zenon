@@ -1,7 +1,6 @@
 // 3
 
-template <T, U, V>
-concept CanAdd {
+concept<T, U, V> CanAdd {
   V add(T*, U);
 };
 

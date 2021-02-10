@@ -1,7 +1,6 @@
 // no_compile
 
-template<T, U>
-concept CanConvert {
+concept<T, U> CanConvert {
   U convert(T* t);
 };
 

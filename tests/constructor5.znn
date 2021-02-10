@@ -8,8 +8,7 @@ struct A  {
   T t;
 };
 
-template <T>
-concept default_const {
+concept<T> default_const {
   T getValue();
 };
 

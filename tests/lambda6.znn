@@ -1,7 +1,6 @@
 // 5
 
-template <T>
-concept can_get {
+concept<T> can_get {
   int get(T*);
 };
 

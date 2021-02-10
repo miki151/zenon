@@ -1,12 +1,10 @@
 // 2
 
-template <T>
-concept CanAdd {
+concept<T> CanAdd {
   T operator + (T* t1, T* t2);
 };
 
-template <T>
-concept CanAdd2 {
+concept<T> CanAdd2 {
   T operator + (T* t1, T* t2);
 };
 

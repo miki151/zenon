@@ -35,8 +35,7 @@ struct Triangle {
 
 Triangle copy(Triangle*) = default;
 
-template <T>
-concept ShapeInterface {
+concept<T> ShapeInterface {
   int operator[](T, int);
 };
 

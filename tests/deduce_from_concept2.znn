@@ -10,8 +10,7 @@ int f(U<X>*) { return 5; }
 int f(bool) { return 4; }
 void f(string) {}
 
-template <T>
-concept F {
+concept<T> F {
   int f(T*);
 };
 

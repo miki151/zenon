@@ -1,7 +1,6 @@
 // no_compile
 
-template <T, U>
-concept C1 {
+concept<T, U> C1 {
   T call(T*, int);
   U call2(U*, int);
 };

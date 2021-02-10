@@ -1,8 +1,7 @@
 // 0
 
 
-template <T>
-concept CanAdd {
+concept<T> CanAdd {
   void decrease(T mutable*);
   bool is_zero(T*);
 };

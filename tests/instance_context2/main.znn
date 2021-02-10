@@ -8,8 +8,7 @@ struct X {
 
 int h(X) { return 1; }
 
-template <T>
-concept H {
+concept<T> H {
   int h(T);
 };
 

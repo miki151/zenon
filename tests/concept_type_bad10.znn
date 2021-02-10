@@ -1,7 +1,6 @@
 // no_compile
 
-template <Args...>
-concept C1 {
+concept<Args...> C1 {
   void fun1234();
 };
 

@@ -1,6 +1,5 @@
 
-export template <T>
-concept G {
+export concept<T> G {
   int g(T*);
 };
 

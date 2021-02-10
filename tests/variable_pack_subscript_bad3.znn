@@ -3,8 +3,7 @@
 int get_value(string* s) { return s->size(); }
 int get_value(int* a) { return *a; }
 
-template <T> 
-concept has_value {
+concept<T> has_value {
   int get_value(T*);
 };
 

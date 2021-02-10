@@ -15,8 +15,7 @@ string toString(B* b) {
   return "B";
 }
 
-template <T>
-concept Printable {
+concept<T> Printable {
   string toString(T* t);
 };
 

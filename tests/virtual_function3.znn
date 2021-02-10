@@ -37,8 +37,7 @@ struct Triangle {
   int edge3;
 };
 
-template <T>
-concept ShapeInterface {
+concept<T> ShapeInterface {
   int get(T*, int);
   void set(T mutable*, int);
 };

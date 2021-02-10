@@ -7,8 +7,7 @@ X f(Y* y) { return X(y->s.size()); }
 int f(int) { return 1;}
 void f() {}
 
-template <T, U>
-concept F {
+concept<T, U> F {
   T f(U*);
 };
 

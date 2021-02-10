@@ -1,7 +1,6 @@
 // no_compile
 
-template <foo A>
-concept C {
+concept<foo A> C {
 };
 
 int main() {

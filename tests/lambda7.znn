@@ -1,7 +1,6 @@
 // 1
 
-template <T, U>
-concept invoke {
+concept<T, U> invoke {
   U invoke(T*);
 };
 
