@@ -1508,8 +1508,6 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
       [](NullValue v) { return "null"; },
       [](const string& v) { return v; },
       [](const EnumValue& t) { return t.type->getName() + "::" + t.type->elements[t.index]; },
-      [](const ArrayValue& t) { return "{" + combine(::transform(t.values,
-          [](const auto& v) { return v->getName();}), ", ") + "}"; },
       [](const TemplateValue& v) { return v.name; },
       [](const TemplateExpression& v) { return getPrettyString(v.op, v.args); },
       [](const TemplateFunctionCall& v) { return "[function call]"; }
@@ -1521,8 +1519,6 @@ string CompileTimeValue::getCodegenName() const {
       [this](const auto&) { return getName(); },
       [](const ReferenceValue& ref) { return ref.value->getName(); },
       [](const string& v) { return "\"" + v +"\"_lstr"; },
-      [](const ArrayValue& t) { return "make_array<" + t.type->getCodegenName() + ">(" + combine(::transform(t.values,
-          [](const auto& v) { return v->getCodegenName();}), ", ") + ")"; },
       [](const TemplateValue&) -> string { fail(); },
       [](const TemplateExpression&) -> string { fail(); },
       [](const TemplateFunctionCall&) -> string { fail(); }
@@ -1539,7 +1535,6 @@ SType CompileTimeValue::getType() const {
       [](NullValue)-> SType {  return BuiltinType::NULL_TYPE; },
       [](const string&)-> SType {  return BuiltinType::STRING; },
       [](const EnumValue& v)-> SType {  return v.type; },
-      [](const ArrayValue& v)-> SType {  return ArrayType::get(v.type, CompileTimeValue::get((int) v.values.size())); },
       [](const TemplateValue& v)-> SType {  return v.type; },
       [](const TemplateExpression& v)-> SType {  return v.type; },
       [](const TemplateFunctionCall& v)-> SType {  return v.retVal; }
@@ -1565,15 +1560,6 @@ optional<string> CompileTimeValue::getMangledName() const {
           else
             ret += "_" + to_string(int(c));
         return std::move(ret);
-      },
-      [](const ArrayValue& t) -> optional<string> {
-        vector<string> names;
-        for (auto& elem : t.values)
-          if (auto name = elem->getMangledName())
-            names.push_back(*name);
-          else
-            return none;
-        return "Arr"s + combine(names, "");
       },
       [](const ReferenceValue& ref)-> optional<string> {
         if (auto name = ref.value->getMangledName())

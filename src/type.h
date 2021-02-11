@@ -220,11 +220,6 @@ struct CompileTimeValue : public Type {
     int index;
     COMPARABLE(EnumValue, type, index)
   };
-  struct ArrayValue {
-    vector<SCompileTimeValue> values;
-    SType type;
-    COMPARABLE(ArrayValue, values, type)
-  };
   struct ReferenceValue {
     ReferenceValue(SCompileTimeValue);
     SCompileTimeValue value;
@@ -232,7 +227,7 @@ struct CompileTimeValue : public Type {
     COMPARABLE(ReferenceValue, id)
   };
   struct NullValue { COMPARABLE(NullValue) };
-  using Value = variant<int, bool, double, char, NullValue, string, EnumValue, ArrayValue, TemplateValue, TemplateExpression,
+  using Value = variant<int, bool, double, char, NullValue, string, EnumValue, TemplateValue, TemplateExpression,
       TemplateFunctionCall, ReferenceValue>;
   static shared_ptr<CompileTimeValue> get(Value);
   static shared_ptr<CompileTimeValue> getReference(SCompileTimeValue);
