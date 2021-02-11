@@ -1543,15 +1543,6 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
             return (SType) CompileTimeValue::get((int) s->size());
         fail();
       });
-  context.addBuiltInFunction("enum_strings", ArrayType::get(BuiltinType::STRING, CompileTimeValue::get(0)),
-          {SType(BuiltinType::ENUM_TYPE)},
-      [](const Context&, vector<SType> args) -> WithError<SType> {
-        auto enumType = args[0].dynamicCast<EnumType>();
-        vector<SCompileTimeValue> values;
-        for (auto& elem : enumType->elements)
-          values.push_back(CompileTimeValue::get(elem));
-        return (SType) CompileTimeValue::get(CompileTimeValue::ArrayValue{values, BuiltinType::STRING});
-      });
   return context;
 }
 

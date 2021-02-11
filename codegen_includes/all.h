@@ -16,6 +16,10 @@ const T* op_get_address(const T& t) {
   return &t;
 }
 
+template<typename T>
+struct EnumInfo {
+};
+
 template <typename T, typename Fun>
 struct temporary_holder {
   temporary_holder(const T& t, Fun f) : t(t), f(std::move(f)) {

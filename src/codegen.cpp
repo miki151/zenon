@@ -412,6 +412,14 @@ void EnumType::codegenDefinitionImpl(set<const Type*>&, Accu& accu) const {
       accu.newLine(elem + ",");
     --accu.indent;
     accu.newLine("};");
+    accu.newLine("template<> struct EnumInfo<" + name + "> {");
+    accu.newLine("  static const char* getString(" + name + " elem) {");
+    accu.newLine("    switch (elem) {");
+    for (auto& elem : elements)
+      accu.newLine("      case " + name + "::" + elem + ": return \"" + elem + "\";");
+    accu.newLine("    }");
+    accu.newLine("  }");
+    accu.newLine("};");
   }
 }
 

@@ -45,7 +45,9 @@ int asInt(Enum e) {
 
 export template <Enum> requires is_enum<Enum>
 string asString(Enum e) {
-  return enum_strings(Enum)[asInt(e)];
+  embed_returns {
+    return zenon_string::reference(EnumInfo<Enum>::getString(e));
+  }
 }
 
 export template <Enum> requires is_enum<Enum>
