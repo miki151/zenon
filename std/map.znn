@@ -9,38 +9,38 @@ using map = std::map<Key,Value>;
 using std::pair;
 }
 
-template<Key, Value> requires comparable<Key>
+template<Key, Value> requires equality<Key>
 extern struct map;
 
-template <Key, Value> requires comparable<Key>
+template <Key, Value> requires equality<Key>
 void insert(map<Key, Value> mutable* m, Key key, Value value) {
   embed {
     m->insert(std::make_pair(std::move(key), std::move(value)));
   }
 }
 
-template <Key, Value> requires comparable<Key>
+template <Key, Value> requires equality<Key>
 Value* operator [] (map<Key, Value>* m, Key* key) {
   embed_returns {
     return &m->at(*key);
   }
 }
 
-template <Key, Value> requires comparable<Key>
+template <Key, Value> requires equality<Key>
 Value mutable* operator [] (map<Key, Value> mutable* m, Key* key) {
   embed_returns {
     return &m->at(*key);
   }
 }
 
-template <Key, Value> requires comparable<Key>
+template <Key, Value> requires equality<Key>
 bool contains(map<Key, Value>* m, Key key) {
   embed_returns {
     return m->count(key);
   }
 }
 
-template <Key, Value> requires comparable<Key>
+template <Key, Value> requires equality<Key>
 Value*? getMaybe(map<Key, Value>* m, Key key) {
   embed_returns {
     if (m->count(key) > 0)
@@ -50,7 +50,7 @@ Value*? getMaybe(map<Key, Value>* m, Key key) {
   }
 }
 
-template <Key, Value> requires comparable<Key>
+template <Key, Value> requires equality<Key>
 Value mutable*? getMaybe(map<Key, Value> mutable* m, Key key) {
   embed_returns {
     if (m->count(key) > 0)
@@ -60,14 +60,14 @@ Value mutable*? getMaybe(map<Key, Value> mutable* m, Key key) {
   }
 }
 
-template <Key, Value> requires comparable<Key>
+template <Key, Value> requires equality<Key>
 Value mutable* getOrInit(map<Key, Value> mutable* m, Key key) {
   embed_returns {
     return &(*m)[key];
   }
 }
 
-template <Key, Value> requires comparable<Key>
+template <Key, Value> requires equality<Key>
 vector<Key> getAllKeys(map<Key, Value>* m) {
   mutable ret = vector<Key>();
   embed {

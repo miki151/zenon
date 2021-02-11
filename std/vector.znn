@@ -181,7 +181,7 @@ vector<T> copy(vector<T>* v) {
   return move(ret);
 }
 
-export template <T> requires comparable<T>
+export template <T> requires equality<T>
 bool operator == (vector<T>* v1, vector<T>* v2) {
   return v1->slice() == v2->slice();
 }
@@ -191,14 +191,14 @@ int get_hash(vector<T>* v) {
   return v->slice().get_hash();
 }
 
-export template <T> requires ordered<T>
+export template <T> requires inequality<T>
 void sort(vector<T> mutable* v) {
   embed {
     std::sort(v->begin(), v->end());
   }
 }
 
-export template <T> requires comparable<T>
+export template <T> requires equality<T>
 int? find(vector<T>* v, T* elem) {
   for (i : range(0, v->size()))
     if ((*v)[i] == *elem)

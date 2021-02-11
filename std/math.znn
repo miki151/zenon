@@ -5,7 +5,7 @@ export embed {
 #include <cmath>
 }
 
-export template <T> requires ordered<T>
+export template <T> requires inequality<T>
 T min(T a, T b) {
   if (a < b)
     return move(a);
@@ -13,7 +13,7 @@ T min(T a, T b) {
     return move(b);
 }
 
-export template <T> requires ordered<T>
+export template <T> requires inequality<T>
 T max(T a, T b) {
   if (a < b)
     return move(b);

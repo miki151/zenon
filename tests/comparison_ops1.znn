@@ -7,17 +7,17 @@ struct S {
   T elem;
 };
 
-template <T> requires comparable<T>
+template <T> requires equality<T>
 bool operator == (S<T>* s1, S<T>* s2) {
   return s1->elem == s2->elem;
 }
 
-template <T> requires ordered<T>
+template <T> requires inequality<T>
 bool operator < (S<T>* s1, S<T>* s2) {
   return s1->elem < s2->elem;
 }
 
-template <T> requires ordered<T>
+template <T> requires inequality<T>
 bool operator > (S<T>* s1, S<T>* s2) {
   return s1->elem > s2->elem;
 }

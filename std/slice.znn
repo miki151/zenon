@@ -91,7 +91,7 @@ int get_hash(T[] v) {
   return res;
 }
 
-export template <T> requires comparable<T>
+export template <T> requires equality<T>
 bool operator == (T[] v1, T[] v2) {
   if (v1.size() != v2.size())
     return false;

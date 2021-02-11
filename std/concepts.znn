@@ -7,12 +7,12 @@ export concept <T> implicit_copy {
   T implicit_copy(T*);
 };
 
-export concept <T> ordered {
+export concept <T> inequality {
   bool operator < (T*, T*);
   bool operator > (T*, T*);
 };
 
-export concept <T> comparable {
+export concept <T> equality {
   bool operator == (T*, T*);
 };
 

@@ -137,7 +137,7 @@ bool operator == (array_mut_iterator<T>* it1, array_mut_iterator<T>* it2) {
   }
 }
 
-export template <int Size, T> requires comparable<T>
+export template <int Size, T> requires equality<T>
 bool operator == (T[Size]* v1, T[Size]* v2) {
   return v1->slice() == v2->slice();
 }
