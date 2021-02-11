@@ -187,7 +187,8 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
   };
   auto isSpecialized = [&] (const auto& args, const auto& overload) {
     for (auto& other : overloads)
-      if (other != overload && context.isGeneralization(overload->getParent(), other->getParent()))
+      if (other != overload && context.isGeneralization(overload->getParent()->getWithoutRequirements(),
+          other->getParent()->getWithoutRequirements()))
         return false;
     return true;
   };

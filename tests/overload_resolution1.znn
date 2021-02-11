@@ -1,0 +1,30 @@
+// 1
+
+template <T>
+struct X {
+};
+
+void f(int) {}
+void g(X<int>) {}
+
+concept<T> F {
+  void f(T);
+};
+
+concept<T> G {
+  void g(T);
+};
+
+template <T> requires F<T>
+int get(X<T>) {
+  return 1;
+}
+
+template <T> requires G<T>
+int get(T) {
+  return 2;
+}
+
+int main() {
+  return get(X<int>());
+}
