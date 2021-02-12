@@ -36,6 +36,8 @@ class Context : public owned_object<Context> {
   WithError<vector<SFunctionInfo>> getRequiredFunctions(const Concept&, vector<FunctionType> existing) const;
   nullable<SFunctionInfo> isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
       vector<FunctionType> existing = {}) const;
+  nullable<SFunctionInfo> isGeneralizationWithoutReturnType(const SFunctionInfo& general, const SFunctionInfo& specific,
+      vector<FunctionType> existing = {}) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
   void addVariable(const string& ident, SType, CodeLoc, bool global = false);

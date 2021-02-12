@@ -1,0 +1,19 @@
+// 2
+
+struct X {
+};
+
+template <T>
+void operator -(T?*, X a) {
+}
+
+template <T>
+int operator -(T*?*, X a) {
+  return 2;
+}
+
+int main() {
+  const x = 5;
+  const int*? y = &x;
+  return y - X();
+}

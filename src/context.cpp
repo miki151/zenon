@@ -131,11 +131,19 @@ void Context::setLambda(LambdaCaptureInfo* info) {
 nullable<SFunctionInfo> Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
     vector<FunctionType> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
-  if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, specific->type.params,
-      vector<CodeLoc>(specific->type.params.size(), CodeLoc()), existing)) {
+  if (auto inst = isGeneralizationWithoutReturnType(general, specific, existing)) {
     if (specific->type.retVal == inst.get()->type.retVal)
-      return *inst;
+      return inst;
   }
+  return nullptr;
+}
+
+nullable<SFunctionInfo> Context::isGeneralizationWithoutReturnType(const SFunctionInfo& general,
+    const SFunctionInfo& specific, vector<FunctionType> existing) const {
+  // the name can change during instantation if name is a type (if it's a constructor)
+  if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, specific->type.params,
+      vector<CodeLoc>(specific->type.params.size(), CodeLoc()), existing))
+    return *inst;
   return nullptr;
 }
 
