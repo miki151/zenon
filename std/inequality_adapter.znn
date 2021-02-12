@@ -1,0 +1,21 @@
+
+export embed {
+template <typename Key>
+struct inequality_adapter {
+  bool operator() (const Key& key1, const Key& key2) const {
+    return invoke(this, &key1, &key2);
+  }
+};
+}
+
+export template <Key>
+extern struct inequality_adapter;
+
+export template <Key>
+extern inequality_adapter();
+
+export template <Key> requires inequality<Key>
+bool invoke(inequality_adapter<Key>*, Key* key1, Key* key2) {
+  return *key1 < *key2;
+}
+
