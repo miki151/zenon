@@ -1,0 +1,20 @@
+// 12
+
+import "std/map.znn";
+
+template <T>
+struct X {
+  T a;
+};
+
+template <T> requires inequality<T>
+bool operator < (X<T>* a, X<T>* b) {
+  return a->a < b->a;
+}
+
+int main() {
+  mutable m = map<X<int>, int>();
+  m.insert(X(5), 10);
+  m.insert(X(6), 5);
+  return *m.get(&X(5)) + m.size();
+}

@@ -1,46 +1,59 @@
 
 export import "std/vector.znn";
 export import "std/concepts.znn";
+export import "std/inequality_adapter.znn";
 
 export embed {
 #include <map>
 template<typename Key, typename Value>
-using map = std::map<Key,Value>;
+using map = std::map<Key, Value, inequality_adapter<Key>>;
 using std::pair;
 }
 
-template<Key, Value> requires equality<Key>
+export template<Key, Value> requires inequality<Key>
 extern struct map;
 
-template <Key, Value> requires equality<Key>
+export template<Key, Value> requires inequality<Key>
+extern map();
+
+export template <Key, Value> requires inequality<Key>
 void insert(map<Key, Value> mutable* m, Key key, Value value) {
   embed {
     m->insert(std::make_pair(std::move(key), std::move(value)));
   }
+  return;
+  discard inequality_adapter<Key>().invoke(&key, &key);
 }
 
-template <Key, Value> requires equality<Key>
-Value* operator [] (map<Key, Value>* m, Key* key) {
+export template <Key, Value> requires inequality<Key>
+Value* get(map<Key, Value>* m, Key* key) {
   embed_returns {
     return &m->at(*key);
   }
 }
 
-template <Key, Value> requires equality<Key>
-Value mutable* operator [] (map<Key, Value> mutable* m, Key* key) {
+export template <Key, Value> requires inequality<Key>
+Value mutable* get(map<Key, Value> mutable* m, Key* key) {
   embed_returns {
     return &m->at(*key);
   }
 }
 
-template <Key, Value> requires equality<Key>
+export template <Key, Value> requires inequality<Key>
 bool contains(map<Key, Value>* m, Key key) {
   embed_returns {
     return m->count(key);
   }
 }
 
-template <Key, Value> requires equality<Key>
+export template <Key, Value> requires inequality<Key>
+int size(map<Key, Value>* m) {
+  embed_returns {
+    return m->size();
+  }
+}
+
+export template <Key, Value> requires inequality<Key>
 Value*? getMaybe(map<Key, Value>* m, Key key) {
   embed_returns {
     if (m->count(key) > 0)
@@ -50,7 +63,7 @@ Value*? getMaybe(map<Key, Value>* m, Key key) {
   }
 }
 
-template <Key, Value> requires equality<Key>
+export template <Key, Value> requires inequality<Key>
 Value mutable*? getMaybe(map<Key, Value> mutable* m, Key key) {
   embed_returns {
     if (m->count(key) > 0)
@@ -60,14 +73,14 @@ Value mutable*? getMaybe(map<Key, Value> mutable* m, Key key) {
   }
 }
 
-template <Key, Value> requires equality<Key>
+export template <Key, Value> requires inequality<Key>
 Value mutable* getOrInit(map<Key, Value> mutable* m, Key key) {
   embed_returns {
     return &(*m)[key];
   }
 }
 
-template <Key, Value> requires equality<Key>
+export template <Key, Value> requires inequality<Key>
 vector<Key> getAllKeys(map<Key, Value>* m) {
   mutable ret = vector<Key>();
   embed {
