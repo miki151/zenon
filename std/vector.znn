@@ -8,6 +8,7 @@ using std::vector;
 
 export import "std/concepts.znn";
 export import "std/range.znn";
+export import "std/inequality_adapter.znn";
 
 export template <T>
 extern struct vector;
@@ -194,8 +195,10 @@ int get_hash(vector<T>* v) {
 export template <T> requires inequality<T>
 void sort(vector<T> mutable* v) {
   embed {
-    std::sort(v->begin(), v->end());
+    std::sort(v->begin(), v->end(), inequality_adapter<T>());
   }
+  return;
+  discard inequality_adapter<T>().invoke(&(*v)[0], &(*v)[0]);
 }
 
 export template <T> requires equality<T>

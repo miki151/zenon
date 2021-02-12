@@ -1,0 +1,19 @@
+// 44
+
+import "std/vector.znn";
+
+template <T>
+struct X {
+  T a;
+};
+
+template <T> requires inequality<T>
+bool operator < (X<T>* a, X<T>* b) {
+  return a->a < b->a;
+}
+
+int main() {
+  mutable v = { X(4), X(3), X(10), X(1), X(7) }.as_vector();
+  v.sort();
+  return 25 * v[0].a + 5 * v[1].a + v[2].a;
+}
