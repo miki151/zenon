@@ -14,11 +14,8 @@ using SCompileTimeValue = shared_ptr<CompileTimeValue>;
 
 enum class Operator {
   LESS_THAN,
-  MORE_THAN,
   EQUALS,
   NOT_EQUAL,
-  LESS_OR_EQUAL,
-  MORE_OR_EQUAL,
   PLUS,
   PLUS_UNARY,
   MINUS,

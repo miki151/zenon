@@ -245,24 +245,19 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context&,
     const vector<CodeLoc>&, vector<unique_ptr<Expression>>&);
 
 unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr) {
-  switch (op) {
-    case Operator::LESS_OR_EQUAL:
-      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::MORE_THAN, std::move(expr)));
-    case Operator::MORE_OR_EQUAL:
-      return unique<UnaryExpression>(loc, Operator::LOGICAL_NOT, get(loc, Operator::LESS_THAN, std::move(expr)));
-    default:
-      return unique<BinaryExpression>(Private{}, loc, op, std::move(expr));
-  }
+  return unique<BinaryExpression>(Private{}, loc, op, std::move(expr));
 }
 
-unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, unique_ptr<Expression> a, unique_ptr<Expression> b) {
+unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, unique_ptr<Expression> a,
+    unique_ptr<Expression> b) {
   return get(loc, op, makeVec<unique_ptr<Expression>>(std::move(a), std::move(b)));
 }
 
-BinaryExpression::BinaryExpression(BinaryExpression::Private, CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr)
-    : Expression(loc), op(op), expr(std::move(expr)) {}
+BinaryExpression::BinaryExpression(BinaryExpression::Private, CodeLoc loc, Operator op,
+    vector<unique_ptr<Expression>> expr) : Expression(loc), op(op), expr(std::move(expr)) {}
 
-static vector<unique_ptr<Expression>> transformValueOrArg(vector<unique_ptr<Expression>> expr, CodeLoc codeLoc, bool usePointer) {
+static vector<unique_ptr<Expression>> transformValueOrArg(vector<unique_ptr<Expression>> expr, CodeLoc codeLoc,
+    bool usePointer) {
   auto block = unique<StatementBlock>(codeLoc);
   if (usePointer)
     expr[1] = unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr[1]));
@@ -288,37 +283,29 @@ static unique_ptr<Statement> getDestructorStatement(CodeLoc codeLoc, const strin
 }
 
 WithErrorLine<SType> BinaryExpression::getTypeImpl(const Context& context) {
-  switch (op) {
-    case Operator::LESS_OR_EQUAL:
-    case Operator::MORE_OR_EQUAL:
-      FATAL << "This operator should have been rewritten";
-      fail();
-    default: {
-      if (!functionInfo && op == Operator::VALUE_OR) {
-        // We have to use a copy to check type of rhs, otherwise the implicit lambda might not be checked
-        // again and implicit captures won't be extracted
-        auto tmpExpr = expr[1]->deepCopy();
-        auto type = TRY(getType(context, tmpExpr));
-        expr = transformValueOrArg(std::move(expr), codeLoc,
-            !!type.dynamicCast<ReferenceType>() || !!type.dynamicCast<MutableReferenceType>());
-      }
-      vector<SType> exprTypes;
-      for (auto& elem : expr)
-        exprTypes.push_back(TRY(getType(context, elem)));
-      if (op == Operator::SUBSCRIPT && exprTypes[0].dynamicCast<VariablePack>() && !expr[1]->eval(context))
-        return expr[1]->codeLoc.getError("Unable to evaluate variable pack index at compile-time");
-      functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, exprTypes,
-          ::transform(expr, [&](auto& e) { return e->codeLoc;}), expr));
-      if (op == Operator::ASSIGNMENT && exprTypes[0]->removeReference()->hasDestructor()) {
-        expr[0] = getDestructAndGetCall(codeLoc, std::move(expr[0]));
-        CHECK(!!getType(context, expr[0]));
-      }
-      TRY(functionInfo->addInstance(context));
-      TRY(considerDestructorCall(context, 0, exprTypes[0]));
-      TRY(considerDestructorCall(context, 1, exprTypes[1]));
-      return functionInfo->type.retVal;
-    }
+  if (!functionInfo && op == Operator::VALUE_OR) {
+    // We have to use a copy to check type of rhs, otherwise the implicit lambda might not be checked
+    // again and implicit captures won't be extracted
+    auto tmpExpr = expr[1]->deepCopy();
+    auto type = TRY(getType(context, tmpExpr));
+    expr = transformValueOrArg(std::move(expr), codeLoc,
+        !!type.dynamicCast<ReferenceType>() || !!type.dynamicCast<MutableReferenceType>());
   }
+  vector<SType> exprTypes;
+  for (auto& elem : expr)
+    exprTypes.push_back(TRY(getType(context, elem)));
+  if (op == Operator::SUBSCRIPT && exprTypes[0].dynamicCast<VariablePack>() && !expr[1]->eval(context))
+    return expr[1]->codeLoc.getError("Unable to evaluate variable pack index at compile-time");
+  functionInfo = TRY(handleOperatorOverloads(context, codeLoc, op, exprTypes,
+      ::transform(expr, [&](auto& e) { return e->codeLoc;}), expr));
+  if (op == Operator::ASSIGNMENT && exprTypes[0]->removeReference()->hasDestructor()) {
+    expr[0] = getDestructAndGetCall(codeLoc, std::move(expr[0]));
+    CHECK(!!getType(context, expr[0]));
+  }
+  TRY(functionInfo->addInstance(context));
+  TRY(considerDestructorCall(context, 0, exprTypes[0]));
+  TRY(considerDestructorCall(context, 1, exprTypes[1]));
+  return functionInfo->type.retVal;
 }
 
 WithErrorLine<SFunctionInfo> getDestructor(const Context& context, const SType& type) {
@@ -1479,7 +1466,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
         {{BuiltinType::BOOL}, {BuiltinType::BOOL}}, {}).setBuiltin()));
   CHECK(context.addImplicitFunction(Operator::LOGICAL_NOT, FunctionType(BuiltinType::BOOL,
       {{BuiltinType::BOOL}}, {}).setBuiltin()));
-  for (auto op : {Operator::EQUALS, Operator::NOT_EQUAL, Operator::LESS_THAN, Operator::MORE_THAN})
+  for (auto op : {Operator::EQUALS, Operator::NOT_EQUAL, Operator::LESS_THAN})
     for (auto type : {BuiltinType::INT, BuiltinType::STRING, BuiltinType::DOUBLE})
       CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL,
           {ReferenceType::get(type), ReferenceType::get(type)}, {}).setBuiltin()));
@@ -2476,8 +2463,9 @@ JustError<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
   init->initExpr = unique<FunctionCall>(IdentifierInfo("begin", codeLoc),
       unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, unique<Variable>(IdentifierInfo(*containerName, codeLoc))), false);
   init->isMutable = true;
-  condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)),
-      unique<Variable>(IdentifierInfo(containerEndName, codeLoc)));
+  condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL,
+          unique<Variable>(IdentifierInfo(init->identifier, codeLoc)),
+          unique<Variable>(IdentifierInfo(containerEndName, codeLoc)));
   increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)));
   TRY(init->check(bodyContext));
   auto condType = TRY(getType(bodyContext, condition));

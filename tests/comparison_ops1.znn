@@ -17,11 +17,6 @@ bool operator < (S<T>* s1, S<T>* s2) {
   return s1->elem < s2->elem;
 }
 
-template <T> requires inequality<T>
-bool operator > (S<T>* s1, S<T>* s2) {
-  return s1->elem > s2->elem;
-}
-
 int main() {
   mutable sum = 0;
   for (i = 0; i < 3; ++i)

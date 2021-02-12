@@ -52,7 +52,10 @@ static const unordered_map<string, Keyword> keywords {
   {",", Keyword::COMMA},
   {".", Keyword::MEMBER_ACCESS},
   {"->", Keyword::ARROW_MEMBER_ACCESS},
-  {"...", Keyword::ELLIPSIS}
+  {"...", Keyword::ELLIPSIS},
+  {">", Keyword::MORE_THAN},
+  {"<=", Keyword::LESS_OR_EQUAL},
+  {">=", Keyword::MORE_OR_EQUAL},
 };
 
 vector<string> getAllKeywords() {

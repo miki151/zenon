@@ -1,0 +1,16 @@
+// 2
+
+struct X {
+};
+
+bool operator == (X*, X*) {
+  return true;
+}
+
+int main() {
+  const x = X();
+  const y = X();
+  if (x != y)
+    return 1;
+  return 2;
+}

@@ -9,7 +9,6 @@ export concept <T> implicit_copy {
 
 export concept <T> inequality {
   bool operator < (T*, T*);
-  bool operator > (T*, T*);
 };
 
 export concept <T> equality {

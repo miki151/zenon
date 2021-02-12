@@ -4,10 +4,7 @@
 #include "ast.h"
 
 const static vector<pair<string, Operator>> operators {
-  {"<=", Operator::LESS_OR_EQUAL},
-  {">=", Operator::MORE_OR_EQUAL},
   {"<", Operator::LESS_THAN},
-  {">", Operator::MORE_THAN},
   {"==", Operator::EQUALS},
   {"!=", Operator::NOT_EQUAL},
   // if a binary op has the same symbol as unary it needs to come before it.
@@ -77,9 +74,6 @@ int getPrecedence(Operator op) {
     case Operator::LOGICAL_NOT:
       return 6;
     case Operator::LESS_THAN:
-    case Operator::MORE_THAN:
-    case Operator::LESS_OR_EQUAL:
-    case Operator::MORE_OR_EQUAL:
       return 7;
     case Operator::PLUS:
     case Operator::PLUS_UNARY:
@@ -127,9 +121,6 @@ bool isUnary(Operator op) {
     case Operator::EQUALS:
     case Operator::NOT_EQUAL:
     case Operator::LESS_THAN:
-    case Operator::MORE_THAN:
-    case Operator::LESS_OR_EQUAL:
-    case Operator::MORE_OR_EQUAL:
     case Operator::INCREMENT_BY:
     case Operator::DECREMENT_BY:
     case Operator::MULTIPLY_BY:
@@ -169,7 +160,6 @@ bool canOverload(Operator op) {
     case Operator::EQUALS:
     case Operator::NOT_EQUAL:
     case Operator::LESS_THAN:
-    case Operator::MORE_THAN:
     case Operator::POINTER_DEREFERENCE:
     case Operator::PLUS_UNARY:
     case Operator::INCREMENT:
@@ -293,8 +283,6 @@ static nullable<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileT
     case Operator::LESS_THAN: {
       return tryArithmetic(args, [](auto v1, auto v2) { return v1 < v2; });
     }
-    case Operator::MORE_THAN:
-      return tryArithmetic(args, [](auto v1, auto v2) { return v1 > v2; });
     case Operator::PLUS:
       if (auto res = tryArithmetic(args, [](auto v1, auto v2) { return v1 + v2; }))
         return res;
@@ -318,8 +306,6 @@ static nullable<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileT
     case Operator::MAYBE:
       return nullptr;
     case Operator::NOT_EQUAL:
-    case Operator::LESS_OR_EQUAL:
-    case Operator::MORE_OR_EQUAL:
     case Operator::EQUALS:
       FATAL << "This operator should have been rewritten";
       fail();
@@ -398,8 +384,6 @@ const char* getCodegenName(Operator op) {
       return "not_equal";
     case Operator::LESS_THAN:
       return "op_less_than";
-    case Operator::MORE_THAN:
-      return "op_more_than";
     case Operator::INCREMENT_BY:
       return "op_increment_by";
     case Operator::DECREMENT_BY:

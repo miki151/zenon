@@ -29,7 +29,7 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
     if (tokens.eatMaybe(Operator::LESS_THAN)) {
       while (1) {
         if (auto ident = parseIdentifier(tokens, true)) {
-          if (tokens.peek() == Keyword::COMMA || tokens.peek() == Operator::MORE_THAN || tokens.peek() == Keyword::ELLIPSIS)
+          if (tokens.peek() == Keyword::COMMA || tokens.peek() == Keyword::MORE_THAN || tokens.peek() == Keyword::ELLIPSIS)
             ret.parts.back().templateArguments.push_back(*ident);
           else {
             tokens.rewind(beforeLessThan);
@@ -38,7 +38,7 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
           }
         } else {
           if (auto expr = parsePrimary(tokens)) {
-            if (tokens.peek() == Keyword::COMMA || tokens.peek() == Operator::MORE_THAN || tokens.peek() == Keyword::ELLIPSIS)
+            if (tokens.peek() == Keyword::COMMA || tokens.peek() == Keyword::MORE_THAN || tokens.peek() == Keyword::ELLIPSIS)
               ret.parts.back().templateArguments.push_back(getSharedPtr(std::move(*expr)));
             else {
               ret.parts.back().templateArguments.clear();
@@ -50,7 +50,7 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
         }
         if (tokens.eatMaybe(Keyword::ELLIPSIS))
           ret.parts.back().variadic = true;
-        if (tokens.eatMaybe(Operator::MORE_THAN))
+        if (tokens.eatMaybe(Keyword::MORE_THAN))
           break;
         else if (!tokens.eatMaybe(Keyword::COMMA)) {
           ret.parts.back().templateArguments.clear();
@@ -164,7 +164,7 @@ static WithErrorLine<unique_ptr<Expression>> parseArrayLiteral(Tokens& tokens) {
   TRY(tokens.eat(Keyword::OPEN_BLOCK));
   if (tokens.eatMaybe(Operator::LESS_THAN)) {
     ret->typeId = TRY(parseIdentifier(tokens, true));
-    TRY(tokens.eat(Operator::MORE_THAN));
+    TRY(tokens.eat(Keyword::MORE_THAN));
   }
   if (!tokens.eatMaybe(Keyword::CLOSE_BLOCK))
     while (1) {
@@ -389,30 +389,50 @@ WithErrorLine<unique_ptr<Expression>> parseMemberAccess(Tokens& tokens, unique_p
     return token.codeLoc.getError("Bad use of member access operator");
 }
 
+struct OperatorInfo {
+  Operator op;
+  bool reverse;
+  bool negate;
+};
+
+static optional<OperatorInfo> getOperator(const Token& token) {
+  if (auto op = token.getValueMaybe<Operator>())
+    return OperatorInfo{*op, false, false};
+  if (auto k = token.getValueMaybe<Keyword>())
+    switch (*k) {
+      case Keyword::MORE_THAN: return OperatorInfo{Operator::LESS_THAN, true, false};
+      case Keyword::LESS_OR_EQUAL: return OperatorInfo{Operator::LESS_THAN, true, true};
+      case Keyword::MORE_OR_EQUAL: return OperatorInfo{Operator::LESS_THAN, false, true};
+      default:
+        break;
+    }
+  return none;
+}
+
 WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique_ptr<Expression> lhs,
     int minPrecedence) {
   while (1) {
     auto* token = &tokens.peek();
-    if (auto op1 = token->getValueMaybe<Operator>()) {
-      if (getPrecedence(*op1) < minPrecedence)
+    if (auto op1 = getOperator(*token)) {
+      if (getPrecedence(op1->op) < minPrecedence)
         break;
       unique_ptr<Expression> mhs;
       tokens.popNext();
-      if (op1 == Operator::MAYBE) {
+      if (op1->op == Operator::MAYBE) {
         mhs = TRY(parseExpression(tokens));
         TRY(tokens.eat(Keyword::COLON));
       }
       auto rhs = TRY(parsePrimary(tokens));
       while (1) {
         token = &tokens.peek();
-        auto op2 = token->getValueMaybe<Operator>();
+        auto op2 = getOperator(*token);
         if (*token == Keyword::OPEN_SQUARE_BRACKET)
-          op2 = Operator::SUBSCRIPT;
+          op2 = OperatorInfo{Operator::SUBSCRIPT, false, false};
         if (op2) {
-          if (getPrecedence(*op2) <= getPrecedence(*op1) &&
-              (!isRightAssociative(*op2) || getPrecedence(*op2) < getPrecedence(*op1)))
+          if (getPrecedence(op2->op) <= getPrecedence(op1->op) &&
+              (!isRightAssociative(op2->op) || getPrecedence(op2->op) < getPrecedence(op1->op)))
             break;
-          rhs = TRY(parseExpressionImpl(tokens, std::move(rhs), getPrecedence(*op2)));
+          rhs = TRY(parseExpressionImpl(tokens, std::move(rhs), getPrecedence(op2->op)));
         } else
         if (*token == Keyword::MEMBER_ACCESS || *token == Keyword::ARROW_MEMBER_ACCESS)
           rhs = TRY(parseMemberAccess(tokens, std::move(rhs)));
@@ -423,8 +443,13 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
       }
       if (mhs)
         lhs = cast<Expression>(unique<TernaryExpression>(token->codeLoc, std::move(lhs), std::move(mhs), std::move(rhs)));
-      else
-        lhs = BinaryExpression::get(token->codeLoc, *op1, std::move(lhs), std::move(rhs));
+      else {
+        if (op1->reverse)
+          swap(lhs, rhs);
+        lhs = BinaryExpression::get(token->codeLoc, op1->op, std::move(lhs), std::move(rhs));
+        if (op1->negate)
+          lhs = unique<UnaryExpression>(token->codeLoc, Operator::LOGICAL_NOT, std::move(lhs));
+      }
     } else
     if (*token == Keyword::OPEN_SQUARE_BRACKET) {
       tokens.popNext();
@@ -539,16 +564,16 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionDefinition(Identifier
 static WithErrorLine<TemplateInfo> parseTemplateInfo(Tokens& tokens) {
   TRY(tokens.eat(Operator::LESS_THAN));
   TemplateInfo ret;
-  while (tokens.peek() != Operator::MORE_THAN) {
+  while (tokens.peek() != Keyword::MORE_THAN) {
     auto paramToken = tokens.popNext();
     if (!paramToken.contains<IdentifierToken>())
       return paramToken.codeLoc.getError("Template parameter name expected");
     optional<string> typeName;
-    if (tokens.peek() != Operator::MORE_THAN && !tokens.eatMaybe(Keyword::COMMA)) {
+    if (tokens.peek() != Keyword::MORE_THAN && !tokens.eatMaybe(Keyword::COMMA)) {
       if (tokens.eatMaybe(Keyword::ELLIPSIS)) {
         ret.variadic = true;
         ret.params.push_back({paramToken.value, typeName, paramToken.codeLoc});
-        if (tokens.peek() != Operator::MORE_THAN)
+        if (tokens.peek() != Keyword::MORE_THAN)
           return paramToken.codeLoc.getError("Parameter pack is only allowed at the end of parameter list");
         break;
       } else {
@@ -556,13 +581,13 @@ static WithErrorLine<TemplateInfo> parseTemplateInfo(Tokens& tokens) {
         paramToken = tokens.popNext();
         if (!paramToken.contains<IdentifierToken>())
           return paramToken.codeLoc.getError("Template parameter name expected");
-        if (tokens.peek() != Operator::MORE_THAN)
+        if (tokens.peek() != Keyword::MORE_THAN)
           TRY(tokens.eat(Keyword::COMMA));
       }
     }
     ret.params.push_back({paramToken.value, typeName, paramToken.codeLoc});
   }
-  CHECK(!!tokens.eat(Operator::MORE_THAN));
+  CHECK(!!tokens.eat(Keyword::MORE_THAN));
   if (tokens.eatMaybe(Keyword::REQUIRES))
     while (1) {
       if (tokens.eatMaybe(Keyword::OPEN_BRACKET)) {
