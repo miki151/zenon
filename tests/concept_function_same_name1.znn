@@ -1,0 +1,21 @@
+// 10
+
+concept <T> get {
+  int get(T*);
+};
+
+struct X {
+};
+
+int get(X*) {
+  return 5;
+}
+
+template <T> requires get<T>
+int get2(T* t) {
+  return t->get() * 2;
+}
+
+int main() {
+  return get2(&X());
+}
