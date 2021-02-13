@@ -54,7 +54,7 @@ struct Type : public owned_object<Type> {
   virtual bool canBeValueTemplateParam() const;
   virtual bool canDeclareVariable() const;
   virtual bool isMetaType() const;
-  bool isBuiltinCopyable(const Context&, unique_ptr<Expression>&) const;
+  JustError<string> isBuiltinCopyable(const Context&, unique_ptr<Expression>&) const;
   bool isBuiltinCopyable(const Context&) const;
   Context staticContext;
 

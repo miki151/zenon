@@ -482,9 +482,9 @@ void IfStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
 
 static JustError<string> getVariableInitializationError(const char* action, const Context& context, const SType& varType,
     const SType& exprType, unique_ptr<Expression>& expr) {
-  if (!context.canConvert(exprType, varType, expr))
+  if (auto res = context.canConvert(exprType, varType, expr); !res)
     return "Can't "s + action + " of type "
-       + quote(varType->getName()) + " using a value of type " + quote(exprType->getName());
+       + quote(varType->getName()) + " using a value of type " + quote(exprType->getName()) + ".\n" + res.get_error();
   return success;
 }
 

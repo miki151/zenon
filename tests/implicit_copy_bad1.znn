@@ -1,0 +1,26 @@
+// no_compile
+
+template <T>
+struct X {
+  T elem;
+};
+
+template <T> requires implicit_copy<T>
+T get(X<T>* x) {
+  return x->elem;
+}
+
+bool get(X<int>* x) {
+  return true;
+}
+
+template <T> requires implicit_copy<T>
+X<T> implicit_copy(X<T>* x) {
+  return X(x->get());
+}
+
+int main() {
+  const x = X(5);
+  const y = x;
+  return y.elem;
+}

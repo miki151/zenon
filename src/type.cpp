@@ -476,9 +476,9 @@ bool Type::isMetaType() const {
   return false;
 }
 
-bool Type::isBuiltinCopyable(const Context& context, unique_ptr<Expression>& expr) const {
+JustError<string> Type::isBuiltinCopyable(const Context& context, unique_ptr<Expression>& expr) const {
   if (isBuiltinCopyableImpl(context, expr))
-    return true;
+    return success;
   else
   if (auto fun = getImplicitCopyFunction(context, CodeLoc(), get_this().get())) {
     if (expr) {
@@ -486,17 +486,17 @@ bool Type::isBuiltinCopyable(const Context& context, unique_ptr<Expression>& exp
       auto codeLoc = expr->codeLoc;
       expr = unique<FunctionCall>(IdentifierInfo("implicit_copy", codeLoc),
           unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false);
-      auto err = expr->getTypeImpl(tmpContext);
-      CHECK(!!err) << err.get_error();
+      if (auto res = expr->getTypeImpl(tmpContext); !res)
+        return res.get_error().error;
     }
-    return true;
+    return success;
   }
-  return false;
+  return "Type " + quote(getName()) + " cannot be implicitly copied";
 }
 
 bool Type::isBuiltinCopyable(const Context& context) const {
   unique_ptr<Expression> expr;
-  return isBuiltinCopyable(context, expr);
+  return !!isBuiltinCopyable(context, expr);
 }
 
 bool PointerType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {

@@ -290,9 +290,8 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
   if (fromUnderlying == toUnderlying && toUnderlying != to &&
       (!from.dynamicCast<ReferenceType>() || !to.dynamicCast<MutableReferenceType>()))
     return success;
-  if (from != fromUnderlying && to->removeReference() == fromUnderlying &&
-      fromUnderlying->isBuiltinCopyable(*this, expr))
-    return success;
+  if (from != fromUnderlying && to->removeReference() == fromUnderlying)
+    return fromUnderlying->isBuiltinCopyable(*this, expr);
   if (fromUnderlying->isPointer() && to->isPointer() && !fromUnderlying->removePointer().dynamicCast<ConceptType>())
     if (auto conceptType = to->removePointer().dynamicCast<ConceptType>()) {
       auto concept = conceptType->getConceptFor(fromUnderlying->removePointer());
@@ -340,8 +339,8 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
           alternative = &alt;
         }
       if (alternative) {
-        if (from != fromUnderlying && !fromUnderlying->isBuiltinCopyable(*this, expr))
-          return "Type " + quote(from->getName()) + " cannot be copied implicitly";
+        if (from != fromUnderlying)
+          TRY(fromUnderlying->isBuiltinCopyable(*this, expr));
         if (expr) {
           auto codeLoc = expr->codeLoc;
           auto call = [&] () -> unique_ptr<Expression> {
