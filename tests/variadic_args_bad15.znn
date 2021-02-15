@@ -1,0 +1,14 @@
+// no_compile
+
+template <Args...>
+void f() {
+}
+
+template <A>
+void g() {
+  f<A...>();
+}
+
+int main() {
+  return 0;
+}

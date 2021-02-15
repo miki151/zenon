@@ -1626,11 +1626,14 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
   bool variadicTemplateCall = variadicTemplateArgs && !callContext.getExpandedTypePack();
   if (!variadicCall && !variadicTemplateCall)
     return success;
+  auto unExpandedTypePack = callContext.getUnexpandedTypePack();
+  if (variadicTemplateCall && !unExpandedTypePack)
+    return codeLoc.getError("No unexpanded template parameter pack found");
   nullable<SType> returnType;
   vector<SType> expanded;
   vector<SType> expandedArgs;
   unordered_set<FunctionInfo*> allCalls;
-  auto typePack = callContext.getUnexpandedTypePack()->second;
+  auto typePack = unExpandedTypePack->second;
   while (true) {
     auto call = cast<FunctionCall>(deepCopy());
     auto context = callContext.getChild();
@@ -1644,7 +1647,7 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
       for (auto& fun : callContext.getAllFunctions())
         if (!!fun->type.concept) {
           auto replaced = fun;
-          auto from = callContext.getUnexpandedTypePack()->second;
+          auto from = unExpandedTypePack->second;
             replaced = replaceInFunction(funContext, replaced, from, e, errors);
           if (errors.empty() && replaced != fun)
             ignore(funContext.addFunction(replaced));
@@ -2389,7 +2392,7 @@ JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
     concept->modParams().push_back(shared<TemplateParameterType>(param.name, param.codeLoc));
     declarationsContext.addType(param.name, concept->modParams().back());
     if (templateInfo.variadic && i == templateInfo.params.size() - 1)
-      context.addUnexpandedTypePack(templateInfo.params[i].name, concept->modParams().back());
+      declarationsContext.addUnexpandedTypePack(templateInfo.params[i].name, concept->modParams().back());
   }
   for (auto& function : functions) {
     if (function->isVirtual)
