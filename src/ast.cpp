@@ -1184,9 +1184,9 @@ static void addTemplateParams(Context& context, vector<SType> params, bool varia
           CompileTimeValue::getTemplateValue(templateValue->type, templateValue->name));
     } else {
       context.addType(param->getName(), param);
-      if (variadic && i == params.size() - 1)
-        context.addUnexpandedTypePack(param->getName(), param);
     }
+    if (variadic && i == params.size() - 1)
+      context.addUnexpandedTypePack(param->getName(), param);
   }
 }
 

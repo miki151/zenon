@@ -1,0 +1,24 @@
+// 16
+
+template <T>
+int get(T) {
+  return 0;
+}
+
+int get(int n) {
+  return n;
+}
+
+template <T>
+int sum() {
+  return 0;
+}
+
+template <T, T V, T... N>
+int sum() {
+  return get(V) + sum<T, N...>();
+}
+
+int main() {
+  return sum<int, 1, 3, 5, 7>();
+}

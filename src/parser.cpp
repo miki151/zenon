@@ -566,24 +566,20 @@ static WithErrorLine<TemplateInfo> parseTemplateInfo(Tokens& tokens) {
   TemplateInfo ret;
   while (tokens.peek() != Keyword::MORE_THAN) {
     auto paramToken = tokens.popNext();
+    if (ret.variadic)
+      return paramToken.codeLoc.getError("Parameter pack is only allowed at the end of parameter list");
     if (!paramToken.contains<IdentifierToken>())
       return paramToken.codeLoc.getError("Template parameter name expected");
     optional<string> typeName;
+    if (tokens.eatMaybe(Keyword::ELLIPSIS))
+      ret.variadic = true;
     if (tokens.peek() != Keyword::MORE_THAN && !tokens.eatMaybe(Keyword::COMMA)) {
-      if (tokens.eatMaybe(Keyword::ELLIPSIS)) {
-        ret.variadic = true;
-        ret.params.push_back({paramToken.value, typeName, paramToken.codeLoc});
-        if (tokens.peek() != Keyword::MORE_THAN)
-          return paramToken.codeLoc.getError("Parameter pack is only allowed at the end of parameter list");
-        break;
-      } else {
-        typeName = paramToken.value;
-        paramToken = tokens.popNext();
-        if (!paramToken.contains<IdentifierToken>())
-          return paramToken.codeLoc.getError("Template parameter name expected");
-        if (tokens.peek() != Keyword::MORE_THAN)
-          TRY(tokens.eat(Keyword::COMMA));
-      }
+      typeName = paramToken.value;
+      paramToken = tokens.popNext();
+      if (!paramToken.contains<IdentifierToken>())
+        return paramToken.codeLoc.getError("Template parameter name expected");
+      if (tokens.peek() != Keyword::MORE_THAN)
+        TRY(tokens.eat(Keyword::COMMA));
     }
     ret.params.push_back({paramToken.value, typeName, paramToken.codeLoc});
   }

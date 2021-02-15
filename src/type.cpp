@@ -1075,8 +1075,12 @@ static JustError<ErrorLoc> expandVariadicTemplate(const Context& context, Functi
     nullable<SType> lastParam;
     int cnt = 0;
     while (templateArgs.size() > type.templateParams.size()) {
-      type.templateParams.push_back(shared<TemplateParameterType>(lastTemplateParam->getType(),
-          getExpandedParamName(lastTemplateParam->getName(), cnt), codeLoc));
+      if (lastTemplateParam.get().dynamicCast<TemplateParameterType>())
+        type.templateParams.push_back(shared<TemplateParameterType>(lastTemplateParam->getType(),
+            getExpandedParamName(lastTemplateParam->getName(), cnt), codeLoc));
+      else
+        type.templateParams.push_back(CompileTimeValue::getTemplateValue(lastTemplateParam->getType(),
+            getExpandedParamName(lastTemplateParam->getName(), cnt)));
       expandedTypes.push_back(type.templateParams.back());
       if (type.variadicParams) {
         if (!lastParam) {

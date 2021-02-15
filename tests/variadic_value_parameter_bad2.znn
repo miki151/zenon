@@ -1,0 +1,14 @@
+// no_compile
+
+int sum() {
+  return 0;
+}
+
+template <int A, int... N>
+int sum() {
+  return A + sum<N...>();
+}
+
+int main() {
+  return sum<1, 3, 5.5, 7>();
+}
