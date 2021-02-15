@@ -1,21 +1,26 @@
-// 36
+// 3
 
-int eat(int* i) { return *i; }
-int eat(bool* b) { if (*b) return 1; else return 0; }
-int eat(string*) { return 20; }
-int eat(char*) {return 10; }
+template <T>
+int get() {
+  if (T == int)
+    return 1;
+  return 2;
+}
 
-concept <T> can_eat {
-  int eat(T*);
-};
+int f() {
+  return 0;
+}
 
-int eat_all() { return 0; }
+template <A, Args...>
+int f() {
+  return get<A>() + f<Args...>();
+}
 
-template <T, Args...> requires can_eat<T>, can_eat<Args>...
-int eat_all(T* arg1, Args*... args) {
-  return eat(arg1) + eat_all(args...);
+template <Args...>
+int g() {
+  return f<int...>(); // yes, this is weird, but probably harmless and maybe useful sometimes
 }
 
 int main() {
-  return eat_all(&5, &true, &"pok", &'a');
+  return g<bool, char, string>();
 }
