@@ -1142,12 +1142,12 @@ static JustError<string> addRequirements(const Context& context, vector<SFunctio
   return success;
 }
 
-JustError<ErrorLoc> FunctionDefinition::addInstance(const Context* callContext, const SFunctionInfo& instance) {
-  if (callContext && callContext->getTemplateParams())
+JustError<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
+  if (callContext.getTemplateParams())
     return success;
   wasUsed = true;
   vector<SFunctionInfo> requirements;
-  TRY(addRequirements(*(callContext ? callContext : &*definitionContext), requirements, *instance, 50)
+  TRY(addRequirements(callContext, requirements, *instance, 50)
       .addCodeLoc(codeLoc));
   for (auto& fun : requirements)
     if (!!fun->type.concept)
@@ -2646,7 +2646,7 @@ WithErrorLine<vector<LambdaCapture>> LambdaExpression::setLambda(Context& contex
             quote(underlying->getName()) + " can't be captured by implicit copy");*/
       if (capture.type == LambdaCaptureType::IMPLICIT_COPY) {
         if (auto f = getImplicitCopyFunction(context, capture.codeLoc, underlying)) {
-          TRY(f->get()->getDefinition()->addInstance(&context, *f));
+          TRY(f->get()->getDefinition()->addInstance(context, *f));
           functionCalls.push_back(*f);
         } else
           return capture.codeLoc.getError("No implicit copy function defined for type " +
@@ -2654,7 +2654,7 @@ WithErrorLine<vector<LambdaCapture>> LambdaExpression::setLambda(Context& contex
       }
       if (capture.type == LambdaCaptureType::COPY) {
         if (auto f = getCopyFunction(context, capture.codeLoc, underlying)) {
-          TRY(f->get()->getDefinition()->addInstance(&context, *f));
+          TRY(f->get()->getDefinition()->addInstance(context, *f));
           functionCalls.push_back(*f);
         } else
           return capture.codeLoc.getError("No copy function defined for type " +

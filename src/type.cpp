@@ -342,7 +342,7 @@ FunctionDefinition* FunctionInfo::getDefinition() const {
 
 JustError<ErrorLoc> FunctionInfo::addInstance(const Context& context) const {
   if (auto def = getDefinition())
-    return def->addInstance(&context, get_this().get());
+    return def->addInstance(context, get_this().get());
   return success;
 }
 
