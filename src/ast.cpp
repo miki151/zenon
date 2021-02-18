@@ -1878,9 +1878,25 @@ unique_ptr<Statement> UnionDefinition::transform(const StmtTransformFun&, const 
   return unique<UnionDefinition>(*this);
 }
 
+static WithErrorLine<set<shared_ptr<AttributeType>>> getAttributeTypes(const Context& context,
+    const vector<AttributeInfo>& attributes) {
+  set<shared_ptr<AttributeType>> ret;
+  for (auto& attr : attributes)
+    if (auto t = context.getType(attr.name)) {
+      if (auto attrType = t.get().dynamicCast<AttributeType>())
+        ret.insert(attrType);
+      else
+        return attr.codeLoc.getError(quote(attr.name) + " is not an attribute");
+    } else
+      return attr.codeLoc.getError("Attribute not found: " + quote(attr.name));
+  return ret;
+}
+
 JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
   TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
   context.addType(name, type.get());
+  for (auto& attr : TRY(getAttributeTypes(context, attributes)))
+    context.setAttribute(type.get(), attr);
   type->definition = codeLoc;
   auto membersContext = context.getChild();
   for (auto& param : type->templateParams)
@@ -1911,20 +1927,6 @@ JustError<ErrorLoc> UnionDefinition::check(Context& context, bool) {
   CHECK(!!applyRequirements(bodyContext, templateInfo));
   type->updateInstantations(context);
   return success;
-}
-
-static WithErrorLine<set<shared_ptr<AttributeType>>> getAttributeTypes(const Context& context,
-    const vector<AttributeInfo>& attributes) {
-  set<shared_ptr<AttributeType>> ret;
-  for (auto& attr : attributes)
-    if (auto t = context.getType(attr.name)) {
-      if (auto attrType = t.get().dynamicCast<AttributeType>())
-        ret.insert(attrType);
-      else
-        return attr.codeLoc.getError(quote(attr.name) + " is not an attribute");
-    } else
-      return attr.codeLoc.getError("Attribute not found: " + quote(attr.name));
-  return ret;
 }
 
 JustError<ErrorLoc> StructDefinition::registerTypes(const Context& primaryContext, TypeRegistry* r) {

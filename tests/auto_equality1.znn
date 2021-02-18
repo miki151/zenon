@@ -1,0 +1,43 @@
+// 22
+
+struct P {
+  int mutable* x;
+};
+
+bool operator == (P* p1, P* p2) {
+  ++*p1->x;
+  ++*p2->x;
+  return true;
+}
+
+[@auto_equality]
+struct A {
+};
+
+[@auto_equality]
+struct X {
+  int i;
+  string s;
+  A a;
+  P p;
+};
+
+[@auto_equality]
+union Y {
+  int i;
+  string s;
+  P p;
+};
+
+
+int main() {
+  mutable cnt1 = 0;
+  mutable cnt2 = 0;
+  if (Y::i(2) == Y::s("pok"))
+    ++cnt2;
+  if (Y::p(P(&cnt1)) == Y::p(P(&cnt2)))
+    cnt2 += 2;
+  if (X(1, "pok", A(), P(&cnt1)) == X(1, "pok", A(), P(&cnt2)))
+    return cnt1 + cnt2 * 5;
+  return 2;
+}

@@ -1,5 +1,6 @@
 
 export import "std/concepts.znn";
+export import "std/union.znn";
 
 export concept <T, U> equality_impl {
   bool operator == (T*, U*);
@@ -46,3 +47,23 @@ void operator /=(T mutable* t, U* u) {
   *t = *t / *u;
 }
 
+export attribute @auto_equality;
+
+export template <T> requires is_struct<T>, has_attribute<T, @auto_equality>
+bool operator == (T* t1, T* t2) {
+  unchecked static for (i = 0; i < struct_count(T); ++i)
+    if (!(t1->(i) == t2->(i)))
+      return false;
+  return true;
+}
+
+export template <T> requires is_union<T>, has_attribute<T, @auto_equality>
+bool operator == (T* t1, T* t2) {
+  const index = t1->get_index();
+  if (index != t2->get_index())
+    return false;
+  unchecked static for (i = 0; i < union_count(T); ++i)
+    if (i == index)
+      return t1->(i) == t2->(i);
+  return false;
+}

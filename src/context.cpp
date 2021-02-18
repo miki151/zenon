@@ -497,8 +497,14 @@ optional<pair<string, SType> > Context::getUnexpandedVariablePack() const {
   return none;
 }
 
+static string printInfo(SType t) {
+  if (auto d = t.dynamicCast<TemplateParameterType>())
+    return d->getName();
+  return t->getName();
+}
+
 void Context::addType(const string& name, SType t) {
-  CHECK(!getType(name) || !isFullyDefined(getType(name).get().get())) << name;
+  CHECK(!getType(name) || !isFullyDefined(getType(name).get().get())) << name << printInfo(t);
   state->types.insert({name, t});
   state->typesSet.insert(t.get());
 }

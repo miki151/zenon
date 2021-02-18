@@ -601,6 +601,7 @@ struct UnionDefinition : Statement {
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+  virtual bool canHaveAttributes() const override { return true; }
   virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry*) override;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
 };
