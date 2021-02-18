@@ -5,6 +5,21 @@ export import "std/destruct.znn";
 export import "std/slice.znn";
 
 export template <T, int Size>
+T* operator [] (T[Size]* a, int index) {
+  embed_returns {
+    return &a->at(index);
+  }
+}
+
+export template <T, int Size>
+T mutable* operator [] (T[Size] mutable* a, int index) {
+  embed_returns {
+    return &a->at(index);
+  }
+}
+
+
+export template <T, int Size>
 T operator [] (T[Size] a, int index) {
   for (i = 0; i < Size; ++i)
     if (i != index)
@@ -146,3 +161,10 @@ export template <int Size, T> requires get_hash<T>
 int get_hash(T[Size]* v) {
   return v->slice().get_hash();
 }
+
+export template <T, int Size>
+void destruct(T[Size]* array) {
+  for (i = 0; i < Size; ++i)
+    (*array)[i].destruct();
+}
+

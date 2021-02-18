@@ -1,4 +1,3 @@
-export import "std/optional.znn";
 export import "std/union.znn";
 
 export template <T>
@@ -35,33 +34,6 @@ void destruct_full(T* t) {
 
 export template <T>
 extern void set_moved_in_embed(T);
-
-export template <T, int Size>
-T* operator [] (T[Size]* a, int index) {
-  embed_returns {
-    return &a->at(index);
-  }
-}
-
-export template <T, int Size>
-T mutable* operator [] (T[Size] mutable* a, int index) {
-  embed_returns {
-    return &a->at(index);
-  }
-}
-
-
-export template <T, int Size>
-void destruct(T[Size]* array) {
-  for (i = 0; i < Size; ++i)
-    (*array)[i].destruct();
-}
-
-export template <T>
-void destruct(T?* t) {
-  if (*t)
-    (*t)->destruct();
-}
 
 export template <T>
 T mutable* destruct_and_get(T mutable* t) {

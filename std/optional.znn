@@ -1,6 +1,7 @@
 
 export import "std/panic.znn";
 export import "std/concepts.znn";
+export import "std/destruct.znn";
 
 export template <T>
 bool operator ! (T?* elem) {
@@ -97,3 +98,10 @@ bool operator == (T?* elem, null_type*) {
 export bool operator == (null_type*, null_type*) {
   return true;
 }
+
+export template <T>
+void destruct(T?* t) {
+  if (*t)
+    (*t)->destruct();
+}
+
