@@ -1,0 +1,11 @@
+
+
+export template <T>
+int get_for(T*) {
+  return 1;
+}
+
+export template <T>
+int get(T* t) {
+  return get_for(t);
+}

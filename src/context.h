@@ -134,7 +134,7 @@ class Context : public owned_object<Context> {
 
   using ConstStates = vector<shared_ptr<const State>>;
 
-  WithErrorLine<vector<SType> > getTypeList(const vector<TemplateParameterInfo>&, bool variadic) const;
+  WithErrorLine<vector<SType>> getTypeList(const vector<TemplateParameterInfo>&, bool variadic) const;
   vector<SFunctionInfo> getFunctions(FunctionId) const;
   vector<SFunctionInfo> getAllFunctions() const;
 

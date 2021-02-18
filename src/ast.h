@@ -679,7 +679,7 @@ struct FunctionDefinition : Statement {
     unique_ptr<StatementBlock> body;
     vector<unique_ptr<Statement>> destructorCalls;
     SFunctionInfo functionInfo;
-    vector<SFunctionInfo> requirements;
+    Context callContext;
   };
   vector<InstanceInfo> instances;
   TemplateInfo templateInfo;
@@ -710,7 +710,7 @@ struct FunctionDefinition : Statement {
   NODISCARD JustError<ErrorLoc> checkAndGenerateDefaultConstructor(const Context&);
   NODISCARD JustError<ErrorLoc> addInstance(const Context& callContext, const SFunctionInfo&);
   NODISCARD JustError<ErrorLoc> generateDefaultBodies(Context&);
-  NODISCARD JustError<ErrorLoc> checkBody(const vector<SFunctionInfo>& requirements, StatementBlock& myBody,
+  NODISCARD JustError<ErrorLoc> checkBody(const Context& callContext, StatementBlock& myBody,
       const FunctionInfo& instanceInfo, vector<unique_ptr<Statement> >& destructorCalls) const;
   void addParamsToContext(Context&, const FunctionInfo&) const;
   NODISCARD JustError<ErrorLoc> checkForIncompleteTypes(const Context&);

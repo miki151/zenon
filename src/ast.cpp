@@ -872,7 +872,7 @@ static WithError<SFunctionInfo> getFunction(const Context& context,
           return FunctionInfo::getImplicit("destruct"s, FunctionType(BuiltinType::VOID, {PointerType::get(s)}, {}));
     }
   } else
-  if (id == "invoke"s && !argTypes.empty() && argTypes[0].dynamicCast<PointerType>())
+  if (id == "invoke"s && !argTypes.empty() && argTypes[0]->isPointer())
     if (auto lambda = argTypes[0]->removePointer().dynamicCast<LambdaType>()) {
       if (auto f = instantiateFunction(context, lambda->functionInfo.get(), codeLoc, templateArgs, argTypes, argLoc)) {
         if (!contains(overloads, *f))
@@ -1129,29 +1129,11 @@ static vector<unique_ptr<Statement>> getDestructorCalls(CodeLoc codeLoc, const v
   return ret;
 }
 
-static JustError<string> addRequirements(const Context& context, vector<SFunctionInfo>& requirements,
-    const FunctionInfo& instance, int depth) {
-  if (depth <= 0)
-     return success;
-  for (auto& req : instance.type.requirements)
-    if (auto concept = req.base.getValueMaybe<SConcept>())
-      for (auto& r : TRY(context.getRequiredFunctions(**concept, {}))) {
-        requirements.push_back(r->getParent());
-        TRY(addRequirements(context, requirements, *r, depth - 1));
-      }
-  return success;
-}
-
 JustError<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
   if (callContext.getTemplateParams())
     return success;
   wasUsed = true;
-  vector<SFunctionInfo> requirements;
-  TRY(addRequirements(callContext, requirements, *instance, 50)
-      .addCodeLoc(codeLoc));
-  for (auto& fun : requirements)
-    if (!!fun->type.concept)
-      return success;
+  auto callTopContext = callContext.getTopLevel();
   if (instance != functionInfo.get()) {
     if (body) {
       CHECK(functionInfo == instance->getParent());
@@ -1160,11 +1142,11 @@ JustError<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, 
           return success;
       int instanceIndex = instances.size();
       instances.push_back(InstanceInfo{unique_ptr<StatementBlock>(), {},
-          instance, requirements});
+          instance, callTopContext.getChild()});
       if (wasChecked) {
         instances[instanceIndex].body = cast<StatementBlock>(origBody->deepCopy());
         vector<unique_ptr<Statement>> destructorCallsTmp;
-        auto ret = checkBody(requirements, *instances[instanceIndex].body,
+        auto ret = checkBody(callTopContext, *instances[instanceIndex].body,
             *instances[instanceIndex].functionInfo, destructorCallsTmp);
         instances[instanceIndex].destructorCalls = std::move(destructorCallsTmp);
         return ret;
@@ -1284,14 +1266,10 @@ static void considerAddingVoidReturn(const Context& context, StatementBlock* blo
   }
 }
 
-JustError<ErrorLoc> FunctionDefinition::checkBody(const vector<SFunctionInfo>& requirements,
+JustError<ErrorLoc> FunctionDefinition::checkBody(const Context& callContext,
     StatementBlock& myBody, const FunctionInfo& instanceInfo, vector<unique_ptr<Statement>>& destructorCalls) const {
-  auto requirementsContext = definitionContext->getChild(true);
-  for (auto& f : requirements) {
-    if (!contains(requirementsContext.getFunctions(f->id), f->getParent()))
-      CHECK(requirementsContext.addFunction(f));
-  }
-  auto bodyContext = requirementsContext.getChild();
+  auto bodyContext = callContext.getChild();
+  bodyContext.merge(*definitionContext);
   addParamsToContext(bodyContext, instanceInfo);
   vector<SType> templateParams;
 //  std::cout << "Checking " << instanceInfo.prettyString() << std::endl;
@@ -1365,14 +1343,14 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
     TRY(checkForIncompleteTypes(paramsContext));
     // For checking the template we use the Context that includes the template params.
     definitionContext.emplace(paramsContext.getChild());
-    TRY(checkBody({}, *body, *thisFunctionInfo, destructorCalls));
+    TRY(checkBody(*definitionContext, *body, *thisFunctionInfo, destructorCalls));
     // For checking instances we just use the top level context.
     definitionContext.emplace(context.getChild());
     wasChecked = true;
     for (int i = 0; i < instances.size(); ++i)
       if (!instances[i].body) {
         instances[i].body = cast<StatementBlock>(origBody->deepCopy());
-        TRY(checkBody(instances[i].requirements, *instances[i].body,
+        TRY(checkBody(instances[i].callContext, *instances[i].body,
             *instances[i].functionInfo, instances[i].destructorCalls));
       }
     MoveChecker moveChecker;

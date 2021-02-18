@@ -1,0 +1,14 @@
+// 5
+
+import "fun.znn";
+
+struct X {};
+struct Y {};
+
+int get_for(Y*) {
+  return 2;
+}
+
+int main() {
+  return get(&X()) + get(&Y()) * 2;
+}
