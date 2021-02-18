@@ -498,7 +498,7 @@ optional<pair<string, SType> > Context::getUnexpandedVariablePack() const {
 }
 
 void Context::addType(const string& name, SType t) {
-  CHECK(!getType(name) || !isFullyDefined(getType(name).get().get())) << name;
+  //CHECK(!getType(name) || !isFullyDefined(getType(name).get().get())) << name;
   state->types.insert({name, t});
   state->typesSet.insert(t.get());
 }

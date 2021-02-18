@@ -1,0 +1,10 @@
+
+export template <T>
+int get_imp(T*) {
+  return 2;
+}
+
+export template <T123>
+int get(T123* t) {
+  return get_imp(t);
+}

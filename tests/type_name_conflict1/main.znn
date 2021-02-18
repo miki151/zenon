@@ -1,0 +1,12 @@
+// 2
+
+import "fun.znn";
+
+struct T123 {
+};
+
+int get_imp(T123*) { return 1; }
+
+int main() {
+  return get(&"pok");
+}
