@@ -1,0 +1,19 @@
+// 2
+
+template <U>
+struct X {
+  U u;
+};
+
+template <U> requires (U == int)
+void destruct(X<U>*) {
+}
+
+template <T>
+X<T> f(T t) {
+  return X(move(t));
+}
+
+int main() {
+  return f(2).u;
+}

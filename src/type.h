@@ -470,7 +470,8 @@ struct IdentifierInfo;
 extern WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo&, CodeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc,
     vector<FunctionType> existing = {});
-extern FunctionType replaceInFunction(const Context&, FunctionType, SType from, SType to, ErrorBuffer&);
+extern FunctionType replaceInFunction(const Context&, FunctionType, SType from, SType to, ErrorBuffer&,
+    const vector<SType>& origParams);
 extern SFunctionInfo replaceInFunction(const Context&, const SFunctionInfo&, SType from, SType to, ErrorBuffer&);
 extern SFunctionInfo addTemplateParams(const SFunctionInfo&, vector<SType> params, bool variadic);
 extern string joinTemplateParams(const vector<SType>&, bool variadic = false);

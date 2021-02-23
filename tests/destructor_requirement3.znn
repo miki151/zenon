@@ -1,0 +1,15 @@
+// 1
+
+template <T>
+struct X {
+};
+
+template <T> requires (T != int)
+void destruct(X<T>*) {}
+
+template <T>
+int f() { return 1; }
+
+int main() {
+  return f<X<int>>();
+}

@@ -1,0 +1,13 @@
+// no_compile
+
+template <U> requires (U == bool)
+struct X {
+  U u;
+};
+
+template <T>
+T f(X<T> x) { return move(x).u; }
+
+int main() {
+  return f(X(2));
+}

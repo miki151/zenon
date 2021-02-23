@@ -1,0 +1,12 @@
+// no_compile
+
+template <T>
+struct X {
+};
+
+template <T> requires (false)
+void destruct(X<T>*) {}
+
+int main() {
+  return 0;
+}

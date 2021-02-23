@@ -13,7 +13,7 @@ export import "std/inequality_adapter.znn";
 export template <T>
 extern struct vector;
 
-export template <T>
+export template <T> requires (known_size(T))
 void destruct(vector<T>* v) {
   for (it : *v)
     it->destruct();

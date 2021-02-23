@@ -308,14 +308,14 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(const Context& context) {
   return functionInfo->type.retVal;
 }
 
-WithErrorLine<SFunctionInfo> getDestructor(const Context& context, const SType& type) {
-  return getFunction(context, CodeLoc(), IdentifierInfo("destruct"s, CodeLoc()), {},
-      {PointerType::get(type)}, {CodeLoc()});
+WithErrorLine<SFunctionInfo> getDestructor(const Context& context, const SType& type, CodeLoc codeLoc) {
+  return getFunction(context, codeLoc, IdentifierInfo("destruct"s, codeLoc), {},
+      {PointerType::get(type)}, {codeLoc});
 }
 
 JustError<ErrorLoc> BinaryExpression::considerDestructorCall(const Context& context, int index, const SType& argType) {
   if (argType->hasDestructor() && !argType->isReference() && functionInfo->type.params[index].dynamicCast<ReferenceType>()) {
-    destructorCall[index] = TRY(getDestructor(context, argType));
+    destructorCall[index] = TRY(getDestructor(context, argType, codeLoc));
     TRY(destructorCall[index]->addInstance(context));
   }
   return success;
@@ -363,7 +363,7 @@ WithErrorLine<SType> UnaryExpression::getTypeImpl(const Context& context) {
   TRY(functionInfo->addInstance(context));
   if (right->hasDestructor() && !right->isReference() &&
       (functionInfo->type.params[0].dynamicCast<ReferenceType>() || op == Operator::GET_ADDRESS)) {
-    destructorCall = TRY(getDestructor(context, right));
+    destructorCall = TRY(getDestructor(context, right, codeLoc));
     TRY(destructorCall->addInstance(context));
   }
   return functionInfo->type.retVal;
@@ -865,7 +865,8 @@ static WithError<SFunctionInfo> getFunction(const Context& context,
         if (s->destructor) {
           CHECK(templateArgs.empty());
           CHECK(s->destructor->type.params[0] == PointerType::get(s));
-          return s->destructor.get();
+          return TRY(instantiateFunction(context, s->destructor->getParent(), codeLoc, {}, s->destructor->type.params,
+              {codeLoc}).withoutCodeLoc());
         }
       if (auto s = argTypes[0]->removePointer().dynamicCast<LambdaType>())
         if (s->destructor)
@@ -1386,7 +1387,9 @@ JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCac
       for (int i = 0; i < structType->parent->templateParams.size(); ++i)
         adjusted = replaceInFunction(context, adjusted, functionInfo->type.templateParams[i],
             structType->parent->templateParams[i], errors);
-      CHECK(errors.empty());
+      if (!errors.empty())
+        return codeLoc.getError("Error in the destructor definition for type " + quote(structType->getName()) + ":\n"
+            + errors[0]);
       if (structType->parent->destructor && structType->parent->destructor != adjusted)
         return codeLoc.getError("Destructor function for type " + quote(destructedType->getName())
             + " already defined here: " + structType->destructor->getDefinition()->codeLoc.toString());
@@ -1508,6 +1511,10 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
           if (auto s = value->value.getReferenceMaybe<string>())
             return (SType) CompileTimeValue::get((int) s->size());
         fail();
+      });
+  context.addBuiltInFunction("known_size", BuiltinType::BOOL, {SType(BuiltinType::ANY_TYPE)},
+      [](const Context& context, vector<SType> args) -> WithError<SType> {
+        return (SType) CompileTimeValue::get(!!args[0]->getSizeError(context));
       });
   return context;
 }
@@ -1705,7 +1712,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
         callType = thisCallType;
       if (callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
         if (!origType.isReference() && argTypes[0]->removePointer()->hasDestructor()) {
-          destructorCall = TRY(getDestructor(callContext, argTypes[0]->removePointer()));
+          destructorCall = TRY(getDestructor(callContext, argTypes[0]->removePointer(), codeLoc));
           TRY(destructorCall->addInstance(callContext));
         }
       }
@@ -1798,7 +1805,7 @@ SwitchStatement::SwitchStatement(CodeLoc l, unique_ptr<Expression> e) : Statemen
 JustError<ErrorLoc> SwitchStatement::check(Context& context, bool) {
   auto type = TRY(getType(context, expr));
   if (type->hasDestructor()) {
-    destructorCall = TRY(getDestructor(context, type));
+    destructorCall = TRY(getDestructor(context, type, codeLoc));
     TRY(destructorCall->addInstance(context));
   }
   if (!context.isFullyDefined(type->removePointer().get()))
@@ -2845,7 +2852,7 @@ static JustError<ErrorLoc> initializeDestructor(const Context& context, const ST
   if (auto structType = type.dynamicCast<StructType>()) {
     if (structType->destructor) {
       mainDestructor = true;
-      destructorCall = TRY(getDestructor(context, structType));
+      destructorCall = TRY(getDestructor(context, structType, codeLoc));
       TRY(destructorCall->addInstance(context));
     } else
     if (structType->hasDestructor()) {

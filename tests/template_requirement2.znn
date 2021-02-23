@@ -1,0 +1,13 @@
+// 2
+
+template <U> requires (U == int)
+struct X {
+  U u;
+};
+
+template <T>
+T f(X<T> x) { return move(x).u; }
+
+int main() {
+  return f(X(2));
+}

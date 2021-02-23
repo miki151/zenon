@@ -1,0 +1,11 @@
+// 3
+
+template <Fun> requires invoke<Fun, int, int>
+int get(Fun mutable* ar) {
+  return 1 + ar->invoke(1);
+}
+
+int main() {
+  mutable lambda = [&](int s) { return s * 2; };
+  return get(&lambda);
+}

@@ -81,10 +81,11 @@ void Context::deepCopyFrom(const Context& c) {
 bool Context::areParamsEquivalent(FunctionType f1, FunctionType f2) const {
   if (f1.templateParams.size() != f2.templateParams.size() || f1.params.size() != f2.params.size())
     return false;
+  auto origParams = f2.templateParams;
   for (int i = 0; i < f1.templateParams.size(); ++i) {
     auto tParam = f2.templateParams[i];
     ErrorBuffer errors;
-    f2 = replaceInFunction(*this, std::move(f2), std::move(tParam), f1.templateParams[i], errors);
+    f2 = replaceInFunction(*this, std::move(f2), std::move(tParam), f1.templateParams[i], errors, origParams);
     if (!errors.empty())
       return false;
   }
@@ -587,8 +588,16 @@ nullable<SType> Context::getType(const string& s) const {
 }
 
 bool Context::isFullyDefined(const Type* t) const {
-  if (auto s = dynamic_cast<const StructType*>(t))
-    t = s->parent.get().get();
+  if (auto s = dynamic_cast<const StructType*>(t)) {
+    // If it's a struct type then we only look at the top level because
+    // an incomplete struct could also be used to instantiate a template
+    // and we'd get a false positive.
+    auto parent = s->parent.get().get();
+    for (auto state : getReversedStates())
+      if (state->isTopLevel && state->typesSet.count(parent))
+        return true;
+    return false;
+  }
   for (auto state : getReversedStates())
     if (state->typesSet.count(t))
       return true;

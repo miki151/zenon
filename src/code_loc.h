@@ -30,6 +30,9 @@ inline std::ostream& operator<<(std::ostream& d, const ErrorLoc& error) {
 }
 
 template <typename T>
+class [[nodiscard]] WithError;
+
+template <typename T>
 class [[nodiscard]] WithErrorLine : public expected<T, ErrorLoc> {
   public:
   using expected<T, ErrorLoc>::expected;
@@ -63,6 +66,7 @@ class [[nodiscard]] WithErrorLine : public expected<T, ErrorLoc> {
     else
       error = this->get_error();
   }
+  WithError<T> withoutCodeLoc() const;
 };
 
 template <typename T>
@@ -77,6 +81,14 @@ class [[nodiscard]] WithError : public expected<T, string> {
       return WithErrorLine<T>(loc.getError(this->get_error()));
   }
 };
+
+template <typename T>
+WithError<T> WithErrorLine<T>::withoutCodeLoc() const {
+  if (*this)
+    return **this;
+  else
+    return WithError<T>(this->get_error().error);
+}
 
 struct success_t
 {

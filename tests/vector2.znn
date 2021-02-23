@@ -1,0 +1,24 @@
+// 4
+
+import "std/vector.znn";
+
+struct X {
+  int a;
+  vector<Y> elems;
+};
+
+struct Y {
+  X x;
+};
+
+int sum(X* x) {
+  mutable ret = x->a;
+  for (y : x->elems)
+    ret += sum(&y->x);
+  return ret;
+}
+
+int main() {
+  const x = X(1, {Y(X(2, vector<Y>())), Y(X(1, vector<Y>()))}.as_vector());
+  return sum(&x);
+}
