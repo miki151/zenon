@@ -731,6 +731,17 @@ struct EmbedStatement : Statement {
   virtual bool hasReturnStatement() const override;
 };
 
+struct MixinStatement : Statement {
+  MixinStatement(CodeLoc, unique_ptr<Expression>);
+  unique_ptr<Expression> value;
+  unique_ptr<Statement> result;
+  bool returns = false;
+  virtual JustError<ErrorLoc> check(Context&, bool = false) override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+  virtual bool hasReturnStatement() const override;
+};
+
 struct AST {
   vector<unique_ptr<Statement>> elems;
   AST clone();

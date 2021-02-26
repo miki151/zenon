@@ -1092,6 +1092,13 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             tokens.popNext();
             return cast<Statement>(unique<UncheckedStatement>(tokens.peek().codeLoc,
                 TRY(parseStatement(tokens, false))));
+          case Keyword::MIXIN: {
+            tokens.popNext();
+            auto ret = cast<Statement>(unique<MixinStatement>(tokens.peek().codeLoc,
+                TRY(parseExpression(tokens))));
+            TRY(tokens.eat(Keyword::SEMICOLON));
+            return std::move(ret);
+          }
           case Keyword::OPEN_SQUARE_BRACKET:
             if (topLevel)
               return parseStatementWithAttributes(tokens);

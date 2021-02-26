@@ -3131,3 +3131,36 @@ JustError<ErrorLoc> StatementExpression::checkMoves(MoveChecker& checker) const 
 AST AST::clone() {
   return AST{ elems.transform([](auto& elem) { return elem->deepCopy(); } ) };
 }
+
+MixinStatement::MixinStatement(CodeLoc l, unique_ptr<Expression> value) : Statement(l), value(std::move(value)) {
+}
+
+JustError<ErrorLoc> MixinStatement::check(Context& context, bool) {
+  if (context.getTemplateParams()) {
+    returns = true;
+    return success;
+  }
+  auto evalResult = TRY(value->eval(context)
+      .addNoEvalError(value->codeLoc.getError("Unable to evaluate expression at compile-time"))).value;
+  if (evalResult->getType() != BuiltinType::STRING)
+    return value->codeLoc.getError("Expression result must be a string.");
+  auto str = *evalResult.dynamicCast<CompileTimeValue>()->value.getValueMaybe<string>();
+  auto tokens = TRY(lex(str, value->codeLoc, "end of expression"));
+  result = TRY(parseStatement(tokens, false));
+  if (!result)
+    return tokens.peek().codeLoc.getError("Expected a non-empty mixin parameter");
+  if (!tokens.peek().contains<EofToken>())
+    return tokens.peek().codeLoc.getError("Expected a single statement in mixin parameter");
+  TRY(result->check(context, false));
+  returns = result->hasReturnStatement();
+  return success;
+}
+
+
+unique_ptr<Statement> MixinStatement::transform(const StmtTransformFun&, const ExprTransformFun& f) const {
+  return unique<MixinStatement>(codeLoc, f(value.get()));
+}
+
+bool MixinStatement::hasReturnStatement() const {
+  return returns;
+}
