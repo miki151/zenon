@@ -1,0 +1,5 @@
+// 5
+
+int main() {
+  mixin "return 5;";
+}

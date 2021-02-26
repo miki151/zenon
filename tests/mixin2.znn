@@ -1,0 +1,11 @@
+// 5
+
+template <string CMD>
+int get() {
+  mixin CMD;
+}
+
+int main() {
+  static const s1 = "\{ const a = 5; const b = 2; return a - b; \}";
+  return get<"return 2;">() + get<s1>();
+}
