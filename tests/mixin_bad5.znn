@@ -1,0 +1,12 @@
+// no_compile
+
+struct X {};
+
+void f(X) {}
+
+int main() {
+  const x = X();
+  mixin "f(move(x));";
+  f(move(x));
+  return 0;
+}
