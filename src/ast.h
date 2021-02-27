@@ -740,6 +740,7 @@ struct MixinStatement : Statement {
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual bool hasReturnStatement() const override;
+  NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
 };
 

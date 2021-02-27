@@ -3165,6 +3165,12 @@ bool MixinStatement::hasReturnStatement() const {
   return returns;
 }
 
+JustError<ErrorLoc> MixinStatement::checkMovesImpl(MoveChecker& checker) const {
+  if (result)
+    return result->checkMoves(checker);
+  return success;
+}
+
 void MixinStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
   if (result)
     result->visit(f1, f2);
