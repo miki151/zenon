@@ -1,0 +1,11 @@
+// 10
+
+template <int N>
+int fun() {
+  return N;
+}
+
+int main() {
+  static const stmt = "return fun<10>();";
+  mixin stmt;
+}

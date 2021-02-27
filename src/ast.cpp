@@ -3164,3 +3164,8 @@ unique_ptr<Statement> MixinStatement::transform(const StmtTransformFun&, const E
 bool MixinStatement::hasReturnStatement() const {
   return returns;
 }
+
+void MixinStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  if (result)
+    result->visit(f1, f2);
+}
