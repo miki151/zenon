@@ -1,0 +1,19 @@
+// 1
+
+import "std/math.znn";
+
+template <T> requires is_struct<T>
+int get() {
+  static const double a = 3 - struct_count(T);
+  static const b = a / 2;
+  return as_int(b * 2);
+}
+
+struct X {
+  int a;
+  bool b;
+};
+
+int main() {
+  return get<X>();
+}

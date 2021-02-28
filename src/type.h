@@ -54,6 +54,7 @@ struct Type : public owned_object<Type> {
   virtual bool canBeValueTemplateParam() const;
   virtual bool canDeclareVariable() const;
   virtual bool isMetaType() const;
+  virtual nullable<SType> convertTo(SType) const;
   JustError<string> isBuiltinCopyable(const Context&, unique_ptr<Expression>&) const;
   bool isBuiltinCopyable(const Context&) const;
   Context staticContext;
@@ -195,6 +196,7 @@ struct CompileTimeValue : public Type {
   virtual SType expand(const Context&, SType pack, vector<SType> to, ErrorBuffer&) const override;
   virtual SType getType() const override;
   virtual optional<string> getMangledName() const override;
+  virtual nullable<SType> convertTo(SType) const override;
   struct TemplateValue {
     SType type;
     string name;

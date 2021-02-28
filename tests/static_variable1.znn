@@ -1,0 +1,9 @@
+// 1
+
+import "std/math.znn";
+
+int main() {
+  static const double a = 1;
+  static const b = a / 2;
+  return as_int(b * 2);
+}

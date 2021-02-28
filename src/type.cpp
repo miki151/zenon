@@ -476,6 +476,10 @@ bool Type::isMetaType() const {
   return false;
 }
 
+nullable<SType> Type::convertTo(SType) const {
+  return nullptr;
+}
+
 JustError<string> Type::isBuiltinCopyable(const Context& context, unique_ptr<Expression>& expr) const {
   if (isBuiltinCopyableImpl(context, expr))
     return success;
@@ -1591,6 +1595,26 @@ optional<string> CompileTimeValue::getMangledName() const {
       [](const TemplateExpression&) -> optional<string> { return none; },
       [](const TemplateFunctionCall&) -> optional<string> { return none; }
   );
+}
+
+nullable<SType> CompileTimeValue::convertTo(SType t) const {
+  // For now int -> double is supported.
+  auto myType = getType();
+  if (myType == t)
+    return std::move(t);
+  if (t == BuiltinType::DOUBLE.get() && myType == BuiltinType::INT)
+    return value.visit(
+        [](int d)-> SType {  return CompileTimeValue::get(double(d)); },
+        [&t](const TemplateValue& v)-> SType {  return getTemplateValue(std::move(t), v.name); },
+        // Switching the return type for expressions and function call looks iffy but works. May need to revisit this.
+        [&t](const TemplateExpression& v)-> SType {
+          return CompileTimeValue::get(CompileTimeValue::TemplateExpression{v.op, v.args, std::move(t)}); },
+        [&t](const TemplateFunctionCall& v)-> SType {
+          return CompileTimeValue::get(CompileTimeValue::TemplateFunctionCall{
+              v.name, v.args, std::move(t), v.loc, v.argLoc, v.functionInfo}); },
+        [](auto&) -> SType { fail(); }
+    );
+  return nullptr;
 }
 
 shared_ptr<CompileTimeValue> CompileTimeValue::getReference(SCompileTimeValue value) {

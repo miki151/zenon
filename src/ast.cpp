@@ -509,8 +509,16 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   if (isStatic) {
     if (isMutable)
       return codeLoc.getError("Static mutable variables are not supported");
-    context.addType(identifier, TRY(initExpr->eval(context)
-        .addNoEvalError(initExpr->codeLoc.getError("Unable to evaluate expression at compile-time"))).value);
+    auto result = TRY(initExpr->eval(context)
+        .addNoEvalError(initExpr->codeLoc.getError("Unable to evaluate expression at compile-time"))).value;
+    if (realType) {
+      if (auto conv = result->convertTo(realType.get()))
+        result = conv.get();
+      else
+        return initExpr->codeLoc.getError("Can't convert value of type " + quote(result->getType()->getName())
+            + " to type " + quote(realType->getName()));
+    }
+    context.addType(identifier, std::move(result));
   }
   TRY(getVariableInitializationError("initialize variable", context, realType.get(), exprType, initExpr).addCodeLoc(initExpr->codeLoc));
   TRY(getType(context, initExpr));
