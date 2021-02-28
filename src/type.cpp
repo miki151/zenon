@@ -1601,7 +1601,7 @@ nullable<SType> CompileTimeValue::convertTo(SType t) const {
   // For now int -> double is supported.
   auto myType = getType();
   if (myType == t)
-    return std::move(t);
+    return get_this().get();
   if (t == BuiltinType::DOUBLE.get() && myType == BuiltinType::INT)
     return value.visit(
         [](int d)-> SType {  return CompileTimeValue::get(double(d)); },

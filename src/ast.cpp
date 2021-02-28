@@ -502,7 +502,6 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   if (!realType->canDeclareVariable())
     return codeLoc.getError("Can't declare variable of type " + quote(realType->getName()));
   TRY(realType.get()->getSizeError(context).addCodeLoc(codeLoc));
-  INFO << "Adding variable " << identifier << " of type " << realType.get()->getName();
   if (!initExpr)
     return codeLoc.getError("Variable requires initialization");
   auto exprType = TRY(getType(context, initExpr));
@@ -511,13 +510,11 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
       return codeLoc.getError("Static mutable variables are not supported");
     auto result = TRY(initExpr->eval(context)
         .addNoEvalError(initExpr->codeLoc.getError("Unable to evaluate expression at compile-time"))).value;
-    if (realType) {
-      if (auto conv = result->convertTo(realType.get()))
-        result = conv.get();
-      else
-        return initExpr->codeLoc.getError("Can't convert value of type " + quote(result->getType()->getName())
-            + " to type " + quote(realType->getName()));
-    }
+    if (auto conv = result->convertTo(realType.get()))
+      result = conv.get();
+    else
+      return initExpr->codeLoc.getError("Can't convert value of type " + quote(result->getType()->getName())
+          + " to type " + quote(realType->getName()));
     context.addType(identifier, std::move(result));
   }
   TRY(getVariableInitializationError("initialize variable", context, realType.get(), exprType, initExpr).addCodeLoc(initExpr->codeLoc));
