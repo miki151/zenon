@@ -505,18 +505,6 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   if (!initExpr)
     return codeLoc.getError("Variable requires initialization");
   auto exprType = TRY(getType(context, initExpr));
-  if (isStatic) {
-    if (isMutable)
-      return codeLoc.getError("Static mutable variables are not supported");
-    auto result = TRY(initExpr->eval(context)
-        .addNoEvalError(initExpr->codeLoc.getError("Unable to evaluate expression at compile-time"))).value;
-    if (auto conv = result->convertTo(realType.get()))
-      result = conv.get();
-    else
-      return initExpr->codeLoc.getError("Can't convert value of type " + quote(result->getType()->getName())
-          + " to type " + quote(realType->getName()));
-    context.addType(identifier, std::move(result));
-  }
   TRY(getVariableInitializationError("initialize variable", context, realType.get(), exprType, initExpr).addCodeLoc(initExpr->codeLoc));
   TRY(getType(context, initExpr));
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
@@ -535,12 +523,24 @@ JustError<ErrorLoc> VariableDeclaration::checkMovesImpl(MoveChecker& checker) co
   return success;
 }
 
+WithEvalError<StatementEvalResult> VariableDeclaration::eval(Context& context) const {
+  if (isMutable)
+    return EvalError::withError("Static mutable variables are not supported");
+  auto result = TRY(initExpr->eval(context)).value;
+  if (auto conv = result->convertTo(realType.get()))
+    result = conv.get();
+  else
+    return EvalError::withError("Can't convert value of type " + quote(result->getType()->getName())
+        + " to type " + quote(realType->getName()));
+  context.addType(identifier, std::move(result));
+  return StatementEvalResult{};
+}
+
 unique_ptr<Statement> VariableDeclaration::transform(const StmtTransformFun&,
     const ExprTransformFun& exprFun) const {
   auto ret = unique<VariableDeclaration>(codeLoc, none, identifier,
       initExpr ? exprFun(initExpr.get()) : nullptr);
   ret->isMutable = isMutable;
-  ret->isStatic = isStatic;
   ret->type = type;
   return ret;
 }
@@ -596,7 +596,11 @@ JustError<ErrorLoc> Statement::checkMoves(MoveChecker& checker) const {
 unique_ptr<Statement> Statement::replaceVar(string from, string to) const {
   return transform(
       [&](Statement* s) { return s->replaceVar(from, to); },
-      [&](Expression* s) { return s->replaceVar(from, to); });
+  [&](Expression* s) { return s->replaceVar(from, to); });
+}
+
+WithEvalError<StatementEvalResult> Statement::eval(Context& context) const {
+  return EvalError::noEval();
 }
 
 JustError<ErrorLoc> Statement::checkMovesImpl(MoveChecker&) const {
@@ -3179,4 +3183,20 @@ JustError<ErrorLoc> MixinStatement::checkMovesImpl(MoveChecker& checker) const {
 void MixinStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
   if (result)
     result->visit(f1, f2);
+}
+
+StaticStatement::StaticStatement(CodeLoc l, unique_ptr<Statement> value) : Statement(l), value(std::move(value)) {
+}
+
+JustError<ErrorLoc> StaticStatement::check(Context& context, bool) {
+  auto child = context.getChild();
+  TRY(value->check(child));
+  auto res = value->eval(context);
+  if (!res)
+    return value->codeLoc.getError("Unable to evaluate statement at compile-time");
+  return success;
+}
+
+unique_ptr<Statement> StaticStatement::transform(const StmtTransformFun& f, const ExprTransformFun&) const {
+  return unique<StaticStatement>(codeLoc, f(value.get()));
 }

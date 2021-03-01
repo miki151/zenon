@@ -325,6 +325,8 @@ struct AttributeInfo {
   CodeLoc codeLoc;
 };
 
+using StatementEvalResult = vector<unique_ptr<Statement>>;
+
 struct Statement : Node {
   using Node::Node;
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&);
@@ -337,6 +339,7 @@ struct Statement : Node {
   virtual void codegen(Accu&, CodegenStage) const override {}
   virtual unique_ptr<Statement> replaceVar(string from, string to) const;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const = 0;
+  virtual WithEvalError<StatementEvalResult> eval(Context&) const;
   virtual bool canHaveAttributes() const { return false; }
   virtual JustError<ErrorLoc> registerTypes(const Context&, TypeRegistry*) { return success; }
   virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry* r, ASTCache&,
@@ -361,10 +364,10 @@ struct VariableDeclaration : Statement {
   string identifier;
   unique_ptr<Expression> initExpr;
   bool isMutable = false;
-  bool isStatic = false;
   unique_ptr<Statement> destructorCall;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
+  virtual WithEvalError<StatementEvalResult> eval(Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
@@ -742,6 +745,13 @@ struct MixinStatement : Statement {
   virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
+};
+
+struct StaticStatement : Statement {
+  StaticStatement(CodeLoc, unique_ptr<Statement>);
+  unique_ptr<Statement> value;
+  virtual JustError<ErrorLoc> check(Context&, bool = false) override;
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
 };
 
 struct AST {

@@ -1084,9 +1084,9 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
               return cast<Statement>(parseStaticForLoopStatement(tokens));
             } else {
               tokens.popNext();
-              auto ret = TRY(parseVariableDeclaration(tokens));
-              ret->isStatic = true;
-              return cast<Statement>(std::move(ret));
+              auto ret = cast<Statement>(unique<StaticStatement>(tokens.peek().codeLoc,
+                  TRY(parseStatement(tokens, false))));
+              return std::move(ret);
             }
           case Keyword::UNCHECKED:
             tokens.popNext();
