@@ -198,8 +198,9 @@ static optional<Arg1> tryReference(const CompileTimeValue& arg) {
   if (auto value = arg.value.getValueMaybe<Arg1>())
     return value;
   if (auto ref = arg.value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
-    if (auto value = ref->value->value.getValueMaybe<Arg1>())
-      return value;
+    if (auto compValue = ref->value.dynamicCast<CompileTimeValue>())
+      if (auto value = compValue->value.getValueMaybe<Arg1>())
+        return value;
   return none;
 }
 
@@ -238,10 +239,11 @@ nullable<SCompileTimeValue> tryArithmeticUnary(const vector<SCompileTimeValue>& 
 template <typename Operation>
 nullable<SCompileTimeValue> tryReferenceUnary(const vector<SCompileTimeValue>& args, Operation operation) {
   if (auto ref = args[0]->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>()) {
-    if (auto res = tryArithmeticUnary({ref->value}, operation)) {
-      ref->value = res.get();
-      return res;
-    }
+    if (auto value = ref->value.dynamicCast<CompileTimeValue>())
+      if (auto res = tryArithmeticUnary({value}, operation)) {
+        ref->value = res.get();
+        return res;
+      }
   }
   return nullptr;
 }
@@ -249,10 +251,11 @@ nullable<SCompileTimeValue> tryReferenceUnary(const vector<SCompileTimeValue>& a
 template <typename Operation>
 nullable<SCompileTimeValue> tryReferenceBinary(const vector<SCompileTimeValue>& args, Operation operation) {
   if (auto ref = args[0]->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>()) {
-    if (auto res = tryArithmetic({ref->value, args[1]}, operation)) {
-      ref->value = res.get();
-      return res;
-    }
+    if (auto value = ref->value.dynamicCast<CompileTimeValue>())
+      if (auto res = tryArithmetic({value, args[1]}, operation)) {
+        ref->value = res.get();
+        return res;
+      }
   }
   return nullptr;
 }
@@ -261,7 +264,12 @@ static nullable<SCompileTimeValue> evalNonTemplate(Operator op, vector<SCompileT
   CHECK((args.size() == 2 && !isUnary(op)) || (args.size() == 1 && isUnary(op)));
   switch (op) {
     case Operator::ASSIGNMENT:
-      return tryReferenceBinary(args, [](auto value1, auto value2) { return value2; });
+      if (auto ref = args[0]->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
+        if (auto value = ref->value.dynamicCast<CompileTimeValue>()) {
+          ref->value = args[1];
+          return args[1];
+        }
+      return nullptr;
     case Operator::MULTIPLY_BY:
       return tryReferenceBinary(args, [](auto value1, auto value2) { return value1 * value2; });
     case Operator::DIVIDE_BY:

@@ -1,0 +1,12 @@
+// 6
+
+template <string S>
+int size() {
+  return S.size();
+}
+
+int main() {
+  static mutable stmt = "abc";
+  stmt = "pokpak";
+  return size<stmt>();
+}

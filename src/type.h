@@ -50,11 +50,12 @@ struct Type : public owned_object<Type> {
   virtual SType removeReference() const;
   bool isPointer() const;
   bool isReference() const;
+  SType removeValueReference() const;
   virtual JustError<string> getSizeError(const Context&) const;
   virtual bool canBeValueTemplateParam() const;
   virtual bool canDeclareVariable() const;
   virtual bool isMetaType() const;
-  virtual nullable<SType> convertTo(SType) const;
+  virtual WithError<SType> convertTo(SType) const;
   JustError<string> isBuiltinCopyable(const Context&, unique_ptr<Expression>&) const;
   bool isBuiltinCopyable(const Context&) const;
   Context staticContext;
@@ -196,7 +197,7 @@ struct CompileTimeValue : public Type {
   virtual SType expand(const Context&, SType pack, vector<SType> to, ErrorBuffer&) const override;
   virtual SType getType() const override;
   virtual optional<string> getMangledName() const override;
-  virtual nullable<SType> convertTo(SType) const override;
+  virtual WithError<SType> convertTo(SType) const override;
   struct TemplateValue {
     SType type;
     string name;
@@ -223,8 +224,8 @@ struct CompileTimeValue : public Type {
     COMPARABLE(EnumValue, type, index)
   };
   struct ReferenceValue {
-    ReferenceValue(SCompileTimeValue);
-    SCompileTimeValue value;
+    ReferenceValue(SType);
+    SType value;
     int id;
     COMPARABLE(ReferenceValue, id)
   };
@@ -232,7 +233,7 @@ struct CompileTimeValue : public Type {
   using Value = variant<int, bool, double, char, NullValue, string, EnumValue, TemplateValue, TemplateExpression,
       TemplateFunctionCall, ReferenceValue>;
   static shared_ptr<CompileTimeValue> get(Value);
-  static shared_ptr<CompileTimeValue> getReference(SCompileTimeValue);
+  static shared_ptr<CompileTimeValue> getReference(SType);
   static shared_ptr<CompileTimeValue> getTemplateValue(SType type, string name);
   Value value;
 

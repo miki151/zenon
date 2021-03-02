@@ -1,0 +1,8 @@
+// 5
+
+int main() {
+  static mutable a = 5;
+  const f = [] { return a; };
+  ++a;
+  return f();
+}

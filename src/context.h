@@ -87,6 +87,7 @@ class Context : public owned_object<Context> {
   JustError<string> canConvert(SType from, SType to) const;
   optional<int> getLoopId() const;
   int setIsInLoop();
+  void setIsInBranch();
   bool areParamsEquivalent(FunctionType, FunctionType) const;
   optional<vector<SType>> getTemplateParams() const;
   void setTemplated(vector<SType>);
@@ -122,6 +123,7 @@ class Context : public owned_object<Context> {
     map<string, shared_ptr<Concept>> concepts;
     map<string, BuiltInFunctionInfo> builtInFunctions;
     optional<int> loopId;
+    bool isBranch = false;
     bool isTemplateInstance = false;
     vector<SType> templateParams;
     LambdaCaptureInfo* lambdaInfo;

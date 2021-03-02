@@ -1,0 +1,9 @@
+// no_compile
+
+int main() {
+  if (true)
+    mutable a = 5;
+  else
+    ++a;
+  return 0;
+}

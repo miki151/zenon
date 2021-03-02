@@ -1,0 +1,8 @@
+// no_compile
+
+int main() {
+  static mutable a = 1;
+  const f = [] { ++a; };
+  f();
+  return a;
+}

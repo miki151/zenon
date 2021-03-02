@@ -107,12 +107,8 @@ WithErrorLine<SType> Variable::getTypeImpl(const Context& context) {
 }
 
 WithEvalError<EvalResult> Variable::eval(const Context& context) const {
-  auto res = context.getTypeFromString(identifier);
-  if (res) {
-    auto value = res.get().dynamicCast<CompileTimeValue>();
-    bool isConstant = !value || !value->value.contains<CompileTimeValue::ReferenceValue>();
-    return EvalResult { res.get(), isConstant};
-  }
+  if (auto res = context.getTypeFromString(identifier))
+    return EvalResult { res.get(), true};
   return EvalError::noEval();
 }
 
@@ -440,9 +436,14 @@ JustError<ErrorLoc> IfStatement::check(Context& context, bool) {
         "Expected a type convertible to bool or with overloaded operator " +
         quote("!") + " inside if statement, got " + quote(condType.get()->getName()));
   }
-  TRY(ifTrue->check(ifContext));
-  if (ifFalse)
-    TRY(ifFalse->check(ifContext));
+  auto trueContext = ifContext.getChild();
+  trueContext.setIsInBranch();
+  TRY(ifTrue->check(trueContext));
+  if (ifFalse) {
+    auto falseContext = ifContext.getChild();
+    falseContext.setIsInBranch();
+    TRY(ifFalse->check(falseContext));
+  }
   return success;
 }
 
@@ -524,14 +525,13 @@ JustError<ErrorLoc> VariableDeclaration::checkMovesImpl(MoveChecker& checker) co
 }
 
 WithEvalError<StatementEvalResult> VariableDeclaration::eval(Context& context) const {
-  if (isMutable)
-    return EvalError::withError("Static mutable variables are not supported");
   auto result = TRY(initExpr->eval(context)).value;
   if (auto conv = result->convertTo(realType.get()))
-    result = conv.get();
+    result = *conv;
   else
-    return EvalError::withError("Can't convert value of type " + quote(result->getType()->getName())
-        + " to type " + quote(realType->getName()));
+    return EvalError::withError(conv.get_error());
+  if (isMutable)
+    result = CompileTimeValue::getReference(result);
   context.addType(identifier, std::move(result));
   return StatementEvalResult{};
 }
@@ -2698,6 +2698,8 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
     }
   }
   auto bodyContext2 = bodyContext.getChild();
+  // Only used to prevent from modifying comptime mutable values. Make a new flag if needed.
+  bodyContext2.setIsInBranch();
   TRY(block->check(bodyContext2));
   type->captures.append(captureInfo.implicitCaptures);
   if (!returnType)
@@ -3151,9 +3153,8 @@ JustError<ErrorLoc> MixinStatement::check(Context& context, bool) {
   }
   auto evalResult = TRY(value->eval(context)
       .addNoEvalError(value->codeLoc.getError("Unable to evaluate expression at compile-time"))).value;
-  if (evalResult->getType() != BuiltinType::STRING)
-    return value->codeLoc.getError("Expression result must be a string.");
-  auto str = *evalResult.dynamicCast<CompileTimeValue>()->value.getValueMaybe<string>();
+  string str = *TRY(evalResult->convertTo(BuiltinType::STRING).addCodeLoc(value->codeLoc))
+      .dynamicCast<CompileTimeValue>()->value.getReferenceMaybe<string>();
   auto tokens = TRY(lex(str, value->codeLoc, "end of expression"));
   result = TRY(parseStatement(tokens, false));
   if (!result)

@@ -1,0 +1,9 @@
+// no_compile
+
+int main() {
+  static mutable res = 0;
+  const a = 1;
+  if (a == 0)
+    ++res;
+  return res;
+}

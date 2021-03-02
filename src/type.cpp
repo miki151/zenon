@@ -137,9 +137,7 @@ bool TemplateParameterType::isBuiltinCopyableImpl(const Context&, unique_ptr<Exp
 }
 
 WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SType& value1) const {
-  if (auto value = value1.dynamicCast<CompileTimeValue>()) {
-    if (auto ref = value->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
-      value = ref->value;
+  if (auto value = value1->removeValueReference().dynamicCast<CompileTimeValue>()) {
     if (value->getType() != BuiltinType::INT)
       return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + value->getType()->getName();
     if (type == BuiltinType::STRUCT_TYPE || type == BuiltinType::UNION_TYPE)
@@ -182,7 +180,9 @@ JustError<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, 
             + " handled more than once in switch statement");
       handledElems.insert(id);
     }
-    TRY(caseElem.block->check(context));
+    auto caseContext = context.getChild();
+    caseContext.setIsInBranch();
+    TRY(caseElem.block->check(caseContext));
   }
   if (!statement.defaultBlock) {
     vector<string> unhandled;
@@ -196,7 +196,9 @@ JustError<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, 
     if (handledElems.size() == elements.size())
       return statement.defaultBlock->codeLoc.getError(
           "Default switch statement unnecessary when all enum elements are handled");
-    TRY(statement.defaultBlock->check(context));
+    auto caseContext = context.getChild();
+    caseContext.setIsInBranch();
+    TRY(statement.defaultBlock->check(caseContext));
   }
   return success;
 }
@@ -375,6 +377,13 @@ bool Type::isReference() const {
   return removeReference() != this;
 }
 
+SType Type::removeValueReference() const {
+  auto type = getType();
+  if (type->isReference())
+    return *convertTo(type->removeReference());
+  return get_this().get();
+}
+
 SType ReferenceType::removeReference() const {
   return underlying;
 }
@@ -476,8 +485,8 @@ bool Type::isMetaType() const {
   return false;
 }
 
-nullable<SType> Type::convertTo(SType) const {
-  return nullptr;
+WithError<SType> Type::convertTo(SType t) const {
+  return "Can't convert " + quote(getName()) + " to type " + quote(t->getName());
 }
 
 JustError<string> Type::isBuiltinCopyable(const Context& context, unique_ptr<Expression>& expr) const {
@@ -630,6 +639,7 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
         caseBodyContext.setNonMovable(caseId);
         break;
     }
+    caseBodyContext.setIsInBranch();
     TRY(caseElem.block->check(caseBodyContext));
   }
   if (!statement.defaultBlock) {
@@ -719,9 +729,7 @@ WithError<Type::MemberInfo> StructType::getTypeOfMember(const SType& v1) const {
       return ReferenceType::get(std::move(t));
     return t;
   };
-  if (auto v = v1.dynamicCast<CompileTimeValue>()) {
-    if (auto ref = v->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
-      v = ref->value;
+  if (auto v = v1->removeValueReference().dynamicCast<CompileTimeValue>()) {
     if (auto intValue = v->value.getValueMaybe<int>()) {
       auto& membersOrAlt = (alternatives.empty() ? members : alternatives);
       if (*intValue >= 0 && *intValue < membersOrAlt.size())
@@ -1528,7 +1536,7 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
       [](double v) { return to_string(v); },
       [](bool v) { return v ? "true" : "false"; },
       [](char v) { return "\'" + string(1, v) + "\'"; },
-      [](const ReferenceValue& ref) { return ref.value->getName(); },
+      [](const ReferenceValue& ref) { return ref.value->getName() + " reference"; },
       [](NullValue v) { return "null"; },
       [](const string& v) { return v; },
       [](const EnumValue& t) { return t.type->getName() + "::" + t.type->elements[t.index]; },
@@ -1597,7 +1605,9 @@ optional<string> CompileTimeValue::getMangledName() const {
   );
 }
 
-nullable<SType> CompileTimeValue::convertTo(SType t) const {
+WithError<SType> CompileTimeValue::convertTo(SType t) const {
+  if (auto ref = value.getReferenceMaybe<ReferenceValue>())
+    return ref->value->convertTo(std::move(t));
   // For now int -> double is supported.
   auto myType = getType();
   if (myType == t)
@@ -1614,10 +1624,10 @@ nullable<SType> CompileTimeValue::convertTo(SType t) const {
               v.name, v.args, std::move(t), v.loc, v.argLoc, v.functionInfo}); },
         [](auto&) -> SType { fail(); }
     );
-  return nullptr;
+  return Type::convertTo(std::move(t));
 }
 
-shared_ptr<CompileTimeValue> CompileTimeValue::getReference(SCompileTimeValue value) {
+shared_ptr<CompileTimeValue> CompileTimeValue::getReference(SType value) {
   return get(ReferenceValue{std::move(value)});
 }
 
@@ -1636,7 +1646,7 @@ JustError<string> CompileTimeValue::getMappingError(TypeMapping& mapping, SType 
 bool CompileTimeValue::canReplaceBy(SType t) const {
   if (auto myValue = value.getReferenceMaybe<TemplateValue>())
     if (auto v = t.dynamicCast<CompileTimeValue>())
-      return myValue->type == v->getType();
+      return myValue->type == v->getType()->removeReference();
   return false;
 }
 
@@ -1860,7 +1870,7 @@ shared_ptr<LambdaType> LambdaType::get(vector<SType> templateParams) {
 LambdaType::LambdaType(Private) {
 }
 
-CompileTimeValue::ReferenceValue::ReferenceValue(SCompileTimeValue v) : value(std::move(v)) {
+CompileTimeValue::ReferenceValue::ReferenceValue(SType v) : value(std::move(v)) {
   static int idCounter = 0;
   id = ++idCounter;
 }

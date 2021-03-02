@@ -1,0 +1,8 @@
+// 15
+
+int main() {
+  static mutable res = 0;
+  static for (i = 0; i < 6; ++i)
+    res += i;
+  return res;
+}

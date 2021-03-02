@@ -1,0 +1,15 @@
+// 1
+
+enum E {
+  E1,
+  E2
+};
+
+int main() {
+  const e = E::E1;
+  switch (e) {
+    case (E1) { static mutable u = 0; ++u; return u; }
+    case (E2) {}
+  }
+  return 0;
+}

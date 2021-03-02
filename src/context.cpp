@@ -386,6 +386,10 @@ int Context::setIsInLoop() {
   return loopCount;
 }
 
+void Context::setIsInBranch() {
+  state->isBranch = true;
+}
+
 void Context::replace(SType from, SType to, ErrorBuffer& errors) {
   CHECK(state->varsList.empty());
   /*for (auto& varName : state->varsList) {
@@ -530,7 +534,8 @@ WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameter
     auto getType = [id = ids[i]] (const Context& context, bool variadic) {
       return id.visit(
           [&](const IdentifierInfo& id) -> WithErrorLine<SType> {
-            return context.getTypeFromString(id, none); },
+            return TRY(context.getTypeFromString(id, none))->removeValueReference();
+          },
           [&](const shared_ptr<Expression>& expr) -> WithErrorLine<SType> {
             if (auto value = expr->eval(context))
               return value->value;
@@ -579,9 +584,13 @@ nullable<SConcept> Context::getConcept(const string& name) const {
 }
 
 nullable<SType> Context::getType(const string& s) const {
-  for (auto state : getReversedStates())
-    if (state->types.count(s))
-      return state->types.at(s);
+  bool isLoopOrIf = false;
+  for (auto state : getReversedStates()) {
+    if (auto ret = getReferenceMaybe(state->types, s))
+      return isLoopOrIf ? (*ret)->removeValueReference() : *ret;
+    if (state->loopId || state->isBranch)
+      isLoopOrIf = true;
+  }
   if (typeRegistry)
     return typeRegistry->getType(s);
   return nullptr;
