@@ -1,0 +1,7 @@
+// 5
+
+import "struct1.znn";
+
+int main() {
+  return get().v[0].a;
+}
