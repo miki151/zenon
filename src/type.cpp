@@ -1549,7 +1549,7 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
 string CompileTimeValue::getCodegenName() const {
   return value.visit(
       [this](const auto&) { return getName(); },
-      [](const ReferenceValue& ref) { return ref.value->getName(); },
+      [](const ReferenceValue& ref) { return ref.value->getCodegenName(); },
       [](const string& v) { return "\"" + v +"\"_lstr"; },
       [](const TemplateValue&) -> string { fail(); },
       [](const TemplateExpression&) -> string { fail(); },

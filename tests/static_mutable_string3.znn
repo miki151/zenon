@@ -1,0 +1,6 @@
+// 6
+
+int main() {
+  static mutable s = "foobar";
+  return size(&s);
+}
