@@ -1,0 +1,20 @@
+// 42
+
+template <int N>
+int get() {
+  return N;
+}
+
+template <int N, T>
+int f() {
+  static mutable a = N;
+  static if (get_name(T) == "int")
+    ++a;
+  else
+    --a;
+  return get<a>(); 
+}
+
+int main() {
+  return 10 * f<3, int>() + f<3, bool>();
+}

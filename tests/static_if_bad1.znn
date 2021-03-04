@@ -1,0 +1,11 @@
+// no_compile
+
+template <bool B>
+void f() {
+  static if (B)
+    blabla();
+}
+
+int main() {
+  return 0;
+}

@@ -481,6 +481,29 @@ void IfStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
     f1(ifFalse.get());
 }
 
+WithEvalError<StatementEvalResult> IfStatement::eval(Context& context) const {
+  if (declaration)
+    return EvalError::withError(getString(Keyword::STATIC) + " if with a declaration is not supported.");
+  StatementEvalResult res;
+  auto ifContext = context.getChild();
+  auto value1 = TRY(condition->eval(ifContext)).value;
+  if (value1->getType() != BuiltinType::BOOL)
+    return EvalError::withError("Expected a compile-time value of type " + quote(BuiltinType::BOOL->getName()) +
+        ", got " + quote(value1->getName()));
+  auto value = value1.dynamicCast<CompileTimeValue>();
+  if (auto b = value->value.getValueMaybe<bool>()) {
+    if (*b)
+      res.push_back(ifTrue->deepCopy());
+    else if (ifFalse)
+      res.push_back(ifFalse->deepCopy());
+  } else {
+    res.push_back(ifTrue->deepCopy());
+    if (ifFalse)
+      res.push_back(ifFalse->deepCopy());
+  }
+  return std::move(res);
+}
+
 static JustError<string> getVariableInitializationError(const char* action, const Context& context, const SType& varType,
     const SType& exprType, unique_ptr<Expression>& expr) {
   if (auto res = context.canConvert(exprType, varType, expr); !res)
@@ -489,17 +512,20 @@ static JustError<string> getVariableInitializationError(const char* action, cons
   return success;
 }
 
+WithErrorLine<SType> VariableDeclaration::getRealType(const Context& context) const {
+  if (type)
+    return context.getTypeFromString(*type);
+  else
+  if (initExpr)
+    return TRY(initExpr->getTypeImpl(context))->removeReference();
+  else
+    return codeLoc.getError("Initializing expression needed to infer variable type");
+}
+
 JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   TRY(context.checkNameConflictExcludingFunctions(identifier, "Variable").addCodeLoc(codeLoc));
-  if (!realType) {
-    if (type)
-      realType = TRY(context.getTypeFromString(*type));
-    else
-    if (initExpr)
-      realType = TRY(getType(context, initExpr))->removeReference();
-    else
-      return codeLoc.getError("Initializing expression needed to infer variable type");
-  }
+  if (!realType)
+    realType = TRY(getRealType(context));
   if (!realType->canDeclareVariable())
     return codeLoc.getError("Can't declare variable of type " + quote(realType->getName()));
   TRY(realType.get()->getSizeError(context).addCodeLoc(codeLoc));
@@ -525,11 +551,8 @@ JustError<ErrorLoc> VariableDeclaration::checkMovesImpl(MoveChecker& checker) co
 }
 
 WithEvalError<StatementEvalResult> VariableDeclaration::eval(Context& context) const {
-  auto result = TRY(initExpr->eval(context)).value;
-  if (auto conv = result->convertTo(realType.get()))
-    result = *conv;
-  else
-    return EvalError::withError(conv.get_error());
+  auto actualType = TRY(getRealType(context).toEvalError());
+  auto result = TRY(TRY(initExpr->eval(context)).value->convertTo(actualType).addCodeLoc(codeLoc).toEvalError());
   if (isMutable)
     result = CompileTimeValue::getReference(result);
   context.addType(identifier, std::move(result));
@@ -1593,6 +1616,11 @@ JustError<ErrorLoc> ExpressionStatement::checkMovesImpl(MoveChecker& checker) co
 
 bool ExpressionStatement::hasReturnStatement() const {
   return noReturnExpr;
+}
+
+WithEvalError<StatementEvalResult> ExpressionStatement::eval(Context& context) const {
+  TRY(expr->eval(context));
+  return StatementEvalResult{};
 }
 
 StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) {
@@ -3191,13 +3219,30 @@ StaticStatement::StaticStatement(CodeLoc l, unique_ptr<Statement> value) : State
 
 JustError<ErrorLoc> StaticStatement::check(Context& context, bool) {
   auto child = context.getChild();
-  TRY(value->check(child));
-  auto res = value->eval(context);
-  if (!res)
-    return value->codeLoc.getError("Unable to evaluate statement at compile-time");
+  results = TRY(value->eval(context)
+      .addNoEvalError(value->codeLoc.getError("Unable to evaluate statement at compile-time")));
+  auto bodyContext = context.getChild();
+  for (auto& s : results)
+    TRY(s->check(bodyContext));
   return success;
 }
 
 unique_ptr<Statement> StaticStatement::transform(const StmtTransformFun& f, const ExprTransformFun&) const {
   return unique<StaticStatement>(codeLoc, f(value.get()));
+}
+
+bool StaticStatement::hasReturnStatement() const {
+  for (auto& s : results)
+    if (s->hasReturnStatement())
+      return true;
+  return false;
+}
+
+JustError<ErrorLoc> StaticStatement::checkMovesImpl(MoveChecker& checker) const {
+  return value->checkMovesImpl(checker);
+}
+
+void StaticStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  for (auto& s : results)
+    f1(s.get());
 }

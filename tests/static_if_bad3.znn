@@ -1,0 +1,9 @@
+// no_compile
+
+int main() {
+  const b = true;
+  static if (b)
+    return 1;
+  else
+    return 2;
+}

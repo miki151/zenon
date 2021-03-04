@@ -1055,3 +1055,8 @@ void StatementExpression::codegen(Accu& accu, CodegenStage stage) const {
 void MixinStatement::codegen(Accu& accu, CodegenStage stage) const {
   result->codegen(accu, stage);
 }
+
+void StaticStatement::codegen(Accu& accu, CodegenStage stage) const {
+  for (auto& elem : results)
+    elem->codegen(accu, stage);
+}

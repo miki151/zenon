@@ -1,0 +1,16 @@
+// 10
+
+template <int N>
+int cnt() {
+  static mutable string stmt = "return \{";
+  static for (i = 0; i < N; ++i) {
+    static if (i > 0)
+      stmt = stmt + ", ";
+    stmt = stmt + "0";
+  }
+  mixin stmt + "\}.size();";
+}
+
+int main() {
+  return cnt<10>();
+}

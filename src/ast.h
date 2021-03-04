@@ -370,7 +370,10 @@ struct VariableDeclaration : Statement {
   virtual WithEvalError<StatementEvalResult> eval(Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
+  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
+
+  private:
+  WithErrorLine<SType> getRealType(const Context&) const;
 };
 
 struct ExternConstantDeclaration : Statement {
@@ -398,6 +401,7 @@ struct IfStatement : Statement {
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
+  virtual WithEvalError<StatementEvalResult> eval(Context&) const override;
 };
 
 struct StatementBlock : Statement {
@@ -472,6 +476,7 @@ struct ExpressionStatement : Statement {
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual bool hasReturnStatement() const override;
+  virtual WithEvalError<StatementEvalResult> eval(Context&) const override;
   bool canDiscard = false;
   bool noReturnExpr = false;
 };
@@ -750,8 +755,13 @@ struct MixinStatement : Statement {
 struct StaticStatement : Statement {
   StaticStatement(CodeLoc, unique_ptr<Statement>);
   unique_ptr<Statement> value;
+  vector<unique_ptr<Statement>> results;
   virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual bool hasReturnStatement() const override;
+  NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
+  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
 };
 
 struct AST {

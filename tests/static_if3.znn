@@ -1,0 +1,18 @@
+// 2
+
+template <T>
+int get(T, int a) {
+  return a;
+}
+
+template <T, bool B>
+int f(T a) {
+  static if (B)
+    return get(move(a), 1);
+  else
+    return get(move(a), 2);
+}
+
+int main() {
+  return f<string, false>("pok");
+}

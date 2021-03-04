@@ -1,0 +1,16 @@
+// 2
+
+template <int N>
+int f() {
+  return N;
+}
+
+int main() {
+  static mutable a = 1;
+  static const b = true;
+  static if (b)
+    ++a;
+  static if (false)
+    a = 0;
+  return f<a>();
+}
