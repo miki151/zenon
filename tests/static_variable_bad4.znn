@@ -1,0 +1,7 @@
+// no_compile
+
+int main() {
+  static mutable a = 1;
+  static mutable a = 2;
+  return a;
+}

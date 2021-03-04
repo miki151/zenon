@@ -551,6 +551,8 @@ JustError<ErrorLoc> VariableDeclaration::checkMovesImpl(MoveChecker& checker) co
 }
 
 WithEvalError<StatementEvalResult> VariableDeclaration::eval(Context& context) const {
+  if (auto res = context.checkNameConflictExcludingFunctions(identifier, "Variable"); !res)
+    return EvalError::withError(res.get_error());
   auto actualType = TRY(getRealType(context).toEvalError());
   auto result = TRY(TRY(initExpr->eval(context)).value->convertTo(actualType).addCodeLoc(codeLoc).toEvalError());
   if (isMutable)
