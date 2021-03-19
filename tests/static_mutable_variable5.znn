@@ -1,0 +1,11 @@
+// 55
+
+int main() {
+  mutable res = 0;
+  static mutable a = 0;
+  static for (i = 0; i < 10; ++i) {
+    a = a + 1;
+    res += a;
+  }
+  return res;
+}

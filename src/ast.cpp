@@ -2606,8 +2606,12 @@ WithErrorLine<SType> getType(const Context& context, unique_ptr<Expression>& exp
   if (evaluateAtCompileTime) {
     if (auto type = expr->eval(context)) {
       if (type->isConstant)
-        if (auto value = type->value.dynamicCast<CompileTimeValue>())
-          expr = unique<Constant>(expr->codeLoc, value);
+        if (auto value = type->value.dynamicCast<CompileTimeValue>()) {
+          auto c = unique<Constant>(expr->codeLoc, value);
+          if (auto ref = value->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
+            c->refValue = ref->value;
+          expr = std::move(c);
+        }
     } else
     if (type.get_error().canEval)
       return expr->codeLoc.getError(type.get_error().error);

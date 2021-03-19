@@ -80,6 +80,7 @@ struct Constant : Expression {
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   SCompileTimeValue value;
   optional<string> structMemberName;
+  nullable<SType> refValue;
 };
 
 struct EnumConstant : Expression {

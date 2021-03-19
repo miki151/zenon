@@ -1,0 +1,10 @@
+// 4
+
+int main() {
+  mutable res = 0;
+  static mutable a = 1;
+  res += a;
+  a += 2;
+  res += a;
+  return res;
+}
