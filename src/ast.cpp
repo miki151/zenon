@@ -501,6 +501,9 @@ WithEvalError<StatementEvalResult> IfStatement::eval(Context& context) const {
     if (ifFalse)
       res.push_back(ifFalse->deepCopy());
   }
+  for (auto& elem : res)
+    if (auto res = elem->check(ifContext); !res)
+      return EvalError::withError(res.get_error().toString());
   return std::move(res);
 }
 
@@ -1792,7 +1795,7 @@ WithEvalError<EvalResult> FunctionCall::eval(const Context& context) const {
     vector<CodeLoc> locs;
     for (auto& e : arguments) {
       locs.push_back(e->codeLoc);
-      args.push_back(TRY(e->eval(context)).value);
+      args.push_back(TRY(e->eval(context)).value->removeValueReference());
     }
     return EvalResult{TRY(context.invokeFunction(*name, codeLoc, std::move(args), std::move(locs))), true};
   }
@@ -2152,99 +2155,41 @@ void ForLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) con
   f1(body.get());
 }
 
-StaticForLoopStatement::StaticForLoopStatement(CodeLoc l, string counter, unique_ptr<Expression> init, unique_ptr<Expression> cond,
-    unique_ptr<Expression> iter, unique_ptr<Statement> body) : Statement(l), counter(std::move(counter)), init(std::move(init)),
-  cond(std::move(cond)), iter(std::move(iter)), body(std::move(body)) {
-}
-
-JustError<ErrorLoc> StaticForLoopStatement::checkExpressions(const Context& bodyContext) const {
-  auto context = bodyContext.getChild();
-  auto initVal = TRY(init->eval(context).addNoEvalError(init->codeLoc.getError("Unable to evaluate expression at compile time")));
-  context.addType(counter, CompileTimeValue::getReference(initVal.value.dynamicCast<CompileTimeValue>()));
-  auto condVal = TRY(cond->eval(context).addNoEvalError(cond->codeLoc.getError("Unable to evaluate expression at compile time")));
-  if (condVal.value->getType()->removeReference() != BuiltinType::BOOL)
-    return cond->codeLoc.getError("Loop condition must be of type " + quote(BuiltinType::BOOL->getName()));
-  TRY(iter->eval(context).addNoEvalError(iter->codeLoc.getError("Unable to evaluate expression at compile time")));
-  return success;
-}
-
-WithErrorLine<vector<unique_ptr<Statement>>> StaticForLoopStatement::getUnrolled(const Context& context,
-    SType counterType) const {
-  vector<unique_ptr<Statement>> ret;
-  auto counterValue = CompileTimeValue::getReference(init->eval(context)->value.dynamicCast<CompileTimeValue>());
+WithEvalError<StatementEvalResult> ForLoopStatement::eval(Context& context) const {
+  StatementEvalResult res;
+  auto forContext = context.getChild();
+  bool wasMutable = init->isMutable;
+  init->isMutable = true;
+  CHECK(TRY(init->eval(forContext)).empty());
   const int maxIterations = 500;
   int countIter = 0;
   while (1) {
-    auto evalContext = context.getChild();
-    auto iterContext = context.getChild();
-    iterContext.addType(counter, counterValue);
-    auto currentCounter = counterValue->value.getValueMaybe<CompileTimeValue::ReferenceValue>()->value;
-    evalContext.addType(counter, currentCounter);
-    auto condValue = cond->eval(evalContext)->value;
-    if (!*condValue.dynamicCast<CompileTimeValue>()->value.getValueMaybe<bool>())
+    auto bodyContext = forContext.getChild();
+    auto condValue = TRY(cond->eval(bodyContext)).value;
+    if (condValue->getType() != BuiltinType::BOOL)
+    return EvalError::withError("Expected a compile-time value of type " + quote(BuiltinType::BOOL->getName()) +
+        ", got " + quote(condValue->getName()));
+    auto value = condValue.dynamicCast<CompileTimeValue>();
+    bool onePass = false;
+    if (auto b = value->value.getValueMaybe<bool>()) {
+      if (!*b)
+        break;
+    } else
+      onePass = true;
+    auto thisBody = body->deepCopy();
+    auto bodyContext2 = bodyContext.getChild();
+    if (!wasMutable)
+      bodyContext2.addType(init->identifier, bodyContext2.getType(init->identifier)->removeValueReference());
+    if (auto res = thisBody->check(bodyContext2); !res)
+      return EvalError::withError(res.get_error().toString());
+    res.push_back(unique<StatementBlock>(codeLoc, makeVec(std::move(thisBody))));
+    TRY(iter->eval(bodyContext));
+    if (onePass)
       break;
-    ErrorLocBuffer errors;
-    ret.push_back(body->deepCopy());
-    if (!errors.empty())
-      return errors[0];
-    TRY(ret.back()->check(evalContext));
-    CHECK(iter->eval(iterContext)->value->getMangledName());
-    if (++countIter >= maxIterations)
-      return codeLoc.getError("Static loop reached maximum number of iterations (" + to_string(maxIterations) + ")");
+    if (++countIter > maxIterations)
+      return EvalError::withError("Static loop reached maximum number of iterations (" + to_string(maxIterations) + ")");
   }
-  return std::move(ret);
-}
-
-JustError<ErrorLoc> StaticForLoopStatement::check(Context& context, bool) {
-  TRY(context.checkNameConflictExcludingFunctions(counter, "variable").addCodeLoc(codeLoc));
-  auto bodyContext = context.getChild();
-  TRY(checkExpressions(bodyContext));
-  auto initType = TRY(getType(bodyContext, init));
-  bodyContext.addVariable(counter, MutableReferenceType::get(getType(bodyContext, init).get()), init->codeLoc);
-  auto condType = TRY(getType(bodyContext, cond));
-  if (condType != BuiltinType::BOOL)
-    return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
-  auto res = TRY(getType(bodyContext, iter));
-  auto counterType = CompileTimeValue::getTemplateValue(initType, counter);
-  bodyContext.addType(counter, counterType);
-  auto bodyTemplateContext = bodyContext.getChild();
-  bodyTemplateContext.setTemplated({counterType});
-  if (!bodyContext.getTemplateParams())
-    unrolled = TRY(getUnrolled(context, counterType));
-  else {
-    auto bodyTmp = body->deepCopy();
-    TRY(bodyTmp->check(bodyTemplateContext));
-  }
-  return success;
-}
-
-JustError<ErrorLoc> StaticForLoopStatement::checkMovesImpl(MoveChecker& checker) const {
-  static int loopId = 0;
-  --loopId;
-  checker.startLoop(loopId);
-  if (auto res = body->checkMoves(checker); !res) {
-    TRY(checker.endLoop(loopId));
-    return res.get_error();
-  }
-  return checker.endLoop(loopId);
-}
-
-unique_ptr<Statement> StaticForLoopStatement::transform(const StmtTransformFun& fun,
-    const ExprTransformFun& exprFun) const {
-  return unique<StaticForLoopStatement>(codeLoc,
-      counter,
-      exprFun(init.get()),
-      exprFun(cond.get()),
-      exprFun(iter.get()),
-      fun(body.get()));
-}
-
-void StaticForLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f2(init.get());
-  f2(cond.get());
-  f2(iter.get());
-  for (auto& elem : unrolled)
-    f1(elem.get());
+  return std::move(res);
 }
 
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
@@ -2857,7 +2802,7 @@ VariablePackElement::VariablePackElement(CodeLoc l, string packName, unique_ptr<
 WithErrorLine<SType> VariablePackElement::getTypeImpl(const Context& context) {
   auto indexValue1 = TRY(index->eval(context).addNoEvalError(
       index->codeLoc.getError("Unable to evaluate constant expression at compile-time")));
-  auto indexValue = dynamic_cast<CompileTimeValue*>(indexValue1.value.get());
+  auto indexValue = indexValue1.value->removeValueReference().dynamicCast<CompileTimeValue>();
   if (indexValue->getType() != BuiltinType::INT)
     return index->codeLoc.getError("Expected subscript index of type " + quote(BuiltinType::INT->getName())
         + ",  got " + quote(indexValue->getType()->getName()));
@@ -3224,12 +3169,8 @@ StaticStatement::StaticStatement(CodeLoc l, unique_ptr<Statement> value) : State
 }
 
 JustError<ErrorLoc> StaticStatement::check(Context& context, bool) {
-  auto child = context.getChild();
   results = TRY(value->eval(context)
       .addNoEvalError(value->codeLoc.getError("Unable to evaluate statement at compile-time")));
-  auto bodyContext = context.getChild();
-  for (auto& s : results)
-    TRY(s->check(bodyContext));
   return success;
 }
 

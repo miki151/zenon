@@ -761,14 +761,6 @@ void ForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   accu.newLine();
 }
 
-void StaticForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
-  for (auto& elem : unrolled) {
-    accu.add("{");
-    elem->codegen(accu, stage);
-    accu.add("}");
-  }
-}
-
 void RangedLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   accu.add("{");

@@ -495,24 +495,7 @@ struct ForLoopStatement : Statement {
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
-};
-
-struct StaticForLoopStatement : Statement {
-  StaticForLoopStatement(CodeLoc l, string counter, unique_ptr<Expression> init, unique_ptr<Expression> cond, unique_ptr<Expression> iter,
-      unique_ptr<Statement> body);
-  string counter;
-  unique_ptr<Expression> init;
-  unique_ptr<Expression> cond;
-  unique_ptr<Expression> iter;
-  unique_ptr<Statement> body;
-  vector<unique_ptr<Statement>> unrolled;
-  NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
-  NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
-  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
-  JustError<ErrorLoc> checkExpressions(const Context&) const;
-  WithErrorLine<vector<unique_ptr<Statement>>> getUnrolled(const Context&, SType counterType) const;
+  virtual WithEvalError<StatementEvalResult> eval(Context&) const override;
 };
 
 struct RangedLoopStatement : Statement {

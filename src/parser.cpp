@@ -749,26 +749,6 @@ WithErrorLine<unique_ptr<WhileLoopStatement>> parseWhileLoopStatement(Tokens& to
   return unique<WhileLoopStatement>(codeLoc, std::move(cond), std::move(body));
 }
 
-WithErrorLine<unique_ptr<Statement>> parseStaticForLoopStatement(Tokens& tokens) {
-  auto codeLoc = tokens.peek().codeLoc;
-  TRY(tokens.eat(Keyword::STATIC));
-  TRY(tokens.eat(Keyword::FOR));
-  TRY(tokens.eat(Keyword::OPEN_BRACKET));
-  auto counter = tokens.popNext();
-  if (!counter.contains<IdentifierToken>())
-    return counter.codeLoc.getError("Expected static loop counter variable");
-  TRY(tokens.eat(Operator::ASSIGNMENT));
-  auto init = TRY(parseExpression(tokens));
-  TRY(tokens.eat(Keyword::SEMICOLON));
-  auto cond = TRY(parseExpression(tokens));
-  TRY(tokens.eat(Keyword::SEMICOLON));
-  auto iter = TRY(parseExpression(tokens));
-  TRY(tokens.eat(Keyword::CLOSE_BRACKET));
-  auto body = TRY(parseNonTopLevelStatement(tokens));
-  return cast<Statement>(
-      unique<StaticForLoopStatement>(codeLoc, counter.value, std::move(init), std::move(cond), std::move(iter), std::move(body)));
-}
-
 WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) {
   auto switchToken = TRY(tokens.eat(Keyword::SWITCH));
   TRY(tokens.eat(Keyword::OPEN_BRACKET));
@@ -1079,15 +1059,12 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             ret.get()->canDiscard = true;
             return cast<Statement>(std::move(ret));
           }
-          case Keyword::STATIC:
-            if (tokens.peekNext() == Keyword::FOR) {
-              return cast<Statement>(parseStaticForLoopStatement(tokens));
-            } else {
-              tokens.popNext();
-              auto ret = cast<Statement>(unique<StaticStatement>(tokens.peek().codeLoc,
-                  TRY(parseStatement(tokens, false))));
-              return std::move(ret);
-            }
+          case Keyword::STATIC: {
+            tokens.popNext();
+            auto ret = cast<Statement>(unique<StaticStatement>(tokens.peek().codeLoc,
+                TRY(parseStatement(tokens, false))));
+            return std::move(ret);
+          }
           case Keyword::UNCHECKED:
             tokens.popNext();
             return cast<Statement>(unique<UncheckedStatement>(tokens.peek().codeLoc,

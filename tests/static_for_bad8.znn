@@ -1,0 +1,8 @@
+// no_compile
+
+int main() {
+  mutable res = 0;
+  static for (i = res; i < 5; ++i) {
+  }
+  return 0;
+}
