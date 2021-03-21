@@ -1945,7 +1945,7 @@ JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
   TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
   context.addType(name, type.get());
   for (auto& attr : TRY(getAttributeTypes(context, attributes)))
-    context.setAttribute(type.get(), attr);
+    context.setAttribute(type.get(), attr, type->templateParams);
   type->definition = codeLoc;
   auto membersContext = context.getChild();
   for (auto& param : type->templateParams)
@@ -1998,7 +1998,7 @@ JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
   TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
   context.addType(name, type.get());
   for (auto& attr : TRY(getAttributeTypes(context, attributes)))
-    context.setAttribute(type.get(), attr);
+    context.setAttribute(type.get(), attr, type->templateParams);
   auto membersContext = context.getChild();
   addTemplateParams(membersContext, type->templateParams, false);
   type->requirements = TRY(applyRequirements(membersContext, templateInfo));

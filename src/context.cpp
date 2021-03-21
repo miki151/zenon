@@ -519,8 +519,9 @@ vector<Context::SubstitutionInfo> Context::getSubstitutions() const {
   return ret;
 }
 
-void Context::setAttribute(SType t, SType attr) {
-  CHECK(addFunction(FunctionInfo::getImplicit(AttributeTag{}, FunctionType(BuiltinType::VOID, {t, attr}, {}))));
+void Context::setAttribute(SType t, SType attr, vector<SType> templateParams) {
+  CHECK(addFunction(FunctionInfo::getImplicit(AttributeTag{},
+      FunctionType(BuiltinType::VOID, {t, attr}, std::move(templateParams)))));
 }
 
 void Context::setStructMembers(SType t, vector<SType> members, vector<SType> templateParams) {
