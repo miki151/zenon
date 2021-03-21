@@ -8,7 +8,7 @@ int get() {
 template <int N, T>
 int f() {
   static mutable a = N;
-  static if (get_name(T) == "int")
+  static if (to_string(T) == "int")
     ++a;
   else
     --a;

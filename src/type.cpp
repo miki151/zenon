@@ -10,6 +10,7 @@ BuiltinType::DefType BuiltinType::STRING = shared<BuiltinType>("string", "zenon_
 BuiltinType::DefType BuiltinType::CHAR = shared<BuiltinType>("char");
 BuiltinType::DefType BuiltinType::NORETURN = shared<BuiltinType>("noreturn", "[[noreturn]] void"s);
 BuiltinType::DefType BuiltinType::ANY_TYPE = shared<BuiltinType>("any_type");
+BuiltinType::DefType BuiltinType::ANYTHING = shared<BuiltinType>("anything");
 BuiltinType::DefType BuiltinType::ENUM_TYPE = shared<BuiltinType>("enum_type");
 BuiltinType::DefType BuiltinType::NULL_TYPE = shared<BuiltinType>("null_type");
 BuiltinType::DefType BuiltinType::STRUCT_TYPE = shared<BuiltinType>("struct_type");
@@ -118,7 +119,8 @@ string TemplateParameterType::getName(bool withTemplateArguments) const {
 }
 
 bool TemplateParameterType::canReplaceBy(SType t) const {
-  return (type == BuiltinType::ANY_TYPE && t->getType()->isMetaType()) || t->getType() == type;
+  return (type == BuiltinType::ANY_TYPE && t->getType()->isMetaType())
+      || type == BuiltinType::ANYTHING || t->getType() == type;
 }
 
 optional<string> TemplateParameterType::getMangledName() const {

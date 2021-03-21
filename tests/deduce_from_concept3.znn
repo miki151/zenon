@@ -5,7 +5,7 @@ struct Y { };
 
 template <T>
 int res() {
-  return get_name(T).size();
+  return to_string(T).size();
 }
 
 void f(X, int) { }

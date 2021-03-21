@@ -9,7 +9,7 @@ struct Y {
 
 template <T>
 int get() {
-  return get_name(T).size();
+  return to_string(T).size();
 }
 
 int main() {

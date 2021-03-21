@@ -82,6 +82,7 @@ struct BuiltinType : public Type {
   static DefType NORETURN;
   static DefType NULL_TYPE;
   static DefType ANY_TYPE;
+  static DefType ANYTHING;
   static DefType ENUM_TYPE;
   static DefType STRUCT_TYPE;
   static DefType UNION_TYPE;

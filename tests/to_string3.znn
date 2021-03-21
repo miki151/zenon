@@ -1,0 +1,10 @@
+// 10
+
+template <T, T N>
+int get() {
+  return to_string(N).size();
+}
+
+int main() {
+  return get<int, 1234>() + get<string, "pakpak">();
+}

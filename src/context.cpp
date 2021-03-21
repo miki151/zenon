@@ -258,6 +258,7 @@ vector<SType> Context::getConversions(SType type, SType to) const {
   vector<SType> ret = {type};
   if (type->isMetaType() && type != BuiltinType::ANY_TYPE)
     ret.push_back(BuiltinType::ANY_TYPE);
+  ret.push_back(BuiltinType::ANYTHING);
   auto underlying = type->removeReference();
   if (underlying == BuiltinType::INT)
     ret.push_back(BuiltinType::DOUBLE);

@@ -1516,7 +1516,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
         else
           fail();
       });
-  context.addBuiltInFunction("get_name", BuiltinType::STRING, {SType(BuiltinType::ANY_TYPE)},
+  context.addBuiltInFunction("to_string", BuiltinType::STRING, {SType(BuiltinType::ANYTHING)},
       [](const Context&, vector<SType> args) -> WithError<SType> {
         return (SType) CompileTimeValue::get(args[0]->getName());
       });

@@ -7,10 +7,10 @@ struct Y {
 };
 
 int main() {
-  const s = get_name(int)
-      + get_name(double)
-      + get_name(X)
-      + get_name(Y<int>);
+  const s = to_string(int)
+      + to_string(double)
+      + to_string(X)
+      + to_string(Y<int>);
   if (s == "intdoubleXY<int>")
     return 1;
   else
