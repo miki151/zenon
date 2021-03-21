@@ -564,6 +564,7 @@ struct StructDefinition : Statement {
     IdentifierInfo type;
     string name;
     CodeLoc codeLoc;
+    bool isConst;
   };
   vector<Member> members;
   TemplateInfo templateInfo;

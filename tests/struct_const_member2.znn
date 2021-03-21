@@ -1,0 +1,28 @@
+// 50
+
+struct X {
+  const int a;
+  int b;
+};
+
+template <T>
+int get(T) {return -1;}
+
+int get(int* a) {
+  return *a + 1;
+}
+
+int get(int mutable* a) {
+  return *a + 2;
+}
+
+template <int N, T> requires is_struct<T>
+int member(T mutable* t) {
+  return get(&t->(N));
+}
+
+int main() {
+  mutable x = X(0, 0);
+  x = X(1, 2);
+  return 5 * x.member<0>() + 10 * x.member<1>();
+}

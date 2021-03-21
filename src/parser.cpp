@@ -615,11 +615,12 @@ WithErrorLine<unique_ptr<StructDefinition>> parseStructDefinition(Tokens& tokens
         tokens.popNext();
         break;
       }
+      bool isConst = !!tokens.eatMaybe(Keyword::CONST);
       auto typeIdent = TRY(parseIdentifier(tokens, true));
       auto memberName = tokens.popNext();
       if (!memberName.contains<IdentifierToken>())
         return memberName.codeLoc.getError("Expected identifier");
-      ret->members.push_back({typeIdent, memberName.value, memberToken.codeLoc});
+      ret->members.push_back({typeIdent, memberName.value, memberToken.codeLoc, isConst});
       TRY(tokens.eat(Keyword::SEMICOLON));
     }
   else if (!external)

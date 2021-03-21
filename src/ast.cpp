@@ -1852,7 +1852,7 @@ JustError<ErrorLoc> SwitchStatement::check(Context& context, bool) {
   }
   if (!context.isFullyDefined(type->removePointer().get()))
     return codeLoc.getError("Type " + quote(type->getName()) + " is incomplete in this context");
-  return type->handleSwitchStatement(*this, context, Type::SwitchArgument::VALUE);
+  return type->handleSwitchStatement(*this, context, Type::ArgumentType::VALUE);
 }
 
 JustError<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const {
@@ -1957,7 +1957,7 @@ JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
       if (subtypeNames.count(subtype.name))
         return subtype.codeLoc.getError("Duplicate union member: " + quote(subtype.name));
       subtypeNames.insert(subtype.name);
-      type->alternatives.push_back({subtype.name, TRY(membersContext.getTypeFromString(subtype.type))});
+      type->alternatives.push_back({subtype.name, TRY(membersContext.getTypeFromString(subtype.type)), false});
       vector<SType> params;
       auto subtypeInfo = TRY(membersContext.getTypeFromString(subtype.type));
       if (subtypeInfo != BuiltinType::VOID)
@@ -2004,7 +2004,7 @@ JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
   type->requirements = TRY(applyRequirements(membersContext, templateInfo));
   if (members.size() > type->members.size())
     for (auto& member : members)
-      type->members.push_back({member.name, TRY(membersContext.getTypeFromString(member.type))});
+      type->members.push_back({member.name, TRY(membersContext.getTypeFromString(member.type)), member.isConst});
   for (auto& member : members)
     TRY(type->members.back().type->getSizeError(membersContext).addCodeLoc(member.codeLoc));
   for (int i = 0; i < members.size(); ++i)

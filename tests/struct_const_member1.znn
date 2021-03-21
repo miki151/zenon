@@ -1,0 +1,20 @@
+// 50
+
+struct X {
+  const int a;
+  int b;
+};
+
+int get(int* a) {
+  return *a + 1;
+}
+
+int get(int mutable* a) {
+  return *a + 2;
+}
+
+int main() {
+  mutable x = X(0, 0);
+  x = X(1, 2);
+  return 5 * get(&x.a) + 10 * get(&x.b);
+}

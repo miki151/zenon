@@ -136,21 +136,21 @@ bool TemplateParameterType::isBuiltinCopyableImpl(const Context&, unique_ptr<Exp
     return false;
 }
 
-WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SType& value1) const {
+WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SType& value1, ArgumentType arg) const {
   if (auto value = value1->removeValueReference().dynamicCast<CompileTimeValue>()) {
     if (value->getType() != BuiltinType::INT)
       return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + value->getType()->getName();
     if (type == BuiltinType::STRUCT_TYPE || type == BuiltinType::UNION_TYPE)
       return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), value), "bad_member_name"};
-    return Type::getTypeOfMember(value);
+    return Type::getTypeOfMember(value, arg);
   } else
     return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + value1->getType()->getName();
 }
 
-WithError<SType> TemplateParameterType::getTypeOfMember(const string& s) const {
+WithError<SType> TemplateParameterType::getTypeOfMember(const string& s, ArgumentType arg) const {
   if (type == BuiltinType::STRUCT_TYPE)
     return "Can only refer to template struct type members by name"s;
-  return Type::getTypeOfMember(s);
+  return Type::getTypeOfMember(s, arg);
 }
 
 bool TemplateParameterType::canBeValueTemplateParam() const {
@@ -167,7 +167,7 @@ string EnumType::getName(bool withTemplateArguments) const {
   return name;
 }
 
-JustError<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument argType) const {
+JustError<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, Context& context, ArgumentType argType) const {
   statement.type = SwitchStatement::ENUM;
   statement.targetType = (SType)get_this();
   unordered_set<string> handledElems;
@@ -555,44 +555,32 @@ JustError<string> StructType::getSizeError(const Context& context) const {
   return checkMembers(context, visited, get_this().get(), false);
 }
 
-JustError<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
-  return underlying->handleSwitchStatement(statement, context, SwitchArgument::REFERENCE);
+JustError<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, ArgumentType) const {
+  return underlying->handleSwitchStatement(statement, context, ArgumentType::REFERENCE);
 }
 
-WithError<Type::MemberInfo> ReferenceType::getTypeOfMember(const SType& value) const {
-  if (auto res = underlying->getTypeOfMember(value))
-    return MemberInfo{(SType)get(res->type), res->name};
-  else
-    return res;
+WithError<Type::MemberInfo> ReferenceType::getTypeOfMember(const SType& value, ArgumentType) const {
+  return underlying->getTypeOfMember(value, ArgumentType::REFERENCE);
 }
 
-WithError<SType> ReferenceType::getTypeOfMember(const string& name) const {
-  if (auto res = underlying->getTypeOfMember(name))
-    return (SType)get(*res);
-  else
-    return res;
+WithError<SType> ReferenceType::getTypeOfMember(const string& name, ArgumentType) const {
+  return underlying->getTypeOfMember(name, ArgumentType::REFERENCE);
 }
 
 SType ReferenceType::removePointer() const {
   return underlying->removePointer();
 }
 
-JustError<ErrorLoc> MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, SwitchArgument) const {
-  return underlying->handleSwitchStatement(statement, context, SwitchArgument::MUTABLE_REFERENCE);
+JustError<ErrorLoc> MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, ArgumentType) const {
+  return underlying->handleSwitchStatement(statement, context, ArgumentType::MUTABLE_REFERENCE);
 }
 
-WithError<Type::MemberInfo> MutableReferenceType::getTypeOfMember(const SType& value) const {
-  if (auto res = underlying->getTypeOfMember(value))
-    return MemberInfo{(SType)get(res->type), res->name};
-  else
-    return res;
+WithError<Type::MemberInfo> MutableReferenceType::getTypeOfMember(const SType& value, ArgumentType) const {
+  return underlying->getTypeOfMember(value, ArgumentType::MUTABLE_REFERENCE);
 }
 
-WithError<SType> MutableReferenceType::getTypeOfMember(const string& name) const {
-  if (auto res = underlying->getTypeOfMember(name))
-    return (SType)get(*res);
-  else
-    return res;
+WithError<SType> MutableReferenceType::getTypeOfMember(const string& name, ArgumentType) const {
+  return underlying->getTypeOfMember(name, ArgumentType::MUTABLE_REFERENCE);
 }
 
 SType MutableReferenceType::removePointer() const {
@@ -600,7 +588,7 @@ SType MutableReferenceType::removePointer() const {
 }
 
 JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement, Context& outsideContext,
-    SwitchArgument argumentType) const {
+    ArgumentType argumentType) const {
   if (alternatives.empty())
     return statement.codeLoc.getError("Can't switch on a struct type");
   statement.type = SwitchStatement::UNION;
@@ -627,14 +615,14 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
     auto realType = getAlternativeType(caseId).get();
     caseElem.declaredVar = caseId;
     switch (argumentType) {
-      case SwitchArgument::VALUE:
+      case ArgumentType::VALUE:
         caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
         break;
-      case SwitchArgument::REFERENCE:
+      case ArgumentType::REFERENCE:
         caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
         caseBodyContext.setNonMovable(caseId);
         break;
-      case SwitchArgument::MUTABLE_REFERENCE:
+      case ArgumentType::MUTABLE_REFERENCE:
         caseBodyContext.addVariable(caseId, MutableReferenceType::get(realType), caseElem.codeloc);
         caseBodyContext.setNonMovable(caseId);
         break;
@@ -659,13 +647,25 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
   return success;
 }
 
-WithError<SType> StructType::getTypeOfMember(const string& name) const {
+static SType modifyMemberType(SType t, Type::ArgumentType argType, bool hasDestructor, bool constMember) {
+  if (!!hasDestructor && argType == Type::ArgumentType::VALUE)
+    argType = Type::ArgumentType::REFERENCE;
+  if (constMember && argType == Type::ArgumentType::MUTABLE_REFERENCE)
+    argType = Type::ArgumentType::REFERENCE;
+  switch (argType) {
+    case Type::ArgumentType::VALUE:
+      return t;
+    case Type::ArgumentType::REFERENCE:
+      return SType(ReferenceType::get(t));
+    case Type::ArgumentType::MUTABLE_REFERENCE:
+      return SType(MutableReferenceType::get(t));
+  }
+}
+
+WithError<SType> StructType::getTypeOfMember(const string& name, ArgumentType argType) const {
   for (auto& member : (alternatives.empty() ? members : alternatives))
-    if (member.name == name) {
-      if (!!destructor)
-        return SType(ReferenceType::get(member.type));
-      return member.type;
-    }
+    if (member.name == name)
+      return modifyMemberType(member.type, argType, !!destructor, member.isConst);
   return "No " + (alternatives.empty() ? "member"s : "alternative"s) + " named " + quote(name) + " in type " + quote(getName());
 }
 
@@ -723,24 +723,23 @@ void StructType::updateInstantations(const Context& context) {
   }
 }
 
-WithError<Type::MemberInfo> StructType::getTypeOfMember(const SType& v1) const {
-  auto modType = [&] (SType t) -> SType {
-    if (!!destructor)
-      return ReferenceType::get(std::move(t));
-    return t;
-  };
+WithError<Type::MemberInfo> StructType::getTypeOfMember(const SType& v1, ArgumentType argType) const {
   if (auto v = v1->removeValueReference().dynamicCast<CompileTimeValue>()) {
     if (auto intValue = v->value.getValueMaybe<int>()) {
       auto& membersOrAlt = (alternatives.empty() ? members : alternatives);
       if (*intValue >= 0 && *intValue < membersOrAlt.size())
-        return MemberInfo{modType(membersOrAlt[*intValue].type), membersOrAlt[*intValue].name};
+        return MemberInfo{
+            modifyMemberType(membersOrAlt[*intValue].type, argType, !!destructor, membersOrAlt[*intValue].isConst),
+            membersOrAlt[*intValue].name};
       else
         return (alternatives.empty() ? "Member"s : "Alternative"s) + " index for type "
             + quote(getName()) + " must be between 0 and " + to_string(alternatives.size() - 1) +
             ", got " + to_string(*intValue);
     }
     if (v->getType() == BuiltinType::INT)
-      return MemberInfo{modType(TemplateStructMemberType::get(this->get_this().get(), v)), "bad_member_name"};
+      return MemberInfo{
+          modifyMemberType(TemplateStructMemberType::get(this->get_this().get(), v), argType, !!destructor, false),
+          "bad_member_name"};
   }
   return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + v1->getType()->getName();
 }
@@ -782,11 +781,11 @@ SType Type::getType() const {
   return BuiltinType::ANY_TYPE;
 }
 
-WithError<Type::MemberInfo> Type::getTypeOfMember(const SType&) const {
+WithError<Type::MemberInfo> Type::getTypeOfMember(const SType&, ArgumentType) const {
   return "Type " + quote(getName()) + " doesn't support dot operator"s;
 }
 
-WithError<SType> Type::getTypeOfMember(const string&) const {
+WithError<SType> Type::getTypeOfMember(const string&, ArgumentType) const {
   return "Type " + quote(getName()) + " doesn't support dot operator"s;
 }
 
@@ -955,7 +954,7 @@ Context& Type::getStaticContext() {
   return staticContext;
 }
 
-JustError<ErrorLoc> Type::handleSwitchStatement(SwitchStatement& s, Context&, SwitchArgument) const {
+JustError<ErrorLoc> Type::handleSwitchStatement(SwitchStatement& s, Context&, ArgumentType) const {
   return s.codeLoc.getError("Can't switch on the value of type " + quote(getName()));
 }
 
