@@ -18,6 +18,12 @@ static shared_ptr<T> getSharedPtr(unique_ptr<T> p) {
 
 static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowPointer) {
   IdentifierInfo ret;
+  if (tokens.eatMaybe(Keyword::DOLLAR)) {
+    TRY(tokens.eat(Keyword::OPEN_BLOCK));
+    ret.typeExpression = getSharedPtr(TRY(parseExpression(tokens)));
+    ret.codeLoc = ret.typeExpression->codeLoc;
+    TRY(tokens.eat(Keyword::CLOSE_BLOCK));
+  } else
   while (1) {
     if (!tokens.peek().contains<IdentifierToken>())
       return tokens.peek().codeLoc.getError("Expected identifier");
@@ -991,6 +997,20 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
     TRY(tokens.eat(Keyword::SEMICOLON));
     return unique<ExpressionStatement>(std::move(ret));
   };
+  auto handleType = [&] () -> WithErrorLine<unique_ptr<Statement>> {
+    if (topLevel) {
+      return cast<Statement>(parseFunctionDefinition(TRY(parseIdentifier(tokens, true)), tokens));
+    } else {
+      auto bookmark = tokens.getBookmark();
+      auto decl = TRY(parseVariableDeclaration(tokens));
+      if (decl) {
+        return cast<Statement>(std::move(decl));
+      } else {
+        tokens.rewind(bookmark);
+        return cast<Statement>(parseExpressionAndSemicolon());
+      }
+    }
+  };
   auto& token = tokens.peek();
   return token.visit(
       [](EofToken) -> WithErrorLine<unique_ptr<Statement>> {
@@ -1082,23 +1102,14 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
               return parseStatementWithAttributes(tokens);
             else
               return cast<Statement>(parseExpressionAndSemicolon());
+          case Keyword::DOLLAR:
+            return handleType();
           default:
             return cast<Statement>(parseExpressionAndSemicolon());
         }
       },
       [&](const IdentifierToken&) -> WithErrorLine<unique_ptr<Statement>> {
-        if (topLevel) {
-          return cast<Statement>(parseFunctionDefinition(TRY(parseIdentifier(tokens, true)), tokens));
-        } else {
-          auto bookmark = tokens.getBookmark();
-          auto decl = TRY(parseVariableDeclaration(tokens));
-          if (decl) {
-            return cast<Statement>(std::move(decl));
-          } else {
-            tokens.rewind(bookmark);
-            return cast<Statement>(parseExpressionAndSemicolon());
-          }
-        }
+        return handleType();
       },
       [&](EmbedToken) -> WithErrorLine<unique_ptr<Statement>> {
         auto text = token.value;

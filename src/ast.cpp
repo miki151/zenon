@@ -1526,8 +1526,19 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
           if (auto value = args[1].dynamicCast<CompileTimeValue>())
             if (auto intValue = value->value.getReferenceMaybe<int>()) {
               if (*intValue < 0 || *intValue >= structType->members.size())
-                return "Struct member index out of range: "s + to_string(*intValue);
+                return "Struct " + quote(structType->getName()) + " member index out of range: "s + to_string(*intValue);
               return (SType) CompileTimeValue::get(structType->members[*intValue].name);
+            }
+        fail();
+      });
+  context.addBuiltInFunction("get_member_type", BuiltinType::ANY_TYPE, {SType(BuiltinType::STRUCT_TYPE), SType(BuiltinType::INT)},
+      [](const Context&, vector<SType> args) -> WithError<SType> {
+        if (auto structType = args[0].dynamicCast<StructType>())
+          if (auto value = args[1].dynamicCast<CompileTimeValue>())
+            if (auto intValue = value->value.getReferenceMaybe<int>()) {
+              if (*intValue < 0 || *intValue >= structType->members.size())
+                return "Struct " + quote(structType->getName()) + " member index out of range: "s + to_string(*intValue);
+              return structType->members[*intValue].type;
             }
         fail();
       });
@@ -1537,8 +1548,19 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
           if (auto value = args[1].dynamicCast<CompileTimeValue>())
             if (auto intValue = value->value.getReferenceMaybe<int>()) {
               if (*intValue < 0 || *intValue >= structType->alternatives.size())
-                return "Union member index out of range: "s + to_string(*intValue);
+                return "Union " + quote(structType->getName()) + " member index out of range: "s + to_string(*intValue);
               return (SType) CompileTimeValue::get(structType->alternatives[*intValue].name);
+            }
+        fail();
+      });
+  context.addBuiltInFunction("get_alternative_type", BuiltinType::ANY_TYPE, {SType(BuiltinType::UNION_TYPE), SType(BuiltinType::INT)},
+      [](const Context&, vector<SType> args) -> WithError<SType> {
+        if (auto structType = args[0].dynamicCast<StructType>())
+          if (auto value = args[1].dynamicCast<CompileTimeValue>())
+            if (auto intValue = value->value.getReferenceMaybe<int>()) {
+              if (*intValue < 0 || *intValue >= structType->alternatives.size())
+                return "Union " + quote(structType->getName()) + " member index out of range: "s + to_string(*intValue);
+              return structType->alternatives[*intValue].type;
             }
         fail();
       });

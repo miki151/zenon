@@ -1,0 +1,12 @@
+// 3
+
+union X {
+  string s;
+  int a;
+};
+
+int main() {
+  mutable x = X::a(5);
+  *get_alternative<1>(&x) = 3;
+  return x.a;
+}

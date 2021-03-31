@@ -652,11 +652,19 @@ nullable<SType> Context::getVariable(const string& name) const {
 }
 
 WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool> typePack) const {
-  if (id.parts.size() != 1)
+  if (id.parts.size() > 1)
     return id.codeLoc.getError("Bad type identifier: " + id.prettyString());
-  auto name = id.parts[0].name;
   nullable<SType> topType;
   WithErrorLine<SType> ret = [&]() -> WithErrorLine<SType> {
+    if (id.typeExpression) {
+      if (auto res = id.typeExpression->eval(*this))
+        return res->value;
+      else {
+        return id.typeExpression->codeLoc.getError(!res.get_error().canEval
+            ? "Cannot evaulate expression." : res.get_error().error);
+      }
+    }
+    auto name = id.parts[0].name;
     if (auto concept = getConcept(name)) {
       if (auto res = concept->canCreateConceptType(); !res)
         return id.codeLoc.getError("Can't create a concept type from concept " + quote(concept->getName()) + ":\n" + res.get_error().toString());

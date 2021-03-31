@@ -125,7 +125,7 @@ struct MemberIndexExpression : Expression {
   MemberIndexExpression(CodeLoc, unique_ptr<Expression> lhs, unique_ptr<Expression> index);
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
+  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
   virtual void addFunctionCalls(const FunctionCallVisitFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;

@@ -1,0 +1,14 @@
+// 3
+
+import "std/struct.znn";
+
+struct X {
+  string s;
+  int a;
+};
+
+int main() {
+  mutable x = X("pok", 5);
+  *get_member<1>(&x) = 3;
+  return x.a;
+}

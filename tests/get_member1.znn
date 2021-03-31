@@ -1,0 +1,13 @@
+// 3
+
+import "std/struct.znn";
+
+struct X {
+  string s;
+  int a;
+};
+
+int main() {
+  const x = X("pok", 3);
+  return *get_member<1>(&x);
+}

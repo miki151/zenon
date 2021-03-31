@@ -1564,7 +1564,7 @@ SType CompileTimeValue::getType() const {
       [](double)-> SType {  return BuiltinType::DOUBLE; },
       [](bool)-> SType {  return BuiltinType::BOOL; },
       [](char)-> SType {  return BuiltinType::CHAR; },
-      [](const ReferenceValue& ref)-> SType {  return MutableReferenceType::get(ref.value->getType()); },
+      [](const ReferenceValue& ref)-> SType { return MutableReferenceType::get(ref.value->getType()); },
       [](NullValue)-> SType {  return BuiltinType::NULL_TYPE; },
       [](const string&)-> SType {  return BuiltinType::STRING; },
       [](const EnumValue& v)-> SType {  return v.type; },

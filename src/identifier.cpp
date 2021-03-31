@@ -17,7 +17,7 @@ IdentifierInfo IdentifierInfo::getWithoutFirstPart() const {
 }
 
 optional<string> IdentifierInfo::asBasicIdentifier() const {
-  if (parts.size() > 1 || !parts[0].templateArguments.empty() || !typeOperator.empty())
+  if (parts.empty() || parts.size() > 1 || !parts[0].templateArguments.empty() || !typeOperator.empty())
     return none;
   else
     return parts[0].name;
@@ -25,6 +25,8 @@ optional<string> IdentifierInfo::asBasicIdentifier() const {
 
 string IdentifierInfo::prettyString() const {
   string ret;
+  if (typeExpression)
+    return "[type expression]";
   for (auto& part : parts) {
     if (!ret.empty())
       ret.append("::");

@@ -1,0 +1,16 @@
+// 3
+
+import "std/struct.znn";
+
+struct X {
+  string s;
+  int a;
+};
+
+struct Y {
+  X x;
+};
+
+int main() {
+  return get_member<1>(get_member<0>(Y(X("pok", 3))));
+}

@@ -1,0 +1,21 @@
+// 8
+
+import "std/struct.znn";
+
+struct X {
+  int a;
+  int b;
+};
+
+template <T> requires is_struct<T>
+int sum(T* t) {
+  mutable ret = 0;
+  static for (i = 0; i < struct_count(T); ++i)
+    unchecked ret += *get_member<i>(t);
+  return ret;
+}
+
+int main() {
+  const x = X(3, 5);
+  return sum(&x);
+}

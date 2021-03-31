@@ -1,0 +1,13 @@
+// 3
+
+import "std/struct.znn";
+
+union X {
+  string s;
+  int a;
+};
+
+int main() {
+  const x = X::a(3);
+  return get_alternative<1>(move(x));
+}

@@ -72,7 +72,8 @@ enum class Keyword {
   MORE_THAN,
   LESS_OR_EQUAL,
   MORE_OR_EQUAL,
-  MIXIN
+  MIXIN,
+  DOLLAR
 };
 
 struct EmbedToken {

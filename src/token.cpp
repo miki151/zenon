@@ -57,6 +57,7 @@ static const unordered_map<string, Keyword> keywords {
   {">", Keyword::MORE_THAN},
   {"<=", Keyword::LESS_OR_EQUAL},
   {">=", Keyword::MORE_OR_EQUAL},
+  {"$", Keyword::DOLLAR},
 };
 
 vector<string> getAllKeywords() {
