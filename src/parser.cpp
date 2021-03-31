@@ -19,10 +19,8 @@ static shared_ptr<T> getSharedPtr(unique_ptr<T> p) {
 static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowPointer) {
   IdentifierInfo ret;
   if (tokens.eatMaybe(Keyword::DOLLAR)) {
-    TRY(tokens.eat(Keyword::OPEN_BLOCK));
-    ret.typeExpression = getSharedPtr(TRY(parseExpression(tokens)));
+    ret.typeExpression = getSharedPtr(TRY(parsePrimary(tokens)));
     ret.codeLoc = ret.typeExpression->codeLoc;
-    TRY(tokens.eat(Keyword::CLOSE_BLOCK));
   } else
   while (1) {
     if (!tokens.peek().contains<IdentifierToken>())

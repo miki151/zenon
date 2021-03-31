@@ -7,17 +7,17 @@ int get_index(T* t) {
 }
 
 export template <int Index, T> requires is_union<T>
-${get_alternative_type(T, Index)}* get_alternative(T* t) {
+$get_alternative_type(T, Index)* get_alternative(T* t) {
   mixin "return &t->" + get_alternative_name(T, Index) + ";";
 }
 
 export template <int Index, T> requires is_union<T>
-${get_alternative_type(T, Index)} mutable* get_alternative(T mutable* t) {
+$get_alternative_type(T, Index) mutable* get_alternative(T mutable* t) {
   mixin "return &t->" + get_alternative_name(T, Index) + ";";
 }
 
 export template <int Index, T> requires is_union<T>
-${get_alternative_type(T, Index)} get_alternative(T t) {
+$get_alternative_type(T, Index) get_alternative(T t) {
   mixin "return move(t)." + get_alternative_name(T, Index) + ";";
 }
 
