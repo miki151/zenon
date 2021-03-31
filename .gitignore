@@ -4,6 +4,7 @@ Zenon.files
 Zenon.includes
 Zenon.creator*
 Zenon.cxxflags
+Zenon.cflags
 *.swp
 docs/_build
 .build_cache
