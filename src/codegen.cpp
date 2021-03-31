@@ -999,11 +999,6 @@ void MemberAccessExpression::codegen(Accu& accu, CodegenStage stage) const {
   codegenMember(accu, stage, destructorCall, isMainDestructor, identifier, *lhs, isUnion);
 }
 
-
-void MemberIndexExpression::codegen(Accu& accu, CodegenStage stage) const {
-  codegenMember(accu, stage, destructorCall, isMainDestructor, *memberName, *lhs, isUnion);
-}
-
 void TernaryExpression::codegen(Accu& accu, CodegenStage stage) const {
   accu.add("(");
   condExpr->codegen(accu, stage);

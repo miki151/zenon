@@ -1531,6 +1531,17 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
             }
         fail();
       });
+  context.addBuiltInFunction("is_const_member", BuiltinType::BOOL, {SType(BuiltinType::STRUCT_TYPE), SType(BuiltinType::INT)},
+      [](const Context&, vector<SType> args) -> WithError<SType> {
+        if (auto structType = args[0].dynamicCast<StructType>())
+          if (auto value = args[1].dynamicCast<CompileTimeValue>())
+            if (auto intValue = value->value.getReferenceMaybe<int>()) {
+              if (*intValue < 0 || *intValue >= structType->members.size())
+                return "Struct " + quote(structType->getName()) + " member index out of range: "s + to_string(*intValue);
+              return (SType) CompileTimeValue::get(structType->members[*intValue].isConst);
+            }
+        fail();
+      });
   context.addBuiltInFunction("get_member_type", BuiltinType::ANY_TYPE, {SType(BuiltinType::STRUCT_TYPE), SType(BuiltinType::INT)},
       [](const Context&, vector<SType> args) -> WithError<SType> {
         if (auto structType = args[0].dynamicCast<StructType>())
@@ -2904,42 +2915,6 @@ void MemberAccessExpression::addFunctionCalls(const FunctionCallVisitFun& fun) c
 }
 
 JustError<ErrorLoc> MemberAccessExpression::checkMoves(MoveChecker& checker) const {
-  return lhs->checkMoves(checker);
-}
-
-MemberIndexExpression::MemberIndexExpression(CodeLoc l, unique_ptr<Expression> lhs, unique_ptr<Expression> index)
-  : Expression(l), lhs(std::move(lhs)), index(std::move(index)) {}
-
-WithErrorLine<SType> MemberIndexExpression::getTypeImpl(const Context& context) {
-  TRY(index->getTypeImpl(context));
-  auto value = TRY(index->eval(context).addNoEvalError(
-      index->codeLoc.getError("Unable to evaluate constant expression at compile-time")));
-  auto leftType = TRY(lhs->getTypeImpl(context));
-  if (auto res = leftType.get()->getSizeError(context); !res)
-    return codeLoc.getError(leftType.get()->getName() + res.get_error());
-  auto member = TRY(leftType->getTypeOfMember(value.value).addCodeLoc(codeLoc));
-  memberName = member.name;
-  isUnion = leftType->removeReference()->getType() == BuiltinType::UNION_TYPE;
-  TRY(initializeDestructor(context, leftType, *memberName, codeLoc, destructorCall, isMainDestructor));
-  return member.type;
-}
-
-unique_ptr<Expression> MemberIndexExpression::transform(const StmtTransformFun& fun1, const ExprTransformFun& fun2) const {
-  return unique<MemberIndexExpression>(codeLoc, lhs->transform(fun1, fun2), index->transform(fun1, fun2));
-}
-
-void MemberIndexExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f2(lhs.get());
-  f2(index.get());
-}
-
-void MemberIndexExpression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
-  Expression::addFunctionCalls(fun);
-  if (destructorCall)
-    fun(destructorCall.get());
-}
-
-JustError<ErrorLoc> MemberIndexExpression::checkMoves(MoveChecker& checker) const {
   return lhs->checkMoves(checker);
 }
 

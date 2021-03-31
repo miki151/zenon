@@ -30,7 +30,7 @@ template <T> requires is_struct<T>
 int sum_fields(T* t) {
   mutable res = 0;
   static for (i = 0; i < struct_count(T); ++i)
-    res += get_value(&t->(i));
+    unchecked res += get_value(get_member<i>(t));
   return res;
 }
 

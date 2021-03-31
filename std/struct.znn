@@ -4,7 +4,7 @@ ${get_member_type(T, Index)}* get_member(T* t) {
   mixin "return &t->" + get_member_name(T, Index) + ";";
 }
 
-export template <int Index, T> requires is_struct<T>
+export template <int Index, T> requires is_struct<T>, (!is_const_member(T, Index))
 ${get_member_type(T, Index)} mutable* get_member(T mutable* t) {
   mixin "return &t->" + get_member_name(T, Index) + ";";
 }

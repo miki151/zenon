@@ -1,4 +1,5 @@
 export import "std/union.znn";
+export import "std/struct.znn";
 
 export template <T>
 void destruct(T* t) {
@@ -13,15 +14,15 @@ export template <T> requires is_struct<T>
 void destruct_full(T* t) {
   destruct_impl_dont_call(t);
   static for (i = 0; i < struct_count(T); ++i)
-    destruct(&t->(i));
+    unchecked destruct(get_member<i>(t));
 }
 
 export template <int Except, T> requires is_struct<T>
 void destruct_except(T* t) {
   static for (i = 0; i < Except; ++i)
-    destruct(&t->(i));
+    unchecked destruct(get_member<i>(t));
   static for (i = Except + 1; i < struct_count(T); ++i)
-    destruct(&t->(i));
+    unchecked destruct(get_member<i>(t));
 }
 
 export template <T> requires is_union<T>
@@ -29,7 +30,7 @@ void destruct_full(T* t) {
   destruct_impl_dont_call(t);
   static for (i = 0; i < union_count(T); ++i)
     if (i == t->get_index())
-      destruct(&t->(i));
+      unchecked destruct(get_alternative<i>(t));
 }
 
 export template <T>

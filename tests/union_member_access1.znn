@@ -1,4 +1,4 @@
-// 8
+// 4
 
 union V {
   int a;
@@ -7,5 +7,5 @@ union V {
 
 int main() {
   const v = V::a(4);
-  return v.0 + v.a;
+  return v.a;
 }

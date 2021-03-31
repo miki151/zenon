@@ -22,7 +22,7 @@ int main() {
   mutable a = 0;
   {
     const z = Z(X(&a));
-    f(move(z).0);
+    f(move(z).x);
   }
   return a;
 }

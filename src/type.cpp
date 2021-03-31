@@ -138,17 +138,6 @@ bool TemplateParameterType::isBuiltinCopyableImpl(const Context&, unique_ptr<Exp
     return false;
 }
 
-WithError<Type::MemberInfo> TemplateParameterType::getTypeOfMember(const SType& value1, ArgumentType arg) const {
-  if (auto value = value1->removeValueReference().dynamicCast<CompileTimeValue>()) {
-    if (value->getType() != BuiltinType::INT)
-      return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + value->getType()->getName();
-    if (type == BuiltinType::STRUCT_TYPE || type == BuiltinType::UNION_TYPE)
-      return MemberInfo{(SType)TemplateStructMemberType::get(this->get_this().get(), value), "bad_member_name"};
-    return Type::getTypeOfMember(value, arg);
-  } else
-    return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + value1->getType()->getName();
-}
-
 WithError<SType> TemplateParameterType::getTypeOfMember(const string& s, ArgumentType arg) const {
   if (type == BuiltinType::STRUCT_TYPE)
     return "Can only refer to template struct type members by name"s;
@@ -561,10 +550,6 @@ JustError<ErrorLoc> ReferenceType::handleSwitchStatement(SwitchStatement& statem
   return underlying->handleSwitchStatement(statement, context, ArgumentType::REFERENCE);
 }
 
-WithError<Type::MemberInfo> ReferenceType::getTypeOfMember(const SType& value, ArgumentType) const {
-  return underlying->getTypeOfMember(value, ArgumentType::REFERENCE);
-}
-
 WithError<SType> ReferenceType::getTypeOfMember(const string& name, ArgumentType) const {
   return underlying->getTypeOfMember(name, ArgumentType::REFERENCE);
 }
@@ -575,10 +560,6 @@ SType ReferenceType::removePointer() const {
 
 JustError<ErrorLoc> MutableReferenceType::handleSwitchStatement(SwitchStatement& statement, Context& context, ArgumentType) const {
   return underlying->handleSwitchStatement(statement, context, ArgumentType::MUTABLE_REFERENCE);
-}
-
-WithError<Type::MemberInfo> MutableReferenceType::getTypeOfMember(const SType& value, ArgumentType) const {
-  return underlying->getTypeOfMember(value, ArgumentType::MUTABLE_REFERENCE);
 }
 
 WithError<SType> MutableReferenceType::getTypeOfMember(const string& name, ArgumentType) const {
@@ -725,27 +706,6 @@ void StructType::updateInstantations(const Context& context) {
   }
 }
 
-WithError<Type::MemberInfo> StructType::getTypeOfMember(const SType& v1, ArgumentType argType) const {
-  if (auto v = v1->removeValueReference().dynamicCast<CompileTimeValue>()) {
-    if (auto intValue = v->value.getValueMaybe<int>()) {
-      auto& membersOrAlt = (alternatives.empty() ? members : alternatives);
-      if (*intValue >= 0 && *intValue < membersOrAlt.size())
-        return MemberInfo{
-            modifyMemberType(membersOrAlt[*intValue].type, argType, !!destructor, membersOrAlt[*intValue].isConst),
-            membersOrAlt[*intValue].name};
-      else
-        return (alternatives.empty() ? "Member"s : "Alternative"s) + " index for type "
-            + quote(getName()) + " must be between 0 and " + to_string(alternatives.size() - 1) +
-            ", got " + to_string(*intValue);
-    }
-    if (v->getType() == BuiltinType::INT)
-      return MemberInfo{
-          modifyMemberType(TemplateStructMemberType::get(this->get_this().get(), v), argType, !!destructor, false),
-          "bad_member_name"};
-  }
-  return "Member index must be of type: " + quote(BuiltinType::INT->getName()) + ", got " + v1->getType()->getName();
-}
-
 SType StructType::getType() const {
   return alternatives.empty() ? BuiltinType::STRUCT_TYPE : BuiltinType::UNION_TYPE;
 }
@@ -781,10 +741,6 @@ SType Type::expand(const Context& context, SType from, vector<SType> to, ErrorBu
 
 SType Type::getType() const {
   return BuiltinType::ANY_TYPE;
-}
-
-WithError<Type::MemberInfo> Type::getTypeOfMember(const SType&, ArgumentType) const {
-  return "Type " + quote(getName()) + " doesn't support dot operator"s;
 }
 
 WithError<SType> Type::getTypeOfMember(const string&, ArgumentType) const {
@@ -1732,25 +1688,6 @@ bool SliceType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) c
 }*/
 
 SliceType::SliceType(SliceType::Private, SType t) : underlying(std::move(t)) {}
-
-string TemplateStructMemberType::getName(bool withTemplateArguments) const {
-  return "typeof(" + structType->getName(withTemplateArguments) + "." + memberIndex->getName(withTemplateArguments) + ")";
-}
-
-optional<string> TemplateStructMemberType::getMangledName() const {
-  return none;
-}
-
-shared_ptr<TemplateStructMemberType> TemplateStructMemberType::get(SType structType, SCompileTimeValue index) {
-  static map<pair<SType, SCompileTimeValue>, shared_ptr<TemplateStructMemberType>> cache;
-  if (!cache.count(make_pair(structType, index))) {
-    cache.insert(make_pair(make_pair(structType, index), shared<TemplateStructMemberType>(Private{}, structType, index)));
-  }
-  return cache.at(make_pair(structType, index));
-}
-
-TemplateStructMemberType::TemplateStructMemberType(Private, SType structType, SCompileTimeValue index)
-  : structType(std::move(structType)), memberIndex(std::move(index)) {}
 
 string OptionalType::getName(bool withTemplateArguments) const {
   return underlying->getName(withTemplateArguments) + "?";

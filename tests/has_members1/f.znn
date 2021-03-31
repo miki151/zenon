@@ -10,7 +10,7 @@ export template <T, Members...> requires is_struct<T>, has_members<T, Members...
 int f(T t) {
   mutable ret = 0;
   static for (i = 0; i < struct_count(T); ++i)
-    unchecked ret += g(&t.(i));
+    unchecked ret += g(get_member<i>(&t));
   return ret;
 }
 

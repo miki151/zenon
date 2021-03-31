@@ -389,9 +389,6 @@ WithErrorLine<unique_ptr<Expression>> parseMemberAccess(Tokens& tokens, unique_p
     else
       return id->codeLoc.getError("Expected member name or method call");
   } else
-  if (auto expr = parsePrimary(tokens))
-    return cast<Expression>(unique<MemberIndexExpression>(token.codeLoc, std::move(lhs), std::move(*expr)));
-  else
     return token.codeLoc.getError("Bad use of member access operator");
 }
 
