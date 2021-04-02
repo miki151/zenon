@@ -510,6 +510,7 @@ struct WhileLoopStatement : Statement {
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
+  virtual WithEvalError<StatementEvalResult> eval(Context&) const override;
 };
 
 struct FunctionDefinition;

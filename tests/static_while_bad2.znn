@@ -1,0 +1,15 @@
+// no_compile
+
+template <int N>
+int get() {
+  static mutable a = 0;
+  static while (a < N) {
+    ++a;
+    foobar();
+  }
+  return a;
+}
+
+int main() {
+  return get<0>();
+}

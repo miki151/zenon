@@ -2259,6 +2259,37 @@ void WhileLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) c
   f1(body.get());
 }
 
+WithEvalError<StatementEvalResult> WhileLoopStatement::eval(Context& context) const {
+  StatementEvalResult res;
+  auto forContext = context.getChild();
+  const int maxIterations = 500;
+  int countIter = 0;
+  while (1) {
+    auto bodyContext = forContext.getChild();
+    auto condValue = TRY(cond->eval(bodyContext)).value;
+    if (condValue->getType() != BuiltinType::BOOL)
+    return EvalError::withError("Expected a compile-time value of type " + quote(BuiltinType::BOOL->getName()) +
+        ", got " + quote(condValue->getName()));
+    auto value = condValue.dynamicCast<CompileTimeValue>();
+    bool onePass = false;
+    if (auto b = value->value.getValueMaybe<bool>()) {
+      if (!*b)
+        break;
+    } else
+      onePass = true;
+    auto thisBody = body->deepCopy();
+    auto bodyContext2 = bodyContext.getChild();
+    if (auto res = thisBody->check(bodyContext2); !res)
+      return EvalError::withError(res.get_error().toString());
+    res.push_back(unique<StatementBlock>(codeLoc, makeVec(std::move(thisBody))));
+    if (onePass)
+      break;
+    if (++countIter > maxIterations)
+      return EvalError::withError("Static loop reached maximum number of iterations (" + to_string(maxIterations) + ")");
+  }
+  return std::move(res);
+}
+
 ImportStatement::ImportStatement(CodeLoc l, string p, bool isBuiltIn)
     : Statement(l), path(p), isBuiltIn(isBuiltIn) {
 }

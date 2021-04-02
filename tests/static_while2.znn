@@ -1,0 +1,23 @@
+// 16
+
+template <T> requires is_struct<T>
+int get(T* t) {
+  static mutable a = 0;
+  mutable res = 0;
+  static while (a < struct_count(T)) {
+    unchecked res += *t->get_member<a>();
+    ++a;
+  }
+  return res;
+}
+
+struct X {
+  int a;
+  int b;
+  int c;
+};
+
+int main() {
+  const x = X(3, 5, 8);
+  return get(&x);
+}

@@ -1,0 +1,9 @@
+// no_compile
+
+int main() {
+  mutable res = 0;
+  static mutable a = 0;
+  static while (a < res) {
+  }
+  return res;
+}

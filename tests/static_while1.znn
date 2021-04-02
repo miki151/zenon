@@ -1,0 +1,16 @@
+// 36
+
+template <int N>
+int get() {
+  return N;
+}
+
+int main() {
+  mutable res = 0;
+  static mutable a = 0;
+  static while (a < 8) {
+    ++a;
+    res += get<a>();
+  }
+  return res;
+}
