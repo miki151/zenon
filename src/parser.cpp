@@ -725,8 +725,7 @@ WithErrorLine<unique_ptr<Statement>> parseForLoopStatement(Tokens& tokens) {
     auto container = TRY(parseExpression(tokens));
     TRY(tokens.eat(Keyword::CLOSE_BRACKET));
     auto body = TRY(parseNonTopLevelStatement(tokens));
-    return cast<Statement>(unique<RangedLoopStatement>(codeLoc,
-        unique<VariableDeclaration>(codeLoc, none, id.value, nullptr),
+    return cast<Statement>(getRangedLoop(codeLoc, id.value,
         std::move(container),
         std::move(body)));
   }

@@ -33,6 +33,3 @@ Enum implicit_copy(Enum* e) {
   return *e;
 }
 
-export template <T>
-void discard_impl(T) {}
-

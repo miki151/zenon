@@ -4,6 +4,9 @@ export import "std/concepts.znn";
 export import "std/operator_helpers.znn";
 
 export template <T>
+void discard_impl(T) {}
+
+export template <T>
 int size(T[]* s) {
   embed_returns {
     return s->end - s->begin;

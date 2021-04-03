@@ -566,14 +566,45 @@ WithEvalError<StatementEvalResult> VariableDeclaration::eval(Context& context) c
 
 unique_ptr<Statement> VariableDeclaration::transform(const StmtTransformFun&,
     const ExprTransformFun& exprFun) const {
-  auto ret = unique<VariableDeclaration>(codeLoc, none, identifier,
-      initExpr ? exprFun(initExpr.get()) : nullptr);
+  auto ret = unique<VariableDeclaration>(codeLoc, none, identifier, initExpr ? exprFun(initExpr.get()) : nullptr);
   ret->isMutable = isMutable;
   ret->type = type;
   return ret;
 }
 
 void VariableDeclaration::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
+  f2(initExpr.get());
+  if (destructorCall)
+    f1(destructorCall.get());
+}
+
+AliasDeclaration::AliasDeclaration(CodeLoc l, string id, unique_ptr<Expression> ini)
+    : Statement(l), identifier(id), initExpr(std::move(ini)) {
+}
+
+JustError<ErrorLoc> AliasDeclaration::check(Context& context, bool) {
+  TRY(context.checkNameConflictExcludingFunctions(identifier, "Variable").addCodeLoc(codeLoc));
+  realType = TRY(getType(context, initExpr));
+  context.addVariable(identifier, realType->isReference() ? realType.get() : ReferenceType::get(realType.get()), codeLoc);
+  if (realType->hasDestructor()) {
+    destructorCall = getDestructorStatement(codeLoc, identifier);
+    TRY(destructorCall->check(context));
+  }
+  return success;
+}
+
+JustError<ErrorLoc> AliasDeclaration::checkMovesImpl(MoveChecker& checker) const {
+  TRY(initExpr->checkMoves(checker));
+  return success;
+}
+
+unique_ptr<Statement> AliasDeclaration::transform(const StmtTransformFun&,
+    const ExprTransformFun& exprFun) const {
+  auto ret = unique<AliasDeclaration>(codeLoc, identifier, exprFun(initExpr.get()));
+  return ret;
+}
+
+void AliasDeclaration::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
   f2(initExpr.get());
   if (destructorCall)
     f1(destructorCall.get());
@@ -1629,8 +1660,6 @@ JustError<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
   if (!canDiscard && res != BuiltinType::VOID && res != BuiltinType::NORETURN)
     return codeLoc.getError("Expression result of type " + quote(res->getName()) + " discarded");
   if (canDiscard) {
-    if (res == BuiltinType::VOID || res == BuiltinType::NORETURN)
-      return codeLoc.getError("Void expression result unnecessarily marked as discarded");
     expr = unique<FunctionCall>(IdentifierInfo("discard_impl", codeLoc), std::move(expr), false);
     CHECK(!!getType(context, expr));
   }
@@ -2481,68 +2510,6 @@ CodegenStage CodegenStage::setImport() {
   return *this;
 }
 
-RangedLoopStatement::RangedLoopStatement(CodeLoc l, unique_ptr<VariableDeclaration> init,
-    unique_ptr<Expression> container, unique_ptr<Statement> body)
-    : Statement(l), init(std::move(init)), container(std::move(container)), body(std::move(body)) {}
-
-JustError<ErrorLoc> RangedLoopStatement::check(Context& context, bool) {
-  auto bodyContext = context.getChild();
-  auto containerType = TRY(getType(context, container));
-  if (!containerType->isReference())
-    containerType = ReferenceType::get(containerType);
-  auto uniqueSufix = to_string(codeLoc.line) + "_" + to_string(codeLoc.column);
-  containerName = "container"s + uniqueSufix;
-  auto containerEndName = "container_end"s + uniqueSufix;
-  bodyContext.addVariable(*containerName, containerType, codeLoc);
-  containerEnd = unique<VariableDeclaration>(codeLoc, none, containerEndName,
-      unique<FunctionCall>(IdentifierInfo("end", codeLoc),
-          unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, unique<Variable>(IdentifierInfo(*containerName, codeLoc))), false));
-  TRY(containerEnd->check(bodyContext));
-  init->initExpr = unique<FunctionCall>(IdentifierInfo("begin", codeLoc),
-      unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, unique<Variable>(IdentifierInfo(*containerName, codeLoc))), false);
-  init->isMutable = true;
-  condition = BinaryExpression::get(codeLoc, Operator::NOT_EQUAL,
-          unique<Variable>(IdentifierInfo(init->identifier, codeLoc)),
-          unique<Variable>(IdentifierInfo(containerEndName, codeLoc)));
-  increment = unique<UnaryExpression>(codeLoc, Operator::INCREMENT, unique<Variable>(IdentifierInfo(init->identifier, codeLoc)));
-  TRY(init->check(bodyContext));
-  auto condType = TRY(getType(bodyContext, condition));
-  if (condType != BuiltinType::BOOL)
-    return codeLoc.getError("Equality comparison between iterators does not return type " + quote("bool"));
-  TRY(getType(bodyContext, increment));
-  loopId = bodyContext.setIsInLoop();
-  return body->check(bodyContext);
-}
-
-JustError<ErrorLoc> RangedLoopStatement::checkMovesImpl(MoveChecker& checker) const {
-  TRY(init->checkMoves(checker));
-  TRY(container->checkMoves(checker));
-  checker.startLoop(loopId);
-  if (auto res = body->checkMoves(checker); !res) {
-    TRY(checker.endLoop(loopId));
-    return res.get_error();
-  }
-  return checker.endLoop(loopId);
-}
-
-unique_ptr<Statement> RangedLoopStatement::transform(const StmtTransformFun& fun,
-    const ExprTransformFun& exprFun) const {
-  auto ret = unique<RangedLoopStatement>(codeLoc,
-      cast<VariableDeclaration>(fun(init.get())),
-      exprFun(container.get()),
-      fun(body.get()));
-  return ret;
-}
-
-void RangedLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f1(init.get());
-  f2(container.get());
-  f2(condition.get());
-  f2(increment.get());
-  f1(body.get());
-  f1(containerEnd.get());
-}
-
 JustError<ErrorLoc> BreakStatement::check(Context& context, bool) {
   if (auto id = context.getLoopId()) {
     loopId = *id;
@@ -3220,4 +3187,30 @@ JustError<ErrorLoc> StaticStatement::checkMovesImpl(MoveChecker& checker) const 
 void StaticStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
   for (auto& s : results)
     f1(s.get());
+}
+
+unique_ptr<Statement> getRangedLoop(CodeLoc l, string iterator, unique_ptr<Expression> container,
+    unique_ptr<Statement> body) {
+  auto ret = unique<StatementBlock>(l);
+  static int cnt = 0;
+  ++cnt;
+  auto containerId = "container" + to_string(cnt);
+  auto itEndId = "itEnd" + to_string(cnt);
+  ret->elems.push_back(unique<AliasDeclaration>(l, containerId, std::move(container)));
+  auto itDecl = unique<VariableDeclaration>(l, none, iterator,
+      unique<FunctionCall>(IdentifierInfo("begin", l), unique<Variable>(IdentifierInfo(containerId, l)), true));
+  itDecl->isMutable = true;
+  ret->elems.push_back(std::move(itDecl));
+  ret->elems.push_back(unique<VariableDeclaration>(l, none, itEndId,
+      unique<FunctionCall>(IdentifierInfo("end", l), unique<Variable>(IdentifierInfo(containerId, l)), true)));
+  auto whileBody = unique<StatementBlock>(l);
+  whileBody->elems.push_back(std::move(body));
+  auto incExpr = unique<ExpressionStatement>(unique<UnaryExpression>(l, Operator::INCREMENT,
+      unique<Variable>(IdentifierInfo(iterator, l))));
+  incExpr->canDiscard = true;
+  whileBody->elems.push_back(std::move(incExpr));
+  ret->elems.push_back(unique<WhileLoopStatement>(l, BinaryExpression::get(l, Operator::NOT_EQUAL,
+      unique<Variable>(IdentifierInfo(iterator, l)), unique<Variable>(IdentifierInfo(itEndId, l))),
+      std::move(whileBody)));
+  return ret;
 }

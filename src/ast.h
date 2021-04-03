@@ -361,6 +361,22 @@ struct VariableDeclaration : Statement {
   WithErrorLine<SType> getRealType(const Context&) const;
 };
 
+struct AliasDeclaration : Statement {
+  AliasDeclaration(CodeLoc, string identifier, unique_ptr<Expression> initExpr);
+  nullable<SType> realType;
+  string identifier;
+  unique_ptr<Expression> initExpr;
+  unique_ptr<Statement> destructorCall;
+  NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
+  NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
+  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
+  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
+
+  private:
+  WithErrorLine<SType> getRealType(const Context&) const;
+};
+
 struct ExternConstantDeclaration : Statement {
   ExternConstantDeclaration(CodeLoc, IdentifierInfo type, string identifier);
   IdentifierInfo type;
@@ -482,23 +498,8 @@ struct ForLoopStatement : Statement {
   virtual WithEvalError<StatementEvalResult> eval(Context&) const override;
 };
 
-struct RangedLoopStatement : Statement {
-  RangedLoopStatement(CodeLoc l, unique_ptr<VariableDeclaration> init, unique_ptr<Expression> container,
+unique_ptr<Statement> getRangedLoop(CodeLoc l, string iterator, unique_ptr<Expression> container,
       unique_ptr<Statement> body);
-  unique_ptr<VariableDeclaration> init;
-  unique_ptr<Expression> container;
-  unique_ptr<Expression> condition;
-  unique_ptr<Expression> increment;
-  unique_ptr<Statement> body;
-  optional<string> containerName;
-  unique_ptr<VariableDeclaration> containerEnd;
-  int loopId = 0;
-  NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
-  NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
-  virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
-};
 
 struct WhileLoopStatement : Statement {
   WhileLoopStatement(CodeLoc l, unique_ptr<Expression> cond, unique_ptr<Statement> body);

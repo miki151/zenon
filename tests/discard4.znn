@@ -1,9 +1,0 @@
-// no_compile
-
-void f() {
-}
-
-int main() {
-  discard f();
-  return 0;
-}

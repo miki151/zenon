@@ -9,6 +9,9 @@ struct enum_iterator {
 };
 
 export template <Enum> requires is_enum<Enum>
+enum_iterator<Enum> implicit_copy(enum_iterator<Enum>*) = default;
+
+export template <Enum> requires is_enum<Enum>
 enum_iterator<Enum> begin(enum_range<Enum>*) {
   return enum_iterator<Enum>(0);
 }
@@ -19,9 +22,9 @@ enum_iterator<Enum> end(enum_range<Enum>*) {
 }
 
 export template <Enum> requires is_enum<Enum>
-enum_iterator<Enum>* operator ++(enum_iterator<Enum> mutable* e) {
+enum_iterator<Enum> operator ++(enum_iterator<Enum> mutable* e) {
   ++e->index;
-  return e;
+  return *e;
 }
 
 export template <Enum> requires is_enum<Enum>

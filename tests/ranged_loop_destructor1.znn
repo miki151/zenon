@@ -1,0 +1,21 @@
+// 9
+
+import "std/vector.znn";
+
+struct X {
+  int a;
+  int mutable* cnt;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
+}
+
+int main() {
+  mutable res = 0;
+  {
+  for (it : {X(1, &res), X(2, &res), X(3, &res)}.as_vector())
+    res += it->a;
+  }
+  return res;
+}

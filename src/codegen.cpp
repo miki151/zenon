@@ -131,6 +131,15 @@ void VariableDeclaration::codegen(Accu& accu, CodegenStage stage) const {
     codegenDestructorCall(accu, stage, *destructorCall, identifier);
 }
 
+void AliasDeclaration::codegen(Accu& accu, CodegenStage stage) const {
+  CHECK(stage.isDefine);
+  accu.add("auto&& " + identifier + " = ");
+  initExpr->codegen(accu, stage);
+  accu.add(";");
+  if (destructorCall)
+    codegenDestructorCall(accu, stage, *destructorCall, identifier);
+}
+
 void IfStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   if (declaration) {
@@ -757,33 +766,6 @@ void ForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   body->codegen(accu, CodegenStage::define());
   accu.add("}}");
   --accu.indent;
-  accu.newLine(getLoopBreakLabel(loopId) + ":;");
-  accu.newLine();
-}
-
-void RangedLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
-  accu.add("{");
-  ++accu.indent;
-  accu.newLine("auto&& "s + *containerName + " = ");
-  container->codegen(accu, stage);
-  accu.add(";");
-  accu.newLine();
-  containerEnd->codegen(accu, stage);
-  accu.newLine("{");
-  init->codegen(accu, stage);
-  accu.newLine("for (;");
-  condition->codegen(accu, stage);
-  accu.add(";");
-  increment->codegen(accu, stage);
-  accu.add(")");
-  ++accu.indent;
-  accu.newLine("{");
-  body->codegen(accu, CodegenStage::define());
-  accu.add("}");
-  --accu.indent;
-  --accu.indent;
-  accu.newLine("}}");
   accu.newLine(getLoopBreakLabel(loopId) + ":;");
   accu.newLine();
 }

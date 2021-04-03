@@ -1,0 +1,15 @@
+// 10
+
+import "std/vector.znn";
+
+struct X {
+  vector<int> a;
+};
+
+int main() {
+  mutable res = 0;
+  const x = X({1, 2, 3, 4}.as_vector());
+  for (it : x.a)
+    res += *it;
+  return res;
+}

@@ -87,6 +87,8 @@ struct void_t
 {
   struct init{};
   constexpr explicit void_t(init){}
+  template <typename T>
+  void_t(T&&) {}
 };
 constexpr void_t void_value{void_t::init()};
 
