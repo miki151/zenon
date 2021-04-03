@@ -53,7 +53,7 @@ IfStatement::IfStatement(CodeLoc loc, unique_ptr<VariableDeclaration> d, unique_
   : Statement(loc), declaration(std::move(d)), condition(std::move(c)), ifTrue(std::move(t)), ifFalse(std::move(f)) {
 }
 
-Constant::Constant(CodeLoc l, SCompileTimeValue v) : Expression(l), value(v) {
+Constant::Constant(CodeLoc l, SType v) : Expression(l), value(v) {
   INFO << "Created constant " << v->getName() << " of type " << v->getType();
 }
 
@@ -1655,11 +1655,13 @@ WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST& ast, Cont
 ExpressionStatement::ExpressionStatement(unique_ptr<Expression> e) : Statement(e->codeLoc), expr(std::move(e)) {}
 
 JustError<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
+  auto oldExpr = expr.get();
   auto res = TRY(getType(context, expr));
+  isConstant = oldExpr != expr.get();
   noReturnExpr = res == BuiltinType::NORETURN;
   if (!canDiscard && res != BuiltinType::VOID && res != BuiltinType::NORETURN)
     return codeLoc.getError("Expression result of type " + quote(res->getName()) + " discarded");
-  if (canDiscard) {
+  if (canDiscard && !isConstant) {
     expr = unique<FunctionCall>(IdentifierInfo("discard_impl", codeLoc), std::move(expr), false);
     CHECK(!!getType(context, expr));
   }
@@ -2581,11 +2583,11 @@ WithErrorLine<SType> getType(const Context& context, unique_ptr<Expression>& exp
   auto type = TRY(expr->getTypeImpl(context));
   if (evaluateAtCompileTime) {
     if (auto type = expr->eval(context)) {
-      if (type->isConstant)
-        if (auto value = type->value.dynamicCast<CompileTimeValue>()) {
-          auto c = unique<Constant>(expr->codeLoc, value);
-          if (auto ref = value->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
-            c->refValue = ref->value;
+      if (type->isConstant) {
+          auto c = unique<Constant>(expr->codeLoc, type->value);
+          auto refValue = type->value->removeValueReference();
+          if (refValue != type->value)
+            c->refValue = refValue;
           expr = std::move(c);
         }
     } else

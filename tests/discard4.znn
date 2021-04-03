@@ -1,0 +1,10 @@
+// 3
+
+struct X {
+  int a;
+};
+
+int main() {
+  discard get_member_type(X, 0);
+  return 3;
+}

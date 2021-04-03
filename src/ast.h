@@ -73,12 +73,12 @@ struct Expression : Node {
 };
 
 struct Constant : Expression {
-  Constant(CodeLoc, SCompileTimeValue);
+  Constant(CodeLoc, SType);
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
-  SCompileTimeValue value;
+  SType value;
   optional<string> structMemberName;
   nullable<SType> refValue;
 };
@@ -480,6 +480,7 @@ struct ExpressionStatement : Statement {
   virtual WithEvalError<StatementEvalResult> eval(Context&) const override;
   bool canDiscard = false;
   bool noReturnExpr = false;
+  bool isConstant = false;
 };
 
 struct ForLoopStatement : Statement {

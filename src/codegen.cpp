@@ -605,9 +605,11 @@ string codegen(const AST& ast, TypeRegistry& registry, const Context& context, c
 }
 
 void ExpressionStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
-  expr->codegen(accu, stage);
-  accu.add(";");
+  if (!isConstant) {
+    CHECK(stage.isDefine);
+    expr->codegen(accu, stage);
+    accu.add(";");
+  }
 }
 
 void UnionDefinition::codegen(Accu& accu, CodegenStage stage) const {
