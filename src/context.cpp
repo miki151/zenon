@@ -78,7 +78,7 @@ void Context::deepCopyFrom(const Context& c) {
     state->merge(*s);
 }
 
-bool Context::areParamsEquivalent(FunctionType f1, FunctionType f2) const {
+bool Context::areParamsEquivalent(FunctionSignature f1, FunctionSignature f2) const {
   if (f1.templateParams.size() != f2.templateParams.size() || f1.params.size() != f2.params.size())
     return false;
   auto origParams = f2.templateParams;
@@ -130,7 +130,7 @@ void Context::setLambda(LambdaCaptureInfo* info) {
 }
 
 nullable<SFunctionInfo> Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
-    vector<FunctionType> existing) const {
+    vector<FunctionSignature> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
   if (auto inst = isGeneralizationWithoutReturnType(general, specific, existing)) {
     if (specific->type.retVal == inst.get()->type.retVal)
@@ -140,7 +140,7 @@ nullable<SFunctionInfo> Context::isGeneralization(const SFunctionInfo& general, 
 }
 
 nullable<SFunctionInfo> Context::isGeneralizationWithoutReturnType(const SFunctionInfo& general,
-    const SFunctionInfo& specific, vector<FunctionType> existing) const {
+    const SFunctionInfo& specific, vector<FunctionSignature> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
   if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, specific->type.params,
       vector<CodeLoc>(specific->type.params.size(), CodeLoc()), existing))
@@ -149,7 +149,7 @@ nullable<SFunctionInfo> Context::isGeneralizationWithoutReturnType(const SFuncti
 }
 
 WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& required,
-    vector<FunctionType> existing) const {
+    vector<FunctionSignature> existing) const {
   vector<SFunctionInfo> ret;
   for (auto otherState : required.getContext().getReversedStates()) {
     for (auto& overloads : otherState->functions)
@@ -522,12 +522,12 @@ vector<Context::SubstitutionInfo> Context::getSubstitutions() const {
 
 void Context::setAttribute(SType t, SType attr, vector<SType> templateParams) {
   CHECK(addFunction(FunctionInfo::getImplicit(AttributeTag{},
-      FunctionType(BuiltinType::VOID, {t, attr}, std::move(templateParams)))));
+      FunctionSignature(BuiltinType::VOID, {t, attr}, std::move(templateParams)))));
 }
 
 void Context::setStructMembers(SType t, vector<SType> members, vector<SType> templateParams) {
   CHECK(addFunction(FunctionInfo::getImplicit(StructMembersTag{},
-      FunctionType(BuiltinType::VOID, concat({std::move(t)}, std::move(members)), std::move(templateParams)))));
+      FunctionSignature(BuiltinType::VOID, concat({std::move(t)}, std::move(members)), std::move(templateParams)))));
 }
 
 WithErrorLine<vector<SType>> Context::getTypeList(const vector<TemplateParameterInfo>& ids, bool variadic) const {
@@ -623,7 +623,7 @@ vector<SType> Context::getAllTypes() const {
   return ret;
 }
 
-JustError<string> Context::addImplicitFunction(FunctionId id, FunctionType type) {
+JustError<string> Context::addImplicitFunction(FunctionId id, FunctionSignature type) {
   return addFunction(FunctionInfo::getImplicit(std::move(id), std::move(type)));
 }
 
@@ -823,36 +823,36 @@ WithEvalError<SType> Context::invokeFunction(const string& id, CodeLoc loc, vect
 
 void Context::addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction fun) {
   CHECK(!state->builtInFunctions.count(id));
-  CHECK(addImplicitFunction(id, FunctionType(returnType, argTypes, {})));
+  CHECK(addImplicitFunction(id, FunctionSignature(returnType, argTypes, {})));
   state->builtInFunctions.insert(make_pair(id, BuiltInFunctionInfo{std::move(argTypes), returnType, std::move(fun)}));
 }
 
 nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> argTypes) const {
-  auto functionType = [&] () -> optional<FunctionType> {
+  auto functionType = [&] () -> optional<FunctionSignature> {
     switch (op) {
       case Operator::GET_ADDRESS:
         if (argTypes.size() == 1) {
           if (auto pointerType = convertReferenceToPointerStrict(argTypes[0]))
-            return FunctionType(pointerType.get(), {argTypes[0]}, {});
+            return FunctionSignature(pointerType.get(), {argTypes[0]}, {});
           else // this codegens a call to the op_get_address function, which returns the address of a temporary object
-            return FunctionType(PointerType::get(argTypes[0]), {argTypes[0]}, {});
+            return FunctionSignature(PointerType::get(argTypes[0]), {argTypes[0]}, {});
         }
         break;
       case Operator::POINTER_DEREFERENCE:
         if (argTypes.size() == 1) {
           if (auto referenceType = convertPointerToReferenceStrict(argTypes[0]->removeReference()))
-            return FunctionType(referenceType.get(), {argTypes[0]}, {}).setBuiltin();
+            return FunctionSignature(referenceType.get(), {argTypes[0]}, {}).setBuiltin();
         }
         break;
       case Operator::ASSIGNMENT:
         if (argTypes.size() == 2 && canConvert(argTypes[1], argTypes[0]->removeReference()))
           if (auto referenceType = argTypes[0].dynamicCast<MutableReferenceType>())
-            return FunctionType(BuiltinType::VOID, {argTypes[0], referenceType->underlying}, {}).setBuiltin();
+            return FunctionSignature(BuiltinType::VOID, {argTypes[0], referenceType->underlying}, {}).setBuiltin();
         break;
       case Operator::SUBSCRIPT:
         if (argTypes.size() == 2 && canConvert(argTypes[1], BuiltinType::INT))
           if (auto pack = argTypes[0].dynamicCast<VariablePack>())
-            return FunctionType(pack->packType, {argTypes[0]->removeReference(), argTypes[1]->removeReference()}, {}).setBuiltin();
+            return FunctionSignature(pack->packType, {argTypes[0]->removeReference(), argTypes[1]->removeReference()}, {}).setBuiltin();
         break;
       default:
         break;

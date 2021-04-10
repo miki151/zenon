@@ -9,7 +9,7 @@
 
 struct IdentifierInfo;
 struct Type;
-struct FunctionType;
+struct FunctionSignature;
 struct FunctionInfo;
 struct Concept;
 class Context;
@@ -33,11 +33,11 @@ class Context : public owned_object<Context> {
   void operator = (const Context&) = delete;
   Context& operator = (Context&&) = default;
   void deepCopyFrom(const Context&);
-  WithError<vector<SFunctionInfo>> getRequiredFunctions(const Concept&, vector<FunctionType> existing) const;
+  WithError<vector<SFunctionInfo>> getRequiredFunctions(const Concept&, vector<FunctionSignature> existing) const;
   nullable<SFunctionInfo> isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
-      vector<FunctionType> existing = {}) const;
+      vector<FunctionSignature> existing = {}) const;
   nullable<SFunctionInfo> isGeneralizationWithoutReturnType(const SFunctionInfo& general, const SFunctionInfo& specific,
-      vector<FunctionType> existing = {}) const;
+      vector<FunctionSignature> existing = {}) const;
   WithError<SType> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
   void addVariable(const string& ident, SType, CodeLoc, bool global = false);
@@ -69,7 +69,7 @@ class Context : public owned_object<Context> {
   nullable<SType> getType(const string&) const;
   bool isFullyDefined(const Type*) const;
   vector<SType> getAllTypes() const;
-  NODISCARD JustError<string> addImplicitFunction(FunctionId, FunctionType);
+  NODISCARD JustError<string> addImplicitFunction(FunctionId, FunctionSignature);
   NODISCARD JustError<string> addFunction(SFunctionInfo);
   WithError<vector<SFunctionInfo>> getFunctionTemplate(IdentifierInfo) const;
   WithEvalError<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
@@ -88,7 +88,7 @@ class Context : public owned_object<Context> {
   optional<int> getLoopId() const;
   int setIsInLoop();
   void setIsInBranch();
-  bool areParamsEquivalent(FunctionType, FunctionType) const;
+  bool areParamsEquivalent(FunctionSignature, FunctionSignature) const;
   optional<vector<SType>> getTemplateParams() const;
   void setTemplated(vector<SType>);
   void setTemplateInstance();

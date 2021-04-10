@@ -130,7 +130,7 @@ JustError<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
 }
 
 template <typename Comp>
-static bool exactArgs(const vector<SType>& argTypes, const FunctionType& f, Comp comp) {
+static bool exactArgs(const vector<SType>& argTypes, const FunctionSignature& f, Comp comp) {
   if (f.params.size() != argTypes.size() || !f.templateParams.empty())
     return false;
   for (int i = 0; i < f.params.size(); ++i)
@@ -140,7 +140,7 @@ static bool exactArgs(const vector<SType>& argTypes, const FunctionType& f, Comp
 }
 
 template <typename Comp>
-static bool exactFirstArg(const vector<SType>& argTypes, const FunctionType& overload, Comp comp) {
+static bool exactFirstArg(const vector<SType>& argTypes, const FunctionSignature& overload, Comp comp) {
   return !argTypes.empty() && !overload.params.empty() && comp(argTypes[0], overload.params[0]);
 }
 
@@ -828,7 +828,7 @@ unique_ptr<Statement> FunctionDefinition::transform(const StmtTransformFun& f1, 
   return ret;
 }
 
-JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, nullable<SConcept> concept,
+JustError<ErrorLoc> FunctionDefinition::setFunctionSignature(const Context& context, nullable<SConcept> concept,
     bool builtInImport) {
   if (functionInfo)
     return success;
@@ -874,7 +874,7 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionType(const Context& context, 
   }
   if (!builtInImport && !concept && name.contains<Operator>() && !paramsAreGoodForOperator(params))
     return codeLoc.getError("Operator parameters must include at least one user-defined type");
-  FunctionType functionType(returnType, params, templateTypes);
+  FunctionSignature functionType(returnType, params, templateTypes);
   functionType.concept = concept;
   functionType.requirements = requirements;
   functionType.variadicTemplate = templateInfo.variadic;
@@ -938,7 +938,7 @@ static WithError<SFunctionInfo> getFunction(const Context& context,
         }
       if (auto s = argTypes[0]->removePointer().dynamicCast<LambdaType>())
         if (s->destructor)
-          return FunctionInfo::getImplicit("destruct"s, FunctionType(BuiltinType::VOID, {PointerType::get(s)}, {}));
+          return FunctionInfo::getImplicit("destruct"s, FunctionSignature(BuiltinType::VOID, {PointerType::get(s)}, {}));
     }
   } else
   if (id == "invoke"s && !argTypes.empty() && argTypes[0]->isPointer())
@@ -1438,7 +1438,7 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
 }
 
 JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
-  TRY(setFunctionType(context, nullptr, cache.isCurrentlyBuiltIn()));
+  TRY(setFunctionSignature(context, nullptr, cache.isCurrentlyBuiltIn()));
   TRY(context.addFunction(functionInfo.get()).addCodeLoc(codeLoc));
   if (name == "destruct"s) {
     auto destructedType = TRY(getDestructedType(functionInfo->type.params).addCodeLoc(codeLoc));
@@ -1494,37 +1494,37 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE, BuiltinType::BOOL,
        BuiltinType::VOID, BuiltinType::CHAR, BuiltinType::STRING, BuiltinType::NULL_TYPE})
     context.addType(type->getName(), type);
-  CHECK(context.addImplicitFunction(Operator::PLUS, FunctionType(BuiltinType::STRING,
+  CHECK(context.addImplicitFunction(Operator::PLUS, FunctionSignature(BuiltinType::STRING,
       {{BuiltinType::STRING}, {BuiltinType::STRING}}, {}).setBuiltin()));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
     for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE})
-      CHECK(context.addImplicitFunction(op, FunctionType(type, {{type}}, {}).setBuiltin()));
+      CHECK(context.addImplicitFunction(op, FunctionSignature(type, {{type}}, {}).setBuiltin()));
   for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
-    CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::VOID,
+    CHECK(context.addImplicitFunction(op, FunctionSignature(BuiltinType::VOID,
         {{MutableReferenceType::get(BuiltinType::INT)}}, {}).setBuiltin()));
   for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
     for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE})
       if (type != BuiltinType::DOUBLE || op != Operator::MODULO)
-        CHECK(context.addImplicitFunction(op, FunctionType(type, {{type}, {type}}, {}).setBuiltin()));
+        CHECK(context.addImplicitFunction(op, FunctionSignature(type, {{type}, {type}}, {}).setBuiltin()));
   for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
     for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE})
-      CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::VOID,
+      CHECK(context.addImplicitFunction(op, FunctionSignature(BuiltinType::VOID,
           {{MutableReferenceType::get(type)}, {type}}, {}).setBuiltin()));
   for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
-    CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL,
+    CHECK(context.addImplicitFunction(op, FunctionSignature(BuiltinType::BOOL,
         {{BuiltinType::BOOL}, {BuiltinType::BOOL}}, {}).setBuiltin()));
-  CHECK(context.addImplicitFunction(Operator::LOGICAL_NOT, FunctionType(BuiltinType::BOOL,
+  CHECK(context.addImplicitFunction(Operator::LOGICAL_NOT, FunctionSignature(BuiltinType::BOOL,
       {{BuiltinType::BOOL}}, {}).setBuiltin()));
   for (auto op : {Operator::EQUALS, Operator::NOT_EQUAL, Operator::LESS_THAN})
     for (auto type : {BuiltinType::INT, BuiltinType::STRING, BuiltinType::DOUBLE})
-      CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL,
+      CHECK(context.addImplicitFunction(op, FunctionSignature(BuiltinType::BOOL,
           {ReferenceType::get(type), ReferenceType::get(type)}, {}).setBuiltin()));
   for (auto op : {Operator::EQUALS, Operator::NOT_EQUAL})
     for (auto type : {BuiltinType::BOOL, BuiltinType::CHAR})
-      CHECK(context.addImplicitFunction(op, FunctionType(BuiltinType::BOOL,
+      CHECK(context.addImplicitFunction(op, FunctionSignature(BuiltinType::BOOL,
           {ReferenceType::get(type), ReferenceType::get(type)}, {}).setBuiltin()));
   auto metaTypes = {BuiltinType::ANY_TYPE, BuiltinType::STRUCT_TYPE, BuiltinType::ENUM_TYPE, BuiltinType::UNION_TYPE};
-  CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionType(BuiltinType::BOOL, {{BuiltinType::ANY_TYPE}, {BuiltinType::ANY_TYPE}}, {}).setBuiltin()));
+  CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionSignature(BuiltinType::BOOL, {{BuiltinType::ANY_TYPE}, {BuiltinType::ANY_TYPE}}, {}).setBuiltin()));
   addBuiltInConcepts(context);
   context.addBuiltInFunction("enum_count", BuiltinType::INT, {SType(BuiltinType::ENUM_TYPE)},
       [](const Context&, vector<SType> args) -> WithError<SType> {
@@ -2026,7 +2026,7 @@ JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
       auto subtypeInfo = TRY(membersContext.getTypeFromString(subtype.type));
       if (subtypeInfo != BuiltinType::VOID)
         params.push_back(subtypeInfo);
-      auto constructor = FunctionType(type.get(), params, {});
+      auto constructor = FunctionSignature(type.get(), params, {});
       constructor.parentType = type.get();
       CHECK(type->staticContext.addImplicitFunction(subtype.name, constructor));
     }
@@ -2102,7 +2102,7 @@ void StructDefinition::addGeneratedConstructor(Context& context, const AST& ast)
     vector<SType> constructorParams;
     for (auto& member : type->members)
       constructorParams.push_back(member.type);
-    auto fun = FunctionType(type.get(), std::move(constructorParams), type->templateParams);
+    auto fun = FunctionSignature(type.get(), std::move(constructorParams), type->templateParams);
     fun.generatedConstructor = true;
     if (!hasUserDefinedConstructors)
       CHECK(context.addImplicitFunction(ConstructorTag{}, fun));
@@ -2463,7 +2463,7 @@ JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
   for (auto& function : functions) {
     if (function->isVirtual)
       return function->codeLoc.getError("Virtual functions are not allowed here");
-    TRY(function->setFunctionType(declarationsContext, concept));
+    TRY(function->setFunctionSignature(declarationsContext, concept));
     TRY(function->check(declarationsContext));
     TRY(concept->modContext().addFunction(function->functionInfo.get()).addCodeLoc(function->codeLoc));
   }
@@ -2718,7 +2718,7 @@ WithErrorLine<SType> LambdaExpression::getTypeImpl(const Context& context) {
     retType = returnChecker.getReturnType();
   considerAddingVoidReturn(bodyContext2, block.get(), retType.get());
   if (!type->functionInfo) {
-    FunctionType functionType(retType.get(), params, {});
+    FunctionSignature functionType(retType.get(), params, {});
     auto functioInfo = FunctionInfo::getImplicit("invoke"s, std::move(functionType));
     type->functionInfo = std::move(functioInfo);
   }

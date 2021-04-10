@@ -9,7 +9,7 @@
 
 class Context;
 struct TypeMapping;
-struct FunctionType;
+struct FunctionSignature;
 struct SwitchStatement;
 struct FunctionDefinition;
 struct Accu;
@@ -348,9 +348,9 @@ struct VariablePack : public Type {
   SType packType;
 };
 
-struct FunctionType {
-  FunctionType(SType returnType, vector<SType> params, vector<SType> templateParams);
-  FunctionType setBuiltin();
+struct FunctionSignature {
+  FunctionSignature(SType returnType, vector<SType> params, vector<SType> templateParams);
+  FunctionSignature setBuiltin();
   SType retVal;
   vector<SType> params;
   vector<SType> templateParams;
@@ -361,24 +361,24 @@ struct FunctionType {
   bool generatedConstructor = false;
   bool variadicTemplate = false;
   bool variadicParams = false;
-  COMPARABLE(FunctionType, retVal, params, templateParams, parentType, variadicTemplate, variadicParams, requirements, concept, builtinOperator, generatedConstructor)
+  COMPARABLE(FunctionSignature, retVal, params, templateParams, parentType, variadicTemplate, variadicParams, requirements, concept, builtinOperator, generatedConstructor)
 };
 
 struct FunctionInfo : public owned_object<FunctionInfo> {
   struct Private {};
-  static SFunctionInfo getImplicit(FunctionId, FunctionType);
-  static SFunctionInfo getInstance(FunctionId, FunctionType, SFunctionInfo parent);
-  static SFunctionInfo getDefined(FunctionId, FunctionType, FunctionDefinition*);
+  static SFunctionInfo getImplicit(FunctionId, FunctionSignature);
+  static SFunctionInfo getInstance(FunctionId, FunctionSignature, SFunctionInfo parent);
+  static SFunctionInfo getDefined(FunctionId, FunctionSignature, FunctionDefinition*);
   const FunctionId id;
-  const FunctionType type;
+  const FunctionSignature type;
   string prettyString() const;
   string getMangledName() const;
   bool isMainFunction() const;
   optional<string> getMangledSuffix() const;
   optional<string> getParamName(int index, const FunctionDefinition*) const;
   SFunctionInfo getWithoutRequirements() const;
-  FunctionInfo(Private, FunctionId, FunctionType, nullable<SFunctionInfo> parent);
-  FunctionInfo(Private, FunctionId, FunctionType, FunctionDefinition*);
+  FunctionInfo(Private, FunctionId, FunctionSignature, nullable<SFunctionInfo> parent);
+  FunctionInfo(Private, FunctionId, FunctionSignature, FunctionDefinition*);
   SFunctionInfo getParent() const;
   FunctionDefinition* getDefinition() const;
   JustError<ErrorLoc> addInstance(const Context&) const;
@@ -459,8 +459,8 @@ class Context;
 struct IdentifierInfo;
 extern WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo&, CodeLoc,
     vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc,
-    vector<FunctionType> existing = {});
-extern FunctionType replaceInFunction(const Context&, FunctionType, SType from, SType to, ErrorBuffer&,
+    vector<FunctionSignature> existing = {});
+extern FunctionSignature replaceInFunction(const Context&, FunctionSignature, SType from, SType to, ErrorBuffer&,
     const vector<SType>& origParams);
 extern SFunctionInfo replaceInFunction(const Context&, const SFunctionInfo&, SType from, SType to, ErrorBuffer&);
 extern SFunctionInfo addTemplateParams(const SFunctionInfo&, vector<SType> params, bool variadic);

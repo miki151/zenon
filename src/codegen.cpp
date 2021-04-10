@@ -517,7 +517,7 @@ void codegenLambdas(const LambdasSet& lambdas, Accu& accu, const AST& ast, Codeg
         auto destructorBody = getLambdaBody(lambda->destructor.get());
         destructorBody->destructorCalls.emplace_back();
         destructorBody->functionInfo = FunctionInfo::getImplicit("destruct"s,
-            FunctionType(BuiltinType::VOID, {PointerType::get(lambda->get_this().get())}, {}));
+            FunctionSignature(BuiltinType::VOID, {PointerType::get(lambda->get_this().get())}, {}));
         destructorBody->body->elems.push_back(unique<ReturnStatement>(destructorBody->codeLoc));
         defs.push_back(std::move(destructorBody));
       }

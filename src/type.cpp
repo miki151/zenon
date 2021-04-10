@@ -194,16 +194,16 @@ JustError<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, 
   return success;
 }
 
-FunctionType::FunctionType(SType returnType, vector<SType> p, vector<SType> tpl)
+FunctionSignature::FunctionSignature(SType returnType, vector<SType> p, vector<SType> tpl)
   : retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
 }
 
-FunctionType FunctionType::setBuiltin() {
+FunctionSignature FunctionSignature::setBuiltin() {
   builtinOperator = true;
   return *this;
 }
 
-SFunctionInfo FunctionInfo::getDefined(FunctionId id, FunctionType type, FunctionDefinition* definition) {
+SFunctionInfo FunctionInfo::getDefined(FunctionId id, FunctionSignature type, FunctionDefinition* definition) {
   auto args = make_tuple(id, type, definition);
   static map<decltype(args), SFunctionInfo> generated;
   if (!generated.count(args)) {
@@ -212,7 +212,7 @@ SFunctionInfo FunctionInfo::getDefined(FunctionId id, FunctionType type, Functio
   return generated.at(args);
 }
 
-SFunctionInfo FunctionInfo::getImplicit(FunctionId id, FunctionType type) {
+SFunctionInfo FunctionInfo::getImplicit(FunctionId id, FunctionSignature type) {
   auto args = make_tuple(id, type);
   static map<decltype(args), SFunctionInfo> generated;
   if (!generated.count(args)) {
@@ -221,7 +221,7 @@ SFunctionInfo FunctionInfo::getImplicit(FunctionId id, FunctionType type) {
   return generated.at(args);
 }
 
-SFunctionInfo FunctionInfo::getInstance(FunctionId id, FunctionType type, SFunctionInfo parent) {
+SFunctionInfo FunctionInfo::getInstance(FunctionId id, FunctionSignature type, SFunctionInfo parent) {
   if (id == parent->id && type == parent->type)
     return parent;
   while (!!parent->parent)
@@ -339,10 +339,10 @@ JustError<ErrorLoc> FunctionInfo::addInstance(const Context& context) const {
   return success;
 }
 
-FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionType type, nullable<SFunctionInfo> parent)
+FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionSignature type, nullable<SFunctionInfo> parent)
   : id(std::move(id)), type(std::move(type)), parent(std::move(parent)) {}
 
-FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionType type, FunctionDefinition* definition)
+FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionSignature type, FunctionDefinition* definition)
   : id(std::move(id)), type(std::move(type)), definition(definition) {}
 
 Type::Type() : staticContext(nullptr) {
@@ -865,7 +865,7 @@ SType StructType::expand(const Context& context, SType pack, vector<SType> to, E
   return std::move(ret);
 }
 
-FunctionType replaceInFunction(const Context& context, FunctionType type, SType from, SType to, ErrorBuffer& errors,
+FunctionSignature replaceInFunction(const Context& context, FunctionSignature type, SType from, SType to, ErrorBuffer& errors,
     const vector<SType>& origParams) {
   if (type.parentType)
     type.parentType = type.parentType->replace(context, from, to, errors);
@@ -926,7 +926,7 @@ static string getCantSubstituteError(SType param, SType with) {
 
 static JustError<ErrorLoc> checkRequirements(const Context& context,
     const vector<TemplateRequirement>& requirements, CodeLoc codeLoc,
-    vector<FunctionType> existing) {
+    vector<FunctionSignature> existing) {
   for (auto& req : requirements)
     if (auto concept = req.base.getReferenceMaybe<SConcept>())
       TRY(context.getRequiredFunctions(**concept, existing).addCodeLoc(codeLoc));
@@ -1034,7 +1034,7 @@ JustError<string> Type::getMappingError(TypeMapping&, SType argType) const {
     return getCantBindError(argType, get_this().get());
 }
 
-static bool areParamsTypesEqual(const FunctionType& f1, const FunctionType& f2) {
+static bool areParamsTypesEqual(const FunctionSignature& f1, const FunctionSignature& f2) {
   if (f1.params.size() != f2.params.size())
     return false;
   for (int i = 0; i < f1.params.size(); ++i)
@@ -1048,7 +1048,7 @@ string getExpandedParamName(const string& packName, int index) {
   return "_" + packName + to_string(index);
 }
 
-static JustError<ErrorLoc> expandVariadicTemplate(const Context& context, FunctionType& type, CodeLoc codeLoc,
+static JustError<ErrorLoc> expandVariadicTemplate(const Context& context, FunctionSignature& type, CodeLoc codeLoc,
     vector<SType> templateArgs, vector<SType> argTypes) {
   vector<SType> expandedTypes;
   nullable<SType> lastTemplateParam;
@@ -1247,9 +1247,9 @@ static WithError<vector<SType>> deduceTemplateArgs(const Context& context,
 }
 
 WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context1, const SFunctionInfo& input, CodeLoc codeLoc,
-    vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionType> existing) {
+    vector<SType> templateArgs, vector<SType> argTypes, vector<CodeLoc> argLoc, vector<FunctionSignature> existing) {
   auto context = context1.getTopLevel();
-  FunctionType type = input->type;
+  FunctionSignature type = input->type;
   auto origParams = type.templateParams;
   TRY(expandVariadicTemplate(context, type, codeLoc, templateArgs, argTypes));
   if (type.params.size() != argTypes.size())

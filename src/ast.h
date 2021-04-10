@@ -678,7 +678,7 @@ struct FunctionDefinition : Statement {
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
-  NODISCARD JustError<ErrorLoc> setFunctionType(const Context&, nullable<SConcept> concept = nullptr, bool builtInImport = false);
+  NODISCARD JustError<ErrorLoc> setFunctionSignature(const Context&, nullable<SConcept> concept = nullptr, bool builtInImport = false);
   void handlePointerParamsInOperator(Accu&, const StatementBlock*) const;
   void handlePointerReturnInOperator(Accu&, const StatementBlock*) const;
   void addStacktraceGenerator(Accu&, const StatementBlock*) const;
