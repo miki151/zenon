@@ -1,0 +1,5 @@
+// no_compile
+
+int main() {
+  return "{123}".size();
+}
