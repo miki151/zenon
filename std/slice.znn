@@ -2,6 +2,7 @@ export import "std/pointer.znn";
 export import "std/builtin_types.znn";
 export import "std/concepts.znn";
 export import "std/operator_helpers.znn";
+export import "std/panic.znn";
 
 export template <T>
 void discard_impl(T) {}
@@ -74,6 +75,14 @@ export template <T>
 bool operator == (slice_iterator<T>* it1, slice_iterator<T>* it2) {
   embed_returns {
     return it1->elem == it2->elem;
+  }
+}
+
+export template <T>
+T[] subsequence(T[]* s, int index, int length) {
+  assert(index >= 0 && index <= s->size() && length >= 0 && index + length <= s->size());
+  embed_returns {
+    return slice_t<T>{s->begin + index, s->begin + index + length};
   }
 }
 
