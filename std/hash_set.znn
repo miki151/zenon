@@ -55,7 +55,7 @@ void erase(hash_set<Key> mutable* m, Key* key) {
 }
 
 export template <Key> requires hash_key<Key>
-bool contains(hash_set<Key> mutable* m, Key* key) {
+bool contains(hash_set<Key>* m, Key* key) {
   embed_returns {
     return m->count(*key);
   }
