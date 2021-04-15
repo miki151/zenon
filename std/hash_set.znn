@@ -7,10 +7,15 @@ export embed {
 template<typename Key>
 using hash_set = std::unordered_set<Key, hash_adapter<Key>, hash_adapter<Key>>;
 using std::pair;
+template<typename Key>
+using hash_set_iterator = typename hash_set<Key>::const_iterator;
 }
 
 export template <Key>
 extern struct hash_set;
+
+export template <Key>
+extern struct hash_set_iterator;
 
 export template<Key> requires hash_key<Key>
 hash_set() {
@@ -26,10 +31,26 @@ hash_set() {
   discard hash_adapter<Key>().invoke(key, key);
 }
 
+export template <T> requires copy<T>, hash_key<T>
+hash_set<T> copy(hash_set<T>* v) {
+  mutable ret = hash_set<T>();
+  for (elem : *v)
+    ret.insert(elem->copy());
+  return move(ret);
+}
+
+
 export template <Key> requires hash_key<Key>
 void insert(hash_set<Key> mutable* m, Key key) {
   embed {
     m->insert(std::move(key));
+  }
+}
+
+export template <Key> requires hash_key<Key>
+void erase(hash_set<Key> mutable* m, Key* key) {
+  embed {
+    m->erase(*key);
   }
 }
 
@@ -44,6 +65,41 @@ export template <Key> requires hash_key<Key>
 int size(hash_set<Key> mutable* m) {
   embed_returns {
     return m->size();
+  }
+}
+
+export template <T>
+hash_set_iterator<T> begin(hash_set<T>* v) {
+  embed_returns {
+    return v->begin();
+  }
+}
+
+export template <T>
+hash_set_iterator<T> end(hash_set<T>* v) {
+  embed_returns {
+    return v->end();
+  }
+}
+
+export template <T>
+T* operator *(hash_set_iterator<T>* it) {
+  embed_returns {
+    return &**it;
+  }
+}
+
+export template <T>
+hash_set_iterator<T> operator ++(hash_set_iterator<T> mutable* it) {
+  embed_returns {
+    return ++*it;
+  }
+}
+
+export template <T>
+bool operator == (hash_set_iterator<T>* it1, hash_set_iterator<T>* it2) {
+  embed_returns {
+    return *it1 == *it2;
   }
 }
 

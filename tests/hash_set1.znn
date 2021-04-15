@@ -1,4 +1,4 @@
-// 95
+// 190
 
 import "std/hash_set.znn";
 import "std/range.znn";
@@ -23,5 +23,7 @@ int main() {
   for (i : range(0, 100))
     if (a.contains(&X(i)))
       res += i;
+  for (it : a)
+    res += it->a;
   return res;
 }
