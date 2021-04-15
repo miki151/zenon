@@ -1,0 +1,12 @@
+// 3
+
+template <T>
+int f(bool x) {
+  unchecked if (const b = x)
+    return 3;
+  return 2;
+}
+
+int main() {
+  return f<int>(true);
+}

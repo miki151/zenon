@@ -464,7 +464,8 @@ JustError<ErrorLoc> IfStatement::check(Context& context, bool) {
 JustError<ErrorLoc> IfStatement::checkMovesImpl(MoveChecker& checker) const {
   if (declaration)
     TRY(declaration->checkMoves(checker));
-  TRY(condition->checkMoves(checker));
+  if (condition)
+    TRY(condition->checkMoves(checker));
   checker.startBlock();
   OnExit onExit([&]{ checker.endBlock();});
   checker.newAlternative();
