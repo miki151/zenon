@@ -31,3 +31,13 @@ export char[] slice(string* s) {
 export int get_hash(string* s) {
   return s->slice().get_hash();
 }
+
+embed {
+#include <cstdlib>
+}
+
+export int to_int(string* s) {
+  embed_returns {
+    return std::strtol(s->data(), nullptr, 10);
+  }
+}
