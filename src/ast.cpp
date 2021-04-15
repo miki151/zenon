@@ -3165,6 +3165,8 @@ JustError<ErrorLoc> MixinStatement::check(Context& context, bool) {
       .addNoEvalError(value->codeLoc.getError("Unable to evaluate expression at compile-time"))).value;
   string str = *TRY(evalResult->convertTo(BuiltinType::STRING).addCodeLoc(value->codeLoc))
       .dynamicCast<CompileTimeValue>()->value.getReferenceMaybe<string>();
+  istringstream iss("\"" + str + "\"");
+  iss >> std::quoted(str);
   auto tokens = TRY(lex(str, value->codeLoc, "end of expression"));
   result = TRY(parseStatement(tokens, false));
   if (!result)

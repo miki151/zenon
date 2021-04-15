@@ -1,0 +1,7 @@
+// 6
+
+int main() {
+  static const s = "const a = \"foobar\";";
+  mixin s;
+  return a.size();
+}
