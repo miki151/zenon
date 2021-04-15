@@ -103,6 +103,7 @@ struct Variable : Expression {
   virtual void codegen(Accu&, CodegenStage) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   IdentifierInfo identifier;
+  nullable<SType> getConstantValue(const Context&) const;
 };
 
 struct MemberAccessExpression : Expression {
@@ -300,7 +301,7 @@ struct FunctionCall : Expression {
   private:
   JustError<ErrorLoc> checkNamedArgs() const;
   JustError<ErrorLoc> checkVariadicCall(const Context&);
-  JustError<ErrorLoc> considerLambdaCall(const Context&);
+  JustError<ErrorLoc> considerSpecialCalls(const Context&);
 };
 
 struct AST;

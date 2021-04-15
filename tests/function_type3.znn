@@ -1,0 +1,14 @@
+// 9
+
+int fa(string s) {
+  return s.size();
+}
+
+template <Fun, Ret, Arg> requires invoke<Fun, Ret, Arg>
+Ret get(Fun f, Arg arg) {
+  return f(move(arg));
+}
+
+int main() {
+  return get(fa, "pokpakpik");
+}

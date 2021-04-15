@@ -1193,6 +1193,24 @@ static bool isTemplatedWith(const Context& context, const SFunctionInfo& functio
   return replaceInFunction(context, function, type, BuiltinType::INT, errors) != function;
 }
 
+
+vector<SFunctionInfo> getSpecialOverloads(const FunctionId& id, const vector<SType>& argTypes) {
+  vector<SFunctionInfo> ret;
+  if (id == "invoke"s && !argTypes.empty()) {
+    auto& argType = argTypes[0];
+    if (argType->isPointer())
+      if (auto lambda = argType->removePointer().dynamicCast<LambdaType>())
+        ret.push_back(lambda->functionInfo.get());
+    if (auto type = argType->removePointer().dynamicCast<FunctionType>())
+      for (auto& overload : type->overloads) {
+        auto sig = overload->type;
+        sig.params.push_front(PointerType::get(type));
+        ret.push_back(FunctionInfo::getDefined(overload->id, std::move(sig), overload->getDefinition()));
+      }
+  }
+  return ret;
+}
+
 static JustError<string> deduceTemplateArgsFromConcepts(const Context& context,
     TypeMapping& mapping, const vector<TemplateRequirement>& requirements, ErrorBuffer& errors) {
   for (auto& elem : requirements)
@@ -1210,10 +1228,7 @@ static JustError<string> deduceTemplateArgsFromConcepts(const Context& context,
         if (funTemplateParams.empty())
           continue;
         function = addTemplateParams(function, funTemplateParams, req->isVariadic());
-        vector<SFunctionInfo> found;
-        if (function->id == "invoke"s && !function->type.params.empty())
-          if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
-            found.push_back(lambda->functionInfo.get());
+        vector<SFunctionInfo> found = getSpecialOverloads(function->id, function->type.params);
         for (auto& candidate : context.getFunctions(function->id))
           if (!candidate->type.concept && context.isGeneralization(getWithRetval(*function), getWithRetval(*candidate)))
             found.push_back(candidate);
@@ -1499,7 +1514,8 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
       [](const EnumValue& t) { return t.type->getName() + "::" + t.type->elements[t.index]; },
       [](const TemplateValue& v) { return v.name; },
       [](const TemplateExpression& v) { return getPrettyString(v.op, v.args); },
-      [](const TemplateFunctionCall& v) { return "[function call]"; }
+      [](const TemplateFunctionCall& v) { return "[function call]"; },
+      [](const shared_ptr<FunctionType>& v) { return v->getName(); }
   );
 }
 
@@ -1510,7 +1526,8 @@ string CompileTimeValue::getCodegenName() const {
       [](const string& v) { return "\"" + v +"\"_lstr"; },
       [](const TemplateValue&) -> string { fail(); },
       [](const TemplateExpression&) -> string { fail(); },
-      [](const TemplateFunctionCall&) -> string { fail(); }
+      [](const TemplateFunctionCall&) -> string { fail(); },
+      [](const shared_ptr<FunctionType>& v) { return v->getCodegenName() + "{}"; }
   );
 }
 
@@ -1526,7 +1543,8 @@ SType CompileTimeValue::getType() const {
       [](const EnumValue& v)-> SType {  return v.type; },
       [](const TemplateValue& v)-> SType {  return v.type; },
       [](const TemplateExpression& v)-> SType {  return v.type; },
-      [](const TemplateFunctionCall& v)-> SType {  return v.retVal; }
+      [](const TemplateFunctionCall& v)-> SType {  return v.retVal; },
+      [](const shared_ptr<FunctionType>& v) -> SType { return v; }
   );
 }
 
@@ -1558,7 +1576,8 @@ optional<string> CompileTimeValue::getMangledName() const {
         },
       [](const TemplateValue& v) -> optional<string> { return none; },
       [](const TemplateExpression&) -> optional<string> { return none; },
-      [](const TemplateFunctionCall&) -> optional<string> { return none; }
+      [](const TemplateFunctionCall&) -> optional<string> { return none; },
+      [](const shared_ptr<FunctionType>& v) -> optional<string> { return v->getName(); }
   );
 }
 
@@ -1962,3 +1981,26 @@ shared_ptr<AttributeType> AttributeType::get(const string& name) {
 }
 
 AttributeType::AttributeType(AttributeType::Private, const string& name) : name(name) {}
+
+string FunctionType::getName(bool withTemplateArguments) const {
+  return name;
+}
+
+string FunctionType::getCodegenName() const {
+  return "overloads_t";
+}
+
+bool FunctionType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {
+  return true;
+}
+
+shared_ptr<FunctionType> FunctionType::get(const string& name, vector<SFunctionInfo> overloads) {
+  static map<string, shared_ptr<FunctionType>> generated;
+  if (!generated.count(name))
+    generated.insert(make_pair(name, shared<FunctionType>(Private{}, name, std::move(overloads))));
+  return generated.at(name);
+}
+
+FunctionType::FunctionType(FunctionType::Private, string name, vector<SFunctionInfo> overloads)
+    : name(std::move(name)), overloads(std::move(overloads)) {
+}

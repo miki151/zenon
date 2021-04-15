@@ -92,4 +92,6 @@ struct void_t
 };
 constexpr void_t void_value{void_t::init()};
 
+struct overloads_t {};
+
 #endif

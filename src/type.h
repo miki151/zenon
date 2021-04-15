@@ -64,6 +64,17 @@ struct Type : public owned_object<Type> {
   virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const;
 };
 
+struct FunctionType : public Type {
+  virtual string getName(bool withTemplateArguments = true) const;
+  virtual string getCodegenName() const;
+  virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const;
+  static shared_ptr<FunctionType> get(const string& name, vector<SFunctionInfo> overloads);
+  string name;
+  vector<SFunctionInfo> overloads;
+  struct Private {};
+  FunctionType(Private, string name, vector<SFunctionInfo> overloads);
+};
+
 struct BuiltinType : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual string getCodegenName() const override;
@@ -229,7 +240,7 @@ struct CompileTimeValue : public Type {
   };
   struct NullValue { COMPARABLE(NullValue) };
   using Value = variant<int, bool, double, char, NullValue, string, EnumValue, TemplateValue, TemplateExpression,
-      TemplateFunctionCall, ReferenceValue>;
+      TemplateFunctionCall, ReferenceValue, shared_ptr<FunctionType>>;
   static shared_ptr<CompileTimeValue> get(Value);
   static shared_ptr<CompileTimeValue> getReference(SType);
   static shared_ptr<CompileTimeValue> getTemplateValue(SType type, string name);
@@ -477,3 +488,4 @@ SType convertPointerToReference(SType);
 SType convertReferenceToPointer(SType);
 nullable<SType> convertPointerToReferenceStrict(SType);
 nullable<SType> convertReferenceToPointerStrict(SType);
+vector<SFunctionInfo> getSpecialOverloads(const FunctionId&, const vector<SType>& argTypes);

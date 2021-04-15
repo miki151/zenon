@@ -101,13 +101,13 @@ WithErrorLine<SType> Variable::getTypeImpl(const Context& context) {
     else
       varError = varType.get_error();
   }
-  if (auto t = context.getTypeFromString(identifier))
-    return t.get()->getType();
+  if (auto t = getConstantValue(context))
+    return t->getType();
   return codeLoc.getError(varError.value_or("Identifier not found: " + identifier.prettyString()));
 }
 
 WithEvalError<EvalResult> Variable::eval(const Context& context) const {
-  if (auto res = context.getTypeFromString(identifier))
+  if (auto res = getConstantValue(context))
     return EvalResult { res.get(), true};
   return EvalError::noEval();
 }
@@ -127,6 +127,20 @@ JustError<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
   if (auto id = identifier.asBasicIdentifier())
     TRY(checker.getUsageError(*id).addCodeLoc(codeLoc));
   return success;
+}
+
+nullable<SType> Variable::getConstantValue(const Context& context) const {
+  if (auto id = identifier.asBasicIdentifier())
+    if (!!context.getTypeOfVariable(*id))
+      return nullptr;
+  if (auto t = context.getTypeFromString(identifier))
+    return t.get();
+  if (auto id = identifier.asBasicIdentifier()) {
+    auto overloads = context.getFunctions(*id);
+    if (!overloads.empty())
+      return SType(CompileTimeValue::get(FunctionType::get(*id, std::move(overloads))));
+  }
+  return nullptr;
 }
 
 template <typename Comp>
@@ -912,6 +926,7 @@ static IdentifierInfo translateDestructorId(IdentifierInfo id) {
     id.parts[0].name = "destruct";
   return id;
 }
+
 
 static WithError<SFunctionInfo> getFunction(const Context& context,
     CodeLoc codeLoc, FunctionId id, vector<SFunctionInfo> candidates,
@@ -1762,23 +1777,42 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
   return success;
 }
 
-JustError<ErrorLoc> FunctionCall::considerLambdaCall(const Context& context) {
-  if (auto var = identifier.asBasicIdentifier()) {
-    if (!methodCall) {
-      if (auto type = context.getTypeOfVariable(*var)) {
+JustError<ErrorLoc> FunctionCall::considerSpecialCalls(const Context& context) {
+  if (identifier.parts.empty())
+    return success;
+  auto var = identifier.parts[0].name;
+  auto type = [&]() -> nullable<SType>{
+    if (auto t = context.getTypeOfVariable(var))
+      return *t;
+    if (auto t = context.getTypeFromString(identifier))
+      if (!(*t)->getType()->isMetaType())
+        return (*t)->getType();
+    return nullptr;
+  }();
+  if (!methodCall) {
+    if (type) {
+      if (auto functionType = type->removePointer().dynamicCast<FunctionType>()) {
+        identifier.parts[0].name = functionType->name;
+      } else {
         auto tmp = std::move(arguments);
         arguments.clear();
         arguments.push_back(unique<Variable>(identifier));
         methodCall = true;
         arguments.append(std::move(tmp));
-        identifier = IdentifierInfo("invoke", codeLoc);
+        identifier.parts[0].name = "invoke";
       }
-    } else if (!arguments.empty()) {
-      auto argType = TRY(getType(context, arguments[0]));
-      if (argType->getTypeOfMember(*var)) {
-        arguments[0] = unique<MemberAccessExpression>(codeLoc, std::move(arguments[0]), *var);
-        identifier = IdentifierInfo("invoke", codeLoc);
+    }
+  } else if (!arguments.empty()) {
+    auto argType = TRY(getType(context, arguments[0]));
+    if (var == "invoke" && !arguments.empty()) {
+      if (auto functionType = argType->removePointer().dynamicCast<FunctionType>()) {
+        identifier = IdentifierInfo(functionType->name, codeLoc);
+        arguments.removeIndex(0);
       }
+    } else
+    if (argType->getTypeOfMember(var)) {
+      arguments[0] = unique<MemberAccessExpression>(codeLoc, std::move(arguments[0]), var);
+      identifier.parts[0].name = "invoke";
     }
   }
   return success;
@@ -1788,7 +1822,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
   optional<ErrorLoc> error;
   if (!functionInfo) {
     templateArgs = TRY(callContext.getTypeList(identifier.parts.back().templateArguments, variadicTemplateArgs));
-    TRY(considerLambdaCall(callContext));
+    TRY(considerSpecialCalls(callContext));
     vector<SType> argTypes;
     vector<CodeLoc> argLocs;
     for (int i = 0; i < arguments.size(); ++i) {

@@ -155,10 +155,9 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
     for (auto& overloads : otherState->functions)
       for (auto& function : overloads.second) {
         auto getFunction = [&]() -> optional<SFunctionInfo> {
-          if (overloads.first == "invoke"s && !function->type.params.empty())
-            if (auto lambda = function->type.params[0]->removePointer().dynamicCast<LambdaType>())
-              if (isGeneralization(lambda->functionInfo.get(), function, existing))
-                return lambda->functionInfo.get();
+          for (auto& overload : getSpecialOverloads(overloads.first, function->type.params))
+            if (isGeneralization(overload, function, existing))
+              return overload;
           for (auto& myFun : getFunctions(overloads.first))
             if (!myFun->isConceptTypeFunction())
               if (auto gen = isGeneralization(myFun, function, existing))
@@ -300,17 +299,17 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
       if (to.dynamicCast<MutablePointerType>() && !fromUnderlying.dynamicCast<MutablePointerType>())
         return "Cannot cast value of type " + quote(fromUnderlying->getName()) + " to a mutable pointer";
       auto functions = TRY(getRequiredFunctionsForConceptType(*this, *concept, CodeLoc()));
-    for (auto& fun : functions)
-      CHECK(!!fun->addInstance(*this));
-    concept->def->addFatPointer({fromUnderlying->removePointer(), functions}, conceptType);
-    if (expr) {
-      auto loc = expr->codeLoc;
-      expr = unique<FatPointerConversion>(loc, functions, to, fromUnderlying, std::move(expr), conceptType);
-      auto err = expr->getTypeImpl(*this);
-      CHECK(!!err) << err.get_error();
+      for (auto& fun : functions)
+        CHECK(!!fun->addInstance(*this));
+      concept->def->addFatPointer({fromUnderlying->removePointer(), functions}, conceptType);
+      if (expr) {
+        auto loc = expr->codeLoc;
+        expr = unique<FatPointerConversion>(loc, functions, to, fromUnderlying, std::move(expr), conceptType);
+        auto err = expr->getTypeImpl(*this);
+        CHECK(!!err) << err.get_error();
+      }
+      return success;
     }
-    return success;
-  }
   if (auto conceptType = to.dynamicCast<ConceptType>()) {
     auto concept = conceptType->getConceptFor(fromUnderlying);
     if (from->isReference()) {

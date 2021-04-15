@@ -1,0 +1,12 @@
+// 9
+
+import "std/io.znn";
+
+template <T>
+int fa(T t) {
+  return "{t}".size();
+}
+
+int main() {
+  return fa<int>(123) + fa("pokpak");
+}

@@ -1,0 +1,10 @@
+// no_compile
+
+int fa(int a) {
+  return a * 2;
+}
+
+int main() {
+  const a = fa;
+  return a(3.1);
+}

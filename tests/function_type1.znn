@@ -1,0 +1,14 @@
+// 9
+
+int fa(string s) {
+  return s.size();
+}
+
+int fa(int a) {
+  return a * 2;
+}
+
+int main() {
+  const a = fa;
+  return a("pok") + a(3);
+}

@@ -1,0 +1,14 @@
+// 4
+
+int fa(string s) {
+  return s.size();
+}
+
+template <Fun> requires invoke<Fun, int, string>
+int get(Fun f) {
+  return 1 + f("xyz");
+}
+
+int main() {
+  return get(fa);
+}
