@@ -1,0 +1,11 @@
+// 5
+
+int main() {
+  mutable res = 0;
+  res += *"5".to_int();
+  if (const r = "5a".to_int())
+    res += *r;
+  if (const r = "".to_int())
+    res += *r + 1;
+  return res;
+}

@@ -1,4 +1,6 @@
-import "slice.znn";
+import "std/slice.znn";
+import "std/builtin_types.znn";
+import "std/optional.znn";
 
 export int size(string* s) {
   embed_returns {
@@ -36,8 +38,15 @@ embed {
 #include <cstdlib>
 }
 
-export int to_int(string* s) {
+export int? to_int(string* s) {
+  const int? err = null;
+  if (s->empty())
+    return err;
   embed_returns {
-    return std::strtol(s->data(), nullptr, 10);
+    char* control;
+    int result = std::strtol(s->data(), &control, 0);
+    if (control != s->data() + s->size())
+      return err;
+    return result;
   }
 }
