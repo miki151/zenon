@@ -90,6 +90,21 @@ export noreturn operator * (null_type*) {
   panic("Attempted to dereference a null value");
 }
 
+export template <T> requires equality<T>
+bool operator == (T?* e1, T* e2) {
+  return !!*e1 && **e1 == *e2;
+}
+
+export template <T> requires equality<T>
+bool operator == (T* e1, T?* e2) {
+  return !!*e2 && *e1 == **e2;
+}
+
+export template <T> requires equality<T>
+bool operator == (T?* e1, T?* e2) {
+  return !!*e1 && !!*e2 ? **e1 == **e2 : !*e1 == !*e2;
+}
+
 export template <T>
 bool operator == (T?* elem, null_type*) {
   return !*elem;
