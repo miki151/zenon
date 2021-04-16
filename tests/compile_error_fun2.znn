@@ -1,0 +1,8 @@
+// no_compile
+
+int main() {
+  static const a = 1;
+  static if (a == 1)
+    compile_error("efwpok");
+  return 1;
+}

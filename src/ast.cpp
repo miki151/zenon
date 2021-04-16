@@ -1622,11 +1622,13 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
             }
         fail();
       });
-  context.addBuiltInFunction("string_length", BuiltinType::INT, {SType(BuiltinType::STRING)},
-      [](const Context&, vector<SType> args) -> WithError<SType> {
+  context.addBuiltInFunction("compile_error", BuiltinType::VOID, {SType(BuiltinType::STRING)},
+      [](const Context& context, vector<SType> args) -> WithError<SType> {
+        if (!!context.getTemplateParams())
+          return SType(CompileTimeValue::get(CompileTimeValue::VoidValue{}));
         if (auto value = args[0].dynamicCast<CompileTimeValue>())
           if (auto s = value->value.getReferenceMaybe<string>())
-            return (SType) CompileTimeValue::get((int) s->size());
+            return *s;
         fail();
       });
   context.addBuiltInFunction("known_size", BuiltinType::BOOL, {SType(BuiltinType::ANY_TYPE)},
