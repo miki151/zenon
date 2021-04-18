@@ -22,6 +22,15 @@ void destruct(vector<T>* v) {
 export template <T>
 extern vector();
 
+export template <T> requires copy<T>
+vector(int count, T elem) {
+  mutable ret = vector<T>();
+  ret.reserve(count);
+  for (i : range(0, count))
+    ret.push_back(elem.copy());
+  return move(ret);
+}
+
 export template <T>
 struct vector_iterator {
   T* elem;
