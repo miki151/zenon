@@ -1,0 +1,25 @@
+// 0
+
+import "std/flags.znn";
+import "std/panic.znn";
+
+struct X {
+  int a;
+  int? b;
+  string s;
+  bool x;
+};
+
+int main() {
+  const x1 = *read_flags<X>({"", "-a=1", "-b=2", "-s=foobar", "-x"}.slice());
+  assert(x1.a == 1 && x1.b == 2 && x1.s == "foobar" && x1.x);
+  const x2 = *read_flags<X>({"", "-a=1", "-s=foobar"}.slice());
+  assert(x2.a == 1 && !x2.b && x2.s == "foobar" && !x2.x);
+  assert(!read_flags<X>({"", "-b=2", "-s=foobar", "-x"}.slice()));
+  assert(!read_flags<X>({"", "-a=2", "-a=2", "-s=foobar", "-x"}.slice()));
+  assert(!read_flags<X>({"", "-a=2", "-a", "-s=foobar", "-x"}.slice()));
+  assert(!read_flags<X>({"", "-a=2", "-s=foobar", "-x", "-x"}.slice()));
+  assert(!read_flags<X>({"", "-a=2", "-s=foobar", "-x=pok"}.slice()));
+  assert(!read_flags<X>({"", "-a=2", "-s=foobar", "-u"}.slice()));
+  return 0;
+}

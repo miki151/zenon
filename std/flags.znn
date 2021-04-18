@@ -1,0 +1,134 @@
+
+export import "std/io.znn";
+export import "std/expected.znn";
+export import "std/map.znn";
+export import "std/hash_set.znn";
+import "std/range.znn";
+
+struct flag_info {
+  string name;
+  string? value;
+};
+
+flag_info!string parse_flag(string flag) {
+  mutable start = 0;
+  const error = "Command line flag badly formated: '{flag}'";
+  while (flag[start] == '-' && start < flag.size())
+    ++start;
+  if (start >= flag.size())
+    return error;
+  for (index : range(start, flag.size()))
+    if (flag[index] == '=') {
+      if (index == start || index == flag.size() - 1)
+        return error;
+      return flag_info(
+          flag.substring(start, index - start),
+          flag.substring(index + 1, flag.size() - index - 1)
+      );
+    }
+  return flag_info(
+      flag.substring(start, flag.size() - start),
+      null
+  );
+}
+
+export struct flag_map {
+  map<string, string> values;
+  hash_set<string> flags;
+};
+
+export flag_map!string parse_flags(string[] cmd) {
+  mutable ret = flag_map(
+      map<string, string>(),
+      hash_set<string>()
+  );
+  for (it : cmd) {
+    const flag = try parse_flag(*it);
+    if (ret.values.contains(&flag.name) || ret.flags.contains(&flag.name))
+      return "Duplicate flag: '{flag.name}'";
+    if (flag.value)
+      ret.values.insert(flag.name, *flag.value);
+    else
+      ret.flags.insert(flag.name);
+  }
+  return move(ret);
+}
+
+export template <T>
+struct dummy_struct {};
+
+export int!string parse_member(string* name, string* value, dummy_struct<int>) {
+  if (const r = value->to_int())
+    return *r;
+  return "Can't parse integer from '{*value}'";
+}
+
+export string!string parse_member(string* name, string* value, dummy_struct<string>) {
+  return expected<string, string>::value(*value);
+}
+
+export template <T>
+T!string parse_member(string* name, string* value, dummy_struct<T>) {
+  compile_error("Member of bad type " + to_string(T));
+  panic();
+}
+
+export concept<T> parse_member {
+  T!string parse_member(string*, string*, dummy_struct<T>);
+};
+
+export template <T> requires parse_member<T>
+T!string parse_member(string* name, string*? value, bool flag, dummy_struct<T>) {
+  if (flag)
+    return expected<T, string>::error("Flag '-{*name}' requires a value of type '" + to_string(T) + "'");
+  if (value)
+    return parse_member(name, *value, dummy_struct<T>());
+  return expected<T, string>::error("Flag missing: '-{*name}'");
+}
+
+export bool!string parse_member(string* name, string*? value, bool flag, dummy_struct<bool>) {
+  if (value) {
+    if (**value == "true")
+      return true;
+    if (**value == "false")
+      return false;
+    return "Bad boolean value: '{**value}'";
+  }
+  return flag;
+}
+
+export template <T> requires parse_member<T>
+T?!string parse_member(string* name, string*? value, bool flag, dummy_struct<T?>) {
+  if (flag)
+    return expected<T?, string>::error("Flag '-{*name}' requires a value of type '" + to_string(T) + "'");
+  if (value)
+    return expected<T?, string>::value(try parse_member(name, *value, flag, dummy_struct<T>()));
+  return expected<T?, string>::value(null);
+}
+
+export template <T> requires is_struct<T>
+T!string read_struct(flag_map* flags) {
+  mutable unused = flags->flags.copy();
+  for (it : flags->values.getAllKeys())
+    unused.insert(*it);
+  static mutable returnStmt = "return " + to_string(T) + "(";
+  static for (i = 0; i < struct_count(T); ++i) {
+    static if (i > 0)
+      returnStmt = returnStmt + ", ";
+    static const name = get_member_name(T, i);
+    unused.erase(&name);
+    returnStmt = returnStmt + "try parse_member(&\"" + to_string(name) + "\", "
+        + "flags->values.getMaybe(&\"" + to_string(name) + "\"), "
+        + "flags->flags.contains(&\"" + to_string(name) + "\"), "
+        + "dummy_struct<" + to_string(get_member_type(T, i)) + ">())";    
+  }
+  for (it : unused)
+    return "Unrecognized flag: {*it}";
+  mixin returnStmt + ");";
+}
+
+export template <T> requires is_struct<T>
+T!string read_flags(string[] cmd) {
+  const flags = try parse_flags(cmd.subsequence(1, cmd.size() - 1));
+  return read_struct<T>(&flags);
+}
