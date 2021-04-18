@@ -1,0 +1,11 @@
+// 1
+
+import "std/range.znn";
+
+
+int main() {
+  mutable ret = 1;
+  for (i : range(5, 0))
+    ++ret;
+  return ret;
+}

@@ -5,6 +5,12 @@ export struct range {
   int finish;
 };
 
+export range(int start, mutable int finish) {
+  if (start > finish)
+    finish = start;
+  return range::range(start, finish);
+}
+
 export range copy(range*) = default;
 
 export struct range_iterator {
