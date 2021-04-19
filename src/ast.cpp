@@ -96,6 +96,10 @@ unique_ptr<Expression> Constant::transform(const StmtTransformFun&, const ExprTr
 WithErrorLine<SType> Variable::getTypeImpl(const Context& context) {
   optional<string> varError;
   if (auto id = identifier.asBasicIdentifier()) {
+    if (auto newId = context.getShadowId(*id)) {
+      identifier.parts[0].name = *newId;
+      *id = *newId;
+    }
     if (auto varType = context.getTypeOfVariable(*id))
       return *varType;
     else
@@ -418,7 +422,7 @@ JustError<ErrorLoc> StatementBlock::checkMovesImpl(MoveChecker& checker) const {
   return success;
 }
 
-unique_ptr<Statement> StatementBlock::transform(const StmtTransformFun& fun, const ExprTransformFun&) const {
+unique_ptr<Statement> StatementBlock::transformImpl(const StmtTransformFun& fun, const ExprTransformFun&) const {
   auto ret = unique<StatementBlock>(codeLoc);
   for (auto& elem : elems)
     ret->elems.push_back(fun(elem.get()));
@@ -477,7 +481,7 @@ JustError<ErrorLoc> IfStatement::checkMovesImpl(MoveChecker& checker) const {
   return success;
 }
 
-unique_ptr<Statement> IfStatement::transform(const StmtTransformFun& fun,
+unique_ptr<Statement> IfStatement::transformImpl(const StmtTransformFun& fun,
     const ExprTransformFun& exprFun) const {
   return unique<IfStatement>(codeLoc,
       declaration ? cast<VariableDeclaration>(fun(declaration.get())) : nullptr,
@@ -496,7 +500,7 @@ void IfStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
     f1(ifFalse.get());
 }
 
-WithEvalError<StatementEvalResult> IfStatement::eval(Context& context) const {
+WithEvalError<StatementEvalResult> IfStatement::eval(Context& context) {
   if (declaration)
     return EvalError::withError(getString(Keyword::STATIC) + " if with a declaration is not supported.");
   StatementEvalResult res;
@@ -540,8 +544,22 @@ WithErrorLine<SType> VariableDeclaration::getRealType(const Context& context) co
     return codeLoc.getError("Initializing expression needed to infer variable type");
 }
 
+WithErrorLine<bool> VariableDeclaration::considerShadowing() {
+  if (attributes.empty())
+    return false;
+  for (auto& a : attributes)
+    if (a.name != "@shadow")
+      return a.codeLoc.getError("Unrecognized attribute: " + quote(a.name));
+  static int cnt = 0;
+  identifier += "shadow" + to_string(++cnt);
+  return true;
+}
+
 JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
-  TRY(context.checkNameConflictExcludingFunctions(identifier, "Variable").addCodeLoc(codeLoc));
+  string oldId = identifier;
+  bool shadow = TRY(considerShadowing());
+  if (!shadow)
+    TRY(context.checkNameConflictExcludingFunctions(identifier, "Variable").addCodeLoc(codeLoc));
   if (!realType)
     realType = TRY(getRealType(context));
   if (!realType->canDeclareVariable())
@@ -554,6 +572,8 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   TRY(getType(context, initExpr));
   auto varType = isMutable ? SType(MutableReferenceType::get(realType.get())) : SType(ReferenceType::get(realType.get()));
   context.addVariable(identifier, std::move(varType), codeLoc);
+  if (shadow)
+    context.setShadowId(oldId, identifier);
   if (realType->hasDestructor()) {
     destructorCall = getDestructorStatement(codeLoc, identifier);
     TRY(destructorCall->check(context));
@@ -568,18 +588,23 @@ JustError<ErrorLoc> VariableDeclaration::checkMovesImpl(MoveChecker& checker) co
   return success;
 }
 
-WithEvalError<StatementEvalResult> VariableDeclaration::eval(Context& context) const {
-  if (auto res = context.checkNameConflictExcludingFunctions(identifier, "Variable"); !res)
-    return EvalError::withError(res.get_error());
+WithEvalError<StatementEvalResult> VariableDeclaration::eval(Context& context) {
+  string oldId = identifier;
+  bool shadow = TRY(considerShadowing().toEvalError());
+  if (!shadow)
+    if (auto res = context.checkNameConflictExcludingFunctions(identifier, "Variable"); !res)
+      return EvalError::withError(res.get_error());
   auto actualType = TRY(getRealType(context).toEvalError());
   auto result = TRY(TRY(initExpr->eval(context)).value->convertTo(actualType).addCodeLoc(codeLoc).toEvalError());
   if (isMutable)
     result = CompileTimeValue::getReference(result);
   context.addType(identifier, std::move(result));
+  if (shadow)
+    context.setShadowId(oldId, identifier);
   return StatementEvalResult{};
 }
 
-unique_ptr<Statement> VariableDeclaration::transform(const StmtTransformFun&,
+unique_ptr<Statement> VariableDeclaration::transformImpl(const StmtTransformFun&,
     const ExprTransformFun& exprFun) const {
   auto ret = unique<VariableDeclaration>(codeLoc, none, identifier, initExpr ? exprFun(initExpr.get()) : nullptr);
   ret->isMutable = isMutable;
@@ -613,7 +638,7 @@ JustError<ErrorLoc> AliasDeclaration::checkMovesImpl(MoveChecker& checker) const
   return success;
 }
 
-unique_ptr<Statement> AliasDeclaration::transform(const StmtTransformFun&,
+unique_ptr<Statement> AliasDeclaration::transformImpl(const StmtTransformFun&,
     const ExprTransformFun& exprFun) const {
   auto ret = unique<AliasDeclaration>(codeLoc, identifier, exprFun(initExpr.get()));
   return ret;
@@ -643,7 +668,7 @@ JustError<ErrorLoc> ReturnStatement::checkMovesImpl(MoveChecker& checker) const 
   return success;
 }
 
-unique_ptr<Statement> ReturnStatement::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
+unique_ptr<Statement> ReturnStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun& fun) const {
   return unique<ReturnStatement>(codeLoc, expr ? fun(expr.get()) : nullptr);
 }
 
@@ -673,12 +698,18 @@ unique_ptr<Statement> Statement::replaceVar(string from, string to) const {
   [&](Expression* s) { return s->replaceVar(from, to); });
 }
 
-WithEvalError<StatementEvalResult> Statement::eval(Context& context) const {
+WithEvalError<StatementEvalResult> Statement::eval(Context& context) {
   return EvalError::noEval();
 }
 
 JustError<ErrorLoc> Statement::checkMovesImpl(MoveChecker&) const {
   return success;
+}
+
+unique_ptr<Statement> Statement::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
+  auto ret = transformImpl(f1, f2);
+  ret->attributes = attributes;
+  return ret;
 }
 
 bool Statement::hasReturnStatement() const {
@@ -830,7 +861,7 @@ static WithErrorLine<vector<SType>> getTemplateParams(const TemplateInfo& info, 
   return ret;
 }
 
-unique_ptr<Statement> FunctionDefinition::transform(const StmtTransformFun& f1, const ExprTransformFun&) const {
+unique_ptr<Statement> FunctionDefinition::transformImpl(const StmtTransformFun& f1, const ExprTransformFun&) const {
   auto ret = unique<FunctionDefinition>(codeLoc, returnType, name);
   ret->parameters = parameters;
   if (body)
@@ -1686,7 +1717,7 @@ JustError<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
   return success;
 }
 
-unique_ptr<Statement> ExpressionStatement::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
+unique_ptr<Statement> ExpressionStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun& fun) const {
   auto ret = unique<ExpressionStatement>(fun(expr.get()));
   ret->canDiscard = canDiscard;
   ret->noReturnExpr = noReturnExpr;
@@ -1705,7 +1736,7 @@ bool ExpressionStatement::hasReturnStatement() const {
   return noReturnExpr;
 }
 
-WithEvalError<StatementEvalResult> ExpressionStatement::eval(Context& context) const {
+WithEvalError<StatementEvalResult> ExpressionStatement::eval(Context& context) {
   TRY(expr->eval(context));
   return StatementEvalResult{};
 }
@@ -1975,7 +2006,7 @@ JustError<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const 
   return success;
 }
 
-unique_ptr<Statement> SwitchStatement::transform(const StmtTransformFun& fun,
+unique_ptr<Statement> SwitchStatement::transformImpl(const StmtTransformFun& fun,
     const ExprTransformFun& exprFun) const {
   auto ret = unique<SwitchStatement>(codeLoc, exprFun(expr.get()));
   ret->targetType = targetType;
@@ -2024,7 +2055,7 @@ JustError<ErrorLoc> UnionDefinition::registerTypes(const Context& primaryContext
   return success;
 }
 
-unique_ptr<Statement> UnionDefinition::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+unique_ptr<Statement> UnionDefinition::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
   return unique<UnionDefinition>(*this);
 }
 
@@ -2091,7 +2122,7 @@ JustError<ErrorLoc> StructDefinition::registerTypes(const Context& primaryContex
   return success;
 }
 
-unique_ptr<Statement> StructDefinition::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+unique_ptr<Statement> StructDefinition::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
   return unique<StructDefinition>(*this);
 }
 
@@ -2198,7 +2229,7 @@ Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
   return returns ? TopLevelAllowance::CANT : TopLevelAllowance::CAN;
 }
 
-unique_ptr<Statement> EmbedStatement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+unique_ptr<Statement> EmbedStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
   auto ret = unique<EmbedStatement>(codeLoc, value);
   ret->returns = returns;
   ret->isTopLevel = isTopLevel;
@@ -2240,7 +2271,7 @@ JustError<ErrorLoc> ForLoopStatement::checkMovesImpl(MoveChecker& checker) const
   return checker.endLoop(loopId);
 }
 
-unique_ptr<Statement> ForLoopStatement::transform(const StmtTransformFun& fun,
+unique_ptr<Statement> ForLoopStatement::transformImpl(const StmtTransformFun& fun,
     const ExprTransformFun& exprFun) const {
   return unique<ForLoopStatement>(codeLoc,
       cast<VariableDeclaration>(fun(init.get())),
@@ -2256,7 +2287,7 @@ void ForLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) con
   f1(body.get());
 }
 
-WithEvalError<StatementEvalResult> ForLoopStatement::eval(Context& context) const {
+WithEvalError<StatementEvalResult> ForLoopStatement::eval(Context& context) {
   StatementEvalResult res;
   auto forContext = context.getChild();
   bool wasMutable = init->isMutable;
@@ -2315,7 +2346,7 @@ JustError<ErrorLoc> WhileLoopStatement::checkMovesImpl(MoveChecker& checker) con
   return checker.endLoop(loopId);
 }
 
-unique_ptr<Statement> WhileLoopStatement::transform(const StmtTransformFun& fun,
+unique_ptr<Statement> WhileLoopStatement::transformImpl(const StmtTransformFun& fun,
     const ExprTransformFun& exprFun) const {
   return unique<WhileLoopStatement>(codeLoc,
       exprFun(cond.get()),
@@ -2327,7 +2358,7 @@ void WhileLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) c
   f1(body.get());
 }
 
-WithEvalError<StatementEvalResult> WhileLoopStatement::eval(Context& context) const {
+WithEvalError<StatementEvalResult> WhileLoopStatement::eval(Context& context) {
   StatementEvalResult res;
   auto forContext = context.getChild();
   const int maxIterations = 500;
@@ -2383,7 +2414,7 @@ JustError<ErrorLoc> ImportStatement::registerTypes(const Context& context, TypeR
   return success;
 }
 
-unique_ptr<Statement> ImportStatement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+unique_ptr<Statement> ImportStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
   return unique<ImportStatement>(codeLoc, path, isBuiltIn);
 }
 
@@ -2416,7 +2447,7 @@ JustError<ErrorLoc> EnumDefinition::registerTypes(const Context&, TypeRegistry* 
   return r->addEnum(name, external, codeLoc).addCodeLoc(codeLoc);
 }
 
-unique_ptr<Statement> EnumDefinition::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+unique_ptr<Statement> EnumDefinition::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
   auto ret = unique<EnumDefinition>(codeLoc, name);
   ret->elements = elements;
   return ret;
@@ -2512,7 +2543,7 @@ JustError<ErrorLoc> ConceptDefinition::check(Context& context, bool) {
   return success;
 }
 
-unique_ptr<Statement> ConceptDefinition::transform(const StmtTransformFun& f1, const ExprTransformFun&) const {
+unique_ptr<Statement> ConceptDefinition::transformImpl(const StmtTransformFun& f1, const ExprTransformFun&) const {
   auto ret = unique<ConceptDefinition>(codeLoc, name);
   for (auto& f : functions)
     ret->functions.push_back(cast<FunctionDefinition>(f1(f.get())));
@@ -2557,7 +2588,7 @@ JustError<ErrorLoc> BreakStatement::check(Context& context, bool) {
     return codeLoc.getError("Break statement outside of a loop");
 }
 
-unique_ptr<Statement> BreakStatement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+unique_ptr<Statement> BreakStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
   auto ret = unique<BreakStatement>(codeLoc);
   ret->loopId = loopId;
   return ret;
@@ -2574,7 +2605,7 @@ JustError<ErrorLoc> ContinueStatement::check(Context& context, bool) {
   return success;
 }
 
-unique_ptr<Statement> ContinueStatement::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+unique_ptr<Statement> ContinueStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
   return unique<ContinueStatement>(codeLoc);
 }
 
@@ -2660,7 +2691,7 @@ JustError<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
   return success;
 }
 
-unique_ptr<Statement> ExternConstantDeclaration::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+unique_ptr<Statement> ExternConstantDeclaration::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
   return unique<ExternConstantDeclaration>(codeLoc, type, identifier);
 }
 
@@ -3073,7 +3104,7 @@ JustError<ErrorLoc> UncheckedStatement::checkMovesImpl(MoveChecker& checker) con
   return elem->checkMovesImpl(checker);
 }
 
-unique_ptr<Statement> UncheckedStatement::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
+unique_ptr<Statement> UncheckedStatement::transformImpl(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
   return unique<UncheckedStatement>(codeLoc, elem->transform(f1, f2));
 }
 
@@ -3094,7 +3125,7 @@ JustError<ErrorLoc> AttributeDefinition::check(Context&, bool) {
   return success;
 }
 
-unique_ptr<Statement> AttributeDefinition::transform(const StmtTransformFun&, const ExprTransformFun&) const {
+unique_ptr<Statement> AttributeDefinition::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
   return unique<AttributeDefinition>(codeLoc, name);
 }
 
@@ -3112,7 +3143,7 @@ JustError<ErrorLoc> ExternalStatement::checkMovesImpl(MoveChecker& checker) cons
   return elem->checkMoves(checker);
 }
 
-unique_ptr<Statement> ExternalStatement::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
+unique_ptr<Statement> ExternalStatement::transformImpl(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
   return elem->transform(f1, f2);
 }
 
@@ -3182,7 +3213,7 @@ JustError<ErrorLoc> MixinStatement::check(Context& context, bool) {
 }
 
 
-unique_ptr<Statement> MixinStatement::transform(const StmtTransformFun&, const ExprTransformFun& f) const {
+unique_ptr<Statement> MixinStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun& f) const {
   return unique<MixinStatement>(codeLoc, f(value.get()));
 }
 
@@ -3205,12 +3236,13 @@ StaticStatement::StaticStatement(CodeLoc l, unique_ptr<Statement> value) : State
 }
 
 JustError<ErrorLoc> StaticStatement::check(Context& context, bool) {
+  value->attributes = attributes;
   results = TRY(value->eval(context)
       .addNoEvalError(value->codeLoc.getError("Unable to evaluate statement at compile-time")));
   return success;
 }
 
-unique_ptr<Statement> StaticStatement::transform(const StmtTransformFun& f, const ExprTransformFun&) const {
+unique_ptr<Statement> StaticStatement::transformImpl(const StmtTransformFun& f, const ExprTransformFun&) const {
   return unique<StaticStatement>(codeLoc, f(value.get()));
 }
 
@@ -3228,6 +3260,10 @@ JustError<ErrorLoc> StaticStatement::checkMovesImpl(MoveChecker& checker) const 
 void StaticStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
   for (auto& s : results)
     f1(s.get());
+}
+
+bool StaticStatement::canHaveAttributes() const {
+  return value->canHaveAttributes();
 }
 
 unique_ptr<Statement> getRangedLoop(CodeLoc l, string iterator, unique_ptr<Expression> container,

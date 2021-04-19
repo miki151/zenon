@@ -1092,7 +1092,7 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             return std::move(ret);
           }
           case Keyword::OPEN_SQUARE_BRACKET:
-            if (topLevel)
+            if (tokens.peekNext().value[0] == '@')
               return parseStatementWithAttributes(tokens);
             else
               return cast<Statement>(parseExpressionAndSemicolon());

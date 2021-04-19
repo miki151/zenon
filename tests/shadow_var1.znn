@@ -1,0 +1,9 @@
+// 4
+
+int main() {
+  mutable a = 1;
+  a += 2;
+  [@shadow]
+  const a = a + 1;
+  return a;
+}

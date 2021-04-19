@@ -41,6 +41,8 @@ class Context : public owned_object<Context> {
   WithError<SType> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
   void addVariable(const string& ident, SType, CodeLoc, bool global = false);
+  void setShadowId(const string& oldId, const string& newId);
+  optional<string> getShadowId(const string& id) const;
   void setNonMovable(const string& variable);
   bool isNonMovable(const string& variable) const;
   void replace(SType from, SType to, ErrorBuffer&);
@@ -111,6 +113,7 @@ class Context : public owned_object<Context> {
 
   struct State : public owned_object<State> {
     map<string, VariableInfo> vars;
+    map<string, string> shadowIds;
     vector<string> varsList;
     map<string, SType> types;
     set<const Type*> typesSet;

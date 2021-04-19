@@ -1,0 +1,9 @@
+// 4
+
+int main() {
+  mutable a = "pok";
+  a += "a";
+  [@shadow]
+  const a = a.size();
+  return a;
+}

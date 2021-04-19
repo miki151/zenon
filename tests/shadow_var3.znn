@@ -1,0 +1,10 @@
+// 3
+
+int main() {
+  mutable a = "pok";
+  a += "a";
+  discard move(a);
+  [@shadow]
+  const a = 3;
+  return a;
+}

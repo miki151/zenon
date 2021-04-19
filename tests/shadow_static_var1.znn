@@ -1,0 +1,15 @@
+// 6
+
+template <int N>
+int get() {
+  return N;
+}
+
+int main() {
+  static mutable a = 3;
+  a = a + 1;
+  [@shadow]
+  static mutable a = a + 1;
+  a = a + 1;
+  return get<a>();
+}

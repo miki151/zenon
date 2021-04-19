@@ -1,0 +1,9 @@
+// no_compile
+
+int main() {
+  static mutable a = 3;
+  [@shadow]
+  static const a = a + 1;
+  a = a + 1;
+  return a;
+}

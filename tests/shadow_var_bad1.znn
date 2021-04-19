@@ -1,0 +1,10 @@
+// no_compile
+
+int main() {
+  mutable a = 1;
+  a += 2;
+  [@shadow]
+  const a = a;
+  a += 2;
+  return a;
+}

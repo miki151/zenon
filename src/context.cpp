@@ -223,6 +223,17 @@ void Context::addVariable(const string& ident, SType t, CodeLoc codeLoc, bool gl
   state->varsList.push_back(ident);
 }
 
+void Context::setShadowId(const string& oldId, const string& newId) {
+  state->shadowIds.insert({oldId, newId});
+}
+
+optional<string> Context::getShadowId(const string& id) const {
+  for (auto state : getReversedStates())
+    if (auto newId = getReferenceMaybe(state->shadowIds, id))
+      return *newId;
+  return none;
+}
+
 void Context::setNonMovable(const string& variable) {
   state->nonMovableVars.insert(variable);
 }
@@ -664,6 +675,8 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
       }
     }
     auto name = id.parts[0].name;
+    if (auto id = getShadowId(name))
+      name = *id;
     if (auto concept = getConcept(name)) {
       if (auto res = concept->canCreateConceptType(); !res)
         return id.codeLoc.getError("Can't create a concept type from concept " + quote(concept->getName()) + ":\n" + res.get_error().toString());
