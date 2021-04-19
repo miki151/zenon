@@ -1,0 +1,11 @@
+// 3
+
+template <int N>
+int get() {
+  return N;
+}
+
+int main() {
+  static mutable a = 3;
+  return get<(a)>();
+}
