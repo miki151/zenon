@@ -1,0 +1,8 @@
+// 4
+
+int main() {
+  static mutable a = 3;
+  mutable b = 1;
+  a = b;
+  return 0;
+}
