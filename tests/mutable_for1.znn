@@ -3,7 +3,7 @@
 int main() {
   const a = {1, 2, 3, 4, 5, 6};
   mutable res = 0;
-  for (mutable i = 0; i < a.size(); ++i) {
+  for (i = 0; i < a.size(); ++i) {
     if (i == 3)
       ++i;
     res += a[i];

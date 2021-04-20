@@ -414,6 +414,14 @@ JustError<ErrorLoc> StatementBlock::check(Context& context, bool) {
   return success;
 }
 
+WithEvalError<StatementEvalResult> StatementBlock::eval(Context& context) {
+  StatementEvalResult res;
+  auto bodyContext = context.getChild();
+  for (auto& elem : elems)
+    res.append(TRY(elem->eval(bodyContext)));
+  return std::move(res);
+}
+
 JustError<ErrorLoc> StatementBlock::checkMovesImpl(MoveChecker& checker) const {
   checker.startBlock();
   OnExit onExit([&]{ checker.endBlock();});
@@ -2240,92 +2248,9 @@ bool EmbedStatement::hasReturnStatement() const {
   return returns;
 }
 
-ForLoopStatement::ForLoopStatement(CodeLoc l, unique_ptr<VariableDeclaration> i, unique_ptr<Expression> c,
-                                   unique_ptr<Expression> it, unique_ptr<Statement> b)
-  : Statement(l), init(std::move(i)), cond(std::move(c)), iter(std::move(it)), body(std::move(b)) {}
-
-JustError<ErrorLoc> ForLoopStatement::check(Context& context, bool) {
-  auto bodyContext = context.getChild();
-  auto mutInit = cast<VariableDeclaration>(init->deepCopy());
-  TRY(init->check(bodyContext));
-  auto loopContext = context.getChild();
-  mutInit->isMutable = true;
-  TRY(mutInit->check(loopContext));
-  auto condType = TRY(getType(loopContext, cond));
-  if (condType != BuiltinType::BOOL)
-    return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
-  TRY(getType(loopContext, iter));
-  loopId = bodyContext.setIsInLoop();
-  return body->check(bodyContext);
-}
-
-JustError<ErrorLoc> ForLoopStatement::checkMovesImpl(MoveChecker& checker) const {
-  TRY(init->checkMoves(checker));
-  checker.startLoop(loopId);
-  TRY(cond->checkMoves(checker));
-  TRY(iter->checkMoves(checker));
-  if (auto res = body->checkMoves(checker); !res) {
-    TRY(checker.endLoop(loopId));
-    return res.get_error();
-  }
-  return checker.endLoop(loopId);
-}
-
-unique_ptr<Statement> ForLoopStatement::transformImpl(const StmtTransformFun& fun,
-    const ExprTransformFun& exprFun) const {
-  return unique<ForLoopStatement>(codeLoc,
-      cast<VariableDeclaration>(fun(init.get())),
-      exprFun(cond.get()),
-      exprFun(iter.get()),
-      fun(body.get()));
-}
-
-void ForLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f1(init.get());
-  f2(cond.get());
-  f2(iter.get());
-  f1(body.get());
-}
-
-WithEvalError<StatementEvalResult> ForLoopStatement::eval(Context& context) {
-  StatementEvalResult res;
-  auto forContext = context.getChild();
-  bool wasMutable = init->isMutable;
-  init->isMutable = true;
-  CHECK(TRY(init->eval(forContext)).empty());
-  const int maxIterations = 500;
-  int countIter = 0;
-  while (1) {
-    auto bodyContext = forContext.getChild();
-    auto condValue = TRY(cond->eval(bodyContext)).value;
-    if (condValue->getType() != BuiltinType::BOOL)
-    return EvalError::withError("Expected a compile-time value of type " + quote(BuiltinType::BOOL->getName()) +
-        ", got " + quote(condValue->getName()));
-    auto value = condValue.dynamicCast<CompileTimeValue>();
-    bool onePass = false;
-    if (auto b = value->value.getValueMaybe<bool>()) {
-      if (!*b)
-        break;
-    } else
-      onePass = true;
-    auto thisBody = body->deepCopy();
-    auto bodyContext2 = bodyContext.getChild();
-    if (!wasMutable)
-      bodyContext2.addType(init->identifier, bodyContext2.getType(init->identifier)->removeValueReference());
-    if (auto res = thisBody->check(bodyContext2); !res)
-      return EvalError::withError(res.get_error().toString());
-    res.push_back(unique<StatementBlock>(codeLoc, makeVec(std::move(thisBody))));
-    TRY(iter->eval(bodyContext));
-    if (onePass)
-      break;
-    if (++countIter > maxIterations)
-      return EvalError::withError("Static loop reached maximum number of iterations (" + to_string(maxIterations) + ")");
-  }
-  return std::move(res);
-}
-
-WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b)
-  : Statement(l), cond(std::move(c)), body(std::move(b)) {}
+WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b,
+    unique_ptr<Statement> a)
+  : Statement(l), cond(std::move(c)), body(std::move(b)), afterContinue(std::move(a)) {}
 
 JustError<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
   auto bodyContext = context.getChild();
@@ -2333,16 +2258,17 @@ JustError<ErrorLoc> WhileLoopStatement::check(Context& context, bool) {
   if (condType != BuiltinType::BOOL)
     return cond->codeLoc.getError("Loop condition must be of type " + quote("bool"));
   loopId = bodyContext.setIsInLoop();
+  if (afterContinue)
+    TRY(afterContinue->check(bodyContext));
   return body->check(bodyContext);
 }
 
 JustError<ErrorLoc> WhileLoopStatement::checkMovesImpl(MoveChecker& checker) const {
   checker.startLoop(loopId);
   TRY(cond->checkMoves(checker));
-  if (auto res = body->checkMoves(checker); !res) {
-    TRY(checker.endLoop(loopId));
-    return res.get_error();
-  }
+  TRY(body->checkMoves(checker));
+  if (afterContinue)
+    TRY(afterContinue->checkMoves(checker));
   return checker.endLoop(loopId);
 }
 
@@ -2350,12 +2276,15 @@ unique_ptr<Statement> WhileLoopStatement::transformImpl(const StmtTransformFun& 
     const ExprTransformFun& exprFun) const {
   return unique<WhileLoopStatement>(codeLoc,
       exprFun(cond.get()),
-      fun(body.get()));
+      fun(body.get()),
+      afterContinue ? fun(afterContinue.get()) : nullptr);
 }
 
 void WhileLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
   f2(cond.get());
   f1(body.get());
+  if (afterContinue)
+    f1(afterContinue.get());
 }
 
 WithEvalError<StatementEvalResult> WhileLoopStatement::eval(Context& context) {
@@ -2380,6 +2309,8 @@ WithEvalError<StatementEvalResult> WhileLoopStatement::eval(Context& context) {
     auto bodyContext2 = bodyContext.getChild();
     if (auto res = thisBody->check(bodyContext2); !res)
       return EvalError::withError(res.get_error().toString());
+    if (afterContinue)
+      TRY(afterContinue->eval(bodyContext2));
     res.push_back(unique<StatementBlock>(codeLoc, makeVec(std::move(thisBody))));
     if (onePass)
       break;
@@ -2600,9 +2531,11 @@ JustError<ErrorLoc> BreakStatement::checkMovesImpl(MoveChecker& checker) const {
 }
 
 JustError<ErrorLoc> ContinueStatement::check(Context& context, bool) {
-  if (!context.getLoopId())
+  if (auto id = context.getLoopId()) {
+    loopId = *id;
+    return success;
+  } else
     return codeLoc.getError("Continue statement outside of a loop");
-  return success;
 }
 
 unique_ptr<Statement> ContinueStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
@@ -3266,6 +3199,17 @@ bool StaticStatement::canHaveAttributes() const {
   return value->canHaveAttributes();
 }
 
+unique_ptr<Statement> getForLoop(CodeLoc l, unique_ptr<VariableDeclaration> decl, unique_ptr<Expression> cond,
+    unique_ptr<Expression> iter, unique_ptr<Statement> body) {
+  auto ret = unique<StatementBlock>(l);
+  decl->isMutable = true;
+  ret->elems.push_back(std::move(decl));
+  auto exprStmt = unique<ExpressionStatement>(std::move(iter));
+  exprStmt->canDiscard = true;
+  ret->elems.push_back(unique<WhileLoopStatement>(l, std::move(cond), std::move(body), std::move(exprStmt)));
+  return ret;
+}
+
 unique_ptr<Statement> getRangedLoop(CodeLoc l, string iterator, unique_ptr<Expression> container,
     unique_ptr<Statement> body) {
   auto ret = unique<StatementBlock>(l);
@@ -3285,9 +3229,8 @@ unique_ptr<Statement> getRangedLoop(CodeLoc l, string iterator, unique_ptr<Expre
   auto incExpr = unique<ExpressionStatement>(unique<UnaryExpression>(l, Operator::INCREMENT,
       unique<Variable>(IdentifierInfo(iterator, l))));
   incExpr->canDiscard = true;
-  whileBody->elems.push_back(std::move(incExpr));
   ret->elems.push_back(unique<WhileLoopStatement>(l, BinaryExpression::get(l, Operator::NOT_EQUAL,
       unique<Variable>(IdentifierInfo(iterator, l)), unique<Variable>(IdentifierInfo(itEndId, l))),
-      std::move(whileBody)));
+      std::move(whileBody), std::move(incExpr)));
   return ret;
 }

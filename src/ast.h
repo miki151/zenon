@@ -419,6 +419,7 @@ struct StatementBlock : Statement {
   virtual void codegen(Accu&, CodegenStage) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
+  virtual WithEvalError<StatementEvalResult> eval(Context&) override;
 };
 
 struct ExternalStatement : Statement {
@@ -466,6 +467,7 @@ struct BreakStatement : Statement {
 
 struct ContinueStatement : Statement {
   using Statement::Statement;
+  int loopId = 0;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
@@ -487,29 +489,18 @@ struct ExpressionStatement : Statement {
   bool isConstant = false;
 };
 
-struct ForLoopStatement : Statement {
-  ForLoopStatement(CodeLoc l, unique_ptr<VariableDeclaration> init, unique_ptr<Expression> cond,
+unique_ptr<Statement> getForLoop(CodeLoc, unique_ptr<VariableDeclaration>, unique_ptr<Expression> cond,
       unique_ptr<Expression> iter, unique_ptr<Statement> body);
-  unique_ptr<VariableDeclaration> init;
-  unique_ptr<Expression> cond;
-  unique_ptr<Expression> iter;
-  unique_ptr<Statement> body;
-  int loopId = 0;
-  NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
-  NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
-  virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
-  virtual WithEvalError<StatementEvalResult> eval(Context&) override;
-};
 
-unique_ptr<Statement> getRangedLoop(CodeLoc l, string iterator, unique_ptr<Expression> container,
+unique_ptr<Statement> getRangedLoop(CodeLoc, string iterator, unique_ptr<Expression> container,
       unique_ptr<Statement> body);
 
 struct WhileLoopStatement : Statement {
-  WhileLoopStatement(CodeLoc l, unique_ptr<Expression> cond, unique_ptr<Statement> body);
+  WhileLoopStatement(CodeLoc l, unique_ptr<Expression> cond, unique_ptr<Statement> body,
+      unique_ptr<Statement> afterContinue);
   unique_ptr<Expression> cond;
   unique_ptr<Statement> body;
+  unique_ptr<Statement> afterContinue;
   int loopId = 0;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;

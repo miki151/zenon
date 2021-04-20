@@ -1,9 +1,0 @@
-// no_compile
-
-int main() {
-  for (i = 0; i < 5; ++i) {
-    if (i % 2 == 0)
-      ++i;
-  }
-  return 0;
-}

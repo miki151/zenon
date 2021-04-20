@@ -736,8 +736,7 @@ WithErrorLine<unique_ptr<Statement>> parseForLoopStatement(Tokens& tokens) {
   auto iter = TRY(parseExpression(tokens));
   TRY(tokens.eat(Keyword::CLOSE_BRACKET));
   auto body = TRY(parseNonTopLevelStatement(tokens));
-  return cast<Statement>(
-      unique<ForLoopStatement>(codeLoc, std::move(init), std::move(cond), std::move(iter), std::move(body)));
+  return getForLoop(codeLoc, std::move(init), std::move(cond), std::move(iter), std::move(body));
 }
 
 WithErrorLine<unique_ptr<WhileLoopStatement>> parseWhileLoopStatement(Tokens& tokens) {
@@ -747,7 +746,7 @@ WithErrorLine<unique_ptr<WhileLoopStatement>> parseWhileLoopStatement(Tokens& to
   auto cond = TRY(parseExpression(tokens));
   TRY(tokens.eat(Keyword::CLOSE_BRACKET));
   auto body = TRY(parseNonTopLevelStatement(tokens));
-  return unique<WhileLoopStatement>(codeLoc, std::move(cond), std::move(body));
+  return unique<WhileLoopStatement>(codeLoc, std::move(cond), std::move(body), nullptr);
 }
 
 WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) {
@@ -792,13 +791,15 @@ WithErrorLine<unique_ptr<VariableDeclaration>> parseVariableDeclaration(Tokens& 
   auto typeLoc = tokens.peek().codeLoc;
   optional<IdentifierInfo> type;
   bool isMutable = false;
-  bool isDeclaration = false;
-  if (tokens.eatMaybe(Keyword::MUTABLE)) {
-    isMutable = true;
-    isDeclaration = true;
-  } else
-  if (forLoop || tokens.eatMaybe(Keyword::CONST))
-    isDeclaration = true;
+  bool isDeclaration = forLoop;
+  if (!forLoop) {
+    if (tokens.eatMaybe(Keyword::MUTABLE)) {
+      isMutable = true;
+      isDeclaration = true;
+    } else
+    if (tokens.eatMaybe(Keyword::CONST))
+      isDeclaration = true;
+  }
   auto id1 = TRY(parseIdentifier(tokens, true));
   string variableName;
   if (tokens.peek() == Operator::ASSIGNMENT && isDeclaration) {

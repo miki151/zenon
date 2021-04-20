@@ -754,32 +754,21 @@ static string getLoopBreakLabel(int loopId) {
   return "break_loop_" + to_string(loopId);
 }
 
-void ForLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
-  accu.add("{");
-  init->codegen(accu, CodegenStage::define());
-  accu.add("for (;");
-  cond->codegen(accu, CodegenStage::define());
-  accu.add(";");
-  iter->codegen(accu, CodegenStage::define());
-  accu.add(")");
-  ++accu.indent;
-  accu.newLine("{");
-  body->codegen(accu, CodegenStage::define());
-  accu.add("}}");
-  --accu.indent;
-  accu.newLine(getLoopBreakLabel(loopId) + ":;");
-  accu.newLine();
+static string getLoopContinueLabel(int loopId) {
+  return "continue_loop_" + to_string(loopId);
 }
 
 void WhileLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
   CHECK(stage.isDefine);
   accu.add("while (");
-  cond->codegen(accu, CodegenStage::define());
+  cond->codegen(accu, stage);
   accu.add(")");
   ++accu.indent;
   accu.newLine("{");
-  body->codegen(accu, CodegenStage::define());
+  body->codegen(accu, stage);
+  accu.newLine(getLoopContinueLabel(loopId) + ":;");
+  if (afterContinue)
+    afterContinue->codegen(accu, stage);
   accu.add("}");
   --accu.indent;
   accu.newLine(getLoopBreakLabel(loopId) + ":;");
@@ -904,7 +893,7 @@ void BreakStatement::codegen(Accu& accu, CodegenStage) const {
 }
 
 void ContinueStatement::codegen(Accu& accu, CodegenStage) const {
-  accu.add("continue;");
+  accu.add("goto " + getLoopContinueLabel(loopId) + ";");
 }
 
 void ArrayLiteral::codegen(Accu& accu, CodegenStage stage) const {
