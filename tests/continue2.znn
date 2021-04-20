@@ -1,0 +1,12 @@
+// 9
+
+int main() {
+  const a = {1, 2, 3, 4, 5};
+  mutable ret = 0;
+  for (it : a) {
+    if (*it % 2 == 0)
+      continue;
+    ret += *it;
+  }
+  return ret;
+}
