@@ -1,0 +1,9 @@
+// 2
+
+int main() {
+  const a = 5;
+  if (a < 0.123)
+    return 1;
+  return 2;
+}
+
