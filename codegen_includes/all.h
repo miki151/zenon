@@ -83,6 +83,17 @@ struct slice_t {
   T const* end;
 };
 
+template <typename T>
+struct mutable_slice_t {
+  T* begin;
+  T* end;
+  operator slice_t<T>() const {
+    return slice_t<T> {
+      begin, end
+    };
+  }
+};
+
 struct void_t
 {
   struct init{};

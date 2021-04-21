@@ -34,9 +34,11 @@ struct IdentifierInfo {
   };
   struct Slice {
   };
+  struct MutableSlice {
+  };
   struct Optional {
   };
-  vector<variant<PointerType, ArraySize, Slice, Optional, IdentifierInfo>> typeOperator;
+  vector<variant<PointerType, ArraySize, Slice, MutableSlice, Optional, IdentifierInfo>> typeOperator;
   CodeLoc codeLoc;
   nullable<shared_ptr<Expression>> typeExpression;
   string prettyString() const;

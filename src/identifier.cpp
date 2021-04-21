@@ -50,6 +50,9 @@ string IdentifierInfo::prettyString() const {
         [&](const Slice&) {
           ret.append("[]");
         },
+        [&](const MutableSlice&) {
+          ret.append(" mutable[]");
+        },
         [&](const Optional&) {
           ret.append("?");
         },

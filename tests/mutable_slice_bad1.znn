@@ -1,0 +1,13 @@
+// no_compile
+
+void plus1(int mutable[] s) {
+  for (it : s)
+    ++*it;
+}
+
+int main() {
+  const a = {1, 2, 3, 4};
+  plus1(a.slice());
+  return 0;
+}
+

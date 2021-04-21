@@ -1704,11 +1704,47 @@ bool SliceType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) c
   return true;
 }
 
-/*optional<string> SliceType::getSizeError(const Context& context) const {
-  return underlying->getSizeError();
-}*/
-
 SliceType::SliceType(SliceType::Private, SType t) : underlying(std::move(t)) {}
+
+string MutableSliceType::getName(bool withTemplateArguments) const {
+  return underlying->getName(withTemplateArguments) + " mutable[]";
+}
+
+string MutableSliceType::getCodegenName() const {
+  return "mutable_slice_t<" + underlying->getCodegenName() + ">";
+}
+
+optional<string> MutableSliceType::getMangledName() const {
+  if (auto u = underlying->getMangledName())
+    return "MSL" + *u;
+  return none;
+}
+
+SType MutableSliceType::transform(function<SType(const Type*)> fun) const {
+  return get(fun(underlying.get()));
+}
+
+JustError<string> MutableSliceType::getMappingError(TypeMapping& mapping, SType argType) const {
+  if (auto argPointer = argType.dynamicCast<MutableSliceType>())
+    return ::getDeductionError(mapping, underlying, argPointer->underlying);
+  else
+    return "Can't bind type " + quote(argType->getName()) + " to type " + quote(getName());
+}
+
+shared_ptr<MutableSliceType> MutableSliceType::get(SType type) {
+  static map<SType, shared_ptr<MutableSliceType>> generated;
+  if (!generated.count(type)) {
+    auto ret = shared<MutableSliceType>(Private{}, type);
+    generated.insert({type, ret});
+  }
+  return generated.at(type);
+}
+
+bool MutableSliceType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const {
+  return true;
+}
+
+MutableSliceType::MutableSliceType(MutableSliceType::Private, SType t) : underlying(std::move(t)) {}
 
 string OptionalType::getName(bool withTemplateArguments) const {
   return underlying->getName(withTemplateArguments) + "?";

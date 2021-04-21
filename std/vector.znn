@@ -243,6 +243,13 @@ T[] slice(vector<T>* v) {
   }
 }
 
+export template <T>
+T mutable[] slice(vector<T> mutable* v) {
+  embed_returns {
+    return mutable_slice_t<T>{&v->front(), &v->back() + 1};
+  }
+}
+
 export template<T>
 void reserve(vector<T> mutable* v, int cnt) {
   embed {

@@ -28,9 +28,20 @@ T[] implicit_copy(T[]* s) {
 
 export template <T>
 T* operator[](T[]* s, int index) {
+  assert(index >= 0 && index < s->size());
   embed_returns {
     return &s->begin[index];
   }
+}
+
+export template <T>
+T* front(T[]* s) {
+  return &(*s)[0];
+}
+
+export template <T>
+T* back(T[]* s) {
+  return &(*s)[s->size() - 1];
 }
 
 export template <T>
@@ -113,5 +124,114 @@ T[] slice(T[N]* array) {
     if (array->empty())
       return slice_t<T>{nullptr, nullptr};
     return slice_t<T>{&array->front(), &array->back() + 1};
+  }
+}
+
+export template <T>
+int size(T mutable[]* s) {
+  embed_returns {
+    return s->end - s->begin;
+  }
+}
+
+export template <T>
+bool empty(T mutable[]* s) {
+  return s->size() == 0;
+}
+
+export template <T>
+T mutable[] implicit_copy(T mutable[]* s) {
+  embed_returns {
+    return *s;
+  }
+}
+
+export template <T>
+T mutable* operator[](T mutable[]* s, int index) {
+  assert(index >= 0 && index < s->size());
+  embed_returns {
+    return &s->begin[index];
+  }
+}
+
+export template <T>
+T mutable* front(T mutable[]* s) {
+  return &(*s)[0];
+}
+
+export template <T>
+T mutable* back(T mutable[]* s) {
+  return &(*s)[s->size() - 1];
+}
+
+export template <T>
+struct mutable_slice_iterator {
+  T mutable* elem;
+  int index;
+};
+
+export template <T>
+mutable_slice_iterator<T> implicit_copy(mutable_slice_iterator<T>*) = default;
+
+export template <T>
+mutable_slice_iterator<T> begin(T mutable[]* v) {
+  embed_returns {
+    return {v->begin, 0};
+  }
+}
+
+export template <T>
+mutable_slice_iterator<T> end(T mutable[]* v) {
+  const size = v->size();
+  embed_returns {
+    return {v->end, size};
+  }
+}
+
+export template <T>
+T mutable* operator *(mutable_slice_iterator<T>* it) {
+  return it->elem;
+}
+
+export template <T>
+mutable_slice_iterator<T> operator ++(mutable_slice_iterator<T> mutable* it) {
+  embed {
+    ++it->elem;
+  }
+  ++it->index;
+  return implicit_copy(it);
+}
+
+export template <T>
+bool operator == (mutable_slice_iterator<T>* it1, mutable_slice_iterator<T>* it2) {
+  embed_returns {
+    return it1->elem == it2->elem;
+  }
+}
+
+export template <T>
+T mutable[] subsequence(T mutable[]* s, int index, int length) {
+  assert(index >= 0 && index <= s->size() && length >= 0 && index + length <= s->size());
+  embed_returns {
+    return mutable_slice_t<T>{s->begin + index, s->begin + index + length};
+  }
+}
+
+export template <T> requires equality<T>
+bool operator == (T mutable[] v1, T mutable[] v2) {
+  if (v1.size() != v2.size())
+    return false;
+  for (i = 0; i < v1.size(); ++i)
+    if (!(v1[i] == v2[i]))
+      return false;
+  return true;
+}
+
+export template <T, int N>
+T mutable[] slice(T[N] mutable* array) {
+  embed_returns {
+    if (array->empty())
+      return mutable_slice_t<T>{nullptr, nullptr};
+    return mutable_slice_t<T>{&array->front(), &array->back() + 1};
   }
 }

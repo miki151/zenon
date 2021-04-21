@@ -72,8 +72,13 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
   if (allowPointer) {
     while (1) {
       if (auto t = tokens.eatMaybe(Keyword::MUTABLE)) {
-        TRY(tokens.eat(Operator::MULTIPLY));
-        ret.typeOperator.push_back(IdentifierInfo::MUTABLE);
+        if (tokens.eatMaybe(Operator::MULTIPLY))
+          ret.typeOperator.push_back(IdentifierInfo::MUTABLE);
+        else if (tokens.eatMaybe(Keyword::OPEN_SQUARE_BRACKET)) {
+          TRY(tokens.eat(Keyword::CLOSE_SQUARE_BRACKET));
+          ret.typeOperator.push_back(IdentifierInfo::MutableSlice{});
+        } else
+          return tokens.peek().codeLoc.getError("Expected a pointer or slice modifier");
       } else
       if (auto t = tokens.eatMaybe(Operator::MULTIPLY)) {
         ret.typeOperator.push_back(IdentifierInfo::CONST);

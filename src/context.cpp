@@ -274,6 +274,8 @@ vector<SType> Context::getConversions(SType type, SType to) const {
     ret.push_back(BuiltinType::DOUBLE);
   if (auto ptr = underlying.dynamicCast<MutablePointerType>())
     ret.push_back(PointerType::get(ptr->underlying));
+  if (auto ptr = underlying.dynamicCast<MutableSliceType>())
+    ret.push_back(SliceType::get(ptr->underlying));
   if (underlying != BuiltinType::NULL_TYPE)
     ret.push_back(OptionalType::get(underlying));
   if (underlying->isPointer() &&
@@ -731,6 +733,9 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
           },
           [&](IdentifierInfo::Slice) {
             *ret = SliceType::get(*ret);
+          },
+          [&](IdentifierInfo::MutableSlice) {
+            *ret = MutableSliceType::get(*ret);
           },
           [&](IdentifierInfo::Optional) {
             *ret = OptionalType::get(*ret);

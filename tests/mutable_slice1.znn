@@ -1,0 +1,20 @@
+// 14
+
+void plus1(int mutable[] s) {
+  for (it : s)
+    ++*it;
+}
+
+int sum(int[] s) {
+  mutable res = 0;
+  for (it : s)
+    res += *it;
+  return res;
+}
+
+int main() {
+  mutable a = {1, 2, 3, 4};
+  plus1(a.slice());
+  return sum(a.slice()) + sum(a.slice().subsequence(0, 0));
+}
+

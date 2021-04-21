@@ -353,6 +353,19 @@ struct SliceType : public Type {
   SType underlying;
 };
 
+struct MutableSliceType : public Type {
+  virtual string getName(bool withTemplateArguments = true) const override;
+  virtual string getCodegenName() const override;
+  virtual optional<string> getMangledName() const override;
+  virtual SType transform(function<SType(const Type*)>) const override;
+  virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
+  static shared_ptr<MutableSliceType> get(SType);
+  virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
+  struct Private {};
+  MutableSliceType(Private, SType);
+  SType underlying;
+};
+
 struct VariablePack : public Type {
   virtual string getName(bool withTemplateArguments = true) const override;
   VariablePack(SType, string);
