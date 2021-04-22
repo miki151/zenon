@@ -940,11 +940,12 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionSignature(const Context& cont
   CHECK(!functionInfo);
   functionInfo = FunctionInfo::getDefined(name, std::move(functionType), this);
   if (functionInfo->isMainFunction()) {
-    auto expectedParam = SliceType::get(BuiltinType::STRING);
-    if (!functionInfo->type.params.empty() && (functionInfo->type.params.size() > 1
-        || functionInfo->type.params[0] != expectedParam))
-      return codeLoc.getError("The main() function should take no arguments or take a single argument of type "
-          + quote(expectedParam->getName()));
+    if (!functionInfo->type.params.empty()) {
+      auto expectedParam = context.getSliceType(BuiltinType::STRING);
+      if (functionInfo->type.params.size() > 1 || functionInfo->type.params[0] != expectedParam)
+        return codeLoc.getError("The main() function should take no arguments or take a single argument of type "
+            + quote(expectedParam->getName()));
+    }
     if (functionInfo->type.retVal != BuiltinType::INT)
       return codeLoc.getError("The main() function should return a value of type " + quote(BuiltinType::INT->getName()));
   }

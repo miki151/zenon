@@ -47,12 +47,6 @@ string IdentifierInfo::prettyString() const {
         [&](const ArraySize&) {
           ret.append("[expr]");
         },
-        [&](const Slice&) {
-          ret.append("[]");
-        },
-        [&](const MutableSlice&) {
-          ret.append(" mutable[]");
-        },
         [&](const Optional&) {
           ret.append("?");
         },

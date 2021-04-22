@@ -77,23 +77,6 @@ auto moveAndGetMember(T t, GetMember getMember, Destruct destruct) noexcept {
 template <typename T>
 void set_moved_in_embed(const T&) {}
 
-template <typename T>
-struct slice_t {
-  T const* begin;
-  T const* end;
-};
-
-template <typename T>
-struct mutable_slice_t {
-  T* begin;
-  T* end;
-  operator slice_t<T>() const {
-    return slice_t<T> {
-      begin, end
-    };
-  }
-};
-
 struct void_t
 {
   struct init{};

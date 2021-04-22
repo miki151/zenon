@@ -69,6 +69,8 @@ class Context : public owned_object<Context> {
   void setStructMembers(SType structType, vector<SType> members, vector<SType> templateParams);
   WithErrorLine<SType> getTypeFromString(IdentifierInfo, optional<bool> typePack = false) const;
   nullable<SType> getType(const string&) const;
+  SType getSliceType(SType underlying) const;
+  SType getMutableSliceType(SType underlying) const;
   bool isFullyDefined(const Type*) const;
   vector<SType> getAllTypes() const;
   NODISCARD JustError<string> addImplicitFunction(FunctionId, FunctionSignature);

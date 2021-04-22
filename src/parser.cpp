@@ -76,7 +76,9 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
           ret.typeOperator.push_back(IdentifierInfo::MUTABLE);
         else if (tokens.eatMaybe(Keyword::OPEN_SQUARE_BRACKET)) {
           TRY(tokens.eat(Keyword::CLOSE_SQUARE_BRACKET));
-          ret.typeOperator.push_back(IdentifierInfo::MutableSlice{});
+          auto arg = ret;
+          ret = IdentifierInfo("mutable_slice_t", ret.codeLoc);
+          ret.parts[0].templateArguments.push_back(std::move(arg));
         } else
           return tokens.peek().codeLoc.getError("Expected a pointer or slice modifier");
       } else
@@ -93,7 +95,9 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
         if (tokens.peek() != Keyword::CLOSE_SQUARE_BRACKET) {
           ret.typeOperator.push_back(IdentifierInfo::ArraySize{getSharedPtr(TRY(parseExpression(tokens)))});
         } else {
-          ret.typeOperator.push_back(IdentifierInfo::Slice{});
+          auto arg = ret;
+          ret = IdentifierInfo("slice_t", ret.codeLoc);
+          ret.parts[0].templateArguments.push_back(std::move(arg));
         }
         TRY(tokens.eat(Keyword::CLOSE_SQUARE_BRACKET));
       } else

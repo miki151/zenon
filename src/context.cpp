@@ -264,6 +264,14 @@ void Context::print() const {
     state->print();
 }
 
+SType Context::getSliceType(SType underlying) const {
+  return *getType("slice_t")->instantiate(*this, {std::move(underlying)}, CodeLoc());
+}
+
+SType Context::getMutableSliceType(SType underlying) const {
+  return *getType("mutable_slice_t")->instantiate(*this, {std::move(underlying)}, CodeLoc());
+}
+
 vector<SType> Context::getConversions(SType type, SType to) const {
   vector<SType> ret = {type};
   if (type->isMetaType() && type != BuiltinType::ANY_TYPE)
@@ -274,8 +282,9 @@ vector<SType> Context::getConversions(SType type, SType to) const {
     ret.push_back(BuiltinType::DOUBLE);
   if (auto ptr = underlying.dynamicCast<MutablePointerType>())
     ret.push_back(PointerType::get(ptr->underlying));
-  if (auto ptr = underlying.dynamicCast<MutableSliceType>())
-    ret.push_back(SliceType::get(ptr->underlying));
+  if (auto t = underlying.dynamicCast<StructType>())
+    if (t->parent && t->parent.get() == getType("mutable_slice_t").get())
+      ret.push_back(getSliceType(t->templateParams[0]));
   if (underlying != BuiltinType::NULL_TYPE)
     ret.push_back(OptionalType::get(underlying));
   if (underlying->isPointer() &&
@@ -730,12 +739,6 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
               ret = size.expr->codeLoc.getError("Inappropriate type of array size: " + quote(type->value->getName()));
             } else
               ret = size.expr->codeLoc.getError("Can't evaluate array size expression at compile-time"s);
-          },
-          [&](IdentifierInfo::Slice) {
-            *ret = SliceType::get(*ret);
-          },
-          [&](IdentifierInfo::MutableSlice) {
-            *ret = MutableSliceType::get(*ret);
           },
           [&](IdentifierInfo::Optional) {
             *ret = OptionalType::get(*ret);
