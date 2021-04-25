@@ -1,0 +1,22 @@
+// 7
+
+import "input2.znn";
+
+concept <T> C2 {
+  int g(T*, C1*);
+};
+
+struct X {
+  int value;
+};
+
+int g(X* x, C1* c1) {
+  return x->value + c1->f();
+}
+
+int main() {
+  const x = X(2);
+  const C1 c1 = getC1();
+  const C2* c2 = &x;
+  return c2->g(&c1);
+}

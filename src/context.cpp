@@ -323,7 +323,8 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
       auto functions = TRY(getRequiredFunctionsForConceptType(*this, *concept, CodeLoc()));
       for (auto& fun : functions)
         CHECK(!!fun->addInstance(*this));
-      concept->def->addFatPointer({fromUnderlying->removePointer(), functions}, conceptType);
+      concept->def->addFatPointer({fromUnderlying->removePointer(), functions});
+      concept->def->addConceptType(conceptType);
       if (expr) {
         auto loc = expr->codeLoc;
         expr = unique<FatPointerConversion>(loc, functions, to, fromUnderlying, std::move(expr), conceptType);
@@ -342,7 +343,8 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
     auto functions = TRY(getRequiredFunctionsForConceptType(*this, *concept, CodeLoc()));
     for (auto& fun : functions)
       CHECK(!!fun->addInstance(*this));
-    concept->def->addFatPointer({fromUnderlying, functions}, conceptType);
+    concept->def->addFatPointer({fromUnderlying, functions});
+    concept->def->addConceptType(conceptType);
     if (expr) {
       auto loc = expr->codeLoc;
       expr = unique<FatPointerConversion>(loc, functions, to, fromUnderlying, std::move(expr), conceptType);
@@ -696,8 +698,8 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
       if (concept->getParams().size() - 1 > templateParams.size() ||
           ((!concept->isVariadic() || variadic) && templateParams.size() != concept->getParams().size() - 1))
         return id.codeLoc.getError("Wrong number of template parameters to concept type " + quote(concept->getName()));
-      auto type = ConceptType::get(concept.get(), std::move(templateParams),
-          typePack.value_or(false));
+      auto type = ConceptType::get(concept.get(), std::move(templateParams), variadic);
+      concept->def->addConceptType(type);
       return SType(std::move(type));
     } else
       topType = getType(name);

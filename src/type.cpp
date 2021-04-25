@@ -1901,7 +1901,7 @@ SConcept ConceptType::getConceptFor(const SType& t) const {
 
 string ConceptType::getName(bool withTemplateArguments) const {
   if (withTemplateArguments)
-    return concept->getName(false) + joinTemplateParams(params);
+    return concept->getName(false) + joinTemplateParams(params, variadic);
   return concept->getName(false);
 }
 

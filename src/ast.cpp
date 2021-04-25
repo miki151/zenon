@@ -2439,13 +2439,16 @@ unique_ptr<Expression> EnumConstant::transform(const StmtTransformFun&, const Ex
 ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
 }
 
-void ConceptDefinition::addFatPointer(ConceptDefinition::FatPointerInfo info, shared_ptr<ConceptType> conceptType) {
-  if (!conceptInstances.contains(conceptType))
-    conceptInstances.push_back(conceptType);
+void ConceptDefinition::addFatPointer(ConceptDefinition::FatPointerInfo info) {
   for (auto& elem : fatPointers)
     if (elem.type == info.type)
       return;
   fatPointers.push_back(info);
+}
+
+void ConceptDefinition::addConceptType(shared_ptr<ConceptType> conceptType) {
+  if (!conceptInstances.contains(conceptType))
+    conceptInstances.push_back(conceptType);
 }
 
 JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {

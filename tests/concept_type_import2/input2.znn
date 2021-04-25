@@ -1,0 +1,17 @@
+
+export concept <T> C1 {
+  int f(T*);
+  void destruct(T*);
+};
+
+struct A {
+  int value;
+};
+
+int f(A* a) {
+  return a->value;
+}
+
+export C1 getC1() {
+  return A(5);
+}

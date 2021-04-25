@@ -590,7 +590,8 @@ struct ConceptDefinition : Statement {
     SType type;
     vector<SFunctionInfo> vTable;
   };
-  void addFatPointer(FatPointerInfo, shared_ptr<ConceptType>);
+  void addFatPointer(FatPointerInfo);
+  void addConceptType(shared_ptr<ConceptType>);
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual void codegen(Accu&, CodegenStage) const override;
