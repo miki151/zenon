@@ -1,0 +1,14 @@
+// no_compile
+
+concept <T, U> A {
+  void f(T*, U*);
+};
+
+template <T>
+struct S {
+};
+
+int main() {
+  const s = S<A>();
+  return 0;
+}
