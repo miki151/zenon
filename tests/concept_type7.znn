@@ -1,0 +1,33 @@
+// 7
+
+concept <T> C1 {
+  int f(T*);
+};
+
+struct A {
+  int value;
+};
+
+int f(A* a) {
+  return a->value;
+}
+
+concept <T> C2 {
+  int g(T*, C1*);
+};
+
+struct X {
+  int value;
+};
+
+int g(X* x, C1* c1) {
+  return x->value + c1->f();
+}
+
+int main() {
+  const a = A(3);
+  const x = X(4);
+  const C1* c1 = &a;
+  const C2* c2 = &x;
+  return c2->g(c1);
+}

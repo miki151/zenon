@@ -280,6 +280,8 @@ bool FunctionInfo::isMainFunction() const {
 }
 
 bool FunctionInfo::isConceptTypeFunction() const {
+  if (!type.concept)
+    return false;
   for (auto& p : type.params)
     if (p->removePointer().dynamicCast<ConceptType>())
       return true;
