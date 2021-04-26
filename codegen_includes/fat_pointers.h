@@ -4,7 +4,16 @@
 #include "any.hpp"
 
 template <typename VTable>
+struct fat_value {
+  nonstd::any object;
+  VTable* vTable;
+};
+
+
+template <typename VTable>
 struct const_fat_ref {
+  const_fat_ref(const fat_value<VTable>& value) : object(value.object.get_ptr()), vTable(value.vTable) {}
+  const_fat_ref(void const* object, VTable* vTable) : object(object), vTable(vTable) {}
   void const* object;
   VTable* vTable;
 };
@@ -20,13 +29,9 @@ struct const_fat_ptr {
 
 template <typename VTable>
 struct fat_ref {
+  fat_ref(fat_value<VTable>& value) : object(value.object.get_ptr()), vTable(value.vTable) {}
+  fat_ref(void* object, VTable* vTable) : object(object), vTable(vTable) {}
   void* object;
-  VTable* vTable;
-};
-
-template <typename VTable>
-struct fat_value {
-  nonstd::any object;
   VTable* vTable;
 };
 

@@ -42,6 +42,8 @@ optional<string> ReferenceType::getMangledName() const {
 }
 
 string ReferenceType::getCodegenName() const {
+  if (auto t = underlying.dynamicCast<ConceptType>())
+    return "const_fat_ref<" + *t->getMangledName() + "_vtable>";
   return underlying->getCodegenName() + " const&";
 }
 
@@ -58,6 +60,8 @@ optional<string> MutableReferenceType::getMangledName() const {
 }
 
 string MutableReferenceType::getCodegenName() const {
+  if (auto t = underlying.dynamicCast<ConceptType>())
+    return "fat_ref<" + *t->getMangledName() + "_vtable>";
   return underlying->getCodegenName() + "&";
 }
 
