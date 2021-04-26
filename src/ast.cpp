@@ -3011,6 +3011,7 @@ void FatPointerConversion::visit(const StmtVisitFun& f1, const ExprVisitFun& f2)
 }
 
 void FatPointerConversion::addFunctionCalls(const FunctionCallVisitFun& fun) const {
+  this->Expression::addFunctionCalls(fun);
   for (auto& f : functions)
     fun(f);
 }
