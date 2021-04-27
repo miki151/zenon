@@ -50,3 +50,32 @@ export int? to_int(string* s) {
     return result;
   }
 }
+
+export struct string_iterator {
+  string* v;
+  int index;
+};
+
+export string_iterator implicit_copy(string_iterator*) = default;
+
+export string_iterator begin(string* s) {
+  return string_iterator(s, 0);
+}
+
+export string_iterator end(string* s) {
+  return string_iterator(s, s->size());
+}
+
+export char operator *(string_iterator* it) {
+  return (*it->v)[it->index];
+}
+
+export string_iterator operator ++(string_iterator mutable* it) {
+  ++it->index;
+  return *it;
+}
+
+export bool operator == (string_iterator* it1, string_iterator* it2) {
+  return it1->index == it2->index;
+}
+
