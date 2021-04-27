@@ -25,6 +25,15 @@ export string to_string(string* s) {
   return *s;
 }
 
+export string to_string(char* s) {
+  embed_returns {
+    char buf[2];
+    buf[0] = *s;
+    buf[1] = '\0';
+    return lite_str<>::owned(buf);
+  }
+}
+
 export string to_string(bool* b) {
   if (*b)
     return "true";
@@ -124,6 +133,26 @@ export string? scan_string(file_input* f, int max_length) {
       return zenon_string::owned(buf);
   }
   return null;
+}
+
+export string!string read_content(file_input* f) {
+  const get_error = [&](string err) -> string!string {
+    return expected<string, string>::error(move(err));
+  };
+  const get_result = [&](string res) -> string!string {
+    return expected<string, string>::value(move(res));
+  };
+  embed_returns {
+    fseek(f->handle, 0, SEEK_END);
+    int size = ftell(f->handle);
+    rewind(f->handle);
+    zenon_string ret;
+    auto buffer = ret.create_buffer(size);
+    auto result = fread(buffer, 1, size, f->handle);
+    if (result != size)
+      return invoke(&get_error, zenon_string::reference("Unable to read file content"));
+    return invoke(&get_result, std::move(ret));
+  }
 }
 
 export string? remove_file(string path) {
