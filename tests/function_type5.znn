@@ -1,0 +1,13 @@
+// 9
+
+import "std/io.znn";
+
+template <T>
+int fa(T t) {
+  return "{t}".size();
+}
+
+int main() {
+  const a = [&] {return fa; };
+  return a()(123) + a()("pokpak");
+}
