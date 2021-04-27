@@ -323,8 +323,6 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
       auto functions = TRY(getRequiredFunctionsForConceptType(*this, *concept, CodeLoc()));
       for (auto& fun : functions)
         CHECK(!!fun->addInstance(*this));
-      concept->def->addFatPointer({fromUnderlying->removePointer(), functions});
-      concept->def->addConceptType(conceptType);
       if (expr) {
         auto loc = expr->codeLoc;
         expr = unique<FatPointerConversion>(loc, functions, to, fromUnderlying, std::move(expr), conceptType);
@@ -343,8 +341,6 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
     auto functions = TRY(getRequiredFunctionsForConceptType(*this, *concept, CodeLoc()));
     for (auto& fun : functions)
       CHECK(!!fun->addInstance(*this));
-    concept->def->addFatPointer({fromUnderlying, functions});
-    concept->def->addConceptType(conceptType);
     if (expr) {
       auto loc = expr->codeLoc;
       expr = unique<FatPointerConversion>(loc, functions, to, fromUnderlying, std::move(expr), conceptType);

@@ -1,0 +1,13 @@
+// 2
+
+concept <T> C1 {
+  int f(T*);
+  void destruct(T*);
+};
+
+template <T>
+int f(T*) { return 2; }
+
+int main() {
+  return f(&5);
+}
