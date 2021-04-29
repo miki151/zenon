@@ -34,3 +34,14 @@ export concept <T, Members...> has_members {
 export concept <T> get_hash {
   int get_hash(T*);
 };
+
+export concept <T> any {
+  void destruct(T*);
+};
+
+export template <U, T> requires is_concept<T>
+U* cast_to(T* t) {
+  embed_returns {
+    return (U*)t.object;
+  }
+}

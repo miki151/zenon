@@ -97,6 +97,7 @@ struct BuiltinType : public Type {
   static DefType STRUCT_TYPE;
   static DefType UNION_TYPE;
   static DefType ATTRIBUTE_TYPE;
+  static DefType CONCEPT_TYPE;
   BuiltinType(const string& name, optional<string> codegenName = none);
 
   private:
@@ -450,6 +451,7 @@ struct ConceptType : public Type {
   virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual SType expand(const Context&, SType pack, vector<SType> to, ErrorBuffer&) const override;
   virtual bool hasDestructor() const override;
+  virtual SType getType() const override;
   SConcept getConceptFor(const SType&) const;
   SConcept concept;
   vector<SType> params;

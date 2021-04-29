@@ -1543,6 +1543,7 @@ static void addBuiltInConcepts(Context& context) {
   addType("is_enum", BuiltinType::ENUM_TYPE);
   addType("is_struct", BuiltinType::STRUCT_TYPE);
   addType("is_union", BuiltinType::UNION_TYPE);
+  addType("is_concept", BuiltinType::CONCEPT_TYPE);
 }
 
 Context createPrimaryContext(TypeRegistry* typeRegistry) {

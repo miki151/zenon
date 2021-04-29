@@ -16,6 +16,7 @@ BuiltinType::DefType BuiltinType::NULL_TYPE = shared<BuiltinType>("null_type");
 BuiltinType::DefType BuiltinType::STRUCT_TYPE = shared<BuiltinType>("struct_type");
 BuiltinType::DefType BuiltinType::UNION_TYPE = shared<BuiltinType>("union_type");
 BuiltinType::DefType BuiltinType::ATTRIBUTE_TYPE = shared<BuiltinType>("attribute_type");
+BuiltinType::DefType BuiltinType::CONCEPT_TYPE = shared<BuiltinType>("concept_type");
 
 string BuiltinType::getName(bool withTemplateArguments) const {
   return name;
@@ -459,7 +460,7 @@ bool BuiltinType::canDeclareVariable() const {
 
 bool BuiltinType::isMetaType() const {
   return ANY_TYPE == this || STRUCT_TYPE == this || UNION_TYPE == this || ENUM_TYPE == this
-      || ATTRIBUTE_TYPE == this;
+      || ATTRIBUTE_TYPE == this || CONCEPT_TYPE == this;
 }
 
 SType Type::removePointer() const {
@@ -1896,6 +1897,10 @@ bool ConceptType::hasDestructor() const {
         && function->type.params[0] == PointerType::get(concept->getParams()[0]))
       return true;
   return false;
+}
+
+SType ConceptType::getType() const {
+  return BuiltinType::CONCEPT_TYPE;
 }
 
 SConcept ConceptType::getConceptFor(const SType& t) const {

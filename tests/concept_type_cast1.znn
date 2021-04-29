@@ -1,0 +1,7 @@
+// 8
+
+int main() {
+  any x = 5;
+  any y = "pok";
+  return *x.cast_to<int>() + y.cast_to<string>()->size();
+}

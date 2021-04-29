@@ -1,0 +1,8 @@
+// no_compile
+
+struct X {};
+
+int main() {
+  const x = X();
+  return *x.cast_to<int>();
+}
