@@ -1,0 +1,20 @@
+export embed {
+#include <ctype.h>
+}
+
+export extern bool isalnum(char c);
+export extern bool isalpha(char c);
+export extern bool iscntrl(char c);
+export extern bool isdigit(char c);
+export extern bool isgraph(char c);
+export extern bool islower(char c);
+export extern bool isprbool(char c);
+export extern bool ispunct(char c);
+export extern bool isspace(char c);
+export extern bool isupper(char c);
+export extern bool isxdigit(char c);
+
+export extern bool isascii(char c);
+export extern bool isblank(char c);
+
+

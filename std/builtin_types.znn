@@ -1,10 +1,4 @@
 
-embed {
-#include <ctype.h>
-}
-
-export extern bool isspace(char);
-
 export int get_hash(int* a) { return *a; }
 export int get_hash(char* a) { embed_returns { return static_cast<int>(*a); } }
 
