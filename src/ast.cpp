@@ -1552,6 +1552,8 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
     context.addType(type->getName(), type);
   CHECK(context.addImplicitFunction(Operator::PLUS, FunctionSignature(BuiltinType::STRING,
       {{BuiltinType::STRING}, {BuiltinType::STRING}}, {}).setBuiltin()));
+  CHECK(context.addImplicitFunction(Operator::PLUS, FunctionSignature(BuiltinType::STRING,
+      {{BuiltinType::STRING}, {BuiltinType::CHAR}}, {}).setBuiltin()));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
     for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE})
       CHECK(context.addImplicitFunction(op, FunctionSignature(type, {{type}}, {}).setBuiltin()));

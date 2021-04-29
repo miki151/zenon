@@ -217,6 +217,14 @@ basic_lite_str<char_type, char_traits, alloc> operator + (const char_type* s1, c
 }
 
 template <typename char_type, typename char_traits, typename alloc>
+basic_lite_str<char_type, char_traits, alloc> operator + (const basic_lite_str<char_type, char_traits, alloc>& s1, char_type s2) {
+  char buf[2];
+  buf[0] = s2;
+  buf[1] = 0;
+  return s1 + buf;
+}
+
+template <typename char_type, typename char_traits, typename alloc>
 basic_lite_str<char_type, char_traits, alloc>& operator += (basic_lite_str<char_type, char_traits, alloc>& s1, const char_type* s2) {
   s1 = concatenate<char_type, char_traits, alloc>(s1.data(), s2);
   return s1;

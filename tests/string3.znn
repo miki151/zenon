@@ -1,0 +1,8 @@
+// 4
+
+
+int main() {
+  mutable s = "pak";
+  s += 'c';
+  return s.size();
+}
