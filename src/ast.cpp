@@ -240,13 +240,14 @@ static WithErrorLine<SFunctionInfo> handleOperatorOverloads(const Context& conte
     generateConversions(context, overloads[0]->type.params, types, expr);
     return overloads[0];
   } else {
-      string error = (overloads.empty() ? "No overload" : "Multiple overloads") + " found for operator: "s +
-          quote(getString(op)) + " with argument types: " + joinTypeList(types);
-      for (auto& f : overloads)
-        error += "\nCandidate: " + f->prettyString();
+    string error = (overloads.empty() ? "No overload" : "Multiple overloads") + " found for operator: "s +
+        quote(getString(op)) + " with argument types: " + joinTypeList(types);
+    for (auto& f : overloads)
+      error += "\nCandidate: " + f->prettyString();
+    if (overloads.empty())
       for (auto& f : errors)
         error += "\n" + f;
-      return codeLoc.getError(error);
+    return codeLoc.getError(error);
   }
 }
 
