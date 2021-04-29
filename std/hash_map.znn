@@ -30,6 +30,8 @@ bool contains(hash_map<Key, Value>* m, Key* key) {
   embed_returns {
     return m->count(*key);
   }
+  discard hash_adapter<Key>().invoke(key);
+  discard hash_adapter<Key>().invoke(key, key);
 }
 
 export template <Key, Value> requires hash_key<Key>
@@ -37,6 +39,8 @@ Value* get(hash_map<Key, Value>* m, Key* key) {
   embed_returns {
     return &m->at(*key);
   }
+  discard hash_adapter<Key>().invoke(key);
+  discard hash_adapter<Key>().invoke(key, key);
 }
 
 export template <Key, Value> requires hash_key<Key>
@@ -44,6 +48,22 @@ Value mutable* get(hash_map<Key, Value> mutable* m, Key* key) {
   embed_returns {
     return &m->at(*key);
   }
+  discard hash_adapter<Key>().invoke(key);
+  discard hash_adapter<Key>().invoke(key, key);
+}
+
+export template <Key, Value> requires hash_key<Key>
+Value*? get_maybe(hash_map<Key, Value>* m, Key* key) {
+  if (m->contains(key))
+    return m->get(key);
+  return null;
+}
+
+export template <Key, Value> requires hash_key<Key>
+Value mutable*? get_maybe(hash_map<Key, Value> mutable* m, Key* key) {
+  if (m->contains(key))
+    return m->get(key);
+  return null;
 }
 
 export template <Key, Value> requires hash_key<Key>
