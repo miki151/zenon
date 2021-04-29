@@ -354,7 +354,8 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
       },
       [&](const CharToken&) -> WithErrorLine<unique_ptr<Expression>> {
         tokens.popNext();
-        return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(token.value[0])));
+        return cast<Expression>(unique<Constant>(token.codeLoc,
+            CompileTimeValue::get(CompileTimeValue::CharLiteral{token.value})));
       },
       [&](const Operator& op) -> WithErrorLine<unique_ptr<Expression>> {
         tokens.popNext();

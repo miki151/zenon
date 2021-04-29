@@ -1513,7 +1513,7 @@ string CompileTimeValue::getName(bool withTemplateArguments) const {
       [](int v) { return to_string(v); },
       [](double v) { return to_string(v); },
       [](bool v) { return v ? "true" : "false"; },
-      [](char v) { return "\'" + string(1, v) + "\'"; },
+      [](CharLiteral v) { return "\'" + v.literal + "\'"; },
       [](const ReferenceValue& ref) { return ref.value->getName() + " reference"; },
       [](NullValue v) { return "null"; },
       [](VoidValue v) { return "void_value"; },
@@ -1543,7 +1543,7 @@ SType CompileTimeValue::getType() const {
       [](int)-> SType {  return BuiltinType::INT; },
       [](double)-> SType {  return BuiltinType::DOUBLE; },
       [](bool)-> SType {  return BuiltinType::BOOL; },
-      [](char)-> SType {  return BuiltinType::CHAR; },
+      [](CharLiteral)-> SType {  return BuiltinType::CHAR; },
       [](const ReferenceValue& ref)-> SType { return MutableReferenceType::get(ref.value->getType()); },
       [](NullValue)-> SType {  return BuiltinType::NULL_TYPE; },
       [](VoidValue)-> SType {  return BuiltinType::VOID; },
@@ -1561,21 +1561,23 @@ static string mangleNumber(Num v) {
   return v < 0 ? "M" + to_string(-v) : to_string(v);
 }
 
+static string mangleString(const string& v) {
+  string ret;
+  for (auto c : v)
+    if (isalpha(c))
+      ret += c;
+    else
+      ret += "_" + to_string(int(c));
+  return ret;
+}
+
 optional<string> CompileTimeValue::getMangledName() const {
   return value.visit(
       [this](const auto&) -> optional<string> { return getName(); },
       [](int v) -> optional<string> { return mangleNumber(v); },
       [](double v) -> optional<string> { return mangleNumber(v); },
-      [](char c) -> optional<string> { return "C" + to_string(int(c)); },
-      [](const string& v) -> optional<string> {
-        string ret;
-        for (auto c : v)
-          if (isalpha(c))
-            ret += c;
-          else
-            ret += "_" + to_string(int(c));
-        return std::move(ret);
-      },
+      [](CharLiteral c) -> optional<string> { return "C" + mangleString(c.literal); },
+      [](const string& v) -> optional<string> { return mangleString(v); },
       [](const ReferenceValue& ref)-> optional<string> {
         if (auto name = ref.value->getMangledName())
           return "Ref" + *name;

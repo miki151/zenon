@@ -40,6 +40,7 @@ WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string&
       {getKeywords(getAllOperators()), [](const string& s) -> optional<Token> {
           return Token(*getOperator(s));}},
       {"\"(?:[^\"\\\\]|\\\\.)*?\"" , [](const string&) -> optional<Token> { return Token(StringToken{}); } },
+      {"'\\\\.'" , [](const string&) -> optional<Token> { return Token(CharToken{}); } },
       {"'.'" , [](const string&) -> optional<Token> { return Token(CharToken{}); } },
       {"[0-9]+\\.[0-9]+" , [](const string&) -> optional<Token> { return Token(RealNumber{}); } },
       {"[0-9]+" , [](const string&) -> optional<Token> { return Token(Number{}); } },

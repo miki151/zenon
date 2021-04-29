@@ -330,7 +330,7 @@ static SCompileTimeValue getExampleValue(SType type) {
   if (BuiltinType::STRING == type)
     return CompileTimeValue::get(""s);
   if (BuiltinType::CHAR == type)
-    return CompileTimeValue::get('a');
+    return CompileTimeValue::get(CompileTimeValue::CharLiteral{"a"});
   if (auto ref = type.dynamicCast<MutableReferenceType>())
     return CompileTimeValue::getReference(getExampleValue(ref->removeReference()));
   FATAL << "Can't provide an example value for type " << type->getName();

@@ -240,7 +240,11 @@ struct CompileTimeValue : public Type {
   };
   struct NullValue { COMPARABLE(NullValue) };
   struct VoidValue { COMPARABLE(VoidValue) };
-  using Value = variant<int, bool, double, char, NullValue, VoidValue, string, EnumValue, TemplateValue,
+  struct CharLiteral {
+    string literal;
+    COMPARABLE(CharLiteral, literal)
+  };
+  using Value = variant<int, bool, double, CharLiteral, NullValue, VoidValue, string, EnumValue, TemplateValue,
       TemplateExpression, TemplateFunctionCall, ReferenceValue, shared_ptr<FunctionType>>;
   static shared_ptr<CompileTimeValue> get(Value);
   static shared_ptr<CompileTimeValue> getReference(SType);

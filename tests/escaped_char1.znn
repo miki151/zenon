@@ -1,0 +1,12 @@
+// 49
+
+
+int from_char(char c) {
+  embed_returns {
+    return int(c);
+  }
+}
+
+int main() {
+  return from_char('\n') + from_char('\'');
+}
