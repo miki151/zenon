@@ -14,6 +14,14 @@ class expected {
       elem = error;
   }
 
+  template <typename Fun>
+  auto transform_error(Fun f) && {
+    using RetErr = decltype(f(get_error()));
+    if (!!*this)
+      return expected<T, RetErr>(std::move(get_value()));
+    return expected<T, RetErr>(f(std::move(get_error())));
+  }
+
   explicit operator bool () const {
     return elem.index() == 1;
   }

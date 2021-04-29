@@ -3143,13 +3143,18 @@ JustError<ErrorLoc> MixinStatement::check(Context& context, bool) {
       .dynamicCast<CompileTimeValue>()->value.getReferenceMaybe<string>();
   istringstream iss("\"" + str + "\"");
   iss >> std::quoted(str);
-  auto tokens = TRY(lex(str, value->codeLoc, "end of expression"));
-  result = TRY(parseStatement(tokens, false));
+  auto addMixinCode = [&] (const ErrorLoc& error) {
+    auto ret = error;
+    ret.error = "When parsing mixin:\n" + str + "\n:" + ret.error;
+    return ret;
+  };
+  auto tokens = TRY(lex(str, value->codeLoc, "end of expression").transform_error(addMixinCode));
+  result = TRY(parseStatement(tokens, false).transform_error(addMixinCode));
   if (!result)
     return tokens.peek().codeLoc.getError("Expected a non-empty mixin parameter");
   if (!tokens.peek().contains<EofToken>())
     return tokens.peek().codeLoc.getError("Expected a single statement in mixin parameter");
-  TRY(result->check(context, false));
+  TRY(result->check(context, false).transform_error(addMixinCode));
   returns = result->hasReturnStatement();
   return success;
 }
