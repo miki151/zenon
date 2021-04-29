@@ -256,3 +256,19 @@ vector<T> filter(vector<T>* v, Fun f) {
       ret.push_back(it->copy());
   return move(ret);
 }
+
+export template<T>
+void erase(vector<T> mutable* v, int index, int count) {
+  embed {
+    v->erase(v->begin() + index, v->begin() + index + count);
+  }
+}
+
+export template<T>
+void insert(vector<T> mutable* v, int index, vector<T>* content) {
+  embed {
+    v->insert(v->begin() + index, content->begin(), content->end());
+  }
+}
+
+
