@@ -1494,8 +1494,33 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
   return success;
 }
 
+JustError<ErrorLoc> FunctionDefinition::handleIsMemberParamsFunction() {
+  if (functionInfo->type.params.size() < 2)
+    return codeLoc.getError("This special function requires at least two parameters");
+  auto t = functionInfo->type.params[0];
+  if (auto s = t.dynamicCast<StructType>())
+    if (s->external) {
+      for (int i = 1; i < functionInfo->type.params.size(); ++i) {
+        auto t = functionInfo->type.params[i];
+        auto index = [&]()-> optional<int> {
+          for (int j = 0; j < s->templateParams.size(); ++j)
+            if (s->templateParams[j] == t)
+              return j;
+          return none;
+        }();
+        if (!index)
+          return parameters[i].codeLoc.getError("Parameter is not a member of extern struct " + quote(s->getName()));
+        s->parent->memberTemplateParams.push_back(*index);
+      }
+      return success;
+    }
+  return codeLoc.getError("This special function requires that the first parameter is an extern struct");
+}
+
 JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
   TRY(setFunctionSignature(context, nullptr, cache.isCurrentlyBuiltIn()));
+  if (name == "is_member_params"s)
+    return handleIsMemberParamsFunction();
   TRY(context.addFunction(functionInfo.get()).addCodeLoc(codeLoc));
   if (name == "destruct"s) {
     auto destructedType = TRY(getDestructedType(functionInfo->type.params).addCodeLoc(codeLoc));

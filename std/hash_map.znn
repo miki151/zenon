@@ -12,6 +12,9 @@ using std::pair;
 export template <Key, Value>
 extern struct hash_map;
 
+export template <Key, Value>
+void is_member_params(hash_map<Key, Value>, Key, Value) {}
+
 export template<Key, Value> requires hash_key<Key>
 extern hash_map();
 

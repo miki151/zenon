@@ -526,7 +526,8 @@ SType EnumType::getType() const {
   return BuiltinType::ENUM_TYPE;
 }
 
-static JustError<string> checkMembers(const Context& context, set<const Type*> &visited, const SType& t, bool onlyIncomplete) {
+static JustError<string> checkMembers(const Context& context, set<const Type*> &visited, const SType& t,
+    bool onlyIncomplete) {
   if (auto s = t.dynamicCast<StructType>()) {
     if (!onlyIncomplete && visited.count(t.get()))
       return "Type " + quote(t->getName()) + " has infinite size"s;
@@ -537,10 +538,11 @@ static JustError<string> checkMembers(const Context& context, set<const Type*> &
       TRY(checkMembers(context, visited, member.type, onlyIncomplete));
     for (auto& member : s->alternatives)
       TRY(checkMembers(context, visited, member.type, onlyIncomplete));
-    /*if (s->external)
-      for (auto& param : s->templateParams)
-        if (!visited.count(param.get()))
-          TRY(checkMembers(context, visited, param, true));*/
+    for (auto index : s->parent->memberTemplateParams) {
+      auto param = s->templateParams[index];
+      if (!visited.count(param.get()))
+        TRY(checkMembers(context, visited, param, true));
+    }
     visited.erase(t.get());
   }
   return success;

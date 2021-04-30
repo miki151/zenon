@@ -435,8 +435,14 @@ void EnumType::codegenDefinitionImpl(set<const Type*>&, Accu& accu) const {
 }
 
 void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const {
-  if (external)
+  if (external) {
+    if (auto name = getMangledName()) {
+      for (auto& elem : parent->memberTemplateParams) {
+        templateParams[elem]->codegenDefinition(visited, accu);
+      }
+    }
     return;
+  }
   for (auto& instance : instances)
     instance->codegenDefinition(visited, accu);
   if (auto name = getMangledName()) {

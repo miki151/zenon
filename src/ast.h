@@ -692,6 +692,7 @@ struct FunctionDefinition : Statement {
   void addParamsToContext(Context&, const FunctionInfo&) const;
   NODISCARD JustError<ErrorLoc> checkForIncompleteTypes(const Context&);
   WithErrorLine<SType> getReturnType(const Context&) const;
+  JustError<ErrorLoc> handleIsMemberParamsFunction();
 };
 
 struct EmbedStatement : Statement {

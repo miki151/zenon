@@ -1,0 +1,15 @@
+// no_compile
+
+import "std/hash_map.znn";
+
+struct X {
+  hash_map<int, Y> h;
+};
+
+struct Y {
+  X x;
+};
+
+int main() {
+  return 0;
+}

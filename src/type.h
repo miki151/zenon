@@ -308,6 +308,7 @@ struct StructType : public Type {
   vector<Variable> members;
   vector<Variable> alternatives;
   bool external = false;
+  vector<int> memberTemplateParams;
   optional<CodeLoc> definition;
   void updateInstantations(const Context&);
   struct Private {};
