@@ -221,6 +221,7 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
   filter(&userDefinedConstructor, "user defined constructor");
   // try to choose a more specialized template, eg. f<T>(X<T>) instead of f<T>(T).
   filter(isSpecialized, "specialized");
+  filter([&](const auto& args, const auto& overload) { return !overload->type.requirements.empty();}, "with requirement");
 }
 
 
