@@ -159,9 +159,8 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
             if (isGeneralization(overload, function, existing))
               return overload;
           for (auto& myFun : getFunctions(overloads.first))
-            if (!myFun->isConceptTypeFunction())
-              if (auto gen = isGeneralization(myFun, function, existing))
-                return gen.get();
+            if (auto gen = isGeneralization(myFun, function, existing))
+              return gen.get();
           return none;
         };
         if (auto res = getFunction())
@@ -272,7 +271,7 @@ SType Context::getMutableSliceType(SType underlying) const {
   return *getType("mutable_slice_t")->instantiate(*this, {std::move(underlying)}, CodeLoc());
 }
 
-vector<SType> Context::getConversions(SType type, SType to) const {
+vector<SType> Context::getConversions(SType type, SType to, bool withConcepts) const {
   vector<SType> ret = {type};
   if (type->isMetaType() && type != BuiltinType::ANY_TYPE)
     ret.push_back(BuiltinType::ANY_TYPE);
@@ -287,16 +286,18 @@ vector<SType> Context::getConversions(SType type, SType to) const {
       ret.push_back(getSliceType(t->templateParams[0]));
   if (underlying != BuiltinType::NULL_TYPE)
     ret.push_back(OptionalType::get(underlying));
-  if (underlying->isPointer() &&
-      to->isPointer() &&
-      !underlying->removePointer().dynamicCast<ConceptType>() &&
-      to->removePointer().dynamicCast<ConceptType>() &&
-      (to.dynamicCast<PointerType>() || underlying.dynamicCast<MutablePointerType>()))
-    ret.push_back(to);
-  if (!underlying.dynamicCast<ConceptType>() &&
-      to.dynamicCast<ConceptType>() &&
-      (!type->isReference() || type->isBuiltinCopyable(*this)))
-    ret.push_back(to);
+  if (withConcepts) {
+    if (underlying->isPointer() &&
+        to->isPointer() &&
+        !underlying->removePointer().dynamicCast<ConceptType>() &&
+        to->removePointer().dynamicCast<ConceptType>() &&
+        (to.dynamicCast<PointerType>() || underlying.dynamicCast<MutablePointerType>()))
+      ret.push_back(to);
+    if (!underlying.dynamicCast<ConceptType>() &&
+        to.dynamicCast<ConceptType>() &&
+        (!type->isReference() || type->isBuiltinCopyable(*this)))
+      ret.push_back(to);
+  }
   return ret;
 }
 
@@ -385,7 +386,7 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
         return success;
       }
     }
-  if (contains(getConversions(from, to), to) ||
+  if (contains(getConversions(from, to, true), to) ||
       (from == BuiltinType::NULL_TYPE && to.dynamicCast<OptionalType>() &&
           to.dynamicCast<OptionalType>()->underlying != BuiltinType::NULL_TYPE))
     return success;

@@ -1174,7 +1174,7 @@ static JustError<ErrorLoc> getConversionError(const Context& context, const SFun
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
     if (argTypes[i] != BuiltinType::NULL_TYPE || !funParams[i].dynamicCast<OptionalType>())
-      for (auto tArg : context.getConversions(argTypes[i], funParams[i]))
+      for (auto tArg : context.getConversions(argTypes[i], funParams[i], !input->isConceptTypeFunction()))
         if (!input->id.contains<Operator>() || tArg == argTypes[i] ||
             (tArg.dynamicCast<BuiltinType>() && argTypes[i].dynamicCast<BuiltinType>())) {
           if (auto res = getDeductionError(mapping, funParams[i], tArg); !res) {

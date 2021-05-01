@@ -3015,16 +3015,10 @@ FatPointerConversion::FatPointerConversion(CodeLoc l, vector<SFunctionInfo> func
 WithError<vector<SFunctionInfo>> getRequiredFunctionsForConceptType(const Context& context,
     const Concept& concept, CodeLoc codeLoc) {
   vector<SFunctionInfo> ret;
-  for (auto& fun : concept.getContext().getAllFunctions()) {
-    auto candidates = context.getFunctions(translateDestructorId(fun->id)).filter(
-        [](const SFunctionInfo& f) {
-          return !f->isConceptTypeFunction();
-        }
-    );
+  for (auto& fun : concept.getContext().getAllFunctions())
     ret.push_back(TRY(getFunction(context, codeLoc, translateDestructorId(fun->id),
-        std::move(candidates), {}, fun->type.params,
+        context.getFunctions(translateDestructorId(fun->id)), {}, fun->type.params,
         vector<CodeLoc>(fun->type.params.size(), codeLoc))));
-  }
   return ret;
 }
 
