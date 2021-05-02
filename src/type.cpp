@@ -1173,8 +1173,11 @@ static JustError<ErrorLoc> getConversionError(const Context& context, const SFun
     const vector<SType>& argTypes, const vector<CodeLoc>& argLoc, const vector<SType>& funParams, TypeMapping& mapping) {
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
-    if (argTypes[i] != BuiltinType::NULL_TYPE || !funParams[i].dynamicCast<OptionalType>())
-      for (auto tArg : context.getConversions(argTypes[i], funParams[i], !input->isConceptTypeFunction()))
+    if (argTypes[i] != BuiltinType::NULL_TYPE || !funParams[i].dynamicCast<OptionalType>()) {
+      auto asConceptType = funParams[i]->removePointer().dynamicCast<ConceptType>();
+      // If it's the concept type parameter we don't try to convert to it from types satisfying the concept.
+      bool conceptParam = input->type.concept && asConceptType && input->type.concept == asConceptType->concept;
+      for (auto tArg : context.getConversions(argTypes[i], funParams[i], !conceptParam))
         if (!input->id.contains<Operator>() || tArg == argTypes[i] ||
             (tArg.dynamicCast<BuiltinType>() && argTypes[i].dynamicCast<BuiltinType>())) {
           if (auto res = getDeductionError(mapping, funParams[i], tArg); !res) {
@@ -1185,6 +1188,7 @@ static JustError<ErrorLoc> getConversionError(const Context& context, const SFun
             break;
           }
         }
+    }
     if (firstError)
       return *firstError;
   }

@@ -1,0 +1,26 @@
+// 2
+
+concept <T> C1 {
+  int f(T*);
+};
+
+concept <T> C2 {
+  int g(T*, C1*);
+};
+
+struct X {};
+struct Y {};
+
+int f(Y*) { return 1; }
+
+template <T>
+int g(T*, C1* c) { return 17; }
+
+int g(X*, C1* c) { return c->f() + 1; }
+
+int main() {
+  const x = X();
+  const C2* c2 = &x;
+  const y = Y();
+  return c2->g(&y);
+}
