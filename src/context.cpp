@@ -589,8 +589,11 @@ void Context::addConcept(const string& name, SConcept i) {
     ErrorBuffer errors;
     for (auto& fun : i->getContext().getAllFunctions()) {
       auto typeParams = i->getParams().getSubsequence(1);
+      auto signature = replaceInFunction(*this, fun->type, i->getParams()[0], ConceptType::get(i, typeParams, i->isVariadic()),
+          errors, fun->type.templateParams);
+      CHECK(!!signature.concept);
       CHECK(!!addFunction(addTemplateParams(
-          replaceInFunction(*this, fun, i->getParams()[0], ConceptType::get(i, typeParams, i->isVariadic()), errors),
+          FunctionInfo::getImplicit(fun->id, std::move(signature)),
           typeParams, i->isVariadic())));
     }
     CHECK(errors.empty());

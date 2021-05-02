@@ -174,10 +174,8 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
   auto filter = [&] (auto fun, const char* method) {
     vector<SFunctionInfo> better;
     for (auto& overload : overloads)
-      if (fun(argTypes, overload)) {
+      if (fun(argTypes, overload))
         better.push_back(overload);
-        //cout << overload.toString() << " chosen by " << method << endl;
-      }
     if (!better.empty())
       overloads = better;
   };
@@ -208,12 +206,14 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
   };
   filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isExactArg);}, "all args exact");
   filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isExactArg);}, "first arg exact");
-  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isExactValueArg);}, "all args exact");
-  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isExactValueArg);}, "first arg exact");
-  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isExactReferenceArg);}, "all args exact");
-  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isExactReferenceArg);}, "first arg exact");
-  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isConstToMutableReferenceArg);}, "all args exact");
-  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isConstToMutableReferenceArg);}, "first arg exact");
+  filter([&](const auto& args, const auto& overload) {
+      return !overload->type.params.empty() && overload->getParent()->type.params[0] == overload->type.params[0];}, "non-template first");
+  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isExactValueArg);}, "all args exact value");
+  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isExactValueArg);}, "first arg exact value");
+  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isExactReferenceArg);}, "all args exact reference");
+  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isExactReferenceArg);}, "first arg exact reference");
+  filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isConstToMutableReferenceArg);}, "all args const to mut ref");
+  filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isConstToMutableReferenceArg);}, "first arg const to mut fef");
   // filter out functions that have concept type parameters or return value
   filter([](const vector<SType>&, const SFunctionInfo& f){ return !f->isConceptTypeFunction(); }, "concept type");
   // sometimes a function is both in the global context and in the concept, so prefer the one in the concept
