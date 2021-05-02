@@ -694,8 +694,8 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
       if (auto res = concept->canCreateConceptType(); !res)
         return id.codeLoc.getError("Can't create a concept type from concept " + quote(concept->getName()) + ":\n" + res.get_error().toString());
       bool variadic = typePack.value_or(false);
-      auto templateParams = TRY(getTypeList(id.parts[0].templateArguments, typePack.value_or(false)));
-      if (concept->getParams().size() - 1 > templateParams.size() ||
+      auto templateParams = TRY(getTypeList(id.parts[0].templateArguments, variadic));
+      if (concept->getParams().size() - 2 > templateParams.size() ||
           ((!concept->isVariadic() || variadic) && templateParams.size() != concept->getParams().size() - 1))
         return id.codeLoc.getError("Wrong number of template parameters to concept type " + quote(concept->getName()));
       auto type = ConceptType::get(concept.get(), std::move(templateParams), variadic);
