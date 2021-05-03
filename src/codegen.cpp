@@ -231,14 +231,11 @@ static string getFunctionSignatureName(const FunctionInfo& function) {
   return function.getMangledName();
 }
 
-static string getSignature(const FunctionInfo& functionInfo, const FunctionDefinition* definition) {
-  string retVal;
-  //if (!name.contains<ConstructorId>())
-    retVal = functionInfo.type.retVal->getCodegenName() + " ";
-  string ret = retVal + getFunctionSignatureName(functionInfo) + "(";
+static string getFunctionParams(const FunctionInfo& functionInfo, const FunctionDefinition* definition) {
+  string ret;
   for (int i = 0; i < functionInfo.type.params.size(); ++i) {
     auto& param = functionInfo.type.params[i];
-    auto paramName = functionInfo.getParamName(i, definition);
+    auto paramName = definition ? functionInfo.getParamName(i, definition) : "param" + to_string(i);
     string argText = param->getCodegenName() + " " + paramName.value_or("") + ", ";
     if (functionInfo.id.contains<Operator>()) {
       if (auto p = param.dynamicCast<ReferenceType>()) {
@@ -256,8 +253,13 @@ static string getSignature(const FunctionInfo& functionInfo, const FunctionDefin
     ret.pop_back();
     ret.pop_back();
   }
-  ret.append(")");
   return ret;
+}
+
+static string getSignature(const FunctionInfo& functionInfo, const FunctionDefinition* definition) {
+  return functionInfo.type.retVal->getCodegenName() + " "
+      + getFunctionSignatureName(functionInfo) + "("
+      + getFunctionParams(functionInfo, definition) + ")";
 }
 
 void FunctionDefinition::handlePointerParamsInOperator(Accu& accu, const StatementBlock* thisBody) const {
@@ -815,6 +817,16 @@ static string getVTableName(const string& concept) {
   return concept + "_vtable";
 }
 
+static string getVTableBinder(const FunctionInfo& function) {
+  auto ret = "+[](" + getFunctionParams(function, nullptr) + ") { return " + function.getMangledName() + "(";
+  for (int i = 0; i < function.type.params.size(); ++i) {
+    if (i > 0)
+      ret += ",";
+    ret += "std::move(param" + to_string(i) + ")";
+  }
+  return ret + ");}";
+}
+
 void ConceptDefinition::codegen(Accu& accu, CodegenStage stage) const {
   auto addParams = [&] (const SFunctionInfo& fun) {
     for (auto& param : fun->type.params) {
@@ -882,7 +894,7 @@ void ConceptDefinition::codegen(Accu& accu, CodegenStage stage) const {
             for (int i = 0; i < functions.size(); ++i) {
               accu.newLine("reinterpret_cast<" + functions[i]->type.retVal->getCodegenName() + " (*)(");
               addParams(functions[i]);
-              accu.add(")>(&" + elem.vTable[i]->getMangledName() +"),");
+              accu.add(")>(" + getVTableBinder(*elem.vTable[i]) + "),");
             }
             --accu.indent;
             accu.newLine("};");

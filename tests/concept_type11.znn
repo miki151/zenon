@@ -1,0 +1,9 @@
+// 5
+
+int get(invoke<int>* i) {
+  return i->invoke();
+}
+
+int main() {
+  return get(&[]{ return 2; }) + get(&[]{ return 3; });
+}
