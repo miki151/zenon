@@ -1,0 +1,19 @@
+// 2
+
+concept <T> C {
+  int f(T*);
+  void destruct(T*);
+};
+
+struct X{};
+
+int f(X*) { return 2; }
+
+template<T> requires C<T>
+int eat(T t) {
+  return t.f();
+}
+
+int main() {
+  return eat<C>(X());
+}
