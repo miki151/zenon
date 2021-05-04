@@ -282,7 +282,7 @@ vector<SType> Context::getConversions(SType type, SType to, bool withConcepts) c
   if (auto ptr = underlying.dynamicCast<MutablePointerType>())
     ret.push_back(PointerType::get(ptr->underlying));
   if (auto t = underlying.dynamicCast<StructType>())
-    if (t->parent && t->parent.get() == getType("mutable_slice_t").get())
+    if (t->parent && getType("mutable_slice_t") == t->parent.get())
       ret.push_back(getSliceType(t->templateParams[0]));
   if (underlying != BuiltinType::NULL_TYPE)
     ret.push_back(OptionalType::get(underlying));
