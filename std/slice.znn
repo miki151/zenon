@@ -71,7 +71,7 @@ T* back(T[]* s) {
 
 export template <T>
 struct slice_iterator {
-  T* elem;
+  true_pointer<T> elem;
   int index;
 };
 
@@ -95,7 +95,7 @@ slice_iterator<T> end(T[]* v) {
 
 export template <T>
 T* operator *(slice_iterator<T>* it) {
-  return it->elem;
+  return from_true_pointer(it->elem);
 }
 
 export template <T>
@@ -191,7 +191,7 @@ T mutable* back(T mutable[]* s) {
 
 export template <T>
 struct mutable_slice_iterator {
-  T mutable* elem;
+  true_pointer_mutable<T> elem;
   int index;
 };
 
@@ -215,7 +215,7 @@ mutable_slice_iterator<T> end(T mutable[]* v) {
 
 export template <T>
 T mutable* operator *(mutable_slice_iterator<T>* it) {
-  return it->elem;
+  return from_true_pointer(it->elem);
 }
 
 export template <T>
@@ -260,3 +260,4 @@ T mutable[] slice(T[N] mutable* array) {
     return mutable_slice_t<T>{&array->front(), &array->back() + 1};
   }
 }
+

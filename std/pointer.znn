@@ -9,3 +9,58 @@ T mutable* implicit_copy(T mutable** p) {
   return *p;
 }
 
+export template <T>
+extern struct true_pointer_mutable;
+
+export template <T>
+extern struct true_pointer;
+
+export embed {
+  template <typename T>
+  using true_pointer_mutable = T*;
+
+  template <typename T>
+  using true_pointer = T const*;
+
+  template <typename T>
+  T const* from_true_pointer(T const* t) {
+    return t;
+  }
+
+  template <typename T>
+  T* from_true_pointer(T* t) {
+    return t;
+  }
+
+  template <typename T>
+  const_fat_ptr<T> from_true_pointer(fat_value<T> const* t) {
+    return op_get_address(*t);
+  }
+
+  template <typename T>
+  fat_ptr<T> from_true_pointer(fat_value<T>* t) {
+    return op_get_address(*t);
+  }
+}
+
+export template <T>
+extern T mutable* from_true_pointer(true_pointer_mutable<T>);
+
+export template <T>
+extern T* from_true_pointer(true_pointer<T>);
+
+export template <T>
+true_pointer_mutable<T> implicit_copy(true_pointer_mutable<T>* t) {
+  embed_returns {
+    return *t;
+  }
+}
+
+export template <T>
+true_pointer<T> implicit_copy(true_pointer<T>* t) {
+  embed_returns {
+    return *t;
+  }
+}
+
+
