@@ -153,6 +153,13 @@ T[] slice(T[N]* array) {
 }
 
 export template <T>
+T[] singleton_slice(true_pointer<T> elem) {
+  embed_returns {
+    return slice_t<T>{elem, elem + 1};
+  }
+}
+
+export template <T>
 int size(T mutable[]* s) {
   embed_returns {
     return s->end - s->begin;
@@ -258,6 +265,13 @@ T mutable[] slice(T[N] mutable* array) {
     if (array->empty())
       return mutable_slice_t<T>{nullptr, nullptr};
     return mutable_slice_t<T>{&array->front(), &array->back() + 1};
+  }
+}
+
+export template <T>
+T mutable[] singleton_slice(true_pointer_mutable<T> elem) {
+  embed_returns {
+    return mutable_slice_t<T>{elem, elem + 1};
   }
 }
 

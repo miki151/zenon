@@ -33,6 +33,16 @@ export embed {
   }
 
   template <typename T>
+  T const* get_true_pointer(T const& t) {
+    return &t;
+  }
+
+  template <typename T>
+  T* get_true_pointer(T& t) {
+    return &t;
+  }
+
+  template <typename T>
   const_fat_ptr<T> from_true_pointer(fat_value<T> const* t) {
     return op_get_address(*t);
   }
