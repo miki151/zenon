@@ -998,14 +998,15 @@ void TernaryExpression::codegen(Accu& accu, CodegenStage stage) const {
 }
 
 void FatPointerConversion::codegen(Accu& accu, CodegenStage stage) const {
-  if (argType.dynamicCast<PointerType>())
+  if (toType.dynamicCast<PointerType>())
     accu.add("make_const_fat_ptr(");
-  else if (argType.dynamicCast<MutablePointerType>())
+  else if (toType.dynamicCast<MutablePointerType>())
     accu.add("make_fat_ptr(");
   else
     accu.add("make_fat_value(");
   arg->codegen(accu, stage);
-  accu.add(", &" + getVTableName(*conceptType->getMangledName()) + "_" + *argType->removePointer()->getMangledName() + ")");
+  accu.add(", &" + getVTableName(*conceptType->getMangledName())
+      + "_" + *argType->getMangledName() + ")");
 }
 
 void UncheckedStatement::codegen(Accu& accu, CodegenStage s) const {

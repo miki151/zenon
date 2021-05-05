@@ -3042,7 +3042,7 @@ void FatPointerConversion::addFunctionCalls(const FunctionCallVisitFun& fun) con
   this->Expression::addFunctionCalls(fun);
   for (auto& f : functions)
     fun(f);
-  conceptType->concept->def->addFatPointer({argType->removePointer(), functions});
+  conceptType->concept->def->addFatPointer({argType, functions});
   conceptType->concept->def->addConceptType(conceptType);
 }
 

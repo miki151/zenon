@@ -1,0 +1,14 @@
+// 24
+
+import "std/any.znn";
+
+int main() {
+  const x = "popopo";
+  const y = 5;
+  any a = &x;
+  any b = &y;
+  any c = "xxx";
+  any d = 10;
+  return (**a.cast_to<string*>())->size() + ***b.cast_to<int*>() +
+    (*c.cast_to<string>())->size() + **d.cast_to<int>();
+}

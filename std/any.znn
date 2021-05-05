@@ -1,0 +1,19 @@
+
+export concept <T> any {
+  void destruct(T*);
+  string get_type(T*);
+};
+
+export template <T>
+string get_type(T*) {
+  return to_string(T);
+}
+
+export template <T, U> requires (U == any)
+T*? cast_to(U* a) {
+  if (to_string(T) != a->get_type())
+    return null;
+  embed_returns {
+    return (T*)a.object;
+  }
+}
