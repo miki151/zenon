@@ -23,6 +23,8 @@ void insert(hash_map<Key, Value> mutable* m, Key key, Value value) {
   embed {
     m->insert(std::make_pair(std::move(key), std::move(value)));
   }
+  set_moved_in_embed(move(key));
+  set_moved_in_embed(move(value));
   return;
   discard hash_adapter<Key>().invoke(&key);
   discard hash_adapter<Key>().invoke(&key, &key);
@@ -40,7 +42,7 @@ bool contains(hash_map<Key, Value>* m, Key* key) {
 export template <Key, Value> requires hash_key<Key>
 Value* get(hash_map<Key, Value>* m, Key* key) {
   embed_returns {
-    return &m->at(*key);
+    return op_get_address(m->at(*key));
   }
   discard hash_adapter<Key>().invoke(key);
   discard hash_adapter<Key>().invoke(key, key);
