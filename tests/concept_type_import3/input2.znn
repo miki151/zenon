@@ -1,0 +1,8 @@
+
+
+export template <C, U> requires is_concept<C>
+C* cast_to(U* u) {
+  unchecked return u;
+}
+
+

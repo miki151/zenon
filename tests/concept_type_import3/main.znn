@@ -1,0 +1,17 @@
+// 1
+
+import "input2.znn";
+
+concept <T> C1 {
+  int f(T*);
+};
+
+struct X {};
+
+int f(X*) { return 1; }
+
+int main() {
+  const x = X();
+  const c = x.cast_to<C1>();
+  return c->f();
+}

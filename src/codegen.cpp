@@ -844,9 +844,7 @@ void ConceptDefinition::codegen(Accu& accu, CodegenStage stage) const {
     if (auto mangledName = conceptType->getMangledName()) {
       const auto vTableName = getVTableName(*mangledName);
       auto functions = conceptType->getConceptFor(conceptType->concept->getParams()[0])->getContext().getAllFunctions();
-      if (stage.isTypes)
-        accu.newLine("struct " + vTableName + ";");
-      else if (stage.isDefine) {
+      if (stage.isTypes) {
         accu.newLine("struct " + vTableName + " {");
         ++accu.indent;
         for (auto& fun : functions) {
@@ -886,18 +884,24 @@ void ConceptDefinition::codegen(Accu& accu, CodegenStage stage) const {
         accu.newLine();
       }
       CHECK(errors.empty());
-      if (stage.isDefine)
+      if (!stage.isTypes)
         for (auto& elem : fatPointers)
           if (elem.type->getMangledName()) {
-            accu.newLine("static " + vTableName + " " + vTableName + "_" + *elem.type->getMangledName() + "{");
-            ++accu.indent;
-            for (int i = 0; i < functions.size(); ++i) {
-              accu.newLine("reinterpret_cast<" + functions[i]->type.retVal->getCodegenName() + " (*)(");
-              addParams(functions[i]);
-              accu.add(")>(" + getVTableBinder(*elem.vTable[i]) + "),");
+            if (!stage.isDefine)
+              accu.add("extern ");
+            accu.newLine(vTableName + " " + vTableName + "_" + *elem.type->getMangledName());
+            if (stage.isDefine) {
+              accu.add("{");
+              ++accu.indent;
+              for (int i = 0; i < functions.size(); ++i) {
+                accu.newLine("reinterpret_cast<" + functions[i]->type.retVal->getCodegenName() + " (*)(");
+                addParams(functions[i]);
+                accu.add(")>(" + getVTableBinder(*elem.vTable[i]) + "),");
+              }
+              --accu.indent;
+              accu.newLine("}");
             }
-            --accu.indent;
-            accu.newLine("};");
+            accu.newLine(";");
             accu.newLine();
           }
     }
