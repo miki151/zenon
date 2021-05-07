@@ -1,21 +1,46 @@
-// 2
+// 3
+
+import "std/box.znn";
 
 concept <T> C1 {
-  int fun1(T*);
+  int f(T*);
   void destruct(T*);
 };
 
-struct X {};
-
-int fun1(X* x) {
-  return 2;
+embed {
+#include <iostream>
+  struct Y {
+    Y(int* a) : a(a) { ++*a; }
+    Y(Y&& y) : a(y.a) {
+      ++*a;
+    }
+    int* a;
+    ~Y() {
+      --*a;
+    }
+  };
 }
 
-int get(C1 c) {
-  return c.fun1();
+extern struct Y;
+extern Y(int*);
+
+struct X {
+  int mutable* cnt;
+  Y y;
+};
+
+void destruct(X* x) {
+  ++*x->cnt;
 }
+
+int f(X*) { return 1; }
 
 int main() {
-  const x = X();
-  return get(move(x));
+  mutable cnt = 1;
+  mutable cnt2 = 0;
+  {
+    const c = X(&cnt, Y(&cnt2)).box_as<C1>();
+    cnt += c->f();
+  }
+  return cnt + cnt2 * 10;
 }

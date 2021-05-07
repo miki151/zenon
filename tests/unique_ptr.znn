@@ -1,38 +1,9 @@
 // 3
 
-embed {
-#include <memory>
-using std::unique_ptr;
-}
-
-
-template <T>
-extern struct unique_ptr;
-
-template <T>
-T mutable* get(unique_ptr<T> mutable* ptr) {
-  embed_returns {
-    return ptr->get();
-  }
-}
-
-template <T>
-T* get(unique_ptr<T>* ptr) {
-  embed_returns {
-    return ptr->get();
-  }
-}
-
-
-template <T>
-unique_ptr<T> unique(T t) {
-  embed_returns {
-    return std::make_unique<T>(std::move(t));
-  }
-}
+import "std/box.znn";
 
 int main() {
-  mutable ptr = unique(3);
+  mutable ptr = box(3);
   const ptr2 = move(ptr);
-  return *ptr2.get();
+  return *ptr2;
 }

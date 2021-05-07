@@ -1,19 +1,8 @@
 #ifndef FAT_POINTERS_H
 #define FAT_POINTERS_H
 
-#include "any.hpp"
-
-template <typename VTable>
-struct fat_value {
-  nonstd::any object;
-  VTable* vTable;
-};
-
-
 template <typename VTable>
 struct const_fat_ref {
-  const_fat_ref(const fat_value<VTable>& value) : object(value.object.get_ptr()), vTable(value.vTable) {}
-  const_fat_ref(void const* object, VTable* vTable) : object(object), vTable(vTable) {}
   void const* object;
   VTable* vTable;
 };
@@ -29,16 +18,12 @@ struct const_fat_ptr {
 
 template <typename VTable>
 struct fat_ref {
-  fat_ref(fat_value<VTable>& value) : object(value.object.get_ptr()), vTable(value.vTable) {}
-  fat_ref(void* object, VTable* vTable) : object(object), vTable(vTable) {}
+  operator const_fat_ref<VTable>() const {
+    return const_fat_ref<VTable>{object, vTable};   
+  }
   void* object;
   VTable* vTable;
 };
-
-template <typename Object, typename VTable>
-fat_value<VTable> make_fat_value(Object&& object, VTable* vTable) {
-  return fat_value<VTable>{std::move(object), vTable};
-}
 
 template <typename VTable>
 struct fat_ptr {
@@ -47,7 +32,7 @@ struct fat_ptr {
   fat_ref<VTable> operator*() const {
     return fat_ref<VTable>{object, vTable};
   }
-  operator const_fat_ptr<VTable>() {
+  operator const_fat_ptr<VTable>() const {
     return const_fat_ptr<VTable>{object, vTable};   
   }
 };
@@ -65,16 +50,6 @@ const_fat_ptr<VTable> op_get_address(const_fat_ref<VTable> r) {
 template <typename VTable>
 fat_ptr<VTable> op_get_address(fat_ref<VTable> r) {
   return fat_ptr<VTable>{r.object, r.vTable};
-}
-
-template <typename VTable>
-fat_ptr<VTable> op_get_address(const fat_value<VTable>& r) {
-  return fat_ptr<VTable>{r.object.get_ptr(), r.vTable};
-}
-
-template <typename VTable>
-fat_ptr<VTable> op_get_address(fat_value<VTable>& r) {
-  return fat_ptr<VTable>{r.object.get_ptr(), r.vTable};
 }
 
 template <typename VTable>

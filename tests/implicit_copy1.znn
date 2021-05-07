@@ -1,13 +1,13 @@
 // 20
 
-import "std/unique_ptr.znn";
+import "std/box.znn";
 
 struct X {
-  unique_ptr<int> a;
+  box<int> a;
 };
 
 X(int a) {
-  return X::X(make_unique(a));
+  return X::X(box(a));
 }
 
 int get(X x, X y) {

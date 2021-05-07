@@ -1337,8 +1337,9 @@ void FunctionDefinition::addParamsToContext(Context& context, const FunctionInfo
       else if (i < templateInfo.params.size() - 1 || !templateInfo.variadic) {
 //        std::cout << "Adding " << templateInfo.params[i].name << " = " << t->getName() << std::endl;
         context.addType(templateInfo.params[i].name, t);
-        context.addSubstitution(Context::SubstitutionInfo{
-            templateInfo.params[i].name, t->getCodegenName(), !!t.dynamicCast<CompileTimeValue>()});
+        if (!t.dynamicCast<ConceptType>())
+          context.addSubstitution(Context::SubstitutionInfo{
+              templateInfo.params[i].name, t->getCodegenName(), !!t.dynamicCast<CompileTimeValue>()});
       } else {
         auto types = instanceInfo.type.templateParams.getSubsequence(i);
 //        std::cout << "Adding expanded type pack " << templateInfo.params[i].name << " " << joinTypeList(types) << std::endl;

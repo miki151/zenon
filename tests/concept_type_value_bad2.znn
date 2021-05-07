@@ -1,25 +1,9 @@
 // no_compile
 
-concept <T> C1 {
-  int get(T*);
-  void set(T mutable*, int);
-  void destruct(T*);
-};
-
-struct X {
-  int a;
-};
-
-int get(X* x) {
-  return x->a;
-}
-
-void set(X mutable* x, int a) {
-  x->a = a;
-}
+import "std/any.znn";
+import "std/vector.znn";
 
 int main() {
-  const x = X(5);
-  mutable C1 c = &x;
-  return 0;
+  const v = vector<any>();
+  return 1;
 }

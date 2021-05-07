@@ -1856,10 +1856,6 @@ ConceptType::ConceptType(ConceptType::Private, SConcept c, vector<SType> params,
     : concept(std::move(c)), params(std::move(params)), variadic(variadic) {
 }
 
-string ConceptType::getCodegenName() const {
-  return "fat_value<" + *getMangledName() + "_vtable>";
-}
-
 optional<std::string> ConceptType::getMangledName() const {
   if (auto suf = mangleTemplateParams(params))
     return concept->getName(false) + *suf;
@@ -1872,10 +1868,7 @@ SType ConceptType::replaceImpl(const Context& context, SType from, SType to, Err
 }
 
 JustError<string> ConceptType::getSizeError(const Context&) const {
-  if (!hasDestructor())
-    return "Concept " + quote(getName(false)) + " has no destructor declared, therefore the "
-        "type cannot be passed by value"s;
-  return success;
+  return "Concept types cannot be passed by value or used to declare a variable"s;
 }
 
 JustError<string> ConceptType::getMappingError(TypeMapping& mapping, SType argType) const {

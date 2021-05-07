@@ -1,14 +1,14 @@
 // 1
 
-import "std/unique_ptr.znn";
+import "std/box.znn";
 
 union V {
-  unique_ptr<int> ptr;
+  box<int> ptr;
   int value;
 };
 
 int main() {
-  const v = V::ptr(make_unique(1));
+  const v = V::ptr(box(1));
   switch (v) {
     case (ptr) {
       return *ptr;

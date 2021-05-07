@@ -445,7 +445,6 @@ struct ConceptType : public Type {
   struct Private{};
   ConceptType(Private, SConcept, vector<SType> params, bool variadic);
   virtual string getName(bool withTemplateArguments = true) const override;
-  virtual string getCodegenName() const override;
   virtual optional<string> getMangledName() const override;
   virtual SType replaceImpl(const Context&, SType from, SType to, ErrorBuffer&) const override;
   virtual JustError<string> getSizeError(const Context&) const override;

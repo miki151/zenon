@@ -1,6 +1,6 @@
 // 6
 
-import "std/unique_ptr.znn";
+import "std/box.znn";
 
 struct X {
   int mutable* cnt;
@@ -26,7 +26,7 @@ void f(T) {}
 int main() {
   mutable a = 3;
   {
-    const y = make_unique(Z(Y(X(&a), X(&a)), X(&a)));
+    const y = box(Z(Y(X(&a), X(&a)), X(&a)));
     f(move(y));
   }
   return a;

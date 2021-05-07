@@ -852,6 +852,7 @@ void ConceptDefinition::codegen(Accu& accu, CodegenStage stage) const {
           addParams(fun);
           accu.add(");");
         }
+        accu.newLine("void (*cpp_delete)(void const*);");
         --accu.indent;
         accu.newLine("};");
         accu.newLine();
@@ -898,6 +899,7 @@ void ConceptDefinition::codegen(Accu& accu, CodegenStage stage) const {
                 addParams(functions[i]);
                 accu.add(")>(" + getVTableBinder(*elem.vTable[i]) + "),");
               }
+              accu.newLine("reinterpret_cast<void (*)(void const*)>(+[](" + elem.type->getCodegenName() +" param0) { delete param0;})");
               --accu.indent;
               accu.newLine("}");
             }
@@ -1004,10 +1006,8 @@ void TernaryExpression::codegen(Accu& accu, CodegenStage stage) const {
 void FatPointerConversion::codegen(Accu& accu, CodegenStage stage) const {
   if (toType.dynamicCast<PointerType>())
     accu.add("make_const_fat_ptr(");
-  else if (toType.dynamicCast<MutablePointerType>())
-    accu.add("make_fat_ptr(");
   else
-    accu.add("make_fat_value(");
+    accu.add("make_fat_ptr(");
   arg->codegen(accu, stage);
   accu.add(", &" + getVTableName(*conceptType->getMangledName())
       + "_" + *argType->getMangledName() + ")");

@@ -293,10 +293,6 @@ vector<SType> Context::getConversions(SType type, SType to, bool withConcepts) c
         to->removePointer().dynamicCast<ConceptType>() &&
         (to.dynamicCast<PointerType>() || underlying.dynamicCast<MutablePointerType>()))
       ret.push_back(to);
-    if (!underlying.dynamicCast<ConceptType>() &&
-        to.dynamicCast<ConceptType>() &&
-        (!type->isReference() || type->isBuiltinCopyable(*this)))
-      ret.push_back(to);
   }
   return ret;
 }
@@ -332,24 +328,6 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
       }
       return success;
     }
-  if (auto conceptType = to.dynamicCast<ConceptType>()) {
-    auto concept = conceptType->getConceptFor(fromUnderlying);
-    if (from->isReference()) {
-      TRY(canConvert(from, fromUnderlying, expr));
-      if (expr)
-        CHECK(!!::getType(*this, expr));
-    }
-    auto functions = TRY(getRequiredFunctionsForConceptType(*this, *concept, CodeLoc()));
-    for (auto& fun : functions)
-      CHECK(!!fun->addInstance(*this));
-    if (expr) {
-      auto loc = expr->codeLoc;
-      expr = unique<FatPointerConversion>(loc, functions, to, fromUnderlying, std::move(expr), conceptType);
-      auto err = expr->getTypeImpl(*this);
-      CHECK(!!err) << err.get_error();
-    }
-    return success;
-  }
   if (auto structType = toUnderlying.dynamicCast<StructType>())
     if (!structType->alternatives.empty()) {
       const StructType::Variable* alternative = nullptr;

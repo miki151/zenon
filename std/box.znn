@@ -1,0 +1,73 @@
+
+import "std/concepts.znn";
+
+export template <T>
+struct box {
+  T mutable* elem;
+};
+
+export template <T>
+box(T value) {
+  const c = [](T value) -> T mutable* {
+    set_moved_in_embed(move(value));
+    embed_returns {
+      return new T(std::move(value));
+    }
+  }(move(value));
+  return box<T>::box(c);
+}
+
+export template <C, T> requires is_concept<C>
+box<C> box_as(T value) {
+  unchecked {
+    C mutable* c = [](T value) -> T mutable* {
+      set_moved_in_embed(move(value));
+      embed_returns {
+        return new T(std::move(value));
+      }
+    }(move(value));
+    return box<C>::box(c);
+  }
+}
+
+export template <C>
+C* operator *(box<C>* v) {
+  return v->elem;
+}
+
+export template <C>
+C mutable* operator *(box<C> mutable* v) {
+  return v->elem;
+}
+
+export template <C>
+C* get(box<C>* v) {
+  return v->elem;
+}
+
+export template <C>
+C mutable* get(box<C> mutable* v) {
+  return v->elem;
+}
+
+export template <C> requires is_concept<C>
+void cpp_delete_impl(C* elem) {
+  embed {
+    elem.vTable->cpp_delete(elem.object);
+  }
+}
+
+export template <T>
+void cpp_delete_impl(T* elem) {
+  embed {
+    delete elem;
+  }
+}
+
+export template <C>
+void destruct(box<C>* v) {
+  v->elem->destruct();
+  cpp_delete_impl(v->elem);
+}
+
+

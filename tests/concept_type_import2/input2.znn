@@ -1,4 +1,6 @@
 
+export import "std/box.znn";
+
 export concept <T> C1 {
   int f(T*);
   void destruct(T*);
@@ -12,6 +14,6 @@ int f(A* a) {
   return a->value;
 }
 
-export C1 getC1() {
-  return A(5);
+export box<C1> getC1() {
+  return A(5).box_as<C1>();
 }

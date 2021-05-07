@@ -16,7 +16,7 @@ int g(X* x, C1* c1) {
 
 int main() {
   const x = X(2);
-  const C1 c1 = getC1();
+  const c1 = getC1();
   const C2* c2 = &x;
-  return c2->g(&c1);
+  return c2->g(c1.get());
 }
