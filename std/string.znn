@@ -51,6 +51,19 @@ export int? to_int(string* s) {
   }
 }
 
+export double? to_double(string* s) {
+  const double? err = null;
+  if (s->empty())
+    return err;
+  embed_returns {
+    char* control;
+    double result = std::strtod(s->data(), &control);
+    if (control != s->data() + s->size())
+      return err;
+    return result;
+  }
+}
+
 export struct string_iterator {
   string* v;
   int index;
