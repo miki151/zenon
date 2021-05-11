@@ -1,0 +1,12 @@
+
+embed {
+#include <sys/time.h>
+}
+
+export int current_time_milli() {
+  embed_returns {
+    timeval t;
+    gettimeofday(&t, nullptr);
+    return t.tv_sec * 1000 + t.tv_usec / 1000;
+  }
+}

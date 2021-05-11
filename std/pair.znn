@@ -1,0 +1,23 @@
+
+export import "std/operator_helpers.znn";
+export import "std/concepts.znn";
+
+export
+[@auto_equality]
+template <T, U>
+struct pair {
+  T first;
+  U second;
+};
+
+export template <T, U> requires copy<T>, copy<U>
+pair<T, U> copy(pair<T, U>*) = default;
+
+export template <T, U> requires implicit_copy<T>, implicit_copy<U>
+pair<T, U> implicit_copy(pair<T, U>*) = default;
+
+export template <T, U> requires get_hash<T>, get_hash<U>
+int get_hash(pair<T, U>* p) {
+  return p->first.get_hash() + p->second.get_hash();
+}
+
