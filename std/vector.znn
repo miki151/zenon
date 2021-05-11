@@ -192,6 +192,13 @@ void sort(vector<T> mutable* v) {
   discard inequality_adapter<T>().invoke(&(*v)[0], &(*v)[0]);
 }
 
+export template <T, Fun> requires invoke<Fun, bool, T*, T*>
+void sort(vector<T> mutable* v, Fun* fun) {
+  embed {
+    std::sort(v->begin(), v->end(), [&](const T& t1, const T& t2){ return invoke(fun, &t1, &t2); } );
+  }
+}
+
 export template <T> requires equality<T>
 int? find(vector<T>* v, T* elem) {
   for (i : range(0, v->size()))
