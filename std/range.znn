@@ -11,7 +11,7 @@ export range(int start, mutable int finish) {
   return range::range(start, finish);
 }
 
-export range copy(range*) = default;
+export range implicit_copy(range*) = default;
 
 export struct range_iterator {
   int elem;
@@ -25,6 +25,10 @@ export int end(range* r) {
   return r->finish;
 }
 
-export bool overlaps(range* r1, range* r2) {
-  return max(r1->start, r2->start) < min(r1->finish, r2->finish);
+export bool empty(range* r) {
+  return r->start == r->finish;
+}
+
+export range intersection(range* r1, range* r2) {
+  return range(max(r1->start, r2->start), min(r1->finish, r2->finish));
 }
