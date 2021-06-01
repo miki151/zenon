@@ -1,0 +1,10 @@
+// 6
+
+import "std/panic.znn";
+import "std/io.znn";
+
+int main() {
+  set_panic_handler(&[](string s) { exit(s.size()); });
+  panic("foobar");
+  return 0;
+}
