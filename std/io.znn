@@ -1,8 +1,9 @@
 
 export import "expected.znn";
 
-embed{
+export embed{
 #include <cstdio>
+#include <cerrno>
 }
 
 export string to_string(int* i) {
