@@ -103,6 +103,22 @@ bool operator == (vector_mut_iterator<T>* it1, vector_mut_iterator<T>* it2) {
 }
 
 export template <T>
+void clear(vector<T> mutable* v) {
+  for (it : *v)
+    it->destruct();
+  embed {
+    v->clear();
+  }
+}
+
+export template <T>
+void reverse(vector<T> mutable* v) {
+  embed {
+    std::reverse(v->begin(), v->end());
+  }
+}
+
+export template <T>
 void push_back(vector<T> mutable* v, T elem) {
   embed {
     v->push_back(std::move(elem));
