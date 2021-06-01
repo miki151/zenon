@@ -36,6 +36,7 @@ export double as_double(int a) {
 export extern double sqrt(double value);
 export extern double pow(double x, double y);
 export extern int abs(int value);
+export extern double fabs(double value);
 export extern double cos(double value);
 export extern double sin(double value);
 export extern double atan2(double x, double y);
