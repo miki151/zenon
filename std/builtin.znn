@@ -54,3 +54,13 @@ Enum implicit_copy(Enum* e) {
   return *e;
 }
 
+export template <T>
+void swap(T mutable* x, T mutable* y) {
+  embed {
+    auto z = std::move(*x);
+    *x = std::move(*y);
+    *y = std::move(z);
+  }
+}
+
+
