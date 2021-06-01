@@ -40,6 +40,15 @@ bool contains(hash_map<Key, Value>* m, Key* key) {
 }
 
 export template <Key, Value> requires hash_key<Key>
+void erase(hash_map<Key, Value> mutable* m, Key* key) {
+  embed_returns {
+    return m->erase(*key);
+  }
+  discard hash_adapter<Key>().invoke(key);
+  discard hash_adapter<Key>().invoke(key, key);
+}
+
+export template <Key, Value> requires hash_key<Key>
 Value* get(hash_map<Key, Value>* m, Key* key) {
   embed_returns {
     return op_get_address(m->at(*key));
