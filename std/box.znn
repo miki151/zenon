@@ -6,6 +6,11 @@ struct box {
   T mutable* elem;
 };
 
+export template <T> requires copy<T>
+box<T> copy(box<T>* b) {
+  return box((*b)->copy());
+}
+
 export template <T>
 box(T value) {
   const c = [](T value) -> T mutable* {
