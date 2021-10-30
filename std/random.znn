@@ -5,6 +5,8 @@ embed {
 }
 
 import "std/range.znn";
+import "std/math.znn";
+import "std/panic.znn";
 
 export void init_random() {
   embed {
@@ -13,6 +15,7 @@ export void init_random() {
 }
 
 export int get_random(int max) {
+  assert(max > 0);
   embed_returns {
     return rand() % max;
   }
@@ -20,6 +23,11 @@ export int get_random(int max) {
 
 export int get_random(range r) {
   return r.start + get_random(r.finish - r.start);
+}
+
+export double get_random_d() {
+  const r = 1000;
+  return get_random(r).as_double() / (r - 1).as_double();
 }
 
 export template <T> requires is_enum<T>
