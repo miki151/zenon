@@ -21,7 +21,7 @@ extern hash_map();
 export template <Key, Value> requires hash_key<Key>
 void insert(hash_map<Key, Value> mutable* m, Key key, Value value) {
   embed {
-    m->insert_or_assign(std::move(key), std::move(value));
+    (*m)[key] = std::move(value);
   }
   set_moved_in_embed(move(key));
   set_moved_in_embed(move(value));
