@@ -31,12 +31,22 @@ hash_set() {
   discard hash_adapter<Key>().invoke(key, key);
 }
 
+export template <T>
+T* getNullPointer() {
+  embed_returns {
+    return nullptr;
+  }
+}
+
 export template <T> requires copy<T>, hash_key<T>
 hash_set<T> copy(hash_set<T>* v) {
   mutable ret = hash_set<T>();
   for (elem : *v)
     ret.insert(elem->copy());
   return move(ret);
+  const key = getNullPointer<T>();
+  discard hash_adapter<T>().invoke(key);
+  discard hash_adapter<T>().invoke(key, key);
 }
 
 
@@ -45,6 +55,9 @@ void insert(hash_set<Key> mutable* m, Key key) {
   embed {
     m->insert(std::move(key));
   }
+  return;
+  discard hash_adapter<Key>().invoke(&key);
+  discard hash_adapter<Key>().invoke(&key, &key);
 }
 
 export template <Key> requires hash_key<Key>
@@ -52,6 +65,9 @@ void erase(hash_set<Key> mutable* m, Key* key) {
   embed {
     m->erase(*key);
   }
+  return;
+  discard hash_adapter<Key>().invoke(key);
+  discard hash_adapter<Key>().invoke(key, key);
 }
 
 export template <Key> requires hash_key<Key>
@@ -59,6 +75,8 @@ bool contains(hash_set<Key>* m, Key* key) {
   embed_returns {
     return m->count(*key);
   }
+  discard hash_adapter<Key>().invoke(key);
+  discard hash_adapter<Key>().invoke(key, key);
 }
 
 export template <Key> requires hash_key<Key>
@@ -66,20 +84,29 @@ int size(hash_set<Key> mutable* m) {
   embed_returns {
     return m->size();
   }
+  const key = getNullPointer<Key>();
+  discard hash_adapter<Key>().invoke(key);
+  discard hash_adapter<Key>().invoke(key, key);
 }
 
-export template <T>
+export template <T> requires hash_key<T>
 hash_set_iterator<T> begin(hash_set<T>* v) {
   embed_returns {
     return v->begin();
   }
+  const key = getNullPointer<T>();
+  discard hash_adapter<T>().invoke(key);
+  discard hash_adapter<T>().invoke(key, key);
 }
 
-export template <T>
+export template <T> requires hash_key<T>
 hash_set_iterator<T> end(hash_set<T>* v) {
   embed_returns {
     return v->end();
   }
+  const key = getNullPointer<T>();
+  discard hash_adapter<T>().invoke(key);
+  discard hash_adapter<T>().invoke(key, key);
 }
 
 export template <T>
