@@ -20,6 +20,7 @@ static po::parser getCommandLineFlags() {
   flags["run"].description("Run the resulting program.");
   flags["o"].type(po::string).description("Binary output path.");
   flags["cpp"].type(po::string).fallback("g++").description("C++ compiler path (default: g++).");
+  flags["linker_opts"].type(po::string).description("Additional linker options.");
   flags["c"].description("Do not link binary.");
   flags["codegen"].type(po::string).description("Directory to output generated C++ code for the whole project.");
   flags["l"].type(po::string).multi().description("Linking flags.");
@@ -28,7 +29,7 @@ static po::parser getCommandLineFlags() {
 }
 
 static int compileCpp(string command, const string& program, const string& output) {
-  command += " -xc++ - -std=c++17 -Werror -Wno-unused-value -Wno-trigraphs -c -o " + output;
+  command += " -xc++ - -std=c++17 -Wno-trigraphs -c -o " + output;
   cerr << command << endl;
   FILE* p = popen(command.c_str(), "w");
   fwrite(program.c_str(), 1, program.size(), p);
@@ -42,6 +43,7 @@ static int runProgram(string path) {
 
 static int linkObjs(const string& cmd, const vector<string>& objs, const string& output, const vector<string>& flags) {
   auto command = cmd + " " + combine(objs, " ") + " -o " + output + " " + combine(flags, " ");
+  cerr << command << endl;
   return system(command.data());
 }
 
@@ -102,6 +104,9 @@ int main(int argc, char* argv[]) {
   if (flags["codegen"].was_set())
     codegenAll = flags["codegen"].get().string;
   auto gccCmd = flags["cpp"].get().string;
+  auto linkCmd = gccCmd;
+  if (flags["linker_opts"].was_set())
+    linkCmd += " " + flags["linker_opts"].get().string;
   bool fullCompile = !flags["c"].was_set() || codegenAll;
   bool printCpp = flags["print"].was_set() && !codegenAll;
   string binaryOutput = [&] {
@@ -176,7 +181,7 @@ int main(int argc, char* argv[]) {
     }
   }
   if (!objFiles.empty())
-    if (linkObjs(gccCmd, objFiles, binaryOutput, linkFlags) != 0) {
+    if (linkObjs(linkCmd, objFiles, binaryOutput, linkFlags) != 0) {
       cerr << "Linking failed" << endl;
       return 2;
     }
