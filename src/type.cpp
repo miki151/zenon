@@ -1690,7 +1690,7 @@ optional<string> OptionalType::getMangledName() const {
 }
 
 string OptionalType::getCodegenName() const {
-  return "std::optional<" + underlying->getCodegenName() + ">";
+  return "zenon::optional<" + underlying->getCodegenName() + ">";
 }
 
 JustError<string> OptionalType::getMappingError(TypeMapping& mapping, SType from) const {

@@ -1,15 +1,20 @@
 #ifndef ALL_H
 #define ALL_H
 
-#include <optional>
+#include "optional.hpp"
 #include "variant_helpers.h"
 #include "array_utils.h"
 #include "lite_str.h"
 #include "stacktrace.h"
 #include "fat_pointers.h"
+
+namespace zenon {
+  template <typename T>
+  using optional = tl::optional<T>;
+}
 using zenon_string = lite_str<>;
-constexpr auto null = std::nullopt;
-using null_type = std::nullopt_t;
+constexpr auto null = tl::nullopt;
+using null_type = tl::nullopt_t;
 
 template <typename T>
 const T* op_get_address(const T& t) {
