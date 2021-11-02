@@ -389,7 +389,7 @@ void Context::setIsInBranch() {
   state->isBranch = true;
 }
 
-void Context::replace(SType from, SType to, ErrorBuffer& errors) {
+void Context::replace(const Context& context, SType from, SType to, ErrorBuffer& errors) {
   CHECK(state->varsList.empty());
   /*for (auto& varName : state->varsList) {
     auto& var = state->vars.at(varName);
@@ -398,13 +398,13 @@ void Context::replace(SType from, SType to, ErrorBuffer& errors) {
   for (auto& function : state->functions) {
     for (auto& overload : function.second) {
       //std::cout << "Replaced " << overload->prettyString() << std::endl;
-      overload = replaceInFunction(*this, overload, from, to, errors);
+      overload = replaceInFunction(context, overload, from, to, errors);
       //std::cout << "To " << overload->prettyString() << std::endl;
     }
   }
   state->typesSet.clear();
   for (auto& type : state->types) {
-    type.second = type.second->replace(*this, from, to, errors);
+    type.second = type.second->replace(context, from, to, errors);
     state->typesSet.insert(type.second.get());
   }
 }
@@ -504,6 +504,9 @@ optional<pair<string, SType> > Context::getUnexpandedVariablePack() const {
 void Context::addType(const string& name, SType t) {
   //CHECK(!getType(name) || !isFullyDefined(getType(name).get().get())) << name;
   state->types.insert({name, t});
+}
+
+void Context::setTypeFullyDefined(SType t) {
   state->typesSet.insert(t.get());
 }
 

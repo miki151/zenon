@@ -701,7 +701,7 @@ void StructType::updateInstantations(const Context& context) {
     type->destructor = destructor;
     ErrorBuffer errors;
     for (int i = 0; i < templateParams.size(); ++i) {
-      type->staticContext.replace(templateParams[i], type->templateParams[i], errors);
+      type->staticContext.replace(context, templateParams[i], type->templateParams[i], errors);
       for (auto& alternative : type->alternatives)
         alternative.type = alternative.type->replace(context, templateParams[i], type->templateParams[i], errors);
       for (auto& member : type->members)
@@ -828,7 +828,7 @@ SType StructType::replaceImpl(const Context& context, SType from, SType to, Erro
       reqContext.addType(parent->templateParams[i]->getName(), newTemplateParams[i]);
     for (auto& req : ret->requirements)
       req.base.visit(RequirementVisitor{reqContext, from, to, errors});
-    ret->staticContext.replace(from, to, errors);
+    ret->staticContext.replace(context, from, to, errors);
     if (destructor) {
       // We'll ignore errors coming from destructor requirements, they'll pop up when trying
       // to use the destructor.
@@ -1339,11 +1339,11 @@ SConcept Concept::translate(vector<SType> newParams, bool variadicParams, ErrorB
   if (!variadic || variadicParams) {
     CHECK(params.size() == newParams.size());
     for (int i = 0; i < params.size(); ++i)
-      ret->context.replace(params[i], newParams[i], errors);
+      ret->context.replace(ret->context, params[i], newParams[i], errors);
   } else {
     CHECK(params.size() - 1 <= newParams.size());
     for (int i = 0; i < params.size() - 1; ++i)
-      ret->context.replace(params[i], newParams[i], errors);
+      ret->context.replace(ret->context, params[i], newParams[i], errors);
     ret->context.expand(params.back(), getSubsequence(newParams, params.size() - 1), errors);
   }
   return ret;
@@ -1366,7 +1366,7 @@ SConcept Concept::replace(const Context& repContext, SType from, SType to, Error
   ret->variadic = variadic;
   for (auto& param : ret->params)
     param = param->replace(repContext, from, to, errors);
-  ret->context.replace(from, to, errors);
+  ret->context.replace(repContext, from, to, errors);
   return ret;
 }
 

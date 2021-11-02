@@ -608,7 +608,8 @@ WithEvalError<StatementEvalResult> VariableDeclaration::eval(Context& context) {
   auto result = TRY(TRY(initExpr->eval(context)).value->convertTo(actualType).addCodeLoc(codeLoc).toEvalError());
   if (isMutable)
     result = CompileTimeValue::getReference(result);
-  context.addType(identifier, std::move(result));
+  context.addType(identifier, result);
+  context.setTypeFullyDefined(result);
   if (shadow)
     context.setShadowId(oldId, identifier);
   return StatementEvalResult{};
@@ -1577,8 +1578,10 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   Context context(typeRegistry, true);
   context.addVariable("void_value", BuiltinType::VOID, CodeLoc(), true);
   for (auto type : {BuiltinType::INT, BuiltinType::DOUBLE, BuiltinType::BOOL,
-       BuiltinType::VOID, BuiltinType::CHAR, BuiltinType::STRING, BuiltinType::NULL_TYPE})
+       BuiltinType::VOID, BuiltinType::CHAR, BuiltinType::STRING, BuiltinType::NULL_TYPE}) {
     context.addType(type->getName(), type);
+    context.setTypeFullyDefined(type);
+  }
   CHECK(context.addImplicitFunction(Operator::PLUS, FunctionSignature(BuiltinType::STRING,
       {{BuiltinType::STRING}, {BuiltinType::STRING}}, {}).setBuiltin()));
   CHECK(context.addImplicitFunction(Operator::PLUS, FunctionSignature(BuiltinType::STRING,
@@ -1614,7 +1617,9 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionSignature(BuiltinType::BOOL, {{BuiltinType::ANY_TYPE}, {BuiltinType::ANY_TYPE}}, {}).setBuiltin()));
   addBuiltInConcepts(context);
   context.addBuiltInFunction("enum_count", BuiltinType::INT, {SType(BuiltinType::ENUM_TYPE)},
-      [](const Context&, vector<SType> args) -> WithError<SType> {
+      [](const Context& context, vector<SType> args) -> WithError<SType> {
+        if (!context.isFullyDefined(args[0].get()))
+          return "Enum " + quote(args[0]->getName()) + " is incomplete in this context";
         if (auto enumType = args[0].dynamicCast<EnumType>())
           return (SType) CompileTimeValue::get((int) enumType->elements.size());
         else
@@ -2116,6 +2121,7 @@ static WithErrorLine<set<shared_ptr<AttributeType>>> getAttributeTypes(const Con
 JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
   TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
   context.addType(name, type.get());
+  context.setTypeFullyDefined(type.get());
   for (auto& attr : TRY(getAttributeTypes(context, attributes)))
     context.setAttribute(type.get(), attr, type->templateParams);
   type->definition = codeLoc;
@@ -2169,6 +2175,7 @@ unique_ptr<Statement> StructDefinition::transformImpl(const StmtTransformFun&, c
 JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
   TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
   context.addType(name, type.get());
+  context.setTypeFullyDefined(type.get());
   for (auto& attr : TRY(getAttributeTypes(context, attributes)))
     context.setAttribute(type.get(), attr, type->templateParams);
   auto membersContext = context.getChild();
@@ -2428,7 +2435,8 @@ JustError<ErrorLoc> EnumDefinition::addToContext(Context& context) {
   for (auto& e : elements)
     if (occurences.count(e))
       return codeLoc.getError("Duplicate enum element: " + quote(e));
-  context.addType(name, std::move(type));
+  context.addType(name, type);
+  context.setTypeFullyDefined(type);
   return success;
 }
 
@@ -3086,7 +3094,9 @@ AttributeDefinition::AttributeDefinition(CodeLoc l, string name) : Statement(l),
 
 JustError<ErrorLoc> AttributeDefinition::addToContext(Context& context) {
   TRY(context.checkNameConflictExcludingFunctions(name, "attribute").addCodeLoc(codeLoc));
-  context.addType(name, AttributeType::get(name));
+  auto t = AttributeType::get(name);
+  context.addType(name, t);
+  context.setTypeFullyDefined(t);
   return success;
 }
 

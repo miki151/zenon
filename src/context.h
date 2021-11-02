@@ -45,11 +45,12 @@ class Context : public owned_object<Context> {
   optional<string> getShadowId(const string& id) const;
   void setNonMovable(const string& variable);
   bool isNonMovable(const string& variable) const;
-  void replace(SType from, SType to, ErrorBuffer&);
+  void replace(const Context&, SType from, SType to, ErrorBuffer&);
   void expand(SType, vector<SType> to, ErrorBuffer&);
   ReturnTypeChecker* getReturnTypeChecker() const;
   void addReturnTypeChecker(ReturnTypeChecker*);
   void addType(const string& name, SType);
+  void setTypeFullyDefined(SType);
   void addExpandedTypePack(const string& name, vector<SType>);
   void addUnexpandedTypePack(string, SType);
   void addUnexpandedVariablePack(string, SType);

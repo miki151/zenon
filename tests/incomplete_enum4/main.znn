@@ -1,0 +1,7 @@
+// no_compile
+
+import "input3.znn";
+
+int main() {
+  return enum_count(E);
+}

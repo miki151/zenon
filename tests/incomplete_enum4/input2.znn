@@ -1,0 +1,9 @@
+
+enum E {
+  E1, E2
+};
+
+export E getE() {
+  return E::E1;
+}
+
