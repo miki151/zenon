@@ -76,7 +76,7 @@ class Context : public owned_object<Context> {
   vector<SType> getAllTypes() const;
   NODISCARD JustError<string> addImplicitFunction(FunctionId, FunctionSignature);
   NODISCARD JustError<string> addFunction(SFunctionInfo);
-  WithError<vector<SFunctionInfo>> getFunctionTemplate(IdentifierInfo) const;
+  WithError<vector<SFunctionInfo>> getFunctionTemplate(IdentifierInfo, bool compileTimeArgs) const;
   WithEvalError<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
   using BuiltInFunction = function<WithError<SType>(const Context&, vector<SType>)>;
   void addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction);
@@ -101,8 +101,7 @@ class Context : public owned_object<Context> {
   void setLambda(LambdaCaptureInfo*);
 
   struct BuiltInFunctionInfo {
-    vector<SType> argTypes;
-    SType returnType;
+    SFunctionInfo functionInfo;
     BuiltInFunction fun;
     WithEvalError<SType> invokeFunction(const Context&, const string& id, CodeLoc loc, vector<SType> args,
         vector<CodeLoc> argLoc) const;
@@ -143,7 +142,7 @@ class Context : public owned_object<Context> {
   using ConstStates = vector<shared_ptr<const State>>;
 
   WithErrorLine<vector<SType>> getTypeList(const vector<TemplateParameterInfo>&, bool variadic) const;
-  vector<SFunctionInfo> getFunctions(FunctionId) const;
+  vector<SFunctionInfo> getFunctions(FunctionId, bool compileTime) const;
   vector<SFunctionInfo> getAllFunctions() const;
 
   TypeRegistry* typeRegistry;

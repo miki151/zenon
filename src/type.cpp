@@ -1242,7 +1242,7 @@ static JustError<string> deduceTemplateArgsFromConcepts(const Context& context,
           continue;
         function = addTemplateParams(function, funTemplateParams, req->isVariadic());
         vector<SFunctionInfo> found = getSpecialOverloads(function->id, function->type.params);
-        for (auto& candidate : context.getFunctions(function->id))
+        for (auto& candidate : context.getFunctions(function->id, false))
           if (!candidate->type.concept && context.isGeneralization(getWithRetval(*function), getWithRetval(*candidate)))
             found.push_back(candidate);
         if (found.size() == 1) {
@@ -1891,7 +1891,7 @@ SType ConceptType::expand(const Context& context, SType pack, vector<SType> to, 
 }
 
 bool ConceptType::hasDestructor() const {
-  for (auto& function : concept->getContext().getFunctions("destruct"s))
+  for (auto& function : concept->getContext().getFunctions("destruct"s, false))
     if (function->type.retVal == BuiltinType::VOID && function->type.params.size() == 1
         && function->type.params[0] == PointerType::get(concept->getParams()[0]))
       return true;

@@ -140,7 +140,7 @@ nullable<SType> Variable::getConstantValue(const Context& context) const {
   if (auto t = context.getTypeFromString(identifier))
     return t.get();
   if (auto id = identifier.asBasicIdentifier()) {
-    auto overloads = context.getFunctions(*id);
+    auto overloads = context.getFunctions(*id, false);
     if (!overloads.empty())
       return SType(CompileTimeValue::get(FunctionType::get(*id, std::move(overloads))));
   }
@@ -254,11 +254,11 @@ static WithErrorLine<SFunctionInfo> handleOperatorOverloads(const Context& conte
 
 static WithErrorLine<SFunctionInfo> getFunction(const Context&,
     CodeLoc, IdentifierInfo, vector<SType> templateArgs, const vector<SType>& argTypes,
-    const vector<CodeLoc>&);
+    const vector<CodeLoc>&, bool compileTimeArgs);
 
 static WithErrorLine<SFunctionInfo> getFunction(const Context&,
     CodeLoc, IdentifierInfo, vector<SType> templateArgs, const vector<SType>& argTypes,
-    const vector<CodeLoc>&, vector<unique_ptr<Expression>>&);
+    const vector<CodeLoc>&, vector<unique_ptr<Expression>>&, bool compileTimeArgs);
 
 unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr) {
   return unique<BinaryExpression>(Private{}, loc, op, std::move(expr));
@@ -326,7 +326,7 @@ WithErrorLine<SType> BinaryExpression::getTypeImpl(const Context& context) {
 
 WithErrorLine<SFunctionInfo> getDestructor(const Context& context, const SType& type, CodeLoc codeLoc) {
   return getFunction(context, codeLoc, IdentifierInfo("destruct"s, codeLoc), {},
-      {PointerType::get(type)}, {codeLoc});
+      {PointerType::get(type)}, {codeLoc}, false);
 }
 
 JustError<ErrorLoc> BinaryExpression::considerDestructorCall(const Context& context, int index, const SType& argType) {
@@ -987,7 +987,7 @@ static WithError<SFunctionInfo> getFunction(const Context& context,
   if (id == "destruct"s) {
     if (!argTypes.empty() && argTypes[0]->removeReference().dynamicCast<PointerType>()) {
       if (auto s = argTypes[0]->removePointer().dynamicCast<ConceptType>())
-        return s->getConceptFor(argTypes[0]->removePointer())->getContext().getFunctions("destruct"s)[0];
+        return s->getConceptFor(argTypes[0]->removePointer())->getContext().getFunctions("destruct"s, false)[0];
       if (auto s = argTypes[0]->removePointer().dynamicCast<StructType>())
         if (s->destructor) {
           CHECK(templateArgs.empty());
@@ -1021,8 +1021,8 @@ static WithError<SFunctionInfo> getFunction(const Context& context,
 
 static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
     CodeLoc codeLoc, IdentifierInfo id, vector<SType> templateArgs, const vector<SType>& argTypes,
-    const vector<CodeLoc>& argLoc) {
-  auto candidates = TRY(context.getFunctionTemplate(translateDestructorId(id)).addCodeLoc(codeLoc));
+    const vector<CodeLoc>& argLoc, bool compileTimeArgs) {
+  auto candidates = TRY(context.getFunctionTemplate(translateDestructorId(id), compileTimeArgs).addCodeLoc(codeLoc));
   auto error =  codeLoc.getError("Couldn't find function " + id.prettyString() +
       " matching arguments: (" + joinTypeList(argTypes) + ")");
   if (candidates.empty())
@@ -1039,18 +1039,20 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
 
 static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
     CodeLoc codeLoc, IdentifierInfo id, vector<SType> templateArgs, const vector<SType>& argTypes,
-    const vector<CodeLoc>& argLoc, vector<unique_ptr<Expression>>& expr) {
-  auto fun = TRY(getFunction(context, codeLoc, std::move(id), std::move(templateArgs), std::move(argTypes), std::move(argLoc)));
+    const vector<CodeLoc>& argLoc, vector<unique_ptr<Expression>>& expr, bool compileTimeArgs) {
+  auto fun = TRY(getFunction(context, codeLoc, std::move(id), std::move(templateArgs), std::move(argTypes),
+      std::move(argLoc), compileTimeArgs));
   generateConversions(context, fun->type.params, argTypes, expr);
   return fun;
 }
 
 WithErrorLine<SFunctionInfo> getCopyFunction(const Context& context, CodeLoc callLoc, const SType& t) {
-  return getFunction(context, callLoc, IdentifierInfo("copy", callLoc), {}, {PointerType::get(t)}, {callLoc});
+  return getFunction(context, callLoc, IdentifierInfo("copy", callLoc), {}, {PointerType::get(t)}, {callLoc}, false);
 }
 
 WithErrorLine<SFunctionInfo> getImplicitCopyFunction(const Context& context, CodeLoc callLoc, const SType& t) {
-  return getFunction(context, callLoc, IdentifierInfo("implicit_copy", callLoc), {}, {PointerType::get(t)}, {callLoc});
+  return getFunction(context, callLoc, IdentifierInfo("implicit_copy", callLoc), {}, {PointerType::get(t)}, {callLoc},
+      false);
 }
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
@@ -1073,7 +1075,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
       }
     }
   TRY(getFunction(context, codeLoc, IdentifierInfo(funName, codeLoc), {}, args,
-      vector<CodeLoc>(args.size(), codeLoc)));
+      vector<CodeLoc>(args.size(), codeLoc), false));
   return unique_ptr<Expression>(std::move(functionCall));
 }
 
@@ -1925,8 +1927,16 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
         argLocs.push_back(arguments[i]->codeLoc);
       }
     }
+    bool compileTimeArgs = true;
+    for (auto& arg : arguments)
+      // this evaluates the expression for the second time, can it cause a side effect to happen twice?
+      if (!arg->eval(callContext)) {
+        compileTimeArgs = false;
+        break;
+      }
     auto tryMethodCall = [&](MethodCallType thisCallType, const Type& origType) -> JustError<ErrorLoc> {
-      auto res = getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argLocs, arguments);
+      auto res = getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argLocs, arguments,
+          compileTimeArgs);
       if (res)
         callType = thisCallType;
       if (callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
@@ -1950,7 +1960,7 @@ WithErrorLine<SType> FunctionCall::getTypeImpl(const Context& callContext) {
         TRY(tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER, *leftType));
       }
     } else
-      getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argLocs, arguments)
+      getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argLocs, arguments, compileTimeArgs)
           .unpack(functionInfo, error);
   }
   if (functionInfo) {
@@ -2926,7 +2936,7 @@ static JustError<ErrorLoc> initializeDestructor(const Context& context, const ST
       for (int i = 0; i < structType->members.size(); ++i)
         if (structType->members[i].name == member) {
           destructorCall = TRY(getFunction(context, codeLoc, IdentifierInfo("destruct_except", codeLoc),
-              {CompileTimeValue::get(i)}, {PointerType::get(type)}, {codeLoc}));
+              {CompileTimeValue::get(i)}, {PointerType::get(type)}, {codeLoc}, false));
           TRY(destructorCall->addInstance(context));
         }
     }
@@ -3025,7 +3035,7 @@ WithError<vector<SFunctionInfo>> getRequiredFunctionsForConceptType(const Contex
     const Concept& concept, CodeLoc codeLoc) {
   vector<SFunctionInfo> ret;
   for (auto& fun : concept.getContext().getAllFunctions()) {
-    auto candidates = context.getFunctions(translateDestructorId(fun->id));
+    auto candidates = context.getFunctions(translateDestructorId(fun->id), false);
     if (candidates.empty())
       return "No candidates found for function " + fun->prettyString();
     ret.push_back(TRY(getFunction(context, codeLoc, translateDestructorId(fun->id),

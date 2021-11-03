@@ -158,7 +158,7 @@ WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& re
           for (auto& overload : getSpecialOverloads(overloads.first, function->type.params))
             if (isGeneralization(overload, function, existing))
               return overload;
-          for (auto& myFun : getFunctions(overloads.first))
+          for (auto& myFun : getFunctions(overloads.first, false))
             if (auto gen = isGeneralization(myFun, function, existing))
               return gen.get();
           return none;
@@ -347,13 +347,13 @@ JustError<string> Context::canConvert(SType from, SType to, unique_ptr<Expressio
             if (alternative->type == BuiltinType::VOID) {
               // This is not needed once there is a generic union constructor for each alternative
               auto call = unique<FunctionCall>(IdentifierInfo("bogus", codeLoc), false);
-              call->functionInfo = structType->staticContext.getFunctions(alternative->name).getOnlyElement();
+              call->functionInfo = structType->staticContext.getFunctions(alternative->name, false).getOnlyElement();
               return unique<StatementExpression>(codeLoc,
                   makeVec<unique_ptr<Statement>>(unique<ExpressionStatement>(std::move(expr))),
                   cast<Expression>(std::move(call)));
             } else {
               auto call = unique<FunctionCall>(IdentifierInfo("bogus", codeLoc), std::move(expr), false);
-              call->functionInfo = structType->staticContext.getFunctions(alternative->name).getOnlyElement();
+              call->functionInfo = structType->staticContext.getFunctions(alternative->name, false).getOnlyElement();
               return call;
             }
           }();
@@ -631,11 +631,16 @@ JustError<string> Context::addImplicitFunction(FunctionId id, FunctionSignature 
   return addFunction(FunctionInfo::getImplicit(std::move(id), std::move(type)));
 }
 
-vector<SFunctionInfo> Context::getFunctions(FunctionId name) const {
+vector<SFunctionInfo> Context::getFunctions(FunctionId name, bool compileTime) const {
   vector<SFunctionInfo> ret;
-  for (auto state : getReversedStates())
+  for (auto state : getReversedStates()) {
     if (state->functions.count(name))
       append(ret, state->functions.at(name));
+    if (compileTime)
+      if (auto id = name.getValueMaybe<string>())
+        if (auto fun = getReferenceMaybe(state->builtInFunctions, *id))
+          ret.push_back(fun->functionInfo);
+  }
   return ret;
 }
 
@@ -750,7 +755,7 @@ WithErrorLine<SType> Context::getTypeFromString(IdentifierInfo id, optional<bool
 JustError<string> Context::checkNameConflict(const string& name, const string& type) const {
   TRY(checkNameConflictExcludingFunctions(name, type));
   auto desc = type + " " + quote(name);
-  if (!getFunctions(name).empty())
+  if (!getFunctions(name, true).empty())
     return desc + " conflicts with existing function";
   return success;
 }
@@ -778,7 +783,7 @@ JustError<string> Context::addFunction(SFunctionInfo info) {
 
 vector<SFunctionInfo> Context::getConstructorsFor(const SType& type) const {
   vector<SFunctionInfo> ret;
-  for (auto& fun : getFunctions(ConstructorTag{})) {
+  for (auto& fun : getFunctions(ConstructorTag{}, false)) {
     if (fun->type.retVal == type) {
       ret.push_back(fun);
     } else
@@ -791,11 +796,11 @@ vector<SFunctionInfo> Context::getConstructorsFor(const SType& type) const {
   return ret;
 }
 
-WithError<vector<SFunctionInfo>> Context::getFunctionTemplate(IdentifierInfo id) const {
+WithError<vector<SFunctionInfo>> Context::getFunctionTemplate(IdentifierInfo id, bool compileTimeArgs) const {
   vector<SFunctionInfo> ret;
   if (id.parts.size() > 1) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts[0], id.codeLoc)))
-      return (*type)->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart());
+      return (*type)->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart(), compileTimeArgs);
     else
       return "Type not found: " + id.prettyString();
   } else {
@@ -803,18 +808,18 @@ WithError<vector<SFunctionInfo>> Context::getFunctionTemplate(IdentifierInfo id)
     if (auto type = getType(funName))
       ret = getConstructorsFor(type.get());
     else
-      ret = getFunctions(funName);
+      ret = getFunctions(funName, compileTimeArgs);
   }
   return ret;
 }
 
 WithEvalError<SType> Context::BuiltInFunctionInfo::invokeFunction(const Context& context, const string& id, CodeLoc loc,
     vector<SType> args, vector<CodeLoc> argLoc) const {
-  CHECK(argTypes.size() == args.size());
+  CHECK(functionInfo->type.params.size() == args.size());
   for (auto t : args)
     if (!t->getMangledName()) {
       return SType(CompileTimeValue::get(
-          CompileTimeValue::TemplateFunctionCall{id, args,  returnType, loc, argLoc, *this}));
+          CompileTimeValue::TemplateFunctionCall{id, args,  functionInfo->type.retVal, loc, argLoc, *this}));
     }
   if (auto res = fun(context, args))
     return *res;
@@ -832,8 +837,8 @@ WithEvalError<SType> Context::invokeFunction(const string& id, CodeLoc loc, vect
 
 void Context::addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction fun) {
   CHECK(!state->builtInFunctions.count(id));
-  CHECK(addImplicitFunction(id, FunctionSignature(returnType, argTypes, {})));
-  state->builtInFunctions.insert(make_pair(id, BuiltInFunctionInfo{std::move(argTypes), returnType, std::move(fun)}));
+  state->builtInFunctions.insert(make_pair(id, BuiltInFunctionInfo{
+      FunctionInfo::getImplicit(id, FunctionSignature(returnType, argTypes, {})), std::move(fun)}));
 }
 
 nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> argTypes) const {
@@ -874,5 +879,5 @@ nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<SType> a
 }
 
 vector<SFunctionInfo> Context::getOperatorType(Operator op) const {
-  return getFunctions(op);
+  return getFunctions(op, false);
 }

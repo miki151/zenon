@@ -2,7 +2,11 @@
 
 import "std/io.znn";
 
-template <T>
+concept <T> printable {
+  string to_string(T*);
+};
+
+template <T> requires printable<T>
 int fa(T t) {
   return "{t}".size();
 }
