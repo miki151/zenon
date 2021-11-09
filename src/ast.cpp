@@ -18,24 +18,6 @@ unique_ptr<Expression> Expression::replaceVar(string from, string to) const {
       [&](Expression* expr) { return expr->replaceVar(from, to); });
 }
 
-void Node::addFunctionCalls(const FunctionCallVisitFun& fun) const {
-  visit(
-      [&](Statement* expr) { expr->addFunctionCalls(fun); },
-      [&](Expression* expr) { expr->addFunctionCalls(fun); });
-}
-
-void Node::addLambdas(LambdasSet& lambdas) const {
-  visit(
-      [&](Statement* expr) { expr->addLambdas(lambdas); },
-      [&](Expression* expr) { expr->addLambdas(lambdas); });
-}
-
-void Node::addConceptTypes(ConceptsSet& types) const {
-  visit(
-      [&](Statement* expr) { expr->addConceptTypes(types); },
-      [&](Expression* expr) { expr->addConceptTypes(types); });
-}
-
 unique_ptr<Statement> identityStmt(Statement* expr) {
   return expr->transform(&identityStmt, &identityExpr);
 }
@@ -352,14 +334,6 @@ void BinaryExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) con
     f2(e.get());
 }
 
-void BinaryExpression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
-  this->Expression::addFunctionCalls(fun);
-  fun(functionInfo.get());
-  for (int i = 0; i < 2; ++i)
-    if (!!destructorCall[i])
-      fun(destructorCall[i].get());
-}
-
 JustError<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
   for (auto& e : expr)
     TRY(e->checkMoves(checker));
@@ -396,13 +370,6 @@ unique_ptr<Expression> UnaryExpression::transform(const StmtTransformFun&, const
 
 void UnaryExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
   f2(expr.get());
-}
-
-void UnaryExpression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
-  this->Expression::addFunctionCalls(fun);
-  fun(functionInfo.get());
-  if (destructorCall)
-    fun(destructorCall.get());
 }
 
 JustError<ErrorLoc> UnaryExpression::checkMoves(MoveChecker& checker) const {
@@ -2014,13 +1981,6 @@ void FunctionCall::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
     f2(arg.get());
 }
 
-void FunctionCall::addFunctionCalls(const FunctionCallVisitFun& fun) const {
-  this->Expression::addFunctionCalls(fun);
-  fun(functionInfo.get());
-  if (!!destructorCall)
-    fun(destructorCall.get());
-}
-
 JustError<ErrorLoc> FunctionCall::checkMoves(MoveChecker& checker) const {
   for (auto& e : arguments)
     TRY(e->checkMoves(checker));
@@ -2078,12 +2038,6 @@ void SwitchStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) cons
     elem.visit(f1, f2);
   if (defaultBlock)
     f1(defaultBlock.get());
-}
-
-void SwitchStatement::addFunctionCalls(const FunctionCallVisitFun& fun) const {
-  Statement::addFunctionCalls(fun);
-  if (destructorCall)
-    fun(destructorCall.get());
 }
 
 bool SwitchStatement::hasReturnStatement() const {
@@ -2158,6 +2112,11 @@ JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
 }
 
 JustError<ErrorLoc> UnionDefinition::check(Context& context, bool) {
+  if (checked)
+    // This is a workaround to the buggy updateInstantiations function,
+    // which fails if ran twice and should be removed
+    return success;
+  checked = true;
   auto bodyContext = context.getChild();
   for (auto& param : type->templateParams)
     bodyContext.addType(param->getName(), param);
@@ -2206,14 +2165,19 @@ JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
 }
 
 JustError<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) {
+  if (exported && type->destructor && !type->destructor->getDefinition()->exported)
+    return type->destructor->getDefinition()->codeLoc.getError(
+        "Destuctor function of an exported type must also be exported");
+  if (checked)
+    // This is a workaround to the buggy updateInstantiations function,
+    // which fails if ran twice and should be removed
+    return success;
+  checked = true;
   auto methodBodyContext = context.getChild();
   addTemplateParams(methodBodyContext, type->templateParams, false);
   CHECK(!!applyRequirements(methodBodyContext, templateInfo));
   type->updateInstantations(context);
   TRY(type->getSizeError(context).addCodeLoc(codeLoc));
-  if (exported && type->destructor && !type->destructor->getDefinition()->exported)
-    return type->destructor->getDefinition()->codeLoc.getError(
-        "Destuctor function of an exported type must also be exported");
   return success;
 }
 
@@ -2381,11 +2345,9 @@ JustError<ErrorLoc> ImportStatement::registerTypes(const Context& context, TypeR
     auto importPath = fs::path(importDir) / path;
     if (auto content = readFromFile(importPath.c_str())) {
       absolutePath = string(fs::canonical(importPath));
-      bool firstTime = !cache.hasASTInUnit(*absolutePath);
       ast = TRY(cache.getAST(*absolutePath));
-      if (firstTime)
-        for (auto& elem : ast->elems)
-          TRY(elem->registerTypes(context, r, cache, importDirs));
+      for (auto& elem : ast->elems)
+        TRY(elem->registerTypes(context, r, cache, importDirs));
       break;
     }
   }
@@ -2424,6 +2386,9 @@ WithEvalError<EvalResult> Expression::eval(const Context&) const {
 EnumDefinition::EnumDefinition(CodeLoc l, string n) : Statement(l), name(n) {}
 
 JustError<ErrorLoc> EnumDefinition::registerTypes(const Context&, TypeRegistry* r) {
+  if (registered)
+    return success;
+  registered = true;
   return r->addEnum(name, external, codeLoc).addCodeLoc(codeLoc);
 }
 
@@ -2533,35 +2498,6 @@ unique_ptr<Statement> ConceptDefinition::transformImpl(const StmtTransformFun& f
     ret->functions.push_back(cast<FunctionDefinition>(f1(f.get())));
   ret->templateInfo = templateInfo;
   return ret;
-}
-
-CodegenStage CodegenStage::types() {
-  CodegenStage ret;
-  ret.isTypes = true;
-  ret.isDefine = false;
-  ret.isImport = false;
-  return ret;
-}
-
-CodegenStage CodegenStage::define() {
-  CodegenStage ret;
-  ret.isDefine = true;
-  ret.isTypes = false;
-  ret.isImport = false;
-  return ret;
-}
-
-CodegenStage CodegenStage::declare() {
-  CodegenStage ret;
-  ret.isTypes = false;
-  ret.isDefine = false;
-  ret.isImport = false;
-  return ret;
-}
-
-CodegenStage CodegenStage::setImport() {
-  isImport = true;
-  return *this;
 }
 
 JustError<ErrorLoc> BreakStatement::check(Context& context, bool) {
@@ -2836,17 +2772,6 @@ void LambdaExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) con
     f1(type->destructor.get());
 }
 
-void LambdaExpression::addLambdas(LambdasSet& lambdas) const {
-  Expression::addLambdas(lambdas);
-  lambdas.insert(type.get().get());
-}
-
-void LambdaExpression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
-  Expression::addFunctionCalls(fun);
-  for (auto& f : functionCalls)
-    fun(f);
-}
-
 CountOfExpression::CountOfExpression(CodeLoc l, string id) : Expression(l), identifier(std::move(id)) {
 }
 
@@ -2962,12 +2887,6 @@ void MemberAccessExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f
   f2(lhs.get());
 }
 
-void MemberAccessExpression::addFunctionCalls(const FunctionCallVisitFun& fun) const {
-  Expression::addFunctionCalls(fun);
-  if (destructorCall)
-    fun(destructorCall.get());
-}
-
 JustError<ErrorLoc> MemberAccessExpression::checkMoves(MoveChecker& checker) const {
   return lhs->checkMoves(checker);
 }
@@ -3055,19 +2974,6 @@ unique_ptr<Expression> FatPointerConversion::transform(const StmtTransformFun& f
 
 void FatPointerConversion::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
   f2(arg.get());
-}
-
-void FatPointerConversion::addFunctionCalls(const FunctionCallVisitFun& fun) const {
-  this->Expression::addFunctionCalls(fun);
-  for (auto& f : functions)
-    fun(f);
-  conceptType->concept->def->addFatPointer({argType, functions});
-  conceptType->concept->def->addConceptType(conceptType);
-}
-
-void FatPointerConversion::addConceptTypes(ConceptsSet& types) const {
-  Expression::addConceptTypes(types);
-  types.insert(conceptType.get());
 }
 
 JustError<ErrorLoc> FatPointerConversion::checkMoves(MoveChecker& c) const {
@@ -3170,10 +3076,6 @@ JustError<ErrorLoc> StatementExpression::checkMoves(MoveChecker& checker) const 
     TRY(s->checkMoves(checker));
   TRY(value->checkMoves(checker));
   return success;
-}
-
-AST AST::clone() {
-  return AST{ elems.transform([](auto& elem) { return elem->deepCopy(); } ) };
 }
 
 MixinStatement::MixinStatement(CodeLoc l, unique_ptr<Expression> value) : Statement(l), value(std::move(value)) {

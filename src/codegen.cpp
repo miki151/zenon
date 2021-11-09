@@ -4,9 +4,9 @@
 #include "ast.h"
 #include "type_registry.h"
 
-struct Accu {
+struct Buffer {
   public:
-  Accu(bool l) : includeLineNumbers(l) {}
+  Buffer(bool l) : includeLineNumbers(l) {}
 
   void add(const string& s) {
     buf += s;
@@ -37,198 +37,32 @@ struct Accu {
   bool includeLineNumbers;
   unordered_set<const FunctionInfo*> instances;
   unordered_set<const ConceptType*> conceptTypes;
-  set<pair<AST*, CodegenStage>> generated;
 };
 
-void Constant::codegen(Accu& accu, CodegenStage) const {
-  if (refValue)
-    accu.add(refValue->getCodegenName());
-  else if (structMemberName)
-    accu.add(*structMemberName);
-  else
-    accu.add(value->getCodegenName());
+enum class Section {
+  HEADER,
+  TYPE_FORWARD,
+  TYPES,
+  DECLARATIONS,
+  DEFINITIONS,
+  FOOTER
+};
+
+static string getVTableName(const string& concept) {
+  return concept + "_vtable";
 }
 
-auto constexpr lambdaArgName = "lambda_Arg";
-
-void Variable::codegen(Accu& accu, CodegenStage) const {
-  accu.add(*identifier.asBasicIdentifier());
-}
-
-static string getDestructorName(const string& id) {
-  return "destruct_" + id;
-}
-
-void MoveExpression::codegen(Accu& accu, CodegenStage) const {
-  if (hasDestructor)
-    accu.add("moveAndSetMoved(" + identifier +", &" + getDestructorName(identifier) + ".wasMoved)");
-  else
-    accu.add("std::move(" + identifier + ")");
-}
-
-void BinaryExpression::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
-  if (functionInfo && !functionInfo->type.builtinOperator)
-    if (auto opName = getCodegenName(op)) {
-      accu.add(opName + *functionInfo->getMangledSuffix() + "("s);
-      auto handleExpr = [&](int index) {
-        if (destructorCall[index])
-          accu.add("*get_temporary_holder(");
-        expr[index]->codegen(accu, stage);
-        if (destructorCall[index])
-          accu.add(", &::" + destructorCall[index]->getMangledName() + ")");
-      };
-      handleExpr(0);
-      accu.add(", ");
-      handleExpr(1);
-      accu.add(")");
-      return;
-    }
-  accu.add("(");
-  expr[0]->codegen(accu, stage);
-  accu.add(") ");
-  if (op == Operator::SUBSCRIPT)
-    accu.add("[");
-  else
-    accu.add(getString(op) + " "s);
-  accu.add("(");
-  expr[1]->codegen(accu, stage);
-  accu.add(")");
-  if (op == Operator::SUBSCRIPT)
-    accu.add("]");
-}
-
-void StatementBlock::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
-  accu.add("{");
-  ++accu.indent;
-  for (auto& s : elems) {
-    accu.newLine(s->codeLoc);
-    s->codegen(accu, stage);
+void addVTableParams(const SFunctionInfo& fun, Buffer* buffer) {
+  for (auto& param : fun->type.params) {
+    if (param->getMangledName())
+      buffer->add(param->getCodegenName());
+    else if (param.dynamicCast<PointerType>())
+      buffer->add("void const*");
+    else
+      buffer->add("void*");
+    buffer->add(",");
   }
-  --accu.indent;
-  accu.newLine("}");
-}
-
-static void codegenDestructorCall(Accu& accu, CodegenStage stage, const Statement& destructor, const string& variable) {
-  accu.add("auto " + getDestructorName(variable) + " = deferDestruct([&]{ ");
-  destructor.codegen(accu, stage);
-  accu.add(";});");
-}
-
-void VariableDeclaration::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
-  accu.add(realType.get()->getCodegenName() + " ");
-/*  if (!isMutable)
-    accu.add("const ");*/
-  accu.add(identifier);
-  if (initExpr) {
-    accu.add(" = ");
-    initExpr->codegen(accu, stage);
-  }
-  accu.add(";");
-  if (destructorCall)
-    codegenDestructorCall(accu, stage, *destructorCall, identifier);
-}
-
-void AliasDeclaration::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
-  accu.add("auto&& " + identifier + " = ");
-  initExpr->codegen(accu, stage);
-  accu.add(";");
-  if (destructorCall)
-    codegenDestructorCall(accu, stage, *destructorCall, identifier);
-}
-
-void IfStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
-  if (declaration) {
-    accu.newLine("{");
-    declaration->codegen(accu, stage);
-  }
-  accu.newLine("if (");
-  condition->codegen(accu, stage);
-  accu.add(")");
-  ++accu.indent;
-  accu.newLine("{");
-  ifTrue->codegen(accu, stage);
-  accu.add("}");
-  --accu.indent;
-  if (ifFalse) {
-    accu.newLine("else {");
-    ++accu.indent;
-    accu.newLine();
-    ifFalse->codegen(accu, stage);
-    accu.add("}");
-    --accu.indent;
-  }
-  if (declaration)
-    accu.newLine("}");
-}
-
-void ReturnStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
-  accu.add("return ");
-  expr->codegen(accu, stage);
-  accu.add(";");
-}
-
-static string getFunctionCallName(const FunctionInfo& functionInfo, bool methodCall) {
-  if (functionInfo.type.generatedConstructor && functionInfo.type.parentType)
-    return functionInfo.type.parentType->getCodegenName();
-  string typePrefix;
-  auto functionTemplateParams = functionInfo.type.templateParams;
-  if (functionInfo.type.parentType)
-    typePrefix = functionInfo.type.parentType->getCodegenName() + "::";
-  else if (!methodCall)
-    typePrefix += "::";
-  return typePrefix + functionInfo.getMangledName();
-}
-
-void FunctionCall::codegen(Accu& accu, CodegenStage) const {
-  string suffix;
-  string id = getFunctionCallName(*functionInfo, !!callType);
-  bool voidConversion =
-      functionInfo->type.builtinOperator && functionInfo->type.retVal == BuiltinType::VOID;
-  if (voidConversion)
-    accu.add("({");
-  if (functionInfo->type.generatedConstructor) {
-    accu.add(id + "{");
-    suffix = "}";
-  } else {
-    accu.add(id + "(");
-    suffix = ")";
-  }
-  bool extractPointer = callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
-  for (auto& arg : arguments) {
-    if (extractPointer) {
-      accu.add("op_get_address(");
-      if (destructorCall)
-        accu.add("*get_temporary_holder(");
-    }
-    arg->codegen(accu, CodegenStage::define());
-    if (extractPointer && destructorCall)
-      accu.add(", &::" + destructorCall->getMangledName() + ")");
-    if (extractPointer) {
-      accu.add(")");
-      extractPointer = false;
-    }
-    accu.add(", ");
-  }
-  if (!arguments.empty()) {
-    accu.pop_back();
-    accu.pop_back();
-  }
-  accu.add(suffix);
-  if (voidConversion)
-    accu.add("; void_value; })");
-}
-
-static string getFunctionSignatureName(const FunctionInfo& function) {
-  string typePrefix;
-  if (function.type.parentType)
-    typePrefix = function.type.parentType->getName() + "::";
-  return function.getMangledName();
+  buffer->pop_back();
 }
 
 static string getFunctionParams(const FunctionInfo& functionInfo, const FunctionDefinition* definition) {
@@ -256,13 +90,305 @@ static string getFunctionParams(const FunctionInfo& functionInfo, const Function
   return ret;
 }
 
+static string getVTableBinder(const FunctionInfo& function) {
+  auto ret = "+[](" + getFunctionParams(function, nullptr) + ") { return " + function.getMangledName() + "(";
+  for (int i = 0; i < function.type.params.size(); ++i) {
+    if (i > 0)
+      ret += ",";
+    ret += "std::move(param" + to_string(i) + ")";
+  }
+  return ret + ");}";
+}
+
+struct Sections {
+  Sections() {
+    sections[Section::TYPES] = {};
+    sections[Section::DECLARATIONS] = {};
+    sections[Section::DEFINITIONS] = {};
+  }
+  Buffer* newBuffer(Section section) {
+    sections[section].push_back(unique<Buffer>(true));
+    return sections[section].back().get();
+  }
+  void registerFunctionCall(FunctionInfo* functionInfo) {
+    if (auto def = functionInfo->getDefinition()) {
+      if (!emitted.count(functionInfo->getWithoutRequirements().get())) {
+        emitted.insert(functionInfo->getWithoutRequirements().get());
+        def->codegenInstance(newBuffer(Section::DEFINITIONS), this, functionInfo);
+      }
+    } else
+    if (functionInfo->id.contains<ConstructorTag>())
+      registerTypeAccess(functionInfo->type.retVal.get());
+  }
+  void registerTypeAccess(Type* type) {
+    if (type->getMangledName() && !typeDefEmitted.count(type)) {
+      typeDefEmitted.insert(type);
+      auto buf = unique<Buffer>(true);
+      //buf->newLine("// " + type->getName());
+      type->codegenDefinition(buf.get(), this);
+      sections[Section::TYPES].push_back(std::move(buf));
+    }
+  }
+  void registerTypePointer(Type* type) {
+    auto buffer = newBuffer(Section::TYPE_FORWARD);
+    if (auto s = dynamic_cast<StructType*>(type)) {
+      if (!s->external)
+        buffer->newLine("struct " + type->getCodegenName() + ";");
+    } else
+    if (dynamic_cast<StructType*>(type))
+      buffer->newLine("enum " + type->getCodegenName() + ";");
+  }
+  void registerFatPointer(ConceptType* conceptType, Type* type, vector<SFunctionInfo> vTable) {
+    if (fatPointers.count({conceptType, type}))
+      return;
+    fatPointers.insert({conceptType, type});
+    auto declBuffer = newBuffer(Section::DECLARATIONS);
+    auto defBuffer = newBuffer(Section::DEFINITIONS);
+    declBuffer->add("extern ");
+    auto vTableName = getVTableName(*conceptType->getMangledName());
+    defBuffer->newLine(vTableName + " " + vTableName + "_" + *type->getMangledName());
+    declBuffer->newLine(vTableName + " " + vTableName + "_" + *type->getMangledName());
+    defBuffer->add("{");
+    ++defBuffer->indent;
+    auto functions = conceptType->getConceptFor(conceptType->concept->getParams()[0])->getContext().getAllFunctions();
+    for (int i = 0; i < functions.size(); ++i) {
+      registerFunctionCall(vTable[i].get());
+      defBuffer->newLine("reinterpret_cast<" + functions[i]->type.retVal->getCodegenName() + " (*)(");
+      addVTableParams(functions[i], defBuffer);
+      defBuffer->add(")>(" + getVTableBinder(*vTable[i]) + "),");
+    }
+    defBuffer->newLine("reinterpret_cast<void (*)(void const*)>(+[](" + type->getCodegenName() +" param0) { delete param0;})");
+    --defBuffer->indent;
+    defBuffer->newLine("}");
+    defBuffer->newLine(";");
+    defBuffer->newLine();
+    declBuffer->newLine(";");
+    declBuffer->newLine();
+  }
+
+  void addImport(ImportStatement* s) {
+    if (imports.count(*s->absolutePath))
+      return;
+    imports.insert(*s->absolutePath);
+    s->codegen(newBuffer(Section::HEADER), this);
+  }
+
+  map<Section, vector<unique_ptr<Buffer>>> sections;
+  unordered_set<FunctionInfo*> emitted;
+  unordered_set<Type*> forwardDeclEmitted;
+  unordered_set<Type*> typeDefEmitted;
+  set<pair<ConceptType*, Type*>> fatPointers;
+  unordered_set<string> imports;
+  string generate() const {
+    string ret;
+    for (auto& elem : sections)
+      for (auto& buf : elem.second)
+        ret.append(buf->buf);
+    return ret;
+  }
+};
+
+void Constant::codegen(Buffer* buffer, Sections* sections) const {
+  if (refValue)
+    buffer->add(refValue->getCodegenName());
+  else if (structMemberName)
+    buffer->add(*structMemberName);
+  else {
+    sections->registerTypeAccess(value->getType().get());
+    buffer->add(value->getCodegenName());
+  }
+}
+
+auto constexpr lambdaArgName = "lambda_Arg";
+
+void Variable::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add(*identifier.asBasicIdentifier());
+}
+
+static string getDestructorName(const string& id) {
+  return "destruct_" + id;
+}
+
+void MoveExpression::codegen(Buffer* buffer, Sections* sections) const {
+  if (hasDestructor)
+    buffer->add("moveAndSetMoved(" + identifier +", &" + getDestructorName(identifier) + ".wasMoved)");
+  else
+    buffer->add("std::move(" + identifier + ")");
+}
+
+void BinaryExpression::codegen(Buffer* buffer, Sections* sections) const {
+  sections->registerFunctionCall(functionInfo.get().get());
+  if (functionInfo && !functionInfo->type.builtinOperator)
+    if (auto opName = getCodegenName(op)) {
+      buffer->add(opName + *functionInfo->getMangledSuffix() + "("s);
+      auto handleExpr = [&](int index) {
+        if (destructorCall[index])
+          buffer->add("*get_temporary_holder(");
+        expr[index]->codegen(buffer, sections);
+        if (destructorCall[index]) {
+          buffer->add(", &::" + destructorCall[index]->getMangledName() + ")");
+          sections->registerFunctionCall(destructorCall[index].get().get());
+        }
+      };
+      handleExpr(0);
+      buffer->add(", ");
+      handleExpr(1);
+      buffer->add(")");
+      return;
+    }
+  buffer->add("(");
+  expr[0]->codegen(buffer, sections);
+  buffer->add(") ");
+  if (op == Operator::SUBSCRIPT)
+    buffer->add("[");
+  else
+    buffer->add(getString(op) + " "s);
+  buffer->add("(");
+  expr[1]->codegen(buffer, sections);
+  buffer->add(")");
+  if (op == Operator::SUBSCRIPT)
+    buffer->add("]");
+}
+
+void StatementBlock::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add("{");
+  ++buffer->indent;
+  for (auto& s : elems) {
+    buffer->newLine(s->codeLoc);
+    s->codegen(buffer, sections);
+  }
+  --buffer->indent;
+  buffer->newLine("}");
+}
+
+static void codegenDestructorCall(Buffer* buffer, Sections* sections, const Statement& destructor, const string& variable) {
+  buffer->add("auto " + getDestructorName(variable) + " = deferDestruct([&]{ ");
+  destructor.codegen(buffer, sections);
+  buffer->add(";});");
+}
+
+void VariableDeclaration::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add(realType.get()->getCodegenName() + " ");
+/*  if (!isMutable)
+    accu.add("const ");*/
+  buffer->add(identifier);
+  if (initExpr) {
+    buffer->add(" = ");
+    initExpr->codegen(buffer, sections);
+  }
+  buffer->add(";");
+  if (destructorCall)
+    codegenDestructorCall(buffer, sections, *destructorCall, identifier);
+  sections->registerTypeAccess(realType.get().get());
+}
+
+void AliasDeclaration::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add("auto&& " + identifier + " = ");
+  initExpr->codegen(buffer, sections);
+  buffer->add(";");
+  if (destructorCall)
+    codegenDestructorCall(buffer, sections, *destructorCall, identifier);
+}
+
+void IfStatement::codegen(Buffer* buffer, Sections* sections) const {
+  if (declaration) {
+    buffer->newLine("{");
+    declaration->codegen(buffer, sections);
+  }
+  buffer->newLine("if (");
+  condition->codegen(buffer, sections);
+  buffer->add(")");
+  ++buffer->indent;
+  buffer->newLine("{");
+  ifTrue->codegen(buffer, sections);
+  buffer->add("}");
+  --buffer->indent;
+  if (ifFalse) {
+    buffer->newLine("else {");
+    ++buffer->indent;
+    buffer->newLine();
+    ifFalse->codegen(buffer, sections);
+    buffer->add("}");
+    --buffer->indent;
+  }
+  if (declaration)
+    buffer->newLine("}");
+}
+
+void ReturnStatement::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add("return ");
+  expr->codegen(buffer, sections);
+  buffer->add(";");
+}
+
+static string getFunctionCallName(const FunctionInfo& functionInfo, bool methodCall) {
+  if (functionInfo.type.generatedConstructor && functionInfo.type.parentType)
+    return functionInfo.type.parentType->getCodegenName();
+  string typePrefix;
+  auto functionTemplateParams = functionInfo.type.templateParams;
+  if (functionInfo.type.parentType)
+    typePrefix = functionInfo.type.parentType->getCodegenName() + "::";
+  else if (!methodCall)
+    typePrefix += "::";
+  return typePrefix + functionInfo.getMangledName();
+}
+
+void FunctionCall::codegen(Buffer* buffer, Sections* sections) const {
+  string suffix;
+  string id = getFunctionCallName(*functionInfo, !!callType);
+  bool voidConversion =
+      functionInfo->type.builtinOperator && functionInfo->type.retVal == BuiltinType::VOID;
+  if (voidConversion)
+    buffer->add("({");
+  if (functionInfo->type.generatedConstructor) {
+    buffer->add(id + "{");
+    suffix = "}";
+  } else {
+    buffer->add(id + "(");
+    suffix = ")";
+  }
+  bool extractPointer = callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
+  for (auto& arg : arguments) {
+    if (extractPointer) {
+      buffer->add("op_get_address(");
+      if (destructorCall) {
+        buffer->add("*get_temporary_holder(");
+        sections->registerFunctionCall(destructorCall.get().get());
+      }
+    }
+    arg->codegen(buffer, sections);
+    if (extractPointer && destructorCall)
+      buffer->add(", &::" + destructorCall->getMangledName() + ")");
+    if (extractPointer) {
+      buffer->add(")");
+      extractPointer = false;
+    }
+    buffer->add(", ");
+  }
+  if (!arguments.empty()) {
+    buffer->pop_back();
+    buffer->pop_back();
+  }
+  buffer->add(suffix);
+  if (voidConversion)
+    buffer->add("; void_value; })");
+  sections->registerFunctionCall(functionInfo.get().get());
+}
+
+static string getFunctionSignatureName(const FunctionInfo& function) {
+  string typePrefix;
+  if (function.type.parentType)
+    typePrefix = function.type.parentType->getName() + "::";
+  return function.getMangledName();
+}
+
 static string getSignature(const FunctionInfo& functionInfo, const FunctionDefinition* definition) {
   return functionInfo.type.retVal->getCodegenName() + " "
       + getFunctionSignatureName(functionInfo) + "("
       + getFunctionParams(functionInfo, definition) + ")";
 }
 
-void FunctionDefinition::handlePointerParamsInOperator(Accu& accu, const StatementBlock* thisBody) const {
+void FunctionDefinition::handlePointerParamsInOperator(Buffer* buffer, Sections* sections, const StatementBlock* thisBody) const {
   vector<string> ptrInits;
   for (int i = 0; i < functionInfo->type.params.size(); ++i) {
     auto& param = functionInfo->type.params[i];
@@ -272,201 +398,246 @@ void FunctionDefinition::handlePointerParamsInOperator(Accu& accu, const Stateme
         ptrInits.push_back("auto " + *name + " = &" + *name + "_ptr;");
   }
   if (!ptrInits.empty()) {
-    accu.newLine("{");
-    ++accu.indent;
+    buffer->newLine("{");
+    ++buffer->indent;
     for (auto& elem : ptrInits)
-      accu.newLine(elem);
-    accu.newLine();
-    thisBody->codegen(accu, CodegenStage::define());
-    --accu.indent;
-    accu.newLine("}");
+      buffer->newLine(elem);
+    buffer->newLine();
+    thisBody->codegen(buffer, sections);
+    --buffer->indent;
+    buffer->newLine("}");
   } else
-    thisBody->codegen(accu, CodegenStage::define());
+    thisBody->codegen(buffer, sections);
 }
 
-void FunctionDefinition::addStacktraceGenerator(Accu& accu, const StatementBlock* thisBody) const {
-  accu.add("F_BEGIN");
-  handlePointerReturnInOperator(accu, thisBody);
-  accu.add("F_END(\"" + functionInfo->prettyString() + "\")");
+void FunctionDefinition::addStacktraceGenerator(Buffer* buffer, Sections* sections, const StatementBlock* thisBody) const {
+  buffer->add("F_BEGIN");
+  handlePointerReturnInOperator(buffer, sections, thisBody);
+  buffer->add("F_END(\"" + functionInfo->prettyString() + "\")");
 }
 
-void FunctionDefinition::handlePointerReturnInOperator(Accu& accu, const StatementBlock* thisBody) const {
+void FunctionDefinition::handlePointerReturnInOperator(Buffer* buffer, Sections* sections, const StatementBlock* thisBody) const {
   if (functionInfo->type.retVal.dynamicCast<ReferenceType>() ||
       functionInfo->type.retVal.dynamicCast<MutableReferenceType>()) {
-    accu.newLine("{");
-    ++accu.indent;
-    accu.newLine("auto getRef = [&]");
-    handlePointerParamsInOperator(accu, thisBody);
-    accu.add(";");
-    accu.newLine("return *getRef();");
-    --accu.indent;
-    accu.newLine("}");
+    buffer->newLine("{");
+    ++buffer->indent;
+    buffer->newLine("auto getRef = [&]");
+    handlePointerParamsInOperator(buffer, sections, thisBody);
+    buffer->add(";");
+    buffer->newLine("return *getRef();");
+    --buffer->indent;
+    buffer->newLine("}");
   } else
-    handlePointerParamsInOperator(accu, thisBody);
+    handlePointerParamsInOperator(buffer, sections, thisBody);
 }
 
-void FunctionDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (external || stage.isTypes)
-    return;
+void FunctionDefinition::codegen(Buffer* buffer, Sections* sections) const {
+  codegenInstance(buffer, sections, functionInfo.get().get());
+}
+
+void FunctionDefinition::codegenInstance(Buffer* buffer, Sections* sections, FunctionInfo* info) const {
   auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body,
       const vector<unique_ptr<Statement>>& destructors) {
-    if (functionInfo.getMangledSuffix() && (wasUsed || functionInfo.isMainFunction() || (exported && !stage.isImport))) {
+    if (!external) {
       if (!functionInfo.type.templateParams.empty())
-        accu.add("inline ");
-      accu.add(getSignature(functionInfo, this));
-      if (body && stage.isDefine && (!stage.isImport || !templateInfo.params.empty())) {
-        accu.add("{");
+        buffer->add("inline ");
+      auto declBuf = sections->newBuffer(Section::DECLARATIONS);
+      auto signature = getSignature(functionInfo, this);
+      declBuf ->add(signature + ";");
+      buffer->add(signature);
+      if (body) {
+        buffer->add("{");
         CHECK(destructors.size() == functionInfo.type.params.size())
             << functionInfo.prettyString();
         for (int i = 0; i < functionInfo.type.params.size(); ++i)
           if (destructors[i]) {
-            codegenDestructorCall(accu, stage, *destructors[i], *parameters[i].name);
-            accu.newLine();
+            codegenDestructorCall(buffer, sections, *destructors[i], *parameters[i].name);
+            buffer->newLine();
           }
-        addStacktraceGenerator(accu, body);
-        accu.newLine("}");
-      } else {
-        accu.add(";");
-        accu.newLine("");
-      }
-      accu.newLine("");
-      accu.newLine("");
+        addStacktraceGenerator(buffer, sections, body);
+        buffer->newLine("}");
+      } else
+        buffer->add(";");
+      buffer->newLine("");
+      buffer->newLine("");
+      sections->registerTypeAccess(functionInfo.type.retVal.get());
+      for (auto& param : functionInfo.type.params)
+        sections->registerTypeAccess(param.get());
     }
   };
-  addInstance(*functionInfo, body.get(), destructorCalls);
-  for (auto& instance : instances)
-    if (accu.instances.count(instance.functionInfo->getWithoutRequirements().get())
-        && instance.functionInfo->getMangledSuffix())
+  if (info == functionInfo.get().get()) {
+    addInstance(*functionInfo, body.get(), destructorCalls);
+    return;
+  }
+  for (auto& instance : instances) {
+    if (instance.functionInfo->getWithoutRequirements() == info->getWithoutRequirements()) {
       addInstance(*instance.functionInfo, instance.body.get(), instance.destructorCalls);
+      return;
+    }
+  }
+  if (!external) {
+  /*  for (auto& instance : instances)
+      std::cout << instance.functionInfo->prettyString() << " " << instance.functionInfo.get() << std::endl;
+    FATAL << this << " Instance not found: " << info->prettyString() << " " << info;*/
+  }
 }
 
 constexpr const char* unionEnumeratorPrefix = "Enum_";
 constexpr const char* unionEntryPrefix = "Union_";
 constexpr const char* unionDiscriminatorName = "unionElem";
 
-static void codegenUnion(set<const Type*>& visited, Accu& accu, const StructType* type) {
+static void codegenUnion(Buffer* buffer, Sections* sections, const StructType* type) {
   for (auto& elem : type->alternatives)
-    elem.type->codegenDefinition(visited, accu);
+    sections->registerTypeAccess(elem.type.get());
   auto name = *type->getMangledName();
-  accu.add("struct " + name + " {");
-  ++accu.indent;
-  accu.newLine();
-  accu.add("enum {");
+  buffer->add("struct " + name + " {");
+  ++buffer->indent;
+  buffer->newLine();
+  buffer->add("enum {");
   vector<string> typeNames;
   for (auto& subtype : type->alternatives)
     typeNames.push_back(subtype.name);
-  accu.add(combine(transform(typeNames, [](const string& e){ return unionEnumeratorPrefix + e;}), ", ") + "} "
+  buffer->add(combine(transform(typeNames, [](const string& e){ return unionEnumeratorPrefix + e;}), ", ") + "} "
       + unionDiscriminatorName + ";");
   for (auto& alternative : type->alternatives) {
     string signature = alternative.name + "(";
     if (alternative.type != BuiltinType::VOID)
       signature += alternative.type->getCodegenName() + " elem";
     signature += ")";
-    accu.newLine("static " + name + " " + signature + ";");
+    buffer->newLine("static " + name + " " + signature + ";");
   }
-  accu.newLine("union {");
-  ++accu.indent;
-  accu.newLine("bool dummy;");
+  buffer->newLine("union {");
+  ++buffer->indent;
+  buffer->newLine("bool dummy;");
   for (auto& alternative : type->alternatives)
-    accu.newLine(alternative.type->getCodegenName() + " " + unionEntryPrefix + alternative.name + ";");
-  --accu.indent;
-  accu.newLine("};");
+    buffer->newLine(alternative.type->getCodegenName() + " " + unionEntryPrefix + alternative.name + ";");
+  --buffer->indent;
+  buffer->newLine("};");
   auto visitBody = [&] {
-    ++accu.indent;
-    accu.newLine("switch (unionElem) {");
-    ++accu.indent;
+    ++buffer->indent;
+    buffer->newLine("switch (unionElem) {");
+    ++buffer->indent;
     for (auto& alternative : type->alternatives) {
-      accu.newLine("case "s + unionEnumeratorPrefix + alternative.name + ":");
-      ++accu.indent;
-      accu.newLine("return std::forward<Visitor>(v)("s + unionEntryPrefix + alternative.name + ");");
-      --accu.indent;
+      buffer->newLine("case "s + unionEnumeratorPrefix + alternative.name + ":");
+      ++buffer->indent;
+      buffer->newLine("return std::forward<Visitor>(v)("s + unionEntryPrefix + alternative.name + ");");
+      --buffer->indent;
     }
-    --accu.indent;
-    accu.newLine("}");
-    --accu.indent;
+    --buffer->indent;
+    buffer->newLine("}");
+    --buffer->indent;
   };
-  accu.newLine("template <typename Visitor>");
-  accu.newLine("auto visit(Visitor&& v) const {");
+  buffer->newLine("template <typename Visitor>");
+  buffer->newLine("auto visit(Visitor&& v) const {");
   visitBody();
-  accu.newLine("}");
-  accu.newLine("template <typename Visitor>");
-  accu.newLine("auto visit(Visitor&& v) {");
+  buffer->newLine("}");
+  buffer->newLine("template <typename Visitor>");
+  buffer->newLine("auto visit(Visitor&& v) {");
   visitBody();
-  accu.newLine("}");
-  accu.newLine(name + "(" + name + "&& o) { UnionHelper<" + name + ">::move(std::move(o), *this);  }");
-  accu.newLine(name + "& operator = (" + name + "&& o) {UnionHelper<" + name + ">::assign(std::move(o), *this); return *this; }");
-  accu.newLine("~" + name + "() { UnionHelper<" + name + ">::destroy(*this); }");
-  accu.newLine("private:" + name + "() {}");
-  --accu.indent;
-  accu.newLine("};");
-  accu.newLine();
-}
-
-
-void Type::codegenDefinitionImpl(set<const Type*>&, Accu&) const {
-}
-
-void Type::codegenDefinition(set<const Type*>& visited, Accu& accu) const {
-  if (!visited.count(this)) {
-    visited.insert(this);
-    codegenDefinitionImpl(visited, accu);
+  buffer->newLine("}");
+  buffer->newLine(name + "(" + name + "&& o) { UnionHelper<" + name + ">::move(std::move(o), *this);  }");
+  buffer->newLine(name + "& operator = (" + name + "&& o) {UnionHelper<" + name + ">::assign(std::move(o), *this); return *this; }");
+  buffer->newLine("~" + name + "() { UnionHelper<" + name + ">::destroy(*this); }");
+  buffer->newLine("private:" + name + "() {}");
+  --buffer->indent;
+  buffer->newLine("};");
+  buffer->newLine();
+  for (auto& alternative : type->alternatives) {
+    auto name = *type->getMangledName();
+    auto buf2 = sections->newBuffer(Section::DEFINITIONS);
+    string signature = alternative.name + "(";
+    if (alternative.type != BuiltinType::VOID)
+      signature += alternative.type->getCodegenName() + " elem";
+    signature += ")";
+    buf2->add("inline " + name + " " + name + "::" + signature + " {");
+    ++buf2->indent;
+    buf2->newLine(name + " ret;");
+    buf2->newLine("ret."s + unionDiscriminatorName + " = " + unionEnumeratorPrefix + alternative.name + ";");
+    if (!(alternative.type == BuiltinType::VOID))
+      buf2->newLine("new (&ret."s + unionEntryPrefix + alternative.name + ") " +
+          alternative.type->getCodegenName() + "(std::move(elem));");
+    buf2->newLine("return ret;");
+    --buf2->indent;
+    buf2->newLine("}");
+    buf2->newLine("");
   }
 }
 
-void ArrayType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const {
-  underlying->codegenDefinition(visited, accu);
+void Type::codegenDefinition(Buffer* buffer, Sections* sections) const {
 }
 
-void EnumType::codegenDefinitionImpl(set<const Type*>&, Accu& accu) const {
+void ArrayType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+  sections->registerTypeAccess(underlying.get());
+}
+
+void ReferenceType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+  sections->registerTypeAccess(underlying.get());
+}
+
+void MutableReferenceType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+  sections->registerTypeAccess(underlying.get());
+}
+
+void PointerType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+  if (underlying.dynamicCast<ConceptType>())
+    sections->registerTypeAccess(underlying.get());
+  else
+    sections->registerTypePointer(underlying.get());
+}
+
+void MutablePointerType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+  if (underlying.dynamicCast<ConceptType>())
+    sections->registerTypeAccess(underlying.get());
+  else
+    sections->registerTypePointer(underlying.get());
+}
+
+void OptionalType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+  sections->registerTypeAccess(underlying.get());
+}
+
+void EnumType::codegenDefinition(Buffer* buffer, Sections* sections) const {
   if (!external) {
-    accu.add("enum class " + name + " {");
-    ++accu.indent;
+    buffer->add("enum class " + name + " {");
+    ++buffer->indent;
     for (auto& elem : elements)
-      accu.newLine(elem + ",");
-    --accu.indent;
-    accu.newLine("};");
-    accu.newLine("template<> struct EnumInfo<" + name + "> {");
-    accu.newLine("  static const char* getString(" + name + " elem) {");
-    accu.newLine("    switch (elem) {");
+      buffer->newLine(elem + ",");
+    --buffer->indent;
+    buffer->newLine("};");
+    buffer->newLine("template<> struct EnumInfo<" + name + "> {");
+    buffer->newLine("  static const char* getString(" + name + " elem) {");
+    buffer->newLine("    switch (elem) {");
     for (auto& elem : elements)
-      accu.newLine("      case " + name + "::" + elem + ": return \"" + elem + "\";");
-    accu.newLine("    }");
-    accu.newLine("  }");
-    accu.newLine("};");
+      buffer->newLine("      case " + name + "::" + elem + ": return \"" + elem + "\";");
+    buffer->newLine("    }");
+    buffer->newLine("  }");
+    buffer->newLine("};");
   }
 }
 
-void StructType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const {
+void StructType::codegenDefinition(Buffer* buffer, Sections* sections) const {
   if (external) {
     if (auto name = getMangledName()) {
-      for (auto& elem : parent->memberTemplateParams) {
-        templateParams[elem]->codegenDefinition(visited, accu);
-      }
+      for (auto& elem : parent->memberTemplateParams)
+        sections->registerTypePointer(templateParams[elem].get());
     }
     return;
   }
-  for (auto& instance : instances)
-    instance->codegenDefinition(visited, accu);
   if (auto name = getMangledName()) {
     if (!alternatives.empty()) {
-      codegenUnion(visited, accu, this);
+      codegenUnion(buffer, sections, this);
       return;
     }
     for (auto& elem : members)
-      elem.type->codegenDefinition(visited, accu);
-    accu.add("struct " + *name);
-    /*if (incomplete) {
-      accu.add(";");
-      accu.newLine();
-      return;
-    } else*/
-      accu.add(" {");
-    ++accu.indent;
+      sections->registerTypeAccess(elem.type.get());
+    buffer->add("struct " + *name);
+    buffer->add(" {");
+    ++buffer->indent;
     for (auto& member : members)
-      accu.newLine(member.type->getCodegenName() + " " + member.name + ";");
-    --accu.indent;
-    accu.newLine("};");
-    accu.newLine();
+      buffer->newLine(member.type->getCodegenName() + " " + member.name + ";");
+    --buffer->indent;
+    buffer->newLine("};");
+    buffer->newLine();
   }
 }
 
@@ -491,271 +662,201 @@ static unique_ptr<StatementBlock> generateLambdaBody(Statement* body, const Lamb
 
 using LambdaSet = unordered_set<const LambdaType*>;
 
-void codegenLambdas(const LambdasSet& lambdas, Accu& accu, const AST& ast, CodegenStage stage,
-    set<const Type*>& visited) {
+void codegenLambda(const LambdaType* lambda, Buffer* buffer, Sections* sections) {
   vector<unique_ptr<FunctionDefinition>> defs;
-  for (const auto& lambda : lambdas)
-    if (lambda->functionInfo->getMangledSuffix()) {
-      if (stage.isTypes)
-        lambda->codegenDefinition(visited, accu);
-      const auto dummyIdent = IdentifierInfo("ignore", lambda->body->codeLoc);
-      auto getLambdaBody = [&lambda, &dummyIdent](Statement* body) {
-        auto def = unique<FunctionDefinition>(body->codeLoc, dummyIdent,
-            lambda->functionInfo->id);
-        def->body = generateLambdaBody(body, *lambda);
-        def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, string(lambdaArgName), false, false});
-        def->wasUsed = true;
-        return def;
-      };
-      auto mainBody = getLambdaBody(lambda->body.get());
-      mainBody->destructorCalls.emplace_back();
-      const auto& functionType = lambda->functionInfo->type;
-      for (int i = 1; i < functionType.params.size(); ++i) {
-        mainBody->parameters.push_back(FunctionParameter{mainBody->body->codeLoc, dummyIdent,
-            lambda->parameterNames[i - 1], false, false});
-        if (auto call = lambda->destructorCalls[i - 1].get())
-          mainBody->destructorCalls.push_back(unique<ExternalStatement>(call));
-        else
-          mainBody->destructorCalls.push_back(nullptr);
-      }
-      mainBody->functionInfo = FunctionInfo::getDefined(lambda->functionInfo->id, std::move(functionType),
-          mainBody.get());
-      defs.push_back(std::move(mainBody));
-      if (lambda->destructor) {
-        auto destructorBody = getLambdaBody(lambda->destructor.get());
-        destructorBody->destructorCalls.emplace_back();
-        destructorBody->functionInfo = FunctionInfo::getImplicit("destruct"s,
-            FunctionSignature(BuiltinType::VOID, {PointerType::get(lambda->get_this().get())}, {}));
-        destructorBody->body->elems.push_back(unique<ReturnStatement>(destructorBody->codeLoc));
-        defs.push_back(std::move(destructorBody));
-      }
+  if (lambda->functionInfo->getMangledSuffix()) {
+    const auto dummyIdent = IdentifierInfo("ignore", lambda->body->codeLoc);
+    auto getLambdaBody = [&lambda, &dummyIdent](Statement* body) {
+      auto def = unique<FunctionDefinition>(body->codeLoc, dummyIdent,
+          lambda->functionInfo->id);
+      def->body = generateLambdaBody(body, *lambda);
+      def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, string(lambdaArgName), false, false});
+      def->wasUsed = true;
+      return def;
+    };
+    auto mainBody = getLambdaBody(lambda->body.get());
+    mainBody->destructorCalls.emplace_back();
+    const auto& functionType = lambda->functionInfo->type;
+    for (int i = 1; i < functionType.params.size(); ++i) {
+      mainBody->parameters.push_back(FunctionParameter{mainBody->body->codeLoc, dummyIdent,
+          lambda->parameterNames[i - 1], false, false});
+      if (auto call = lambda->destructorCalls[i - 1].get())
+        mainBody->destructorCalls.push_back(unique<ExternalStatement>(call));
+      else
+        mainBody->destructorCalls.push_back(nullptr);
     }
-  for (auto& elem : defs) {
-    elem->codegen(accu, stage);
+    mainBody->functionInfo = FunctionInfo::getDefined(lambda->functionInfo->id, std::move(functionType),
+        mainBody.get());
+    mainBody->codegen(buffer, sections);
+    if (lambda->destructor) {
+      auto destructorBody = getLambdaBody(lambda->destructor.get());
+      destructorBody->destructorCalls.emplace_back();
+      destructorBody->functionInfo = FunctionInfo::getImplicit("destruct"s,
+          FunctionSignature(BuiltinType::VOID, {PointerType::get(lambda->get_this().get())}, {}));
+      destructorBody->body->elems.push_back(unique<ReturnStatement>(destructorBody->codeLoc));
+      destructorBody->codegen(buffer, sections);
+    }
   }
 }
 
-string codegen(const AST& ast, TypeRegistry& registry, const Context& context, const string& codegenInclude,
+string codegen(const AST& ast, TypeRegistry& registry, const string& codegenInclude,
     bool includeLineNumbers) {
-  Accu accu(includeLineNumbers);
-  LambdaSet lambdas;
-  FunctionCallVisitFun visitFun = [&](SFunctionInfo call) {
-    call = call->getWithoutRequirements();
-    if (!accu.instances.count(call.get())) {
-      accu.instances.insert(call.get());
-      if (!call->type.concept)
-        if (auto def = call->getDefinition())
-          if (!def->external && def->functionInfo != call) {
-            for (auto& instance : def->instances)
-              if (instance.functionInfo->getWithoutRequirements() == call) {
-                instance.body->addFunctionCalls(visitFun);
-                instance.body->addLambdas(lambdas);
-                instance.body->addConceptTypes(accu.conceptTypes);
-                for (auto& call : instance.destructorCalls)
-                  if (call) {
-                    call->addFunctionCalls(visitFun);
-                    call->addLambdas(lambdas);
-                    call->addConceptTypes(accu.conceptTypes);
-                  }
-                return;
-              }
-            FATAL;
-          }
-    }
-  };
+  Sections sections;
+  auto header = sections.newBuffer(Section::HEADER);
+  header->add("#include \"" + codegenInclude + "/all.h\"");
+  header->newLine();
   for (auto& elem : ast.elems) {
-    elem->addFunctionCalls(visitFun);
-    elem->addLambdas(lambdas);
-    elem->addConceptTypes(accu.conceptTypes);
+    if (auto embed = dynamic_cast<EmbedStatement*>(elem.get()))
+      elem->codegen(sections.newBuffer(Section::HEADER), &sections);
+    if (auto embed = dynamic_cast<ImportStatement*>(elem.get()))
+      elem->codegen(sections.newBuffer(Section::HEADER), &sections);
   }
-  accu.add("#include \"" + codegenInclude + "/all.h\"");
-  accu.newLine();
-  for (auto& l : lambdas)
-    accu.newLine("struct " + l->getCodegenName() + ";");
-  for (auto& t : registry.getAllStructs())
-    if (!t->external) {
-      if (auto name = t->getMangledName())
-        accu.newLine("struct " + *name + ";");
-      for (auto s : t->instances)
-        if (auto name = s->getMangledName())
-          accu.newLine("struct " + *name + ";");
-    }
-  for (auto& t : registry.getAllEnums())
-    if (!t->external)
-      accu.add("enum class " + *t->getMangledName() + ";");
+  bool hasMain = false;
   for (auto& elem : ast.elems) {
-    elem->codegen(accu, CodegenStage::types());
+    if (auto def = dynamic_cast<FunctionDefinition*>(elem.get()))
+      if (def->functionInfo->isMainFunction()) {
+        elem->codegen(sections.newBuffer(Section::DEFINITIONS), &sections);
+        hasMain = true;
+      }
   }
-  set<const Type*> visitedTypes;
-  for (auto& type : context.getAllTypes()) {
-    if (context.isFullyDefined(type.get()))
-      type->codegenDefinition(visitedTypes, accu);
-  }
-  codegenLambdas(lambdas, accu, ast, CodegenStage::types(), visitedTypes);
-  for (auto& elem : ast.elems) {
-    elem->codegen(accu, CodegenStage::declare());
-  }
-  codegenLambdas(lambdas, accu, ast, CodegenStage::declare(), visitedTypes);
-  for (auto& elem : ast.elems) {
-    elem->codegen(accu, CodegenStage::define());
-  }
-  codegenLambdas(lambdas, accu, ast, CodegenStage::define(), visitedTypes);
+  if (!hasMain)
+    return "";
+  auto footer = sections.newBuffer(Section::FOOTER);
   for (auto& elem : ast.elems) {
     if (auto fun = dynamic_cast<const FunctionDefinition*>(elem.get()))
-      if (fun->name == "main"s) {
+      if (fun->functionInfo->isMainFunction()) {
         if (fun->parameters.empty())
-          accu.add("#include \"" + codegenInclude + "/main_body.h\"");
+          footer->add("#include \"" + codegenInclude + "/main_body.h\"");
         else
-          accu.add("#include \"" + codegenInclude + "/main_body_args.h\"");
+          footer->add("#include \"" + codegenInclude + "/main_body_args.h\"");
       }
   }
-  return accu.generate();
+  return sections.generate();
 }
 
-void ExpressionStatement::codegen(Accu& accu, CodegenStage stage) const {
+void ExpressionStatement::codegen(Buffer* buffer, Sections* sections) const {
   if (!isConstant) {
-    CHECK(stage.isDefine);
-    expr->codegen(accu, stage);
-    accu.add(";");
+    expr->codegen(buffer, sections);
+    buffer->add(";");
   }
 }
 
-void UnionDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  if (stage.isDefine)
-    for (auto& instance : concat({type.get()}, type->instances))
-      if (auto name1 = instance->getMangledName())
-        for (auto& alternative : instance->alternatives) {
-          auto& name = *name1;
-          string signature = alternative.name + "(";
-          if (alternative.type != BuiltinType::VOID)
-            signature += alternative.type->getCodegenName() + " elem";
-          signature += ")";
-          accu.add("inline " + name + " " + name + "::" + signature + " {");
-          ++accu.indent;
-          accu.newLine(name + " ret;");
-          accu.newLine("ret."s + unionDiscriminatorName + " = " + unionEnumeratorPrefix + alternative.name + ";");
-          if (!(alternative.type == BuiltinType::VOID))
-            accu.newLine("new (&ret."s + unionEntryPrefix + alternative.name + ") " +
-                alternative.type->getCodegenName() + "(std::move(elem));");
-          accu.newLine("return ret;");
-          --accu.indent;
-          accu.newLine("}");
-          accu.newLine("");
-        }
+void UnionDefinition::codegen(Buffer* buffer, Sections* sections) const {
 }
 
-void SwitchStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
+void SwitchStatement::codegen(Buffer* buffer, Sections* sections) const {
   switch (type) {
     case UNION:
-      codegenUnion(accu);
+      codegenUnion(buffer, sections);
       break;
     case ENUM:
-      codegenEnum(accu);
+      codegenEnum(buffer, sections);
       break;
   }
 }
 
-void SwitchStatement::codegenEnum(Accu& accu) const {
-  accu.add("switch (");
-  expr->codegen(accu, CodegenStage::define());
-  accu.add(") {");
-  ++accu.indent;
+void SwitchStatement::codegenEnum(Buffer* buffer, Sections* sections) const {
+  buffer->add("switch (");
+  expr->codegen(buffer, sections);
+  buffer->add(") {");
+  ++buffer->indent;
   for (auto& caseElem : caseElems) {
     for (auto& id : caseElem.ids)
-      accu.newLine("case " + *targetType->getMangledName() + "::" + id + ":");
-    accu.newLine("{");
-    ++accu.indent;
-    accu.newLine();
-    caseElem.block->codegen(accu, CodegenStage::define());
-    accu.newLine("break;");
-    --accu.indent;
-    accu.newLine("}");
+      buffer->newLine("case " + *targetType->getMangledName() + "::" + id + ":");
+    buffer->newLine("{");
+    ++buffer->indent;
+    buffer->newLine();
+    caseElem.block->codegen(buffer, sections);
+    buffer->newLine("break;");
+    --buffer->indent;
+    buffer->newLine("}");
   }
   if (defaultBlock) {
-    accu.newLine("default: {");
-    ++accu.indent;
-    accu.newLine();
-    defaultBlock->codegen(accu, CodegenStage::define());
-    accu.newLine("break;");
-    --accu.indent;
-    accu.newLine("}");
+    buffer->newLine("default: {");
+    ++buffer->indent;
+    buffer->newLine();
+    defaultBlock->codegen(buffer, sections);
+    buffer->newLine("break;");
+    --buffer->indent;
+    buffer->newLine("}");
   }
-  --accu.indent;
-  accu.newLine("}");
+  --buffer->indent;
+  buffer->newLine("}");
 }
 
 constexpr const char* unionTmpRef = "unionTmpRef";
 
-void SwitchStatement::codegenUnion(Accu& accu) const {
-  accu.add("{ auto&& "s + unionTmpRef + " = ");
-  expr->codegen(accu, CodegenStage::define());
-  accu.add(";");
-  if (destructorCall)
-    accu.add("auto " + getDestructorName(unionTmpRef) + " = deferDestruct([&]{ "
+void SwitchStatement::codegenUnion(Buffer* buffer, Sections* sections) const {
+  buffer->add("{ auto&& "s + unionTmpRef + " = ");
+  expr->codegen(buffer, sections);
+  buffer->add(";");
+  sections->registerTypeAccess(targetType.get().get());
+  if (destructorCall) {
+    buffer->add("auto " + getDestructorName(unionTmpRef) + " = deferDestruct([&]{ "
         + destructorCall->getMangledName() + "(&" + unionTmpRef + ");});");
-  accu.newLine("switch ("s + unionTmpRef + "."s + unionDiscriminatorName + ") {");
-  ++accu.indent;
+    sections->registerFunctionCall(destructorCall.get().get());
+  }
+  buffer->newLine("switch ("s + unionTmpRef + "."s + unionDiscriminatorName + ") {");
+  ++buffer->indent;
   for (auto& caseElem : caseElems) {
     auto caseId = *getOnlyElement(caseElem.ids);
-    accu.newLine("case "s + *targetType->getMangledName() + "::" + unionEnumeratorPrefix + caseId + ": {");
-    ++accu.indent;
+    buffer->newLine("case "s + *targetType->getMangledName() + "::" + unionEnumeratorPrefix + caseId + ": {");
+    ++buffer->indent;
     if (!!caseElem.declaredVar)
-      accu.newLine("auto&& "s + caseId + " = " + unionTmpRef + "." + unionEntryPrefix + caseId + ";");
+      buffer->newLine("auto&& "s + caseId + " = " + unionTmpRef + "." + unionEntryPrefix + caseId + ";");
     if (destructorCall)
-      accu.newLine("auto& "s + getDestructorName(caseId) + " = " + getDestructorName(unionTmpRef) + ";");
-    accu.newLine();
-    caseElem.block->codegen(accu, CodegenStage::define());
-    accu.newLine("break;");
-    --accu.indent;
-    accu.newLine("}");
+      buffer->newLine("auto& "s + getDestructorName(caseId) + " = " + getDestructorName(unionTmpRef) + ";");
+    buffer->newLine();
+    caseElem.block->codegen(buffer, sections);
+    buffer->newLine("break;");
+    --buffer->indent;
+    buffer->newLine("}");
   }
   if (defaultBlock) {
-    accu.newLine("default: {");
-    ++accu.indent;
-    accu.newLine();
-    defaultBlock->codegen(accu, CodegenStage::define());
-    accu.newLine("break;");
-    --accu.indent;
-    accu.newLine("}");
+    buffer->newLine("default: {");
+    ++buffer->indent;
+    buffer->newLine();
+    defaultBlock->codegen(buffer, sections);
+    buffer->newLine("break;");
+    --buffer->indent;
+    buffer->newLine("}");
   }
-  --accu.indent;
-  accu.newLine("}");
-  accu.newLine("}");
+  --buffer->indent;
+  buffer->newLine("}");
+  buffer->newLine("}");
 }
 
-void UnaryExpression::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
+void UnaryExpression::codegen(Buffer* buffer, Sections* sections) const {
+  if (functionInfo)
+    sections->registerFunctionCall(functionInfo.get().get());
   if (functionInfo && !functionInfo->type.builtinOperator)
     if (auto opName = getCodegenName(op)) {
-      accu.add(opName + *functionInfo->getMangledSuffix() + "("s);
+      buffer->add(opName + *functionInfo->getMangledSuffix() + "("s);
       if (destructorCall)
-        accu.add("*get_temporary_holder(");
-      expr->codegen(accu, stage);
-      if (destructorCall)
-        accu.add(", &::" + destructorCall->getMangledName() + ")");
-      accu.add(")");
+        buffer->add("*get_temporary_holder(");
+      expr->codegen(buffer, sections);
+      if (destructorCall) {
+        buffer->add(", &::" + destructorCall->getMangledName() + ")");
+        sections->registerFunctionCall(destructorCall.get().get());
+      }
+      buffer->add(")");
       return;
     }
-  accu.add(getString(op));
-  accu.add("(");
-  expr->codegen(accu, CodegenStage::define());
-  accu.add(") ");
+  buffer->add(getString(op));
+  buffer->add("(");
+  expr->codegen(buffer, sections);
+  buffer->add(") ");
 }
 
-void EmbedStatement::codegen(Accu& accu, CodegenStage stage) const {
-  if ((stage.isDefine && !isTopLevel) ||
-      (!stage.isImport && stage.isTypes && isTopLevel) ||
-      (stage.isImport && stage.isTypes && exported)) {
-    if (!isTopLevel)
-      accu.newLine("{");
-    for (auto& r : replacements)
-      accu.newLine((r.constant ? "constexpr auto " : "using ") + r.from + " = " + r.to + ";");
-    accu.newLine(value);
-    if (!isTopLevel)
-      accu.newLine("}");
-  }
-  accu.newLine();
+void EmbedStatement::codegen(Buffer* buffer, Sections* sections) const {
+  if (!isTopLevel)
+    buffer->newLine("{");
+  for (auto& r : replacements)
+    buffer->newLine((r.constant ? "constexpr auto " : "using ") + r.from + " = " + r.to + ";");
+  buffer->newLine(value);
+  if (!isTopLevel)
+    buffer->newLine("}");
+  buffer->newLine();
 }
 
 static string getLoopBreakLabel(int loopId) {
@@ -766,37 +867,37 @@ static string getLoopContinueLabel(int loopId) {
   return "continue_loop_" + to_string(loopId);
 }
 
-void WhileLoopStatement::codegen(Accu& accu, CodegenStage stage) const {
-  CHECK(stage.isDefine);
-  accu.add("while (");
-  cond->codegen(accu, stage);
-  accu.add(")");
-  ++accu.indent;
-  accu.newLine("{");
-  body->codegen(accu, stage);
-  accu.newLine(getLoopContinueLabel(loopId) + ":;");
+void WhileLoopStatement::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add("while (");
+  cond->codegen(buffer, sections);
+  buffer->add(")");
+  ++buffer->indent;
+  buffer->newLine("{");
+  body->codegen(buffer, sections);
+  buffer->newLine(getLoopContinueLabel(loopId) + ":;");
   if (afterContinue)
-    afterContinue->codegen(accu, stage);
-  accu.add("}");
-  --accu.indent;
-  accu.newLine(getLoopBreakLabel(loopId) + ":;");
-  accu.newLine();
+    afterContinue->codegen(buffer, sections);
+  buffer->add("}");
+  --buffer->indent;
+  buffer->newLine(getLoopBreakLabel(loopId) + ":;");
+  buffer->newLine();
 }
 
-void ImportStatement::codegen(Accu& accu, CodegenStage stage) const {
-  if (ast) {
-    stage.setImport();
-    if (!accu.generated.count(make_pair(ast, stage))) {
-      accu.generated.insert(make_pair(ast, stage));
-      for (auto& elem : ast->elems)
-        if (elem->exported)
-          elem->codegen(accu, stage);
+void ImportStatement::codegen(Buffer* buffer, Sections* sections) const {
+  if (ast)
+    for (auto& elem : ast->elems) {
+      if (auto s = dynamic_cast<ImportStatement*>(elem.get())) {
+        sections->addImport(s);
+      }
+      if (dynamic_cast<EmbedStatement*>(elem.get())) {
+        elem->codegen(sections->newBuffer(Section::HEADER), sections);
+      }
     }
-  }
 }
 
-void EnumConstant::codegen(Accu& accu, CodegenStage) const {
-  accu.add(enumType->getCodegenName() + "::" + enumElement);
+void EnumConstant::codegen(Buffer* buffer, Sections* sections) const {
+  sections->registerTypeAccess(enumType.get().get());
+  buffer->add(enumType->getCodegenName() + "::" + enumElement);
 }
 
 static string getVTableFunName(const FunctionId id) {
@@ -813,232 +914,193 @@ static string getVTableFunName(const FunctionId id) {
   );
 }
 
-static string getVTableName(const string& concept) {
-  return concept + "_vtable";
-}
-
-static string getVTableBinder(const FunctionInfo& function) {
-  auto ret = "+[](" + getFunctionParams(function, nullptr) + ") { return " + function.getMangledName() + "(";
-  for (int i = 0; i < function.type.params.size(); ++i) {
-    if (i > 0)
-      ret += ",";
-    ret += "std::move(param" + to_string(i) + ")";
+void ConceptType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+  const auto vTableName = getVTableName(*getMangledName());
+  auto functions = getConceptFor(concept->getParams()[0])->getContext().getAllFunctions();
+  auto typeBuf = unique<Buffer>(true);
+  //buf->newLine("// " + type->getName());
+  typeBuf->newLine("struct " + vTableName + " {");
+  ++typeBuf->indent;
+  for (auto& fun : functions) {
+    typeBuf->newLine(fun->type.retVal->getCodegenName() + " (*" + getVTableFunName(fun->id) + ")(");
+    for (auto param : fun->type.params)
+      sections->registerTypeAccess(param.get());
+    addVTableParams(fun, typeBuf.get());
+    typeBuf->add(");");
   }
-  return ret + ");}";
-}
-
-void ConceptDefinition::codegen(Accu& accu, CodegenStage stage) const {
-  auto addParams = [&] (const SFunctionInfo& fun) {
-    for (auto& param : fun->type.params) {
-      if (param->getMangledName())
-        accu.add(param->getCodegenName());
-      else if (param.dynamicCast<PointerType>())
-        accu.add("void const*");
+  typeBuf->newLine("void (*cpp_delete)(void const*);");
+  --typeBuf->indent;
+  typeBuf->newLine("};");
+  typeBuf->newLine();
+  sections->sections[Section::TYPES].push_back(std::move(typeBuf));
+  ErrorBuffer errors;
+  for (auto fun : functions) {
+    fun = replaceInFunction(concept->getContext(), fun, concept->getParams()[0], get_this().get(), errors);
+    buffer->newLine("inline " + fun->type.retVal->getCodegenName() + " " + fun->getMangledName() + "(");
+    auto getArgName = [](int i) { return "_arg" + to_string(i); };
+    string virtualArg;
+    sections->registerTypeAccess(fun->type.retVal.get());
+    for (int i = 0; i < fun->type.params.size(); ++i) {
+      auto& param = fun->type.params[i];
+      sections->registerTypeAccess(param.get());
+      buffer->add((i > 0 ? ", " : "") + param->getCodegenName() + " " + getArgName(i));
+      if (i > 0)
+        virtualArg += ", ";
+      if (param->removePointer() == this)
+        virtualArg = "return " + getArgName(i) + ".vTable->" + getVTableFunName(fun->id) + "(" + virtualArg + getArgName(i) + ".object";
       else
-        accu.add("void*");
-      accu.add(",");
+        virtualArg += getArgName(i);
     }
-    accu.pop_back();
-  };
-  for (auto& conceptType : conceptInstances)
-    if (auto mangledName = conceptType->getMangledName()) {
-      const auto vTableName = getVTableName(*mangledName);
-      auto functions = conceptType->getConceptFor(conceptType->concept->getParams()[0])->getContext().getAllFunctions();
-      if (stage.isTypes) {
-        accu.newLine("struct " + vTableName + " {");
-        ++accu.indent;
-        for (auto& fun : functions) {
-          accu.newLine(fun->type.retVal->getCodegenName() + " (*" + getVTableFunName(fun->id) + ")(");
-          addParams(fun);
-          accu.add(");");
-        }
-        accu.newLine("void (*cpp_delete)(void const*);");
-        --accu.indent;
-        accu.newLine("};");
-        accu.newLine();
-      }
-      ErrorBuffer errors;
-      for (auto fun : functions) {
-        fun = replaceInFunction(conceptType->concept->getContext(), fun, conceptType->concept->getParams()[0], conceptType, errors);
-        accu.newLine("inline " + fun->type.retVal->getCodegenName() + " " + fun->getMangledName() + "(");
-        auto getArgName = [](int i) { return "_arg" + to_string(i); };
-        string virtualArg;
-        for (int i = 0; i < fun->type.params.size(); ++i) {
-          auto& param = fun->type.params[i];
-          accu.add((i > 0 ? ", " : "") + param->getCodegenName() + " " + getArgName(i));
-          if (i > 0)
-            virtualArg += ", ";
-          if (param->removePointer() == conceptType)
-            virtualArg = "return " + getArgName(i) + ".vTable->" + getVTableFunName(fun->id) + "(" + virtualArg + getArgName(i) + ".object";
-          else
-            virtualArg += getArgName(i);
-        }
-        CHECK(!virtualArg.empty());
-        if (stage.isDefine) {
-          accu.add(") {");
-          ++accu.indent;
-          accu.newLine(virtualArg + ");");
-          --accu.indent;
-          accu.newLine("}");
-        } else
-          accu.add(");");
-        accu.newLine();
-      }
-      CHECK(errors.empty());
-      if (!stage.isTypes)
-        for (auto& elem : fatPointers)
-          if (elem.type->getMangledName()) {
-            if (!stage.isDefine)
-              accu.add("extern ");
-            accu.newLine(vTableName + " " + vTableName + "_" + *elem.type->getMangledName());
-            if (stage.isDefine) {
-              accu.add("{");
-              ++accu.indent;
-              for (int i = 0; i < functions.size(); ++i) {
-                accu.newLine("reinterpret_cast<" + functions[i]->type.retVal->getCodegenName() + " (*)(");
-                addParams(functions[i]);
-                accu.add(")>(" + getVTableBinder(*elem.vTable[i]) + "),");
-              }
-              accu.newLine("reinterpret_cast<void (*)(void const*)>(+[](" + elem.type->getCodegenName() +" param0) { delete param0;})");
-              --accu.indent;
-              accu.newLine("}");
-            }
-            accu.newLine(";");
-            accu.newLine();
-          }
-    }
+    CHECK(!virtualArg.empty());
+    buffer->add(") {");
+    ++buffer->indent;
+    buffer->newLine(virtualArg + ");");
+    --buffer->indent;
+    buffer->newLine("}");
+    buffer->newLine();
+  }
+  CHECK(errors.empty());
 }
 
-void BreakStatement::codegen(Accu& accu, CodegenStage) const {
-  accu.add("goto " + getLoopBreakLabel(loopId) + ";");
+void ConceptDefinition::codegen(Buffer* buffer, Sections* sections) const {
 }
 
-void ContinueStatement::codegen(Accu& accu, CodegenStage) const {
-  accu.add("goto " + getLoopContinueLabel(loopId) + ";");
+void BreakStatement::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add("goto " + getLoopBreakLabel(loopId) + ";");
 }
 
-void ArrayLiteral::codegen(Accu& accu, CodegenStage stage) const {
-  accu.add("make_array<" + type->getCodegenName() + ">(");
+void ContinueStatement::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add("goto " + getLoopContinueLabel(loopId) + ";");
+}
+
+void ArrayLiteral::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add("make_array<" + type->getCodegenName() + ">(");
   for (auto& elem : contents) {
-    elem->codegen(accu, stage);
-    accu.add(", ");
+    elem->codegen(buffer, sections);
+    buffer->add(", ");
   }
   if (!contents.empty()) {
-    accu.pop_back();
-    accu.pop_back();
+    buffer->pop_back();
+    buffer->pop_back();
   }
-  accu.add(")");
+  buffer->add(")");
 }
 
-void LambdaExpression::codegen(Accu& a, CodegenStage) const {
-  a.add(type->getCodegenName() + "{");
+void LambdaExpression::codegen(Buffer* buffer, Sections* sections) const {
+  sections->registerTypeAccess(type.get().get());
+  for (auto& f : functionCalls)
+    sections->registerFunctionCall(f.get());
+  codegenLambda(type.get().get(), sections->newBuffer(Section::DEFINITIONS), sections);
+  buffer->add(type->getCodegenName() + "{");
   for (auto& capture : captureInfo.captures) {
     switch (capture.type) {
       case LambdaCaptureType::MOVE:
         if (capture.hasConstructor)
-          a.add("({" + getDestructorName(capture.name) + ".wasMoved = true; std::move(" + capture.name + ");}),");
+          buffer->add("({" + getDestructorName(capture.name) + ".wasMoved = true; std::move(" + capture.name + ");}),");
         else
-          a.add("std::move(" + capture.name + "),");
+          buffer->add("std::move(" + capture.name + "),");
         break;
       case LambdaCaptureType::COPY:
-        a.add("::copy(&" + capture.name + "),");
+        buffer->add("::copy(&" + capture.name + "),");
         break;
       case LambdaCaptureType::IMPLICIT_COPY:
-        a.add("::implicit_copy(&" + capture.name + "),");
+        buffer->add("::implicit_copy(&" + capture.name + "),");
         break;
       case LambdaCaptureType::REFERENCE:
-        a.add("&" + capture.name + ",");
+        buffer->add("&" + capture.name + ",");
         break;
     }
   } if (!captureInfo.captures.empty())
-    a.pop_back();
-  a.add("}");
+    buffer->pop_back();
+  buffer->add("}");
 }
 
-void LambdaType::codegenDefinitionImpl(set<const Type*>& visited, Accu& a) const {
-  a.add("struct " + getCodegenName() + " {");
+void LambdaType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+  buffer->add("struct " + getCodegenName() + " {");
   for (auto& capture : captures)
-    a.newLine(capture.type->getCodegenName() + " " + capture.name + ";");
-  a.newLine("};\n");
+    buffer->newLine(capture.type->getCodegenName() + " " + capture.name + ";");
+  buffer->newLine("};\n");
 }
 
-void CountOfExpression::codegen(Accu&, CodegenStage) const {
+void CountOfExpression::codegen(Buffer*, Sections*) const {
   FATAL << "Attempting to codegen countof expression";
 }
 
-void VariablePackElement::codegen(Accu& accu, CodegenStage) const {
-  accu.add(*codegenName);
+void VariablePackElement::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add(*codegenName);
 }
 
-static void codegenMember(Accu& accu, CodegenStage stage, const nullable<SFunctionInfo>& destructorCall,
+static void codegenMember(Buffer* buffer, Sections* sections, const nullable<SFunctionInfo>& destructorCall,
     bool isMainDestructor, const string& identifier, const Expression& lhs, bool isUnion) {
-  accu.add("(");
+  buffer->add("(");
   if (destructorCall) {
     if (isMainDestructor)
-      accu.add("(*get_temporary_holder(");
+      buffer->add("(*get_temporary_holder(");
     else
-      accu.add("{auto&& tmp = ");
+      buffer->add("{auto&& tmp = ");
+    sections->registerFunctionCall(destructorCall.get().get());
   }
-  lhs.codegen(accu, stage);
+  lhs.codegen(buffer, sections);
   if (destructorCall) {
     if (isMainDestructor)
-      accu.add(", &::" + destructorCall->getMangledName() + "))." + identifier + ")");
+      buffer->add(", &::" + destructorCall->getMangledName() + "))." + identifier + ")");
     else
-      accu.add(";" + destructorCall->getMangledName() + "(&tmp); std::move(tmp)." + identifier +";})");
+      buffer->add(";" + destructorCall->getMangledName() + "(&tmp); std::move(tmp)." + identifier +";})");
   } else
-    accu.add(")."s + (isUnion ? unionEntryPrefix : "") + identifier);
+    buffer->add(")."s + (isUnion ? unionEntryPrefix : "") + identifier);
 }
 
-void MemberAccessExpression::codegen(Accu& accu, CodegenStage stage) const {
-  codegenMember(accu, stage, destructorCall, isMainDestructor, identifier, *lhs, isUnion);
+void MemberAccessExpression::codegen(Buffer* buffer, Sections* sections) const {
+  codegenMember(buffer, sections, destructorCall, isMainDestructor, identifier, *lhs, isUnion);
 }
 
-void TernaryExpression::codegen(Accu& accu, CodegenStage stage) const {
-  accu.add("(");
-  condExpr->codegen(accu, stage);
-  accu.add(")?(");
-  e1->codegen(accu, stage);
-  accu.add("):(");
-  e2->codegen(accu, stage);
-  accu.add(")");
+void TernaryExpression::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add("(");
+  condExpr->codegen(buffer, sections);
+  buffer->add(")?(");
+  e1->codegen(buffer, sections);
+  buffer->add("):(");
+  e2->codegen(buffer, sections);
+  buffer->add(")");
 }
 
-void FatPointerConversion::codegen(Accu& accu, CodegenStage stage) const {
+void FatPointerConversion::codegen(Buffer* buffer, Sections* sections) const {
+  sections->registerFatPointer(conceptType.get(), argType.get(), functions);
   if (toType.dynamicCast<PointerType>())
-    accu.add("make_const_fat_ptr(");
+    buffer->add("make_const_fat_ptr(");
   else
-    accu.add("make_fat_ptr(");
-  arg->codegen(accu, stage);
-  accu.add(", &" + getVTableName(*conceptType->getMangledName())
+    buffer->add("make_fat_ptr(");
+  arg->codegen(buffer, sections);
+  buffer->add(", &" + getVTableName(*conceptType->getMangledName())
       + "_" + *argType->getMangledName() + ")");
 }
 
-void UncheckedStatement::codegen(Accu& accu, CodegenStage s) const {
-  elem->codegen(accu, s);
+void UncheckedStatement::codegen(Buffer* buffer, Sections* sections) const {
+  elem->codegen(buffer, sections);
 }
 
-void AttributeDefinition::codegen(Accu&, CodegenStage) const {
+void AttributeDefinition::codegen(Buffer*, Sections*) const {
 }
 
-void ExternalStatement::codegen(Accu& accu, CodegenStage stage) const {
-  elem->codegen(accu, stage);
+void ExternalStatement::codegen(Buffer* buffer, Sections* sections) const {
+  elem->codegen(buffer, sections);
 }
 
-void StatementExpression::codegen(Accu& accu, CodegenStage stage) const {
-  accu.add("({");
+void StatementExpression::codegen(Buffer* buffer, Sections* sections) const {
+  buffer->add("({");
   for (auto& s : statements) {
-    s->codegen(accu, stage);
-    accu.add("; ");
+    s->codegen(buffer, sections);
+    buffer->add("; ");
   }
-  value->codegen(accu, stage);
-  accu.add(";})");
+  value->codegen(buffer, sections);
+  buffer->add(";})");
 }
 
-void MixinStatement::codegen(Accu& accu, CodegenStage stage) const {
-  result->codegen(accu, stage);
+void MixinStatement::codegen(Buffer* buffer, Sections* sections) const {
+  result->codegen(buffer, sections);
 }
 
-void StaticStatement::codegen(Accu& accu, CodegenStage stage) const {
+void StaticStatement::codegen(Buffer* buffer, Sections* sections) const {
   for (auto& elem : results)
-    elem->codegen(accu, stage);
+    elem->codegen(buffer, sections);
 }

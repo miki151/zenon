@@ -711,7 +711,7 @@ void StructType::updateInstantations(const Context& context) {
             type->templateParams[i], errors);
       }
     }
-    CHECK(errors.empty()) << errors[0];
+    CHECK(errors.empty()) << "While updating " << type1->getName() << ": " << errors[0];
   }
 }
 
@@ -1701,10 +1701,6 @@ JustError<string> OptionalType::getMappingError(TypeMapping& mapping, SType from
 
 SType OptionalType::transform(function<SType(const Type*)> fun) const {
   return OptionalType::get(fun(underlying.get()));
-}
-
-void OptionalType::codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const {
-  underlying->codegenDefinition(visited, accu);
 }
 
 bool OptionalType::hasDestructor() const {

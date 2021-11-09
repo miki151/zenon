@@ -12,7 +12,8 @@ struct TypeMapping;
 struct FunctionSignature;
 struct SwitchStatement;
 struct FunctionDefinition;
-struct Accu;
+struct Buffer;
+struct Sections;
 struct StatementBlock;
 struct Statement;
 struct AttributeType;
@@ -40,7 +41,7 @@ struct Type : public owned_object<Type> {
   };
   virtual WithError<SType> getTypeOfMember(const string& name, ArgumentType = ArgumentType::VALUE) const;
   virtual bool hasDestructor() const;
-  void codegenDefinition(set<const Type*>& visited, Accu&) const;
+  virtual void codegenDefinition(Buffer*, Sections*) const;
   virtual ~Type() {}
   virtual WithErrorLine<SType> instantiate(const Context&, vector<SType> templateArgs, CodeLoc) const;
   Context& getStaticContext();
@@ -61,7 +62,6 @@ struct Type : public owned_object<Type> {
 
   protected:
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const;
-  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const;
 };
 
 struct FunctionType : public Type {
@@ -128,6 +128,7 @@ struct ReferenceType : public Type {
   virtual WithError<SType> getTypeOfMember(const string& name, ArgumentType) const override;
   virtual SType removePointer() const override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, ArgumentType) const override;
+  virtual void codegenDefinition(Buffer*, Sections*) const override;
 
   static shared_ptr<ReferenceType> get(SType);
   SType underlying;
@@ -144,6 +145,7 @@ struct MutableReferenceType : public Type {
   virtual WithError<SType> getTypeOfMember(const string& name, ArgumentType) const override;
   virtual SType removePointer() const override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, ArgumentType) const override;
+  virtual void codegenDefinition(Buffer*, Sections*) const override;
 
   static shared_ptr<MutableReferenceType> get(SType);
   const SType underlying;
@@ -159,6 +161,7 @@ struct PointerType : public Type {
   virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual SType removePointer() const override;
+  virtual void codegenDefinition(Buffer*, Sections*) const override;
 
   static shared_ptr<PointerType> get(SType);
   const SType underlying;
@@ -174,6 +177,7 @@ struct MutablePointerType : public Type {
   virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual SType removePointer() const override;
+  virtual void codegenDefinition(Buffer*, Sections*) const override;
 
   static shared_ptr<MutablePointerType> get(SType);
   const SType underlying;
@@ -187,7 +191,7 @@ struct OptionalType : public Type {
   virtual string getCodegenName() const override;
   virtual JustError<string> getMappingError(TypeMapping& mapping, SType from) const override;
   virtual SType transform(function<SType(const Type*)>) const override;
-  void codegenDefinitionImpl(set<const Type*>& visited, Accu& accu) const override;
+  void codegenDefinition(Buffer*, Sections* accu) const override;
   virtual bool hasDestructor() const override;
 
   static shared_ptr<OptionalType> get(SType);
@@ -289,7 +293,7 @@ struct StructType : public Type {
   virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, ArgumentType) const override;
   virtual JustError<string> getSizeError(const Context&) const override;
-  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
+  virtual void codegenDefinition(Buffer*, Sections*) const override;
   virtual SType getType() const override;
   virtual WithError<SType> getTypeOfMember(const string&, ArgumentType) const override;
   virtual bool hasDestructor() const override;
@@ -320,7 +324,7 @@ struct EnumType : public Type {
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, ArgumentType) const override;
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual SType getType() const override;
-  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
+  virtual void codegenDefinition(Buffer*, Sections*) const override;
 
   string name;
   vector<string> elements;
@@ -339,7 +343,7 @@ struct ArrayType : public Type {
   virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
   static shared_ptr<ArrayType> get(SType, SCompileTimeValue size);
   virtual JustError<string> getSizeError(const Context&) const override;
-  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
+  virtual void codegenDefinition(Buffer*, Sections*) const override;
   virtual bool hasDestructor() const override;
   ArrayType(SType, SCompileTimeValue size);
   SCompileTimeValue size;
@@ -400,7 +404,7 @@ struct LambdaType : public Type {
   virtual string getCodegenName() const override;
   virtual SType replaceImpl(const Context&, SType from, SType to, ErrorBuffer&) const override;
   virtual JustError<string> getMappingError(TypeMapping&, SType argType) const override;
-  virtual void codegenDefinitionImpl(set<const Type*>& visited, Accu&) const override;
+  virtual void codegenDefinition(Buffer*, Sections*) const override;
   virtual bool hasDestructor() const override;
   static shared_ptr<LambdaType> get(string name, vector<SType> templateParams);
   static shared_ptr<LambdaType> get(vector<SType> templateParams);
@@ -452,6 +456,7 @@ struct ConceptType : public Type {
   virtual SType expand(const Context&, SType pack, vector<SType> to, ErrorBuffer&) const override;
   virtual bool hasDestructor() const override;
   virtual SType getType() const override;
+  virtual void codegenDefinition(Buffer*, Sections*) const override;
   SConcept getConceptFor(const SType&) const;
   SConcept concept;
   vector<SType> params;

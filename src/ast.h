@@ -8,27 +8,11 @@
 #include "identifier.h"
 #include "type.h"
 
-struct Accu;
+struct Buffer;
+struct Sections;
 class MoveChecker;
 class ImportCache;
 class ASTCache;
-
-struct CodegenStage {
-  static CodegenStage types();
-  static CodegenStage define();
-  static CodegenStage declare();
-  CodegenStage setImport();
-  bool isTypes;
-  bool isDefine;
-  bool isImport;
-
-  bool operator < (const CodegenStage& o) const {
-    return std::forward_as_tuple(isTypes, isDefine, isImport) < std::forward_as_tuple(o.isTypes, o.isDefine, o.isImport);
-  }
-
-  private:
-  CodegenStage() {}
-};
 
 struct Statement;
 
@@ -43,14 +27,14 @@ using ConceptsSet = unordered_set<const ConceptType*>;
 unique_ptr<Statement> identityStmt(Statement*);
 unique_ptr<Expression> identityExpr(Expression*);
 
+struct Sections;
+struct Buffer;
+
 struct Node {
   Node(CodeLoc);
   CodeLoc codeLoc;
-  virtual void codegen(Accu&, CodegenStage) const {}
+  virtual void codegen(Buffer*, Sections*) const {}
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const {}
-  virtual void addFunctionCalls(const FunctionCallVisitFun&) const;
-  virtual void addLambdas(LambdasSet&) const;
-  virtual void addConceptTypes(ConceptsSet&) const;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const { return success; }
   virtual ~Node() {}
 };
@@ -76,7 +60,7 @@ struct Constant : Expression {
   Constant(CodeLoc, SType);
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   SType value;
   optional<string> structMemberName;
@@ -86,7 +70,7 @@ struct Constant : Expression {
 struct EnumConstant : Expression {
   EnumConstant(CodeLoc, string enumName, string enumElement);
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   string enumName;
@@ -100,7 +84,7 @@ struct Variable : Expression {
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   IdentifierInfo identifier;
   nullable<SType> getConstantValue(const Context&) const;
@@ -112,8 +96,7 @@ struct MemberAccessExpression : Expression {
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
-  virtual void addFunctionCalls(const FunctionCallVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   unique_ptr<Expression> lhs;
   string identifier;
@@ -129,8 +112,7 @@ struct BinaryExpression : Expression {
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
-  virtual void addFunctionCalls(const FunctionCallVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   Operator op;
   vector<unique_ptr<Expression>> expr;
@@ -148,8 +130,7 @@ struct UnaryExpression : Expression {
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
-  virtual void addFunctionCalls(const FunctionCallVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   Operator op;
   unique_ptr<Expression> expr;
@@ -163,7 +144,7 @@ struct TernaryExpression : Expression {
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   unique_ptr<Expression> condExpr;
   unique_ptr<Expression> e1;
@@ -176,7 +157,7 @@ struct MoveExpression : Expression {
   virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   string identifier;
   nullable<SType> type;
   bool hasDestructor = false;
@@ -187,7 +168,7 @@ struct CountOfExpression : Expression {
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   string identifier;
   nullable<SType> type;
 };
@@ -196,7 +177,7 @@ struct VariablePackElement : Expression {
   VariablePackElement(CodeLoc, string packName, unique_ptr<Expression> index);
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   string packName;
   unique_ptr<Expression> index;
   optional<string> codegenName;
@@ -206,7 +187,7 @@ struct StatementExpression : Expression {
   StatementExpression(CodeLoc, vector<unique_ptr<Statement>> statements, unique_ptr<Expression> value);
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
   virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   vector<unique_ptr<Statement>> statements;
@@ -229,9 +210,7 @@ struct LambdaExpression : Expression {
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
-  virtual void addLambdas(LambdasSet&) const override;
-  virtual void addFunctionCalls(const FunctionCallVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   JustError<ErrorLoc> checkBodyMoves() const;
   WithErrorLine<vector<LambdaCapture>> setLambda(Context&);
@@ -249,7 +228,7 @@ struct ArrayLiteral : Expression {
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   vector<unique_ptr<Expression>> contents;
   optional<IdentifierInfo> typeId;
   nullable<SType> type;
@@ -261,10 +240,8 @@ struct FatPointerConversion : Expression {
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
-  virtual void addFunctionCalls(const FunctionCallVisitFun&) const override;
-  virtual void addConceptTypes(ConceptsSet&) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   SType toType;
   SType argType;
   unique_ptr<Expression> arg;
@@ -278,12 +255,11 @@ struct FunctionCall : Expression {
   FunctionCall(IdentifierInfo, bool methodCall);
   FunctionCall(IdentifierInfo, unique_ptr<Expression> arg, bool methodCall);
   virtual WithErrorLine<SType> getTypeImpl(const Context&) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
   virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
-  virtual void addFunctionCalls(const FunctionCallVisitFun&) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   IdentifierInfo identifier;
   optional<vector<SType>> templateArgs;
@@ -323,7 +299,7 @@ struct Statement : Node {
   unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const;
   NODISCARD virtual bool hasReturnStatement() const;
   virtual void addGeneratedConstructor(Context&, const AST&) const {}
-  virtual void codegen(Accu&, CodegenStage) const override {}
+  virtual void codegen(Buffer*, Sections*) const override {}
   virtual unique_ptr<Statement> replaceVar(string from, string to) const;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const = 0;
   virtual WithEvalError<StatementEvalResult> eval(Context&);
@@ -355,7 +331,7 @@ struct VariableDeclaration : Statement {
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual WithEvalError<StatementEvalResult> eval(Context&) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
   virtual bool canHaveAttributes() const override { return true; }
@@ -373,7 +349,7 @@ struct AliasDeclaration : Statement {
   unique_ptr<Statement> destructorCall;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
 
@@ -403,7 +379,7 @@ struct IfStatement : Statement {
   virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
   virtual WithEvalError<StatementEvalResult> eval(Context&) override;
@@ -416,7 +392,7 @@ struct StatementBlock : Statement {
   virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;  
   virtual WithEvalError<StatementEvalResult> eval(Context&) override;
@@ -428,7 +404,7 @@ struct ExternalStatement : Statement {
   virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
 };
@@ -439,7 +415,7 @@ struct UncheckedStatement : Statement {
   virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
 };
@@ -453,7 +429,7 @@ struct ReturnStatement : Statement {
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
 };
 
 struct BreakStatement : Statement {
@@ -462,7 +438,7 @@ struct BreakStatement : Statement {
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
 };
 
 struct ContinueStatement : Statement {
@@ -471,7 +447,7 @@ struct ContinueStatement : Statement {
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
 };
 
 struct ExpressionStatement : Statement {
@@ -481,7 +457,7 @@ struct ExpressionStatement : Statement {
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual bool hasReturnStatement() const override;
   virtual WithEvalError<StatementEvalResult> eval(Context&) override;
   bool canDiscard = false;
@@ -506,7 +482,7 @@ struct WhileLoopStatement : Statement {
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual WithEvalError<StatementEvalResult> eval(Context&) override;
 };
 
@@ -533,7 +509,7 @@ struct AttributeDefinition : Statement {
   AttributeDefinition(CodeLoc, string name);
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   string name;
@@ -559,6 +535,7 @@ struct StructDefinition : Statement {
   virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry*) override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   bool external = false;
+  bool checked = false;
 };
 
 struct UnionDefinition : Statement {
@@ -574,11 +551,12 @@ struct UnionDefinition : Statement {
   nullable<shared_ptr<StructType>> type;
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual bool canHaveAttributes() const override { return true; }
   virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry*) override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
+  bool checked = false;
 };
 
 struct ConceptDefinition : Statement {
@@ -594,7 +572,7 @@ struct ConceptDefinition : Statement {
   void addConceptType(shared_ptr<ConceptType>);
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
 
@@ -608,6 +586,7 @@ struct EnumDefinition : Statement {
   string name;
   vector<string> elements;
   bool external = false;
+  bool registered = false;
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
@@ -635,13 +614,12 @@ struct SwitchStatement : Statement {
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
-  virtual void addFunctionCalls(const FunctionCallVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual bool hasReturnStatement() const override;
 
   private:
-  void codegenEnum(Accu&) const;
-  void codegenUnion(Accu&) const;
+  void codegenEnum(Buffer*, Sections*) const;
+  void codegenUnion(Buffer*, Sections*) const;
 };
 
 struct FunctionDefinition : Statement {
@@ -671,13 +649,14 @@ struct FunctionDefinition : Statement {
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&, ImportCache&, const Context& primaryContext) override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
+  virtual void codegenInstance(Buffer*, Sections*, FunctionInfo*) const;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   NODISCARD JustError<ErrorLoc> setFunctionSignature(const Context&, nullable<SConcept> concept = nullptr, bool builtInImport = false);
-  void handlePointerParamsInOperator(Accu&, const StatementBlock*) const;
-  void handlePointerReturnInOperator(Accu&, const StatementBlock*) const;
-  void addStacktraceGenerator(Accu&, const StatementBlock*) const;
+  void handlePointerParamsInOperator(Buffer*, Sections*, const StatementBlock*) const;
+  void handlePointerReturnInOperator(Buffer*, Sections*, const StatementBlock*) const;
+  void addStacktraceGenerator(Buffer*, Sections*, const StatementBlock*) const;
   NODISCARD JustError<ErrorLoc> generateVirtualDispatchBody(Context& bodyContext);
   WithErrorLine<unique_ptr<Expression>> getVirtualFunctionCallExpr(const Context&, const string& funName,
       const string& alternativeName, const SType& alternativeType, int virtualIndex, bool lvalueParam);
@@ -702,7 +681,7 @@ struct EmbedStatement : Statement {
   vector<Context::SubstitutionInfo> replacements;
   bool returns = false;
   virtual JustError<ErrorLoc> check(Context&, bool = false) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual TopLevelAllowance allowTopLevel() const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual bool hasReturnStatement() const override;
@@ -714,7 +693,7 @@ struct MixinStatement : Statement {
   unique_ptr<Statement> result;
   bool returns = false;
   virtual JustError<ErrorLoc> check(Context&, bool = false) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
@@ -727,7 +706,7 @@ struct StaticStatement : Statement {
   vector<unique_ptr<Statement>> results;
   virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual bool hasReturnStatement() const override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
   virtual void visit(const StmtVisitFun&, const ExprVisitFun&) const override;
@@ -736,7 +715,6 @@ struct StaticStatement : Statement {
 
 struct AST {
   vector<unique_ptr<Statement>> elems;
-  AST clone();
 };
 
 struct ImportStatement : Statement {
@@ -747,7 +725,7 @@ struct ImportStatement : Statement {
   const bool isBuiltIn;
   virtual JustError<ErrorLoc> addToContext(Context&, ImportCache& cache, const Context& primaryContext) override;
   virtual JustError<ErrorLoc> check(Context&, bool = false) override;
-  virtual void codegen(Accu&, CodegenStage) const override;
+  virtual void codegen(Buffer*, Sections*) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual JustError<ErrorLoc> registerTypes(const Context&, TypeRegistry*, ASTCache&,
       const vector<string>& importDirs) override;

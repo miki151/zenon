@@ -134,12 +134,21 @@ int main(int argc, char* argv[]) {
   auto buildDir = ".build_cache";
   if (!fs::is_directory(buildDir))
     fs::create_directory(buildDir);
+  ImportCache importCache;
+  TypeRegistry typeRegistry;
   ASTCache astCache;
+  const auto primaryContext = createPrimaryContext(&typeRegistry);
+  {
+    auto initialAST = getOrCompileError(astCache.getAST(fs::canonical(toCompile.begin()->path)));
+    for (auto& elem : initialAST->elems)
+      checkCompileError(elem->registerTypes(primaryContext, &typeRegistry, astCache, {installDir}));
+  }
+  struct CodegenElem {
+    AST* ast;
+    string path;
+  };
+  vector<CodegenElem> codegenElems;
   while (!toCompile.empty()) {
-    astCache.clearUnitCache();
-    ImportCache importCache;
-    TypeRegistry typeRegistry;
-    const auto primaryContext = createPrimaryContext(&typeRegistry);
     auto path = string(fs::canonical(toCompile.begin()->path));
     bool builtInModule = toCompile.begin()->builtIn;
     cerr << "Compiling " << path << endl;
@@ -148,26 +157,29 @@ int main(int argc, char* argv[]) {
     auto ast = getOrCompileError(astCache.getAST(path));
     if (builtInModule)
       importCache.setBuiltIn();
-    for (auto& elem : ast->elems)
-      checkCompileError(elem->registerTypes(primaryContext, &typeRegistry, astCache, {installDir}));
     auto context = primaryContext.getChild(true);
     auto imported = getOrCompileError(correctness(path, *ast, context, primaryContext, importCache, builtInModule));
     if (builtInModule)
       importCache.popBuiltIn();
-    auto cppCode = codegen(*ast, typeRegistry, context, installDir + "/codegen_includes/"s, !printCpp);
-    if (printCpp) {
-      cout << cppCode << endl;
-      return 0;
-    } else
-      logFile << cppCode;
+    codegenElems.push_back(CodegenElem{ast, path});
     if (fullCompile)
       for (auto& import : imported)
         if (!finished.count(import.path)) {
           toCompile.push_back(import);
           finished.insert(import.path);
         }
+  }
+  for (auto& elem : codegenElems) {
+    auto cppCode = codegen(*elem.ast, typeRegistry, installDir + "/codegen_includes/"s, !printCpp);
+    if (cppCode.empty())
+      continue;
+    if (printCpp) {
+      cout << cppCode << endl;
+      return 0;
+    }/* else
+      logFile << cppCode;*/
     if (codegenAll)
-      ofstream(*codegenAll + "/"s + getCodegenAllFileName(path) + ".cpp") << cppCode;
+      ofstream(*codegenAll + "/"s + getCodegenAllFileName(elem.path) + ".cpp") << cppCode;
     else {
       auto objFile = fullCompile
           ? buildDir + "/"s + to_string(std::hash<string>()(cppCode + gccCmd)) + ".znn.o"

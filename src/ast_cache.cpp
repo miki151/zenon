@@ -13,15 +13,6 @@ WithErrorLine<AST*> ASTCache::getAST(const string& path) {
     auto ast = TRY(parse(tokens));
     astMap.insert(make_pair(std::move(path), std::move(ast)));
   }
-  if (!astUnitMap.count(path))
-    astUnitMap.insert(make_pair(std::move(path), astMap.at(path).clone()));
-  return &astUnitMap.at(path);
+  return &astMap.at(path);
 }
 
-bool ASTCache::hasASTInUnit(const std::string& path) const {
-  return astUnitMap.count(path);
-}
-
-void ASTCache::clearUnitCache() {
-  astUnitMap.clear();
-}
