@@ -173,12 +173,20 @@ struct Sections {
     s->codegen(newBuffer(Section::HEADER), this);
   }
 
+  void addEmbed(EmbedStatement* s) {
+    if (embeds.count(s))
+      return;
+    embeds.insert(s);
+    s->codegen(newBuffer(Section::HEADER), this);
+  }
+
   map<Section, vector<unique_ptr<Buffer>>> sections;
   unordered_set<FunctionInfo*> emitted;
   unordered_set<Type*> forwardDeclEmitted;
   unordered_set<Type*> typeDefEmitted;
   set<pair<ConceptType*, Type*>> fatPointers;
   unordered_set<string> imports;
+  unordered_set<EmbedStatement*> embeds;
   string generate() const {
     string ret;
     for (auto& elem : sections)
@@ -707,9 +715,9 @@ string codegen(const AST& ast, TypeRegistry& registry, const string& codegenIncl
   header->newLine();
   for (auto& elem : ast.elems) {
     if (auto embed = dynamic_cast<EmbedStatement*>(elem.get()))
-      elem->codegen(sections.newBuffer(Section::HEADER), &sections);
-    if (auto embed = dynamic_cast<ImportStatement*>(elem.get()))
-      elem->codegen(sections.newBuffer(Section::HEADER), &sections);
+      sections.addEmbed(embed);
+    if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
+      sections.addImport(import);
   }
   bool hasMain = false;
   for (auto& elem : ast.elems) {
@@ -889,9 +897,8 @@ void ImportStatement::codegen(Buffer* buffer, Sections* sections) const {
       if (auto s = dynamic_cast<ImportStatement*>(elem.get())) {
         sections->addImport(s);
       }
-      if (dynamic_cast<EmbedStatement*>(elem.get())) {
-        elem->codegen(sections->newBuffer(Section::HEADER), sections);
-      }
+      if (auto e = dynamic_cast<EmbedStatement*>(elem.get()))
+        sections->addEmbed(e);
     }
 }
 
