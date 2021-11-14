@@ -2,11 +2,11 @@
 #include "context.h"
 #include "type.h"
 
-ReturnTypeChecker::ReturnTypeChecker(nullable<SType> explicitReturn) : explicitReturn(std::move(explicitReturn)) {
+ReturnTypeChecker::ReturnTypeChecker(Type* explicitReturn) : explicitReturn(std::move(explicitReturn)) {
 
 }
 
-JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, SType returnType, unique_ptr<Expression>& expr) {
+JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, Type* returnType, unique_ptr<Expression>& expr) {
   auto underlying = returnType->removeReference();
   if (explicitReturn) {
     if (explicitReturn == BuiltinType::NORETURN)
@@ -16,7 +16,7 @@ JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, 
     return "Ambigous implicit return type: " + quote(returnStatement->getName()) + " and " + quote(underlying->getName());
   else
     returnStatement = underlying;
-  auto toConvert = explicitReturn.value_or([&] { return returnStatement.get();});
+  auto toConvert = explicitReturn ? explicitReturn : returnStatement;
   if (auto res = context.canConvert(returnType, toConvert, expr); !!res)
     return success;
   else
@@ -24,10 +24,10 @@ JustError<string> ReturnTypeChecker::addReturnStatement(const Context& context, 
         " from a function returning " + toConvert->getName() + ":\n" + res.get_error();
 }
 
-SType ReturnTypeChecker::getReturnType() const {
+Type* ReturnTypeChecker::getReturnType() const {
   if (explicitReturn)
-    return explicitReturn.get();
+    return explicitReturn;
   if (returnStatement)
-    return returnStatement.get();
+    return returnStatement;
   return BuiltinType::VOID;
 }

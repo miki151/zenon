@@ -12,7 +12,7 @@ enum class LambdaCaptureType {
 
 struct LambdaCapture {
   string name;
-  SType type;
+  Type* type;
   LambdaCaptureType captureType;
 };
 

@@ -4,13 +4,12 @@
 #include "code_loc.h"
 
 struct Type;
-using SType = shared_ptr<Type>;
 
 struct FunctionInfo;
 using SFunctionInfo = shared_ptr<FunctionInfo>;
 
 struct CompileTimeValue;
-using SCompileTimeValue = shared_ptr<CompileTimeValue>;
+using SCompileTimeValue = CompileTimeValue*;
 
 enum class Operator {
   LESS_THAN,
@@ -51,6 +50,6 @@ extern bool canOverload(Operator);
 extern bool canOverload(Operator, int numArgs);
 extern bool isUnary(Operator);
 extern bool isRightAssociative(Operator);
-extern WithEvalError<SType> eval(Operator, vector<SType> args);
-extern string getPrettyString(Operator, vector<SType> args);
+extern WithEvalError<Type*> eval(Operator, vector<Type*> args);
+extern string getPrettyString(Operator, vector<Type*> args);
 extern const char* getCodegenName(Operator);

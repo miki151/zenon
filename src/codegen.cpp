@@ -56,7 +56,7 @@ void addVTableParams(const SFunctionInfo& fun, Buffer* buffer) {
   for (auto& param : fun->type.params) {
     if (param->getMangledName())
       buffer->add(param->getCodegenName());
-    else if (param.dynamicCast<PointerType>())
+    else if (dynamic_cast<PointerType*>(param))
       buffer->add("void const*");
     else
       buffer->add("void*");
@@ -72,11 +72,11 @@ static string getFunctionParams(const FunctionInfo& functionInfo, const Function
     auto paramName = definition ? functionInfo.getParamName(i, definition) : "param" + to_string(i);
     string argText = param->getCodegenName() + " " + paramName.value_or("") + ", ";
     if (functionInfo.id.contains<Operator>()) {
-      if (auto p = param.dynamicCast<ReferenceType>()) {
+      if (auto p = dynamic_cast<ReferenceType*>(param)) {
         auto name = paramName ? *paramName + "_ptr" : "";
         argText = p->underlying->getCodegenName() + " const& " + name + ", ";
       }
-      if (auto p = param.dynamicCast<MutableReferenceType>()) {
+      if (auto p = dynamic_cast<MutableReferenceType*>(param)) {
         auto name = paramName ? *paramName + "_ptr" : "";
         argText = p->underlying->getCodegenName() + "& " + name + ", ";
       }
@@ -118,7 +118,7 @@ struct Sections {
       }
     } else
     if (functionInfo->id.contains<ConstructorTag>())
-      registerTypeAccess(functionInfo->type.retVal.get());
+      registerTypeAccess(functionInfo->type.retVal);
   }
   void registerTypeAccess(Type* type) {
     if (type->getMangledName() && !typeDefEmitted.count(type)) {
@@ -202,7 +202,7 @@ void Constant::codegen(Buffer* buffer, Sections* sections) const {
   else if (structMemberName)
     buffer->add(*structMemberName);
   else {
-    sections->registerTypeAccess(value->getType().get());
+    sections->registerTypeAccess(value->getType());
     buffer->add(value->getCodegenName());
   }
 }
@@ -276,7 +276,7 @@ static void codegenDestructorCall(Buffer* buffer, Sections* sections, const Stat
 }
 
 void VariableDeclaration::codegen(Buffer* buffer, Sections* sections) const {
-  buffer->add(realType.get()->getCodegenName() + " ");
+  buffer->add(realType->getCodegenName() + " ");
 /*  if (!isMutable)
     accu.add("const ");*/
   buffer->add(identifier);
@@ -287,7 +287,7 @@ void VariableDeclaration::codegen(Buffer* buffer, Sections* sections) const {
   buffer->add(";");
   if (destructorCall)
     codegenDestructorCall(buffer, sections, *destructorCall, identifier);
-  sections->registerTypeAccess(realType.get().get());
+  sections->registerTypeAccess(realType);
 }
 
 void AliasDeclaration::codegen(Buffer* buffer, Sections* sections) const {
@@ -402,7 +402,7 @@ void FunctionDefinition::handlePointerParamsInOperator(Buffer* buffer, Sections*
     auto& param = functionInfo->type.params[i];
     auto name = functionInfo->getParamName(i, this);
     if (name && functionInfo->id.contains<Operator>())
-      if (param.dynamicCast<ReferenceType>() || param.dynamicCast<MutableReferenceType>())
+      if (dynamic_cast<ReferenceType*>(param) || dynamic_cast<MutableReferenceType*>(param))
         ptrInits.push_back("auto " + *name + " = &" + *name + "_ptr;");
   }
   if (!ptrInits.empty()) {
@@ -425,8 +425,8 @@ void FunctionDefinition::addStacktraceGenerator(Buffer* buffer, Sections* sectio
 }
 
 void FunctionDefinition::handlePointerReturnInOperator(Buffer* buffer, Sections* sections, const StatementBlock* thisBody) const {
-  if (functionInfo->type.retVal.dynamicCast<ReferenceType>() ||
-      functionInfo->type.retVal.dynamicCast<MutableReferenceType>()) {
+  if (dynamic_cast<ReferenceType*>(functionInfo->type.retVal) ||
+      dynamic_cast<MutableReferenceType*>(functionInfo->type.retVal)) {
     buffer->newLine("{");
     ++buffer->indent;
     buffer->newLine("auto getRef = [&]");
@@ -468,9 +468,9 @@ void FunctionDefinition::codegenInstance(Buffer* buffer, Sections* sections, Fun
         buffer->add(";");
       buffer->newLine("");
       buffer->newLine("");
-      sections->registerTypeAccess(functionInfo.type.retVal.get());
+      sections->registerTypeAccess(functionInfo.type.retVal);
       for (auto& param : functionInfo.type.params)
-        sections->registerTypeAccess(param.get());
+        sections->registerTypeAccess(param);
     }
   };
   if (info == functionInfo.get().get()) {
@@ -496,7 +496,7 @@ constexpr const char* unionDiscriminatorName = "unionElem";
 
 static void codegenUnion(Buffer* buffer, Sections* sections, const StructType* type) {
   for (auto& elem : type->alternatives)
-    sections->registerTypeAccess(elem.type.get());
+    sections->registerTypeAccess(elem.type);
   auto name = *type->getMangledName();
   buffer->add("struct " + name + " {");
   ++buffer->indent;
@@ -571,40 +571,40 @@ static void codegenUnion(Buffer* buffer, Sections* sections, const StructType* t
   }
 }
 
-void Type::codegenDefinition(Buffer* buffer, Sections* sections) const {
+void Type::codegenDefinition(Buffer* buffer, Sections* sections) {
 }
 
-void ArrayType::codegenDefinition(Buffer* buffer, Sections* sections) const {
-  sections->registerTypeAccess(underlying.get());
+void ArrayType::codegenDefinition(Buffer* buffer, Sections* sections) {
+  sections->registerTypeAccess(underlying);
 }
 
-void ReferenceType::codegenDefinition(Buffer* buffer, Sections* sections) const {
-  sections->registerTypeAccess(underlying.get());
+void ReferenceType::codegenDefinition(Buffer* buffer, Sections* sections) {
+  sections->registerTypeAccess(underlying);
 }
 
-void MutableReferenceType::codegenDefinition(Buffer* buffer, Sections* sections) const {
-  sections->registerTypeAccess(underlying.get());
+void MutableReferenceType::codegenDefinition(Buffer* buffer, Sections* sections) {
+  sections->registerTypeAccess(underlying);
 }
 
-void PointerType::codegenDefinition(Buffer* buffer, Sections* sections) const {
-  if (underlying.dynamicCast<ConceptType>())
-    sections->registerTypeAccess(underlying.get());
+void PointerType::codegenDefinition(Buffer* buffer, Sections* sections) {
+  if (dynamic_cast<ConceptType*>(underlying))
+    sections->registerTypeAccess(underlying);
   else
-    sections->registerTypePointer(underlying.get());
+    sections->registerTypePointer(underlying);
 }
 
-void MutablePointerType::codegenDefinition(Buffer* buffer, Sections* sections) const {
-  if (underlying.dynamicCast<ConceptType>())
-    sections->registerTypeAccess(underlying.get());
+void MutablePointerType::codegenDefinition(Buffer* buffer, Sections* sections) {
+  if (dynamic_cast<ConceptType*>(underlying))
+    sections->registerTypeAccess(underlying);
   else
-    sections->registerTypePointer(underlying.get());
+    sections->registerTypePointer(underlying);
 }
 
-void OptionalType::codegenDefinition(Buffer* buffer, Sections* sections) const {
-  sections->registerTypeAccess(underlying.get());
+void OptionalType::codegenDefinition(Buffer* buffer, Sections* sections) {
+  sections->registerTypeAccess(underlying);
 }
 
-void EnumType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+void EnumType::codegenDefinition(Buffer* buffer, Sections* sections) {
   if (!external) {
     buffer->add("enum class " + name + " {");
     ++buffer->indent;
@@ -623,11 +623,11 @@ void EnumType::codegenDefinition(Buffer* buffer, Sections* sections) const {
   }
 }
 
-void StructType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+void StructType::codegenDefinition(Buffer* buffer, Sections* sections) {
   if (external) {
     if (auto name = getMangledName()) {
       for (auto& elem : parent->memberTemplateParams)
-        sections->registerTypePointer(templateParams[elem].get());
+        sections->registerTypePointer(templateParams[elem]);
     }
     return;
   }
@@ -637,7 +637,7 @@ void StructType::codegenDefinition(Buffer* buffer, Sections* sections) const {
       return;
     }
     for (auto& elem : members)
-      sections->registerTypeAccess(elem.type.get());
+      sections->registerTypeAccess(elem.type);
     buffer->add("struct " + *name);
     buffer->add(" {");
     ++buffer->indent;
@@ -670,7 +670,7 @@ static unique_ptr<StatementBlock> generateLambdaBody(Statement* body, const Lamb
 
 using LambdaSet = unordered_set<const LambdaType*>;
 
-void codegenLambda(const LambdaType* lambda, Buffer* buffer, Sections* sections) {
+void codegenLambda(LambdaType* lambda, Buffer* buffer, Sections* sections) {
   vector<unique_ptr<FunctionDefinition>> defs;
   if (lambda->functionInfo->getMangledSuffix()) {
     const auto dummyIdent = IdentifierInfo("ignore", lambda->body->codeLoc);
@@ -700,7 +700,7 @@ void codegenLambda(const LambdaType* lambda, Buffer* buffer, Sections* sections)
       auto destructorBody = getLambdaBody(lambda->destructor.get());
       destructorBody->destructorCalls.emplace_back();
       destructorBody->functionInfo = FunctionInfo::getImplicit("destruct"s,
-          FunctionSignature(BuiltinType::VOID, {PointerType::get(lambda->get_this().get())}, {}));
+          FunctionSignature(BuiltinType::VOID, {PointerType::get(lambda)}, {}));
       destructorBody->body->elems.push_back(unique<ReturnStatement>(destructorBody->codeLoc));
       destructorBody->codegen(buffer, sections);
     }
@@ -798,7 +798,7 @@ void SwitchStatement::codegenUnion(Buffer* buffer, Sections* sections) const {
   buffer->add("{ auto&& "s + unionTmpRef + " = ");
   expr->codegen(buffer, sections);
   buffer->add(";");
-  sections->registerTypeAccess(targetType.get().get());
+  sections->registerTypeAccess(targetType);
   if (destructorCall) {
     buffer->add("auto " + getDestructorName(unionTmpRef) + " = deferDestruct([&]{ "
         + destructorCall->getMangledName() + "(&" + unionTmpRef + ");});");
@@ -903,7 +903,7 @@ void ImportStatement::codegen(Buffer* buffer, Sections* sections) const {
 }
 
 void EnumConstant::codegen(Buffer* buffer, Sections* sections) const {
-  sections->registerTypeAccess(enumType.get().get());
+  sections->registerTypeAccess(enumType);
   buffer->add(enumType->getCodegenName() + "::" + enumElement);
 }
 
@@ -921,7 +921,7 @@ static string getVTableFunName(const FunctionId id) {
   );
 }
 
-void ConceptType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+void ConceptType::codegenDefinition(Buffer* buffer, Sections* sections) {
   const auto vTableName = getVTableName(*getMangledName());
   auto functions = getConceptFor(concept->getParams()[0])->getContext().getAllFunctions();
   auto typeBuf = unique<Buffer>(true);
@@ -931,7 +931,7 @@ void ConceptType::codegenDefinition(Buffer* buffer, Sections* sections) const {
   for (auto& fun : functions) {
     typeBuf->newLine(fun->type.retVal->getCodegenName() + " (*" + getVTableFunName(fun->id) + ")(");
     for (auto param : fun->type.params)
-      sections->registerTypeAccess(param.get());
+      sections->registerTypeAccess(param);
     addVTableParams(fun, typeBuf.get());
     typeBuf->add(");");
   }
@@ -942,14 +942,14 @@ void ConceptType::codegenDefinition(Buffer* buffer, Sections* sections) const {
   sections->sections[Section::TYPES].push_back(std::move(typeBuf));
   ErrorBuffer errors;
   for (auto fun : functions) {
-    fun = replaceInFunction(concept->getContext(), fun, concept->getParams()[0], get_this().get(), errors);
+    fun = replaceInFunction(concept->getContext(), fun, concept->getParams()[0], this, errors);
     buffer->newLine("inline " + fun->type.retVal->getCodegenName() + " " + fun->getMangledName() + "(");
     auto getArgName = [](int i) { return "_arg" + to_string(i); };
     string virtualArg;
-    sections->registerTypeAccess(fun->type.retVal.get());
+    sections->registerTypeAccess(fun->type.retVal);
     for (int i = 0; i < fun->type.params.size(); ++i) {
       auto& param = fun->type.params[i];
-      sections->registerTypeAccess(param.get());
+      sections->registerTypeAccess(param);
       buffer->add((i > 0 ? ", " : "") + param->getCodegenName() + " " + getArgName(i));
       if (i > 0)
         virtualArg += ", ";
@@ -994,10 +994,10 @@ void ArrayLiteral::codegen(Buffer* buffer, Sections* sections) const {
 }
 
 void LambdaExpression::codegen(Buffer* buffer, Sections* sections) const {
-  sections->registerTypeAccess(type.get().get());
+  sections->registerTypeAccess(type);
   for (auto& f : functionCalls)
     sections->registerFunctionCall(f.get());
-  codegenLambda(type.get().get(), sections->newBuffer(Section::DEFINITIONS), sections);
+  codegenLambda(type, sections->newBuffer(Section::DEFINITIONS), sections);
   buffer->add(type->getCodegenName() + "{");
   for (auto& capture : captureInfo.captures) {
     switch (capture.type) {
@@ -1022,7 +1022,7 @@ void LambdaExpression::codegen(Buffer* buffer, Sections* sections) const {
   buffer->add("}");
 }
 
-void LambdaType::codegenDefinition(Buffer* buffer, Sections* sections) const {
+void LambdaType::codegenDefinition(Buffer* buffer, Sections* sections) {
   buffer->add("struct " + getCodegenName() + " {");
   for (auto& capture : captures)
     buffer->newLine(capture.type->getCodegenName() + " " + capture.name + ";");
@@ -1072,8 +1072,8 @@ void TernaryExpression::codegen(Buffer* buffer, Sections* sections) const {
 }
 
 void FatPointerConversion::codegen(Buffer* buffer, Sections* sections) const {
-  sections->registerFatPointer(conceptType.get(), argType.get(), functions);
-  if (toType.dynamicCast<PointerType>())
+  sections->registerFatPointer(conceptType, argType, functions);
+  if (dynamic_cast<PointerType*>(toType))
     buffer->add("make_const_fat_ptr(");
   else
     buffer->add("make_fat_ptr(");

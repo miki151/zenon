@@ -4,7 +4,7 @@
 
 JustError<string> TypeRegistry::addStruct(const string& name, bool external, CodeLoc definition) {
   TRY(checkNameConflict(name));
-  auto s = shared<StructType>(name, StructType::Private{});
+  auto s = new StructType(name, StructType::Private{});
   s->parent = s;
   s->external = external;
   s->definition = definition;
@@ -14,30 +14,30 @@ JustError<string> TypeRegistry::addStruct(const string& name, bool external, Cod
 
 JustError<string> TypeRegistry::addEnum(const string& name, bool external, CodeLoc definition) {
   TRY(checkNameConflict(name));
-  auto e = shared<EnumType>(name, EnumType::Private{});
+  auto e = new EnumType(name, EnumType::Private{});
   e->external = external;
   e->definition = definition;
   enums.insert(make_pair(name, e));
   return success;
 }
 
-nullable<shared_ptr<StructType>> TypeRegistry::getStruct(const string& name) const {
+StructType* TypeRegistry::getStruct(const string& name) const {
   if (auto s = getValueMaybe(structs, name))
     return *s;
   return nullptr;
 }
 
-nullable<shared_ptr<EnumType>> TypeRegistry::getEnum(const string& name) const {
+EnumType* TypeRegistry::getEnum(const string& name) const {
   if (auto s = getValueMaybe(enums, name))
     return *s;
   return nullptr;
 }
 
-nullable<SType> TypeRegistry::getType(const string& name) const {
+Type* TypeRegistry::getType(const string& name) const {
   if (auto s = getStruct(name))
-    return SType(s.get());
+    return s;
   if (auto s = getEnum(name))
-    return SType(s.get());
+    return s;
   return nullptr;
 }
 
@@ -49,15 +49,15 @@ JustError<string> TypeRegistry::checkNameConflict(const string& name) const {
   return success;
 }
 
-vector<shared_ptr<StructType>> TypeRegistry::getAllStructs() const {
-  vector<shared_ptr<StructType>> ret;
+vector<StructType*> TypeRegistry::getAllStructs() const {
+  vector<StructType*> ret;
   for (auto& elem : structs)
     ret.push_back(elem.second);
   return ret;
 }
 
-vector<shared_ptr<EnumType>> TypeRegistry::getAllEnums() const {
-  vector<shared_ptr<EnumType>> ret;
+vector<EnumType*> TypeRegistry::getAllEnums() const {
+  vector<EnumType*> ret;
   for (auto& elem : enums)
     ret.push_back(elem.second);
   return ret;

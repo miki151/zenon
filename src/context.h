@@ -38,27 +38,27 @@ class Context : public owned_object<Context> {
       vector<FunctionSignature> existing = {}) const;
   nullable<SFunctionInfo> isGeneralizationWithoutReturnType(const SFunctionInfo& general, const SFunctionInfo& specific,
       vector<FunctionSignature> existing = {}) const;
-  WithError<SType> getTypeOfVariable(const string&) const;
+  WithError<Type*> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
-  void addVariable(const string& ident, SType, CodeLoc, bool global = false);
+  void addVariable(const string& ident, Type*, CodeLoc, bool global = false);
   void setShadowId(const string& oldId, const string& newId);
   optional<string> getShadowId(const string& id) const;
   void setNonMovable(const string& variable);
   bool isNonMovable(const string& variable) const;
-  void replace(const Context&, SType from, SType to, ErrorBuffer&);
-  void expand(SType, vector<SType> to, ErrorBuffer&);
+  void replace(const Context&, Type* from, Type* to, ErrorBuffer&);
+  void expand(Type*, vector<Type*> to, ErrorBuffer&);
   ReturnTypeChecker* getReturnTypeChecker() const;
   void addReturnTypeChecker(ReturnTypeChecker*);
-  void addType(const string& name, SType);
-  void setTypeFullyDefined(SType);
-  void addExpandedTypePack(const string& name, vector<SType>);
-  void addUnexpandedTypePack(string, SType);
-  void addUnexpandedVariablePack(string, SType);
-  void addExpandedVariablePack(const string& name, vector<SType>);
-  optional<pair<string, vector<SType>>> getExpandedTypePack() const;
-  WithError<pair<string, vector<SType>>> getExpandedVariablePack() const;
-  optional<pair<string, SType>> getUnexpandedTypePack() const;
-  optional<pair<string, SType>> getUnexpandedVariablePack() const;
+  void addType(const string& name, Type*);
+  void setTypeFullyDefined(Type*);
+  void addExpandedTypePack(const string& name, vector<Type*>);
+  void addUnexpandedTypePack(string, Type*);
+  void addUnexpandedVariablePack(string, Type*);
+  void addExpandedVariablePack(const string& name, vector<Type*>);
+  optional<pair<string, vector<Type*>>> getExpandedTypePack() const;
+  WithError<pair<string, vector<Type*>>> getExpandedVariablePack() const;
+  optional<pair<string, Type*>> getUnexpandedTypePack() const;
+  optional<pair<string, Type*>> getUnexpandedVariablePack() const;
   struct SubstitutionInfo {
     string from;
     string to;
@@ -66,36 +66,36 @@ class Context : public owned_object<Context> {
   };
   void addSubstitution(SubstitutionInfo);
   vector<SubstitutionInfo> getSubstitutions() const;
-  void setAttribute(SType, SType, vector<SType> templateParams);
-  void setStructMembers(SType structType, vector<SType> members, vector<SType> templateParams);
-  WithErrorLine<SType> getTypeFromString(IdentifierInfo, optional<bool> typePack = false) const;
-  nullable<SType> getType(const string&) const;
-  SType getSliceType(SType underlying) const;
-  SType getMutableSliceType(SType underlying) const;
+  void setAttribute(Type*, Type*, vector<Type*> templateParams);
+  void setStructMembers(Type* structType, vector<Type*> members, vector<Type*> templateParams);
+  WithErrorLine<Type*> getTypeFromString(IdentifierInfo, optional<bool> typePack = false) const;
+  Type* getType(const string&) const;
+  Type* getSliceType(Type* underlying) const;
+  Type* getMutableSliceType(Type* underlying) const;
   bool isFullyDefined(const Type*) const;
-  vector<SType> getAllTypes() const;
+  vector<Type*> getAllTypes() const;
   NODISCARD JustError<string> addImplicitFunction(FunctionId, FunctionSignature);
   NODISCARD JustError<string> addFunction(SFunctionInfo);
   WithError<vector<SFunctionInfo>> getFunctionTemplate(IdentifierInfo, bool compileTimeArgs) const;
-  WithEvalError<SType> invokeFunction(const string& id, CodeLoc loc, vector<SType> args, vector<CodeLoc> argLoc) const;
-  using BuiltInFunction = function<WithError<SType>(const Context&, vector<SType>)>;
-  void addBuiltInFunction(const string& id, SType returnType, vector<SType> argTypes, BuiltInFunction);
+  WithEvalError<Type*> invokeFunction(const string& id, CodeLoc loc, vector<Type*> args, vector<CodeLoc> argLoc) const;
+  using BuiltInFunction = function<WithError<Type*>(const Context&, vector<Type*>)>;
+  void addBuiltInFunction(const string& id, Type* returnType, vector<Type*> argTypes, BuiltInFunction);
   vector<SFunctionInfo> getOperatorType(Operator) const;
-  nullable<SFunctionInfo> getBuiltinOperator(Operator, vector<SType> argTypes) const;
+  nullable<SFunctionInfo> getBuiltinOperator(Operator, vector<Type*> argTypes) const;
   NODISCARD JustError<string> checkNameConflict(const string& name, const string& type) const;
   NODISCARD JustError<string> checkNameConflictExcludingFunctions(const string& name, const string& type) const;
   void addConcept(const string& name, SConcept);
   nullable<SConcept> getConcept(const string& name) const;
   void print() const;
-  vector<SType> getConversions(SType, SType, bool withConcepts) const;
-  JustError<string> canConvert(SType from, SType to, unique_ptr<Expression>&) const;
-  JustError<string> canConvert(SType from, SType to) const;
+  vector<Type*> getConversions(Type*, Type*, bool withConcepts) const;
+  JustError<string> canConvert(Type* from, Type* to, unique_ptr<Expression>&) const;
+  JustError<string> canConvert(Type* from, Type* to) const;
   optional<int> getLoopId() const;
   int setIsInLoop();
   void setIsInBranch();
   bool areParamsEquivalent(FunctionSignature, FunctionSignature) const;
-  optional<vector<SType>> getTemplateParams() const;
-  void setTemplated(vector<SType>);
+  optional<vector<Type*>> getTemplateParams() const;
+  void setTemplated(vector<Type*>);
   void setTemplateInstance();
   bool isTemplateInstance() const;
   void setLambda(LambdaCaptureInfo*);
@@ -103,12 +103,12 @@ class Context : public owned_object<Context> {
   struct BuiltInFunctionInfo {
     SFunctionInfo functionInfo;
     BuiltInFunction fun;
-    WithEvalError<SType> invokeFunction(const Context&, const string& id, CodeLoc loc, vector<SType> args,
+    WithEvalError<Type*> invokeFunction(const Context&, const string& id, CodeLoc loc, vector<Type*> args,
         vector<CodeLoc> argLoc) const;
   };
 
   struct VariableInfo {
-    SType type;
+    Type* type;
     CodeLoc declarationLoc;
     bool global;
   };
@@ -117,12 +117,12 @@ class Context : public owned_object<Context> {
     map<string, VariableInfo> vars;
     map<string, string> shadowIds;
     vector<string> varsList;
-    map<string, SType> types;
+    map<string, Type*> types;
     set<const Type*> typesSet;
-    optional<pair<string, vector<SType>>> expandedTypePack;
-    optional<pair<string, vector<SType>>> expandedVariablePack;
-    optional<pair<string, SType>> unexpandedVariablePack;
-    optional<pair<string, SType>> unexpandedTypePack;
+    optional<pair<string, vector<Type*>>> expandedTypePack;
+    optional<pair<string, vector<Type*>>> expandedVariablePack;
+    optional<pair<string, Type*>> unexpandedVariablePack;
+    optional<pair<string, Type*>> unexpandedTypePack;
     map<FunctionId, vector<SFunctionInfo>> functions;
     ReturnTypeChecker* returnTypeChecker = nullptr;
     map<string, shared_ptr<Concept>> concepts;
@@ -130,7 +130,7 @@ class Context : public owned_object<Context> {
     optional<int> loopId;
     bool isBranch = false;
     bool isTemplateInstance = false;
-    vector<SType> templateParams;
+    vector<Type*> templateParams;
     LambdaCaptureInfo* lambdaInfo;
     vector<SubstitutionInfo> substitutions;
     unordered_set<string> nonMovableVars;
@@ -141,7 +141,7 @@ class Context : public owned_object<Context> {
 
   using ConstStates = vector<shared_ptr<const State>>;
 
-  WithErrorLine<vector<SType>> getTypeList(const vector<TemplateParameterInfo>&, bool variadic) const;
+  WithErrorLine<vector<Type*>> getTypeList(const vector<TemplateParameterInfo>&, bool variadic) const;
   vector<SFunctionInfo> getFunctions(FunctionId, bool compileTime) const;
   vector<SFunctionInfo> getAllFunctions() const;
 
@@ -156,6 +156,6 @@ class Context : public owned_object<Context> {
   shared_ptr<State> state;
 
   StateContainer getReversedStates() const;
-  nullable<SType> getVariable(const string&) const;
-  vector<SFunctionInfo> getConstructorsFor(const SType&) const;
+  Type* getVariable(const string&) const;
+  vector<SFunctionInfo> getConstructorsFor(Type*) const;
 };

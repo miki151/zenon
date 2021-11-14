@@ -7,11 +7,11 @@ struct Expression;
 
 class ReturnTypeChecker {
   public:
-  ReturnTypeChecker(nullable<SType> explicitReturn);
-  JustError<string> addReturnStatement(const Context&, SType, unique_ptr<Expression>& expr);
-  SType getReturnType() const;
+  ReturnTypeChecker(Type* explicitReturn);
+  JustError<string> addReturnStatement(const Context&, Type*, unique_ptr<Expression>& expr);
+  Type* getReturnType() const;
 
   private:
-  nullable<SType> explicitReturn;
-  nullable<SType> returnStatement;
+  Type* explicitReturn = nullptr;
+  Type* returnStatement = nullptr;
 };
