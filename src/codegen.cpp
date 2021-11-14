@@ -52,7 +52,7 @@ static string getVTableName(const string& concept) {
   return concept + "_vtable";
 }
 
-void addVTableParams(const SFunctionInfo& fun, Buffer* buffer) {
+void addVTableParams(FunctionInfo* fun, Buffer* buffer) {
   for (auto& param : fun->type.params) {
     if (param->getMangledName())
       buffer->add(param->getCodegenName());
@@ -65,7 +65,7 @@ void addVTableParams(const SFunctionInfo& fun, Buffer* buffer) {
   buffer->pop_back();
 }
 
-static string getFunctionParams(const FunctionInfo& functionInfo, const FunctionDefinition* definition) {
+static string getFunctionParams(FunctionInfo& functionInfo, const FunctionDefinition* definition) {
   string ret;
   for (int i = 0; i < functionInfo.type.params.size(); ++i) {
     auto& param = functionInfo.type.params[i];
@@ -90,7 +90,7 @@ static string getFunctionParams(const FunctionInfo& functionInfo, const Function
   return ret;
 }
 
-static string getVTableBinder(const FunctionInfo& function) {
+static string getVTableBinder(FunctionInfo& function) {
   auto ret = "+[](" + getFunctionParams(function, nullptr) + ") { return " + function.getMangledName() + "(";
   for (int i = 0; i < function.type.params.size(); ++i) {
     if (i > 0)
@@ -112,8 +112,8 @@ struct Sections {
   }
   void registerFunctionCall(FunctionInfo* functionInfo) {
     if (auto def = functionInfo->getDefinition()) {
-      if (!emitted.count(functionInfo->getWithoutRequirements().get())) {
-        emitted.insert(functionInfo->getWithoutRequirements().get());
+      if (!emitted.count(functionInfo->getWithoutRequirements())) {
+        emitted.insert(functionInfo->getWithoutRequirements());
         def->codegenInstance(newBuffer(Section::DEFINITIONS), this, functionInfo);
       }
     } else
@@ -138,7 +138,7 @@ struct Sections {
     if (dynamic_cast<StructType*>(type))
       buffer->newLine("enum " + type->getCodegenName() + ";");
   }
-  void registerFatPointer(ConceptType* conceptType, Type* type, vector<SFunctionInfo> vTable) {
+  void registerFatPointer(ConceptType* conceptType, Type* type, vector<FunctionInfo*> vTable) {
     if (fatPointers.count({conceptType, type}))
       return;
     fatPointers.insert({conceptType, type});
@@ -152,7 +152,7 @@ struct Sections {
     ++defBuffer->indent;
     auto functions = conceptType->getConceptFor(conceptType->concept->getParams()[0])->getContext().getAllFunctions();
     for (int i = 0; i < functions.size(); ++i) {
-      registerFunctionCall(vTable[i].get());
+      registerFunctionCall(vTable[i]);
       defBuffer->newLine("reinterpret_cast<" + functions[i]->type.retVal->getCodegenName() + " (*)(");
       addVTableParams(functions[i], defBuffer);
       defBuffer->add(")>(" + getVTableBinder(*vTable[i]) + "),");
@@ -225,7 +225,7 @@ void MoveExpression::codegen(Buffer* buffer, Sections* sections) const {
 }
 
 void BinaryExpression::codegen(Buffer* buffer, Sections* sections) const {
-  sections->registerFunctionCall(functionInfo.get().get());
+  sections->registerFunctionCall(functionInfo);
   if (functionInfo && !functionInfo->type.builtinOperator)
     if (auto opName = getCodegenName(op)) {
       buffer->add(opName + *functionInfo->getMangledSuffix() + "("s);
@@ -235,7 +235,7 @@ void BinaryExpression::codegen(Buffer* buffer, Sections* sections) const {
         expr[index]->codegen(buffer, sections);
         if (destructorCall[index]) {
           buffer->add(", &::" + destructorCall[index]->getMangledName() + ")");
-          sections->registerFunctionCall(destructorCall[index].get().get());
+          sections->registerFunctionCall(destructorCall[index]);
         }
       };
       handleExpr(0);
@@ -329,7 +329,7 @@ void ReturnStatement::codegen(Buffer* buffer, Sections* sections) const {
   buffer->add(";");
 }
 
-static string getFunctionCallName(const FunctionInfo& functionInfo, bool methodCall) {
+static string getFunctionCallName(FunctionInfo& functionInfo, bool methodCall) {
   if (functionInfo.type.generatedConstructor && functionInfo.type.parentType)
     return functionInfo.type.parentType->getCodegenName();
   string typePrefix;
@@ -361,7 +361,7 @@ void FunctionCall::codegen(Buffer* buffer, Sections* sections) const {
       buffer->add("op_get_address(");
       if (destructorCall) {
         buffer->add("*get_temporary_holder(");
-        sections->registerFunctionCall(destructorCall.get().get());
+        sections->registerFunctionCall(destructorCall);
       }
     }
     arg->codegen(buffer, sections);
@@ -380,17 +380,17 @@ void FunctionCall::codegen(Buffer* buffer, Sections* sections) const {
   buffer->add(suffix);
   if (voidConversion)
     buffer->add("; void_value; })");
-  sections->registerFunctionCall(functionInfo.get().get());
+  sections->registerFunctionCall(functionInfo);
 }
 
-static string getFunctionSignatureName(const FunctionInfo& function) {
+static string getFunctionSignatureName(FunctionInfo& function) {
   string typePrefix;
   if (function.type.parentType)
     typePrefix = function.type.parentType->getName() + "::";
   return function.getMangledName();
 }
 
-static string getSignature(const FunctionInfo& functionInfo, const FunctionDefinition* definition) {
+static string getSignature(FunctionInfo& functionInfo, const FunctionDefinition* definition) {
   return functionInfo.type.retVal->getCodegenName() + " "
       + getFunctionSignatureName(functionInfo) + "("
       + getFunctionParams(functionInfo, definition) + ")";
@@ -440,11 +440,11 @@ void FunctionDefinition::handlePointerReturnInOperator(Buffer* buffer, Sections*
 }
 
 void FunctionDefinition::codegen(Buffer* buffer, Sections* sections) const {
-  codegenInstance(buffer, sections, functionInfo.get().get());
+  codegenInstance(buffer, sections, functionInfo);
 }
 
 void FunctionDefinition::codegenInstance(Buffer* buffer, Sections* sections, FunctionInfo* info) const {
-  auto addInstance = [&](const FunctionInfo& functionInfo, StatementBlock* body,
+  auto addInstance = [&](FunctionInfo& functionInfo, StatementBlock* body,
       const vector<unique_ptr<Statement>>& destructors) {
     if (!external) {
       if (!functionInfo.type.templateParams.empty())
@@ -473,7 +473,7 @@ void FunctionDefinition::codegenInstance(Buffer* buffer, Sections* sections, Fun
         sections->registerTypeAccess(param);
     }
   };
-  if (info == functionInfo.get().get()) {
+  if (info == functionInfo) {
     addInstance(*functionInfo, body.get(), destructorCalls);
     return;
   }
@@ -802,7 +802,7 @@ void SwitchStatement::codegenUnion(Buffer* buffer, Sections* sections) const {
   if (destructorCall) {
     buffer->add("auto " + getDestructorName(unionTmpRef) + " = deferDestruct([&]{ "
         + destructorCall->getMangledName() + "(&" + unionTmpRef + ");});");
-    sections->registerFunctionCall(destructorCall.get().get());
+    sections->registerFunctionCall(destructorCall);
   }
   buffer->newLine("switch ("s + unionTmpRef + "."s + unionDiscriminatorName + ") {");
   ++buffer->indent;
@@ -836,7 +836,7 @@ void SwitchStatement::codegenUnion(Buffer* buffer, Sections* sections) const {
 
 void UnaryExpression::codegen(Buffer* buffer, Sections* sections) const {
   if (functionInfo)
-    sections->registerFunctionCall(functionInfo.get().get());
+    sections->registerFunctionCall(functionInfo);
   if (functionInfo && !functionInfo->type.builtinOperator)
     if (auto opName = getCodegenName(op)) {
       buffer->add(opName + *functionInfo->getMangledSuffix() + "("s);
@@ -845,7 +845,7 @@ void UnaryExpression::codegen(Buffer* buffer, Sections* sections) const {
       expr->codegen(buffer, sections);
       if (destructorCall) {
         buffer->add(", &::" + destructorCall->getMangledName() + ")");
-        sections->registerFunctionCall(destructorCall.get().get());
+        sections->registerFunctionCall(destructorCall);
       }
       buffer->add(")");
       return;
@@ -996,7 +996,7 @@ void ArrayLiteral::codegen(Buffer* buffer, Sections* sections) const {
 void LambdaExpression::codegen(Buffer* buffer, Sections* sections) const {
   sections->registerTypeAccess(type);
   for (auto& f : functionCalls)
-    sections->registerFunctionCall(f.get());
+    sections->registerFunctionCall(f);
   codegenLambda(type, sections->newBuffer(Section::DEFINITIONS), sections);
   buffer->add(type->getCodegenName() + "{");
   for (auto& capture : captureInfo.captures) {
@@ -1037,7 +1037,7 @@ void VariablePackElement::codegen(Buffer* buffer, Sections* sections) const {
   buffer->add(*codegenName);
 }
 
-static void codegenMember(Buffer* buffer, Sections* sections, const nullable<SFunctionInfo>& destructorCall,
+static void codegenMember(Buffer* buffer, Sections* sections, FunctionInfo* destructorCall,
     bool isMainDestructor, const string& identifier, const Expression& lhs, bool isUnion) {
   buffer->add("(");
   if (destructorCall) {
@@ -1045,7 +1045,7 @@ static void codegenMember(Buffer* buffer, Sections* sections, const nullable<SFu
       buffer->add("(*get_temporary_holder(");
     else
       buffer->add("{auto&& tmp = ");
-    sections->registerFunctionCall(destructorCall.get().get());
+    sections->registerFunctionCall(destructorCall);
   }
   lhs.codegen(buffer, sections);
   if (destructorCall) {

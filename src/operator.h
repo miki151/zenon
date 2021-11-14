@@ -6,7 +6,6 @@
 struct Type;
 
 struct FunctionInfo;
-using SFunctionInfo = shared_ptr<FunctionInfo>;
 
 struct CompileTimeValue;
 using SCompileTimeValue = CompileTimeValue*;

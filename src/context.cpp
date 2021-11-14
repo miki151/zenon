@@ -129,18 +129,18 @@ void Context::setLambda(LambdaCaptureInfo* info) {
   state->lambdaInfo = info;
 }
 
-nullable<SFunctionInfo> Context::isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
+FunctionInfo* Context::isGeneralization(FunctionInfo* general, FunctionInfo* specific,
     vector<FunctionSignature> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
   if (auto inst = isGeneralizationWithoutReturnType(general, specific, existing)) {
-    if (specific->type.retVal == inst.get()->type.retVal)
+    if (specific->type.retVal == inst->type.retVal)
       return inst;
   }
   return nullptr;
 }
 
-nullable<SFunctionInfo> Context::isGeneralizationWithoutReturnType(const SFunctionInfo& general,
-    const SFunctionInfo& specific, vector<FunctionSignature> existing) const {
+FunctionInfo* Context::isGeneralizationWithoutReturnType(FunctionInfo* general,
+    FunctionInfo* specific, vector<FunctionSignature> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
   if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, specific->type.params,
       vector<CodeLoc>(specific->type.params.size(), CodeLoc()), existing))
@@ -148,19 +148,19 @@ nullable<SFunctionInfo> Context::isGeneralizationWithoutReturnType(const SFuncti
   return nullptr;
 }
 
-WithError<vector<SFunctionInfo>> Context::getRequiredFunctions(const Concept& required,
+WithError<vector<FunctionInfo*>> Context::getRequiredFunctions(const Concept& required,
     vector<FunctionSignature> existing) const {
-  vector<SFunctionInfo> ret;
+  vector<FunctionInfo*> ret;
   for (auto otherState : required.getContext().getReversedStates()) {
     for (auto& overloads : otherState->functions)
       for (auto& function : overloads.second) {
-        auto getFunction = [&]() -> optional<SFunctionInfo> {
+        auto getFunction = [&]() -> optional<FunctionInfo*> {
           for (auto& overload : getSpecialOverloads(overloads.first, function->type.params))
             if (isGeneralization(overload, function, existing))
               return overload;
           for (auto& myFun : getFunctions(overloads.first, false))
             if (auto gen = isGeneralization(myFun, function, existing))
-              return gen.get();
+              return gen;
           return none;
         };
         if (auto res = getFunction())
@@ -631,8 +631,8 @@ JustError<string> Context::addImplicitFunction(FunctionId id, FunctionSignature 
   return addFunction(FunctionInfo::getImplicit(std::move(id), std::move(type)));
 }
 
-vector<SFunctionInfo> Context::getFunctions(FunctionId name, bool compileTime) const {
-  vector<SFunctionInfo> ret;
+vector<FunctionInfo*> Context::getFunctions(FunctionId name, bool compileTime) const {
+  vector<FunctionInfo*> ret;
   for (auto state : getReversedStates()) {
     if (state->functions.count(name))
       append(ret, state->functions.at(name));
@@ -644,8 +644,8 @@ vector<SFunctionInfo> Context::getFunctions(FunctionId name, bool compileTime) c
   return ret;
 }
 
-vector<SFunctionInfo> Context::getAllFunctions() const {
-  vector<SFunctionInfo> ret;
+vector<FunctionInfo*> Context::getAllFunctions() const {
+  vector<FunctionInfo*> ret;
   for (auto state : getReversedStates())
     for (auto& overloadSet : state->functions)
       for (auto& fun : overloadSet.second)
@@ -770,7 +770,7 @@ JustError<std::string> Context::checkNameConflictExcludingFunctions(const string
   return success;
 }
 
-JustError<string> Context::addFunction(SFunctionInfo info) {
+JustError<string> Context::addFunction(FunctionInfo* info) {
   auto& overloads = state->functions[info->id];
   for (auto& fun : overloads)
     if ((!info->id.contains<ConstructorTag>() || fun->type.retVal == info->type.retVal) &&
@@ -781,8 +781,8 @@ JustError<string> Context::addFunction(SFunctionInfo info) {
   return success;
 }
 
-vector<SFunctionInfo> Context::getConstructorsFor(Type* type) const {
-  vector<SFunctionInfo> ret;
+vector<FunctionInfo*> Context::getConstructorsFor(Type* type) const {
+  vector<FunctionInfo*> ret;
   for (auto& fun : getFunctions(ConstructorTag{}, false)) {
     if (fun->type.retVal == type) {
       ret.push_back(fun);
@@ -796,8 +796,8 @@ vector<SFunctionInfo> Context::getConstructorsFor(Type* type) const {
   return ret;
 }
 
-WithError<vector<SFunctionInfo>> Context::getFunctionTemplate(IdentifierInfo id, bool compileTimeArgs) const {
-  vector<SFunctionInfo> ret;
+WithError<vector<FunctionInfo*>> Context::getFunctionTemplate(IdentifierInfo id, bool compileTimeArgs) const {
+  vector<FunctionInfo*> ret;
   if (id.parts.size() > 1) {
     if (auto type = getTypeFromString(IdentifierInfo(id.parts[0], id.codeLoc)))
       return (*type)->getStaticContext().getFunctionTemplate(id.getWithoutFirstPart(), compileTimeArgs);
@@ -841,7 +841,7 @@ void Context::addBuiltInFunction(const string& id, Type* returnType, vector<Type
       FunctionInfo::getImplicit(id, FunctionSignature(returnType, argTypes, {})), std::move(fun)}));
 }
 
-nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<Type*> argTypes) const {
+FunctionInfo* Context::getBuiltinOperator(Operator op, vector<Type*> argTypes) const {
   auto functionType = [&] () -> optional<FunctionSignature> {
     switch (op) {
       case Operator::GET_ADDRESS:
@@ -878,6 +878,6 @@ nullable<SFunctionInfo> Context::getBuiltinOperator(Operator op, vector<Type*> a
   return nullptr;
 }
 
-vector<SFunctionInfo> Context::getOperatorType(Operator op) const {
+vector<FunctionInfo*> Context::getOperatorType(Operator op) const {
   return getFunctions(op, false);
 }

@@ -20,7 +20,7 @@ using ExprTransformFun = function<unique_ptr<Expression>(Expression*)>;
 using StmtTransformFun = function<unique_ptr<Statement>(Statement*)>;
 using ExprVisitFun = function<void(Expression*)>;
 using StmtVisitFun = function<void(Statement*)>;
-using FunctionCallVisitFun = function<void(SFunctionInfo)>;
+using FunctionCallVisitFun = function<void(FunctionInfo*)>;
 using LambdasSet = unordered_set<const LambdaType*>;
 using ConceptsSet = unordered_set<const ConceptType*>;
 
@@ -101,7 +101,7 @@ struct MemberAccessExpression : Expression {
   unique_ptr<Expression> lhs;
   string identifier;
   bool isUnion = false;
-  nullable<SFunctionInfo> destructorCall;
+  FunctionInfo* destructorCall = nullptr;
   bool isMainDestructor = false;
 };
 
@@ -116,8 +116,8 @@ struct BinaryExpression : Expression {
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   Operator op;
   vector<unique_ptr<Expression>> expr;
-  nullable<SFunctionInfo> functionInfo;
-  nullable<SFunctionInfo> destructorCall[2];
+  FunctionInfo* functionInfo = nullptr;
+  FunctionInfo* destructorCall[2] = {nullptr, nullptr};
   struct Private {};
   BinaryExpression(Private, CodeLoc, Operator, vector<unique_ptr<Expression>>);
   JustError<ErrorLoc> considerDestructorCall(const Context&, int index, Type* argType);
@@ -134,8 +134,8 @@ struct UnaryExpression : Expression {
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   Operator op;
   unique_ptr<Expression> expr;
-  nullable<SFunctionInfo> functionInfo;
-  nullable<SFunctionInfo> destructorCall;
+  FunctionInfo* functionInfo = nullptr;
+  FunctionInfo* destructorCall = nullptr;
 };
 
 struct TernaryExpression : Expression {
@@ -219,7 +219,7 @@ struct LambdaExpression : Expression {
   optional<IdentifierInfo> returnType;
   LambdaType* type = nullptr;
   LambdaCaptureInfo captureInfo;
-  vector<SFunctionInfo> functionCalls;
+  vector<FunctionInfo*> functionCalls;
 };
 
 struct ArrayLiteral : Expression {
@@ -235,7 +235,7 @@ struct ArrayLiteral : Expression {
 };
 
 struct FatPointerConversion : Expression {
-  FatPointerConversion(CodeLoc, vector<SFunctionInfo> functions, Type* toType, Type* argType, unique_ptr<Expression> arg,
+  FatPointerConversion(CodeLoc, vector<FunctionInfo*> functions, Type* toType, Type* argType, unique_ptr<Expression> arg,
       ConceptType* conceptType);
   virtual WithErrorLine<Type*> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
@@ -246,7 +246,7 @@ struct FatPointerConversion : Expression {
   Type* argType = nullptr;
   unique_ptr<Expression> arg;
   ConceptType* conceptType = nullptr;
-  vector<SFunctionInfo> functions;
+  vector<FunctionInfo*> functions;
 };
 
 enum class MethodCallType { METHOD, FUNCTION_AS_METHOD, FUNCTION_AS_METHOD_WITH_POINTER };
@@ -263,11 +263,11 @@ struct FunctionCall : Expression {
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   IdentifierInfo identifier;
   optional<vector<Type*>> templateArgs;
-  nullable<SFunctionInfo> functionInfo;
+  FunctionInfo* functionInfo = nullptr;
   vector<unique_ptr<Expression>> arguments;
   vector<optional<string>> argNames;
   optional<MethodCallType> callType;
-  nullable<SFunctionInfo> destructorCall;
+  FunctionInfo* destructorCall = nullptr;
   bool methodCall = false;
   bool variadicArgs = false;
   bool variadicTemplateArgs = false;
@@ -566,7 +566,7 @@ struct ConceptDefinition : Statement {
   TemplateInfo templateInfo;
   struct FatPointerInfo {
     Type* type;
-    vector<SFunctionInfo> vTable;
+    vector<FunctionInfo*> vTable;
   };
   void addFatPointer(FatPointerInfo);
   void addConceptType(ConceptType*);
@@ -608,7 +608,7 @@ struct SwitchStatement : Statement {
   vector<CaseElem> caseElems;
   unique_ptr<StatementBlock> defaultBlock;
   unique_ptr<Expression> expr;
-  nullable<SFunctionInfo> destructorCall;
+  FunctionInfo* destructorCall = nullptr;
   enum { ENUM, UNION} type;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const override;
@@ -633,12 +633,12 @@ struct FunctionDefinition : Statement {
   struct InstanceInfo {
     unique_ptr<StatementBlock> body;
     vector<unique_ptr<Statement>> destructorCalls;
-    SFunctionInfo functionInfo;
+    FunctionInfo* functionInfo;
     Context callContext;
   };
   vector<InstanceInfo> instances;
   TemplateInfo templateInfo;
-  nullable<SFunctionInfo> functionInfo;
+  FunctionInfo* functionInfo = nullptr;
   optional<Context> definitionContext;
   bool wasChecked = false;
   bool external = false;
@@ -664,7 +664,7 @@ struct FunctionDefinition : Statement {
       const string& alternativeName, Type* alternativeType, int virtualIndex, int lvalueParam);
   NODISCARD JustError<ErrorLoc> checkAndGenerateCopyFunction(const Context&, const string&);
   NODISCARD JustError<ErrorLoc> checkAndGenerateDefaultConstructor(const Context&);
-  NODISCARD JustError<ErrorLoc> addInstance(const Context& callContext, const SFunctionInfo&);
+  NODISCARD JustError<ErrorLoc> addInstance(const Context& callContext, FunctionInfo*);
   NODISCARD JustError<ErrorLoc> generateDefaultBodies(Context&);
   NODISCARD JustError<ErrorLoc> checkBody(const Context& callContext, StatementBlock& myBody,
       const FunctionInfo& instanceInfo, vector<unique_ptr<Statement> >& destructorCalls) const;
@@ -739,7 +739,7 @@ struct ModuleInfo {
 
 extern WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST&, Context& context, const Context& primary, ImportCache&, bool builtIn);
 extern Context createPrimaryContext(TypeRegistry*);
-extern WithErrorLine<SFunctionInfo> getCopyFunction(const Context&, CodeLoc callLoc, Type*);
-extern WithErrorLine<SFunctionInfo> getImplicitCopyFunction(const Context&, CodeLoc callLoc, Type*);
-extern WithError<vector<SFunctionInfo> > getRequiredFunctionsForConceptType(const Context& context,
+extern WithErrorLine<FunctionInfo*> getCopyFunction(const Context&, CodeLoc callLoc, Type*);
+extern WithErrorLine<FunctionInfo*> getImplicitCopyFunction(const Context&, CodeLoc callLoc, Type*);
+extern WithError<vector<FunctionInfo*> > getRequiredFunctionsForConceptType(const Context& context,
     const Concept& concept, CodeLoc codeLoc);

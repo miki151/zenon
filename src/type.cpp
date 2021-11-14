@@ -208,33 +208,33 @@ FunctionSignature FunctionSignature::setBuiltin() {
   return *this;
 }
 
-SFunctionInfo FunctionInfo::getDefined(FunctionId id, FunctionSignature type, FunctionDefinition* definition) {
+FunctionInfo* FunctionInfo::getDefined(FunctionId id, FunctionSignature type, FunctionDefinition* definition) {
   auto args = make_tuple(id, type, definition);
-  static map<decltype(args), SFunctionInfo> generated;
+  static map<decltype(args), FunctionInfo*> generated;
   if (!generated.count(args)) {
-    generated.insert(make_pair(args, shared<FunctionInfo>(Private{}, id, type, definition)));
+    generated.insert(make_pair(args, new FunctionInfo(Private{}, id, type, definition)));
   }
   return generated.at(args);
 }
 
-SFunctionInfo FunctionInfo::getImplicit(FunctionId id, FunctionSignature type) {
+FunctionInfo* FunctionInfo::getImplicit(FunctionId id, FunctionSignature type) {
   auto args = make_tuple(id, type);
-  static map<decltype(args), SFunctionInfo> generated;
+  static map<decltype(args), FunctionInfo*> generated;
   if (!generated.count(args)) {
-    generated.insert(make_pair(args, shared<FunctionInfo>(Private{}, id, type, nullptr)));
+    generated.insert(make_pair(args, new FunctionInfo(Private{}, id, type, (FunctionInfo*)nullptr)));
   }
   return generated.at(args);
 }
 
-SFunctionInfo FunctionInfo::getInstance(FunctionId id, FunctionSignature type, SFunctionInfo parent) {
+FunctionInfo* FunctionInfo::getInstance(FunctionId id, FunctionSignature type, FunctionInfo* parent) {
   if (id == parent->id && type == parent->type)
     return parent;
   while (!!parent->parent)
-    parent = parent->parent.get();
+    parent = parent->parent;
   auto args = make_tuple(id, type, parent);
-  static map<decltype(args), SFunctionInfo> generated;
+  static map<decltype(args), FunctionInfo*> generated;
   if (!generated.count(args)) {
-    auto ret = shared<FunctionInfo>(Private{}, id, type, parent);
+    auto ret = new FunctionInfo(Private{}, id, type, parent);
     generated.insert(make_pair(args, std::move(ret)));
   }
   return generated.at(args);
@@ -249,7 +249,7 @@ string FunctionInfo::prettyString() const {
       (definition ? definition->codeLoc.toString() : "");
 }
 
-string FunctionInfo::getMangledName() const {
+string FunctionInfo::getMangledName() {
   if (isMainFunction())
     return "zenonMain"s;
   if (id == "copy"s || id == "implicit_copy"s)
@@ -293,7 +293,7 @@ bool FunctionInfo::isConceptTypeFunction() const {
   return !!dynamic_cast<ConceptType*>(type.retVal->removePointer());
 }
 
-optional<string> FunctionInfo::getMangledSuffix() const {
+optional<string> FunctionInfo::getMangledSuffix() {
   if (type.concept)
     return "C" + type.concept->getName(false);
   string suf;
@@ -323,30 +323,30 @@ optional<string> FunctionInfo::getParamName(int index, const FunctionDefinition*
   return none;
 }
 
-SFunctionInfo FunctionInfo::getWithoutRequirements() const {
+FunctionInfo* FunctionInfo::getWithoutRequirements() {
   auto newType = type;
   newType.requirements.clear();
   return getInstance(id, std::move(newType), getParent());
 }
 
-SFunctionInfo FunctionInfo::getParent() const {
+FunctionInfo* FunctionInfo::getParent() {
   if (parent)
-    return parent.get();
+    return parent;
   else
-    return get_this().get();
+    return this;
 }
 
-FunctionDefinition* FunctionInfo::getDefinition() const {
+FunctionDefinition* FunctionInfo::getDefinition() {
   return getParent()->definition;
 }
 
-JustError<ErrorLoc> FunctionInfo::addInstance(const Context& context) const {
+JustError<ErrorLoc> FunctionInfo::addInstance(const Context& context) {
   if (auto def = getDefinition())
-    return def->addInstance(context, get_this().get());
+    return def->addInstance(context, this);
   return success;
 }
 
-FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionSignature type, nullable<SFunctionInfo> parent)
+FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionSignature type, FunctionInfo* parent)
   : id(std::move(id)), type(std::move(type)), parent(std::move(parent)) {}
 
 FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionSignature type, FunctionDefinition* definition)
@@ -707,7 +707,7 @@ void StructType::updateInstantations(const Context& context) {
       for (auto& member : type->members)
         member.type = member.type->replace(context, templateParams[i], type->templateParams[i], errors);
       if (destructor) {
-        type->destructor = replaceInFunction(context, type->destructor.get(), templateParams[i],
+        type->destructor = replaceInFunction(context, type->destructor, templateParams[i],
             type->templateParams[i], errors);
       }
     }
@@ -835,7 +835,7 @@ Type* StructType::replaceImpl(const Context& context, Type* from, Type* to, Erro
       // to use the destructor.
       ErrorBuffer destErrors;
       ret->destructor = destructor;
-      ret->destructor = replaceInFunction(context, ret->destructor.get(), from, to, destErrors);
+      ret->destructor = replaceInFunction(context, ret->destructor, from, to, destErrors);
       CHECK(ret->destructor->type.params[0] == PointerType::get(ret));
     }
   } else
@@ -897,13 +897,13 @@ FunctionSignature replaceInFunction(const Context& context, FunctionSignature ty
   return type;
 }
 
-SFunctionInfo replaceInFunction(const Context& context, const SFunctionInfo& fun, Type* from, Type* to,
+FunctionInfo* replaceInFunction(const Context& context, FunctionInfo* fun, Type* from, Type* to,
     ErrorBuffer& errors) {
   return FunctionInfo::getInstance(fun->id, replaceInFunction(context, fun->type, from, to, errors,
       fun->getParent()->type.templateParams), fun);
 }
 
-SFunctionInfo addTemplateParams(const SFunctionInfo& fun, vector<Type*> params, bool variadic) {
+FunctionInfo* addTemplateParams(FunctionInfo* fun, vector<Type*> params, bool variadic) {
   auto type = fun->type;
   CHECK(type.templateParams.empty());
   type.templateParams = params;
@@ -1170,7 +1170,7 @@ static JustError<ErrorLoc> checkImplicitCopies(const Context& context, const vec
   return success;
 }
 
-static JustError<ErrorLoc> getConversionError(const Context& context, const SFunctionInfo& input,
+static JustError<ErrorLoc> getConversionError(const Context& context, FunctionInfo* input,
     const vector<Type*>& argTypes, const vector<CodeLoc>& argLoc, const vector<Type*>& funParams, TypeMapping& mapping) {
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
@@ -1196,25 +1196,25 @@ static JustError<ErrorLoc> getConversionError(const Context& context, const SFun
   return success;
 }
 
-static SFunctionInfo getWithRetval(const FunctionInfo& info) {
+static FunctionInfo* getWithRetval(const FunctionInfo& info) {
   auto type = info.type;
   type.params.push_back(type.retVal);
   return FunctionInfo::getImplicit(info.id, type);
 }
 
-static bool isTemplatedWith(const Context& context, const SFunctionInfo& function, Type* type) {
+static bool isTemplatedWith(const Context& context, FunctionInfo* function, Type* type) {
   ErrorBuffer errors;
   return replaceInFunction(context, function, type, BuiltinType::INT, errors) != function;
 }
 
 
-vector<SFunctionInfo> getSpecialOverloads(const FunctionId& id, const vector<Type*>& argTypes) {
-  vector<SFunctionInfo> ret;
+vector<FunctionInfo*> getSpecialOverloads(const FunctionId& id, const vector<Type*>& argTypes) {
+  vector<FunctionInfo*> ret;
   if (id == "invoke"s && !argTypes.empty()) {
     auto& argType = argTypes[0];
     if (argType->isPointer())
       if (auto lambda = dynamic_cast<LambdaType*>(argType->removePointer()))
-        ret.push_back(lambda->functionInfo.get());
+        ret.push_back(lambda->functionInfo);
     if (auto type = dynamic_cast<FunctionType*>(argType->removePointer()))
       for (auto& overload : type->overloads) {
         auto sig = overload->type;
@@ -1242,7 +1242,7 @@ static JustError<string> deduceTemplateArgsFromConcepts(const Context& context,
         if (funTemplateParams.empty())
           continue;
         function = addTemplateParams(function, funTemplateParams, req->isVariadic());
-        vector<SFunctionInfo> found = getSpecialOverloads(function->id, function->type.params);
+        vector<FunctionInfo*> found = getSpecialOverloads(function->id, function->type.params);
         for (auto& candidate : context.getFunctions(function->id, false))
           if (!candidate->type.concept && context.isGeneralization(getWithRetval(*function), getWithRetval(*candidate)))
             found.push_back(candidate);
@@ -1275,7 +1275,7 @@ static WithError<vector<Type*>> deduceTemplateArgs(const Context& context,
   return ret;
 }
 
-WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context1, const SFunctionInfo& input, CodeLoc codeLoc,
+WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context1, FunctionInfo* input, CodeLoc codeLoc,
     vector<Type*> templateArgs, vector<Type*> argTypes, vector<CodeLoc> argLoc, vector<FunctionSignature> existing) {
   auto context = context1.getTopLevel();
   FunctionSignature type = input->type;
@@ -1961,13 +1961,13 @@ bool FunctionType::isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&
   return true;
 }
 
-FunctionType* FunctionType::get(const string& name, vector<SFunctionInfo> overloads) {
+FunctionType* FunctionType::get(const string& name, vector<FunctionInfo*> overloads) {
   static map<string, FunctionType*> generated;
   if (!generated.count(name))
     generated.insert(make_pair(name, new FunctionType(Private{}, name, std::move(overloads))));
   return generated.at(name);
 }
 
-FunctionType::FunctionType(FunctionType::Private, string name, vector<SFunctionInfo> overloads)
+FunctionType::FunctionType(FunctionType::Private, string name, vector<FunctionInfo*> overloads)
     : name(std::move(name)), overloads(std::move(overloads)) {
 }

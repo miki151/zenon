@@ -69,6 +69,16 @@ class [[nodiscard]] WithErrorLine : public expected<T, ErrorLoc> {
     else
       error = this->get_error();
   }
+  void unpack(T& value, optional<ErrorLoc>& error) {
+    if (*this) {
+      CHECK(!value);
+      value = *this->get_value_maybe();
+    }
+    else if (error)
+      error->error.append("\n" + this->get_error().error);
+    else
+      error = this->get_error();
+  }
   WithError<T> withoutCodeLoc() const;
   WithEvalError<T> toEvalError() const;
 };

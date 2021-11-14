@@ -33,10 +33,10 @@ class Context : public owned_object<Context> {
   void operator = (const Context&) = delete;
   Context& operator = (Context&&) = default;
   void deepCopyFrom(const Context&);
-  WithError<vector<SFunctionInfo>> getRequiredFunctions(const Concept&, vector<FunctionSignature> existing) const;
-  nullable<SFunctionInfo> isGeneralization(const SFunctionInfo& general, const SFunctionInfo& specific,
+  WithError<vector<FunctionInfo*>> getRequiredFunctions(const Concept&, vector<FunctionSignature> existing) const;
+  FunctionInfo* isGeneralization(FunctionInfo* general, FunctionInfo* specific,
       vector<FunctionSignature> existing = {}) const;
-  nullable<SFunctionInfo> isGeneralizationWithoutReturnType(const SFunctionInfo& general, const SFunctionInfo& specific,
+  FunctionInfo* isGeneralizationWithoutReturnType(FunctionInfo* general, FunctionInfo* specific,
       vector<FunctionSignature> existing = {}) const;
   WithError<Type*> getTypeOfVariable(const string&) const;
   bool isCapturedVariable(const string&) const;
@@ -75,13 +75,13 @@ class Context : public owned_object<Context> {
   bool isFullyDefined(const Type*) const;
   vector<Type*> getAllTypes() const;
   NODISCARD JustError<string> addImplicitFunction(FunctionId, FunctionSignature);
-  NODISCARD JustError<string> addFunction(SFunctionInfo);
-  WithError<vector<SFunctionInfo>> getFunctionTemplate(IdentifierInfo, bool compileTimeArgs) const;
+  NODISCARD JustError<string> addFunction(FunctionInfo*);
+  WithError<vector<FunctionInfo*>> getFunctionTemplate(IdentifierInfo, bool compileTimeArgs) const;
   WithEvalError<Type*> invokeFunction(const string& id, CodeLoc loc, vector<Type*> args, vector<CodeLoc> argLoc) const;
   using BuiltInFunction = function<WithError<Type*>(const Context&, vector<Type*>)>;
   void addBuiltInFunction(const string& id, Type* returnType, vector<Type*> argTypes, BuiltInFunction);
-  vector<SFunctionInfo> getOperatorType(Operator) const;
-  nullable<SFunctionInfo> getBuiltinOperator(Operator, vector<Type*> argTypes) const;
+  vector<FunctionInfo*> getOperatorType(Operator) const;
+  FunctionInfo* getBuiltinOperator(Operator, vector<Type*> argTypes) const;
   NODISCARD JustError<string> checkNameConflict(const string& name, const string& type) const;
   NODISCARD JustError<string> checkNameConflictExcludingFunctions(const string& name, const string& type) const;
   void addConcept(const string& name, SConcept);
@@ -101,7 +101,7 @@ class Context : public owned_object<Context> {
   void setLambda(LambdaCaptureInfo*);
 
   struct BuiltInFunctionInfo {
-    SFunctionInfo functionInfo;
+    FunctionInfo* functionInfo;
     BuiltInFunction fun;
     WithEvalError<Type*> invokeFunction(const Context&, const string& id, CodeLoc loc, vector<Type*> args,
         vector<CodeLoc> argLoc) const;
@@ -123,7 +123,7 @@ class Context : public owned_object<Context> {
     optional<pair<string, vector<Type*>>> expandedVariablePack;
     optional<pair<string, Type*>> unexpandedVariablePack;
     optional<pair<string, Type*>> unexpandedTypePack;
-    map<FunctionId, vector<SFunctionInfo>> functions;
+    map<FunctionId, vector<FunctionInfo*>> functions;
     ReturnTypeChecker* returnTypeChecker = nullptr;
     map<string, shared_ptr<Concept>> concepts;
     map<string, BuiltInFunctionInfo> builtInFunctions;
@@ -142,8 +142,8 @@ class Context : public owned_object<Context> {
   using ConstStates = vector<shared_ptr<const State>>;
 
   WithErrorLine<vector<Type*>> getTypeList(const vector<TemplateParameterInfo>&, bool variadic) const;
-  vector<SFunctionInfo> getFunctions(FunctionId, bool compileTime) const;
-  vector<SFunctionInfo> getAllFunctions() const;
+  vector<FunctionInfo*> getFunctions(FunctionId, bool compileTime) const;
+  vector<FunctionInfo*> getAllFunctions() const;
 
   TypeRegistry* typeRegistry;
 
@@ -157,5 +157,5 @@ class Context : public owned_object<Context> {
 
   StateContainer getReversedStates() const;
   Type* getVariable(const string&) const;
-  vector<SFunctionInfo> getConstructorsFor(Type*) const;
+  vector<FunctionInfo*> getConstructorsFor(Type*) const;
 };

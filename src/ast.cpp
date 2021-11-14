@@ -144,17 +144,17 @@ static bool exactFirstArg(const vector<Type*>& argTypes, const FunctionSignature
   return !argTypes.empty() && !overload.params.empty() && comp(argTypes[0], overload.params[0]);
 }
 
-static bool fromConcept(const vector<Type*>&, const SFunctionInfo& f) {
+static bool fromConcept(const vector<Type*>&, FunctionInfo* f) {
   return !!f->type.concept;
 }
 
-static bool userDefinedConstructor(const vector<Type*>&, const SFunctionInfo& f) {
+static bool userDefinedConstructor(const vector<Type*>&, FunctionInfo* f) {
   return !f->type.generatedConstructor;
 }
 
-static void filterOverloads(const Context& context, vector<SFunctionInfo>& overloads, const vector<Type*>& argTypes) {
+static void filterOverloads(const Context& context, vector<FunctionInfo*>& overloads, const vector<Type*>& argTypes) {
   auto filter = [&] (auto fun, const char* method) {
-    vector<SFunctionInfo> better;
+    vector<FunctionInfo*> better;
     for (auto& overload : overloads)
       if (fun(argTypes, overload))
         better.push_back(overload);
@@ -179,7 +179,7 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
         param->removeReference() == arg->removeReference();
     return byConstRef;
   };
-  auto isSpecialized = [&] (const auto& args, const auto& overload) {
+  auto isSpecialized = [&] (const auto& args, auto& overload) {
     for (auto& other : overloads)
       if (other != overload && context.isGeneralizationWithoutReturnType(
           overload->getParent()->getWithoutRequirements(), other->getParent()->getWithoutRequirements()))
@@ -197,7 +197,7 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
   filter([&](const auto& args, const auto& overload) { return exactArgs(args, overload->type, isConstToMutableReferenceArg);}, "all args const to mut ref");
   filter([&](const auto& args, const auto& overload) { return exactFirstArg(args, overload->type, isConstToMutableReferenceArg);}, "first arg const to mut fef");
   // filter out functions that have concept type parameters or return value
-  filter([](const vector<Type*>&, const SFunctionInfo& f){ return !f->isConceptTypeFunction(); }, "concept type");
+  filter([](const vector<Type*>&, FunctionInfo* f){ return !f->isConceptTypeFunction(); }, "concept type");
   // sometimes a function is both in the global context and in the concept, so prefer the one in the concept
   filter(&fromConcept, "non concept");
   filter(&userDefinedConstructor, "user defined constructor");
@@ -207,11 +207,11 @@ static void filterOverloads(const Context& context, vector<SFunctionInfo>& overl
 }
 
 
-static WithErrorLine<SFunctionInfo> handleOperatorOverloads(const Context& context, CodeLoc codeLoc, Operator op,
+static WithErrorLine<FunctionInfo*> handleOperatorOverloads(const Context& context, CodeLoc codeLoc, Operator op,
     vector<Type*> types, vector<CodeLoc> argLocs, vector<unique_ptr<Expression>>& expr) {
-  vector<SFunctionInfo> overloads;
+  vector<FunctionInfo*> overloads;
   if (auto fun = context.getBuiltinOperator(op, types))
-    overloads.push_back(fun.get());
+    overloads.push_back(fun);
   vector<string> errors;
   for (auto fun : context.getOperatorType(op))
     if (auto inst = instantiateFunction(context, fun, codeLoc, {}, types, argLocs))
@@ -234,11 +234,11 @@ static WithErrorLine<SFunctionInfo> handleOperatorOverloads(const Context& conte
   }
 }
 
-static WithErrorLine<SFunctionInfo> getFunction(const Context&,
+static WithErrorLine<FunctionInfo*> getFunction(const Context&,
     CodeLoc, IdentifierInfo, vector<Type*> templateArgs, const vector<Type*>& argTypes,
     const vector<CodeLoc>&, bool compileTimeArgs);
 
-static WithErrorLine<SFunctionInfo> getFunction(const Context&,
+static WithErrorLine<FunctionInfo*> getFunction(const Context&,
     CodeLoc, IdentifierInfo, vector<Type*> templateArgs, const vector<Type*>& argTypes,
     const vector<CodeLoc>&, vector<unique_ptr<Expression>>&, bool compileTimeArgs);
 
@@ -306,7 +306,7 @@ WithErrorLine<Type*> BinaryExpression::getTypeImpl(const Context& context) {
   return functionInfo->type.retVal;
 }
 
-WithErrorLine<SFunctionInfo> getDestructor(const Context& context, Type* type, CodeLoc codeLoc) {
+WithErrorLine<FunctionInfo*> getDestructor(const Context& context, Type* type, CodeLoc codeLoc) {
   return getFunction(context, codeLoc, IdentifierInfo("destruct"s, codeLoc), {},
       {PointerType::get(type)}, {codeLoc}, false);
 }
@@ -939,11 +939,11 @@ static IdentifierInfo translateDestructorId(IdentifierInfo id) {
 }
 
 
-static WithError<SFunctionInfo> getFunction(const Context& context,
-    CodeLoc codeLoc, FunctionId id, vector<SFunctionInfo> candidates,
+static WithError<FunctionInfo*> getFunction(const Context& context,
+    CodeLoc codeLoc, FunctionId id, vector<FunctionInfo*> candidates,
     vector<Type*> templateArgs, const vector<Type*>& argTypes,
     const vector<CodeLoc>& argLoc) {
-  vector<SFunctionInfo> overloads;
+  vector<FunctionInfo*> overloads;
   string errors;
   for (auto& overload : candidates) {
     if (auto f = instantiateFunction(context, overload, codeLoc, templateArgs, argTypes, argLoc)) {
@@ -969,7 +969,7 @@ static WithError<SFunctionInfo> getFunction(const Context& context,
   } else
   if (id == "invoke"s && !argTypes.empty() && argTypes[0]->isPointer())
     if (auto lambda = dynamic_cast<LambdaType*>(argTypes[0]->removePointer())) {
-      if (auto f = instantiateFunction(context, lambda->functionInfo.get(), codeLoc, templateArgs, argTypes, argLoc)) {
+      if (auto f = instantiateFunction(context, lambda->functionInfo, codeLoc, templateArgs, argTypes, argLoc)) {
         if (!contains(overloads, *f))
           overloads.push_back(*f);
       } else
@@ -986,7 +986,7 @@ static WithError<SFunctionInfo> getFunction(const Context& context,
         combine(transform(overloads, [](const auto& o) { return o->prettyString();}), "\n");
 }
 
-static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
+static WithErrorLine<FunctionInfo*> getFunction(const Context& context,
     CodeLoc codeLoc, IdentifierInfo id, vector<Type*> templateArgs, const vector<Type*>& argTypes,
     const vector<CodeLoc>& argLoc, bool compileTimeArgs) {
   auto candidates = TRY(context.getFunctionTemplate(translateDestructorId(id), compileTimeArgs).addCodeLoc(codeLoc));
@@ -1004,7 +1004,7 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
   }
 }
 
-static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
+static WithErrorLine<FunctionInfo*> getFunction(const Context& context,
     CodeLoc codeLoc, IdentifierInfo id, vector<Type*> templateArgs, const vector<Type*>& argTypes,
     const vector<CodeLoc>& argLoc, vector<unique_ptr<Expression>>& expr, bool compileTimeArgs) {
   auto fun = TRY(getFunction(context, codeLoc, std::move(id), std::move(templateArgs), std::move(argTypes),
@@ -1013,11 +1013,11 @@ static WithErrorLine<SFunctionInfo> getFunction(const Context& context,
   return fun;
 }
 
-WithErrorLine<SFunctionInfo> getCopyFunction(const Context& context, CodeLoc callLoc, Type* t) {
+WithErrorLine<FunctionInfo*> getCopyFunction(const Context& context, CodeLoc callLoc, Type* t) {
   return getFunction(context, callLoc, IdentifierInfo("copy", callLoc), {}, {PointerType::get(t)}, {callLoc}, false);
 }
 
-WithErrorLine<SFunctionInfo> getImplicitCopyFunction(const Context& context, CodeLoc callLoc, Type* t) {
+WithErrorLine<FunctionInfo*> getImplicitCopyFunction(const Context& context, CodeLoc callLoc, Type* t) {
   return getFunction(context, callLoc, IdentifierInfo("implicit_copy", callLoc), {}, {PointerType::get(t)}, {callLoc},
       false);
 }
@@ -1226,12 +1226,12 @@ static vector<unique_ptr<Statement>> getDestructorCalls(CodeLoc codeLoc, const v
   return ret;
 }
 
-JustError<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, const SFunctionInfo& instance) {
+JustError<ErrorLoc> FunctionDefinition::addInstance(const Context& callContext, FunctionInfo* instance) {
   if (callContext.getTemplateParams())
     return success;
   wasUsed = true;
   auto callTopContext = callContext.getTopLevel();
-  if (instance != functionInfo.get()) {
+  if (instance != functionInfo) {
     if (body) {
       CHECK(functionInfo == instance->getParent());
       for (auto& other : instances)
@@ -1427,7 +1427,7 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
     Context paramsContext = context.getChild();
     // use a temporary FunctionInfo with fresh template types to avoid clashes if the function
     // is calling itself with changed parameter order
-    auto thisFunctionInfo = functionInfo.get();
+    auto thisFunctionInfo = functionInfo;
     auto newParams = TRY(getTemplateParams(templateInfo, context));
     addTemplateParams(paramsContext, newParams, thisFunctionInfo->type.variadicTemplate);
     TRY(applyRequirements(paramsContext, templateInfo));
@@ -1493,13 +1493,13 @@ JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCac
   TRY(setFunctionSignature(context, nullptr, cache.isCurrentlyBuiltIn()));
   if (name == "is_member_params"s)
     return handleIsMemberParamsFunction();
-  TRY(context.addFunction(functionInfo.get()).addCodeLoc(codeLoc));
+  TRY(context.addFunction(functionInfo).addCodeLoc(codeLoc));
   if (name == "destruct"s) {
     auto destructedType = TRY(getDestructedType(functionInfo->type.params).addCodeLoc(codeLoc));
     if (auto structType = dynamic_cast<StructType*>(destructedType)) {
       if (!structType->alternatives.empty())
         return codeLoc.getError("User-defined destructors for union types are not supported");
-      auto adjusted = functionInfo.get();
+      auto adjusted = functionInfo;
       if (functionInfo->type.templateParams.size() != structType->templateParams.size())
         return codeLoc.getError("Number of template parameters of destructor function must match destructed type");
       for (auto& param : functionInfo->type.templateParams)
@@ -1823,9 +1823,9 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
       expandedArgs.push_back(variablePack->second->replace(callContext, typePack, expanded.back(), errors));
     CHECK(errors.empty());
     auto target = call->functionInfo->getParent();
-    if (allCalls.count(target.get()))
+    if (allCalls.count(target))
       break;
-    allCalls.insert(target.get());
+    allCalls.insert(target);
   }
   return success;
 }
@@ -2487,7 +2487,7 @@ JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
       return function->codeLoc.getError("Virtual functions are not allowed here");
     TRY(function->setFunctionSignature(declarationsContext, concept));
     TRY(function->check(declarationsContext));
-    TRY(concept->modContext().addFunction(function->functionInfo.get()).addCodeLoc(function->codeLoc));
+    TRY(concept->modContext().addFunction(function->functionInfo).addCodeLoc(function->codeLoc));
   }
   context.addConcept(name, concept);
   return success;
@@ -2649,7 +2649,7 @@ WithErrorLine<vector<LambdaCapture>> LambdaExpression::setLambda(Context& contex
             quote(underlying->getName()) + " can't be captured by implicit copy");*/
       if (capture.type == LambdaCaptureType::IMPLICIT_COPY) {
         if (auto f = getImplicitCopyFunction(context, capture.codeLoc, underlying)) {
-          TRY(f->get()->getDefinition()->addInstance(context, *f));
+          TRY((*f)->getDefinition()->addInstance(context, *f));
           functionCalls.push_back(*f);
         } else
           return capture.codeLoc.getError("No implicit copy function defined for type " +
@@ -2657,7 +2657,7 @@ WithErrorLine<vector<LambdaCapture>> LambdaExpression::setLambda(Context& contex
       }
       if (capture.type == LambdaCaptureType::COPY) {
         if (auto f = getCopyFunction(context, capture.codeLoc, underlying)) {
-          TRY(f->get()->getDefinition()->addInstance(context, *f));
+          TRY((*f)->getDefinition()->addInstance(context, *f));
           functionCalls.push_back(*f);
         } else
           return capture.codeLoc.getError("No copy function defined for type " +
@@ -2855,7 +2855,7 @@ MemberAccessExpression::MemberAccessExpression(CodeLoc l , unique_ptr<Expression
   : Expression(l), lhs(std::move(lhs)), identifier(id) { }
 
 static JustError<ErrorLoc> initializeDestructor(const Context& context, Type* type, const string& member,
-    CodeLoc codeLoc, nullable<SFunctionInfo>& destructorCall, bool& mainDestructor) {
+    CodeLoc codeLoc, FunctionInfo*& destructorCall, bool& mainDestructor) {
   if (auto structType = dynamic_cast<StructType*>(type)) {
     if (structType->destructor) {
       mainDestructor = true;
@@ -2951,13 +2951,13 @@ JustError<ErrorLoc> TernaryExpression::checkMoves(MoveChecker& checker) const {
   return success;
 }
 
-FatPointerConversion::FatPointerConversion(CodeLoc l, vector<SFunctionInfo> functions, Type* toType, Type* argType, unique_ptr<Expression> arg, ConceptType* conceptType)
+FatPointerConversion::FatPointerConversion(CodeLoc l, vector<FunctionInfo*> functions, Type* toType, Type* argType, unique_ptr<Expression> arg, ConceptType* conceptType)
     : Expression(l), toType(toType), argType(argType), arg(std::move(arg)), conceptType(std::move(conceptType)), functions(std::move(functions)) {
 }
 
-WithError<vector<SFunctionInfo>> getRequiredFunctionsForConceptType(const Context& context,
+WithError<vector<FunctionInfo*>> getRequiredFunctionsForConceptType(const Context& context,
     const Concept& concept, CodeLoc codeLoc) {
-  vector<SFunctionInfo> ret;
+  vector<FunctionInfo*> ret;
   for (auto& fun : concept.getContext().getAllFunctions()) {
     auto candidates = context.getFunctions(translateDestructorId(fun->id), false);
     if (candidates.empty())

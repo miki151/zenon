@@ -68,11 +68,11 @@ struct FunctionType : public Type {
   virtual string getName(bool withTemplateArguments = true) const;
   virtual string getCodegenName() const;
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const;
-  static FunctionType* get(const string& name, vector<SFunctionInfo> overloads);
+  static FunctionType* get(const string& name, vector<FunctionInfo*> overloads);
   string name;
-  vector<SFunctionInfo> overloads;
+  vector<FunctionInfo*> overloads;
   struct Private {};
-  FunctionType(Private, string name, vector<SFunctionInfo> overloads);
+  FunctionType(Private, string name, vector<FunctionInfo*> overloads);
 };
 
 struct BuiltinType : public Type {
@@ -302,7 +302,7 @@ struct StructType : public Type {
   vector<Type*> templateParams;
   vector<StructType*> instances;
   StructType* parent = nullptr;
-  nullable<SFunctionInfo> destructor;
+  FunctionInfo* destructor = nullptr;
   vector<TemplateRequirement> requirements;
   struct Variable {
     string name;
@@ -375,26 +375,26 @@ struct FunctionSignature {
 
 struct FunctionInfo : public owned_object<FunctionInfo> {
   struct Private {};
-  static SFunctionInfo getImplicit(FunctionId, FunctionSignature);
-  static SFunctionInfo getInstance(FunctionId, FunctionSignature, SFunctionInfo parent);
-  static SFunctionInfo getDefined(FunctionId, FunctionSignature, FunctionDefinition*);
+  static FunctionInfo* getImplicit(FunctionId, FunctionSignature);
+  static FunctionInfo* getInstance(FunctionId, FunctionSignature, FunctionInfo* parent);
+  static FunctionInfo* getDefined(FunctionId, FunctionSignature, FunctionDefinition*);
   const FunctionId id;
   const FunctionSignature type;
   string prettyString() const;
-  string getMangledName() const;
+  string getMangledName();
   bool isMainFunction() const;
-  optional<string> getMangledSuffix() const;
+  optional<string> getMangledSuffix();
   optional<string> getParamName(int index, const FunctionDefinition*) const;
-  SFunctionInfo getWithoutRequirements() const;
-  FunctionInfo(Private, FunctionId, FunctionSignature, nullable<SFunctionInfo> parent);
+  FunctionInfo* getWithoutRequirements();
+  FunctionInfo(Private, FunctionId, FunctionSignature, FunctionInfo* parent);
   FunctionInfo(Private, FunctionId, FunctionSignature, FunctionDefinition*);
-  SFunctionInfo getParent() const;
-  FunctionDefinition* getDefinition() const;
-  JustError<ErrorLoc> addInstance(const Context&) const;
+  FunctionInfo* getParent();
+  FunctionDefinition* getDefinition();
+  JustError<ErrorLoc> addInstance(const Context&);
   bool isConceptTypeFunction() const;
 
   private:
-  const nullable<SFunctionInfo> parent;
+  FunctionInfo* parent = nullptr;
   FunctionDefinition* const definition = nullptr;
 };
 
@@ -410,7 +410,7 @@ struct LambdaType : public Type {
   static LambdaType* get(vector<Type*> templateParams);
   struct Private {};
   LambdaType(Private);
-  nullable<SFunctionInfo> functionInfo;
+  FunctionInfo* functionInfo = nullptr;
   vector<LambdaCapture> captures;
   vector<Type*> templateParams;
   vector<optional<string>> parameterNames;
@@ -467,13 +467,13 @@ struct Expression;
 class Context;
 
 struct IdentifierInfo;
-extern WithErrorLine<SFunctionInfo> instantiateFunction(const Context& context, const SFunctionInfo&, CodeLoc,
+extern WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context, FunctionInfo*, CodeLoc,
     vector<Type*> templateArgs, vector<Type*> argTypes, vector<CodeLoc> argLoc,
     vector<FunctionSignature> existing = {});
 extern FunctionSignature replaceInFunction(const Context&, FunctionSignature, Type* from, Type* to, ErrorBuffer&,
     const vector<Type*>& origParams);
-extern SFunctionInfo replaceInFunction(const Context&, const SFunctionInfo&, Type* from, Type* to, ErrorBuffer&);
-extern SFunctionInfo addTemplateParams(const SFunctionInfo&, vector<Type*> params, bool variadic);
+extern FunctionInfo* replaceInFunction(const Context&, FunctionInfo*, Type* from, Type* to, ErrorBuffer&);
+extern FunctionInfo* addTemplateParams(FunctionInfo*, vector<Type*> params, bool variadic);
 extern string joinTemplateParams(const vector<Type*>&, bool variadic = false);
 extern optional<string> mangleTemplateParams(const vector<Type*>&);
 extern string joinTypeList(const vector<Type*>&);
@@ -487,4 +487,4 @@ Type* convertPointerToReference(Type*);
 Type* convertReferenceToPointer(Type*);
 Type* convertPointerToReferenceStrict(Type*);
 Type* convertReferenceToPointerStrict(Type*);
-vector<SFunctionInfo> getSpecialOverloads(const FunctionId&, const vector<Type*>& argTypes);
+vector<FunctionInfo*> getSpecialOverloads(const FunctionId&, const vector<Type*>& argTypes);
