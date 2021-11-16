@@ -1584,6 +1584,7 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
           {type, type}, {}).setBuiltin()));
   auto metaTypes = {BuiltinType::ANY_TYPE, BuiltinType::STRUCT_TYPE, BuiltinType::ENUM_TYPE, BuiltinType::UNION_TYPE};
   CHECK(context.addImplicitFunction(Operator::EQUALS, FunctionSignature(BuiltinType::BOOL, {BuiltinType::ANY_TYPE, BuiltinType::ANY_TYPE}, {}).setBuiltin()));
+  CHECK(context.addImplicitFunction(Operator::NOT_EQUAL, FunctionSignature(BuiltinType::BOOL, {BuiltinType::ANY_TYPE, BuiltinType::ANY_TYPE}, {}).setBuiltin()));
   addBuiltInConcepts(context);
   context.addBuiltInFunction("enum_count", BuiltinType::INT, {(Type*)BuiltinType::ENUM_TYPE},
       [](const Context& context, vector<Type*> args) -> WithError<Type*> {

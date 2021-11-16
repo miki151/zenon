@@ -1,0 +1,11 @@
+// no_compile
+
+
+template <T> 
+int f(T*) {
+  return 1;
+}
+
+int main() {
+  return f(&bool);
+}

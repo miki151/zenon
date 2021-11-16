@@ -124,8 +124,8 @@ string TemplateParameterType::getName(bool withTemplateArguments) const {
 }
 
 bool TemplateParameterType::canReplaceBy(Type* t) const {
-  return (type == BuiltinType::ANY_TYPE && t->getType()->isMetaType())
-      || type == BuiltinType::ANYTHING || t->getType() == type;
+  return !t->isMetaType() && ((type == BuiltinType::ANY_TYPE && t->getType()->isMetaType())
+      || type == BuiltinType::ANYTHING || t->getType() == type);
 }
 
 optional<string> TemplateParameterType::getMangledName() const {
