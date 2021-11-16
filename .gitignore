@@ -14,5 +14,5 @@ tests/.build_cache
 tests/log.out
 zenon
 log.out
-*.znn
+/*.znn
 input
