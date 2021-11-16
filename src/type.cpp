@@ -1609,16 +1609,16 @@ WithError<Type*> CompileTimeValue::convertTo(Type* t) {
   if (t == BuiltinType::DOUBLE && myType == BuiltinType::INT)
     return value.visit(
         [](int d)-> Type* {  return CompileTimeValue::get(double(d)); },
-        [&t](const TemplateValue& v)-> Type* {  return getTemplateValue(std::move(t), v.name); },
+        [t](TemplateValue& v)-> Type* {  return getTemplateValue(std::move(t), v.name); },
         // Switching the return type for expressions and function call looks iffy but works. May need to revisit this.
-        [&t](const TemplateExpression& v)-> Type* {
-          return CompileTimeValue::get(CompileTimeValue::TemplateExpression{v.op, v.args, std::move(t)}); },
-        [&t](const TemplateFunctionCall& v)-> Type* {
+        [t](TemplateExpression& v)-> Type* {
+          return CompileTimeValue::get(CompileTimeValue::TemplateExpression{v.op, v.args, t}); },
+        [t](TemplateFunctionCall& v)-> Type* {
           return CompileTimeValue::get(CompileTimeValue::TemplateFunctionCall{
-              v.name, v.args, std::move(t), v.loc, v.argLoc, v.functionInfo}); },
+              v.name, v.args, t, v.loc, v.argLoc, v.functionInfo}); },
         [](auto&) -> Type* { fail(); }
     );
-  return Type::convertTo(std::move(t));
+  return Type::convertTo(t);
 }
 
 CompileTimeValue* CompileTimeValue::getReference(Type* value) {
