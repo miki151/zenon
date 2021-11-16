@@ -101,13 +101,13 @@ static string getVTableBinder(FunctionInfo& function) {
 }
 
 struct Sections {
-  Sections() {
+  Sections(bool includeLineNumbers) : includeLineNumbers(includeLineNumbers) {
     sections[Section::TYPES] = {};
     sections[Section::DECLARATIONS] = {};
     sections[Section::DEFINITIONS] = {};
   }
   Buffer* newBuffer(Section section) {
-    sections[section].push_back(unique<Buffer>(true));
+    sections[section].push_back(unique<Buffer>(includeLineNumbers));
     return sections[section].back().get();
   }
   void registerFunctionCall(FunctionInfo* functionInfo) {
@@ -123,7 +123,7 @@ struct Sections {
   void registerTypeAccess(Type* type) {
     if (type->getMangledName() && !typeDefEmitted.count(type)) {
       typeDefEmitted.insert(type);
-      auto buf = unique<Buffer>(true);
+      auto buf = unique<Buffer>(includeLineNumbers);
       //buf->newLine("// " + type->getName());
       type->codegenDefinition(buf.get(), this);
       sections[Section::TYPES].push_back(std::move(buf));
@@ -187,6 +187,7 @@ struct Sections {
   set<pair<ConceptType*, Type*>> fatPointers;
   unordered_set<string> imports;
   unordered_set<EmbedStatement*> embeds;
+  bool includeLineNumbers;
   string generate() const {
     string ret;
     for (auto& elem : sections)
@@ -709,7 +710,7 @@ void codegenLambda(LambdaType* lambda, Buffer* buffer, Sections* sections) {
 
 string codegen(const AST& ast, TypeRegistry& registry, const string& codegenInclude,
     bool includeLineNumbers) {
-  Sections sections;
+  Sections sections(includeLineNumbers);
   auto header = sections.newBuffer(Section::HEADER);
   header->add("#include \"" + codegenInclude + "/all.h\"");
   header->newLine();
@@ -924,7 +925,7 @@ static string getVTableFunName(const FunctionId id) {
 void ConceptType::codegenDefinition(Buffer* buffer, Sections* sections) {
   const auto vTableName = getVTableName(*getMangledName());
   auto functions = getConceptFor(concept->getParams()[0])->getContext().getAllFunctions();
-  auto typeBuf = unique<Buffer>(true);
+  auto typeBuf = unique<Buffer>(sections->includeLineNumbers);
   //buf->newLine("// " + type->getName());
   typeBuf->newLine("struct " + vTableName + " {");
   ++typeBuf->indent;
