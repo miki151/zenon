@@ -963,7 +963,7 @@ WithErrorLine<Type*> StructType::instantiate(const Context& context, vector<Type
     ret = dynamic_cast<StructType*>(ret->replace(reqContext, ret->templateParams[i], templateArgs[i], errors));
   }
   for (auto& arg : templateArgs)
-    if (dynamic_cast<CompileTimeValue*>(arg) && !arg->getType()->canBeValueTemplateParam())
+    if (dynamic_cast<CompileTimeValue*>(arg) && !arg->getType()->removeReference()->canBeValueTemplateParam())
       return loc.getError("Value template parameter cannot have type " + quote(arg->getType()->getName()));
   TRY(checkRequirements(reqContext, (ret)->requirements, loc, {}));
   if (!errors.empty())
@@ -1269,7 +1269,8 @@ static WithError<vector<Type*>> deduceTemplateArgs(const Context& context,
       ret.push_back(mapping.templateArgs[i]);
     else
       return "Couldn't deduce template argument " + quote(mapping.templateParams[i]->getName());
-    if (dynamic_cast<CompileTimeValue*>(ret.back()) && !ret.back()->getType()->canBeValueTemplateParam())
+    if (dynamic_cast<CompileTimeValue*>(ret.back()) &&
+        !ret.back()->getType()->removeReference()->canBeValueTemplateParam())
       return "Value template parameter cannot have type " + quote(ret.back()->getType()->getName());
   }
   return ret;
