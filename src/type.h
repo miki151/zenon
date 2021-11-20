@@ -407,7 +407,7 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   static FunctionInfo* getDefined(FunctionId, FunctionSignature, FunctionDefinition*);
   const FunctionId id;
   const FunctionSignature type;
-  string prettyString() const;
+  const string& prettyString() const;
   string getMangledName();
   bool isMainFunction() const;
   optional<string> getMangledSuffix();
@@ -423,6 +423,8 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   private:
   FunctionInfo* parent = nullptr;
   FunctionDefinition* const definition = nullptr;
+  string pretty;
+  void genPrettyString();
 };
 
 struct LambdaType : public Type {

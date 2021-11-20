@@ -240,13 +240,8 @@ FunctionInfo* FunctionInfo::getInstance(FunctionId id, FunctionSignature type, F
   return generated.at(args);
 }
 
-string FunctionInfo::prettyString() const {
-  return type.retVal->getName() + " " + toString(id) + joinTemplateParams(type.templateParams, type.variadicTemplate) + "(" +
-      combine(transform(type.params, [](auto& t) { return t->getName(); }), ", ") +
-      (type.variadicParams ? "...)" : ")") +
-      (!!type.concept ? " [from concept]" : "") +
-      (parent && parent->definition ? parent->definition->codeLoc.toString() : "") +
-      (definition ? definition->codeLoc.toString() : "");
+const string& FunctionInfo::prettyString() const {
+  return pretty;
 }
 
 string FunctionInfo::getMangledName() {
@@ -346,11 +341,24 @@ JustError<ErrorLoc> FunctionInfo::addInstance(const Context& context) {
   return success;
 }
 
+void FunctionInfo::genPrettyString() {
+  pretty = type.retVal->getName() + " " + toString(id) + joinTemplateParams(type.templateParams, type.variadicTemplate) + "(" +
+      combine(transform(type.params, [](auto& t) { return t->getName(); }), ", ") +
+      (type.variadicParams ? "...)" : ")") +
+      (!!type.concept ? " [from concept]" : "") +
+      (parent && parent->definition ? parent->definition->codeLoc.toString() : "") +
+      (definition ? definition->codeLoc.toString() : "");
+}
+
 FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionSignature type, FunctionInfo* parent)
-  : id(std::move(id)), type(std::move(type)), parent(std::move(parent)) {}
+  : id(std::move(id)), type(std::move(type)), parent(std::move(parent)) {
+  genPrettyString();
+}
 
 FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionSignature type, FunctionDefinition* definition)
-  : id(std::move(id)), type(std::move(type)), definition(definition) {}
+  : id(std::move(id)), type(std::move(type)), definition(definition) {
+  genPrettyString()
+}
 
 Type::Type() : staticContext(nullptr) {
 }
