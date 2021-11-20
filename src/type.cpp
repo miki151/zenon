@@ -1520,8 +1520,6 @@ SCompileTimeValue CompileTimeValue::get(Value value) {
     auto ret = new CompileTimeValue(Private{}, value);
     generated.insert({value, ret});
   }
-  for (auto& elem : generated)
-    CHECK(elem.first == elem.second->value);
   return generated.at(value);
 }
 
