@@ -1287,9 +1287,10 @@ static WithError<vector<Type*>> deduceTemplateArgs(const Context& context,
   return ret;
 }
 
-WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context, FunctionInfo* input, CodeLoc codeLoc,
+WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context1, FunctionInfo* input, CodeLoc codeLoc,
     vector<Type*> templateArgs, vector<Type*> argTypes, vector<CodeLoc> argLoc, vector<FunctionSignature> existing) {
   FunctionSignature type = input->type;
+  auto context = context1.getTopLevel();
   auto origParams = type.templateParams;
   TRY(expandVariadicTemplate(context, type, codeLoc, templateArgs, argTypes));
   if (type.params.size() != argTypes.size())
