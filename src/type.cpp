@@ -319,9 +319,16 @@ optional<string> FunctionInfo::getParamName(int index, const FunctionDefinition*
 }
 
 FunctionInfo* FunctionInfo::getWithoutRequirements() {
-  auto newType = type;
-  newType.requirements.clear();
-  return getInstance(id, std::move(newType), getParent());
+  if (!noRequirements) {
+    if (type.requirements.empty())
+      noRequirements = this;
+    else {
+      auto newType = type;
+      newType.requirements.clear();
+      noRequirements = getInstance(id, std::move(newType), getParent());
+    }
+  }
+  return noRequirements;
 }
 
 FunctionInfo* FunctionInfo::getParent() {
@@ -1280,9 +1287,8 @@ static WithError<vector<Type*>> deduceTemplateArgs(const Context& context,
   return ret;
 }
 
-WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context1, FunctionInfo* input, CodeLoc codeLoc,
+WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context, FunctionInfo* input, CodeLoc codeLoc,
     vector<Type*> templateArgs, vector<Type*> argTypes, vector<CodeLoc> argLoc, vector<FunctionSignature> existing) {
-  auto context = context1.getTopLevel();
   FunctionSignature type = input->type;
   auto origParams = type.templateParams;
   TRY(expandVariadicTemplate(context, type, codeLoc, templateArgs, argTypes));

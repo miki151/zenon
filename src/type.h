@@ -428,6 +428,7 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
 
   private:
   FunctionInfo* parent = nullptr;
+  FunctionInfo* noRequirements = nullptr;
   FunctionDefinition* const definition = nullptr;
   string pretty;
   void genPrettyString();
