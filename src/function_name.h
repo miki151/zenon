@@ -24,3 +24,18 @@ inline string toString(const FunctionId& id) {
       [&](StructMembersTag) { return "struct members tag"; }
   );
 }
+
+namespace std {
+template <>
+struct hash<FunctionId> {
+  size_t operator()(const FunctionId& x) const {
+    return x.visit(
+        [](const string& s) { return std::hash<string>()(s); },
+        [](Operator o) { return size_t(o); },
+        [](ConstructorTag t) { return size_t(123); },
+        [](AttributeTag t) { return size_t(124); },
+        [](StructMembersTag t) { return size_t(125); }
+    );
+  }
+};
+}

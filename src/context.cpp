@@ -41,6 +41,7 @@ Context Context::getChild(bool isTopLevel) const {
 
 Context Context::getTopLevel() const {
   Context ret(typeRegistry, false);
+  ret.parentStates.reserve(parentStates.size());
   for (auto& s : parentStates)
     if (s->isTopLevel)
       ret.parentStates.push_back(s);

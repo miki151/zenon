@@ -200,7 +200,7 @@ JustError<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, 
 }
 
 FunctionSignature::FunctionSignature(Type* returnType, vector<Type*> p, vector<Type*> tpl)
-  : retVal(std::move(returnType)), params(std::move(p)), templateParams(tpl) {
+  : retVal(std::move(returnType)), params(std::move(p)), templateParams(std::move(tpl)) {
 }
 
 FunctionSignature FunctionSignature::setBuiltin() {
@@ -210,7 +210,7 @@ FunctionSignature FunctionSignature::setBuiltin() {
 
 FunctionInfo* FunctionInfo::getDefined(FunctionId id, FunctionSignature type, FunctionDefinition* definition) {
   auto args = make_tuple(id, type, definition);
-  static map<decltype(args), FunctionInfo*> generated;
+  static unordered_map<decltype(args), FunctionInfo*> generated;
   if (!generated.count(args)) {
     generated.insert(make_pair(args, new FunctionInfo(Private{}, id, type, definition)));
   }
@@ -219,7 +219,7 @@ FunctionInfo* FunctionInfo::getDefined(FunctionId id, FunctionSignature type, Fu
 
 FunctionInfo* FunctionInfo::getImplicit(FunctionId id, FunctionSignature type) {
   auto args = make_tuple(id, type);
-  static map<decltype(args), FunctionInfo*> generated;
+  static unordered_map<decltype(args), FunctionInfo*> generated;
   if (!generated.count(args)) {
     generated.insert(make_pair(args, new FunctionInfo(Private{}, id, type, (FunctionInfo*)nullptr)));
   }
@@ -232,7 +232,7 @@ FunctionInfo* FunctionInfo::getInstance(FunctionId id, FunctionSignature type, F
   while (!!parent->parent)
     parent = parent->parent;
   auto args = make_tuple(id, type, parent);
-  static map<decltype(args), FunctionInfo*> generated;
+  static unordered_map<decltype(args), FunctionInfo*> generated;
   if (!generated.count(args)) {
     auto ret = new FunctionInfo(Private{}, id, type, parent);
     generated.insert(make_pair(args, std::move(ret)));
@@ -675,9 +675,8 @@ bool StructType::hasDestructor() const {
 
 StructType* StructType::getInstance(vector<Type*> newTemplateParams) {
   CHECK(newTemplateParams.size() == templateParams.size());
-  auto self = dynamic_cast<StructType*>( this);
   if (templateParams == newTemplateParams)
-    return self;
+    return this;
   for (auto type : instances) {
     if (type->templateParams == newTemplateParams)
       return type;
@@ -685,7 +684,7 @@ StructType* StructType::getInstance(vector<Type*> newTemplateParams) {
   auto type = new StructType(name, Private{});
   type->alternatives = alternatives;
   type->members = members;
-  type->parent = self;
+  type->parent = this;
   type->external = external;
   type->definition = definition;
   instances.push_back(type);
@@ -813,7 +812,6 @@ Type* StructType::replaceImpl(const Context& context, Type* from, Type* to, Erro
   // This is how we check if instantiate gave us a new type to fill
   if (ret->templateParams != newTemplateParams) {
     ret->templateParams = newTemplateParams;
-    INFO << "New instantiation: " << ret->getName();
     ret->staticContext.deepCopyFrom(staticContext);
     ret->alternatives = alternatives;
     for (auto& alternative : ret->alternatives) {
@@ -838,8 +836,7 @@ Type* StructType::replaceImpl(const Context& context, Type* from, Type* to, Erro
       ret->destructor = replaceInFunction(context, ret->destructor, from, to, destErrors);
       CHECK(ret->destructor->type.params[0] == PointerType::get(ret));
     }
-  } else
-    INFO << "Found instantiated: " << ret->getName();
+  }
   return std::move(ret);
 }
 
@@ -851,7 +848,6 @@ Type* StructType::expand(const Context& context, Type* pack, vector<Type*> to, E
   // This is how we check if instantiate gave us a new type to fill
   if (ret->templateParams != newTemplateParams) {
     ret->templateParams = newTemplateParams;
-    INFO << "New instantiation: " << ret->getName();
     ret->staticContext.deepCopyFrom(staticContext);
     ret->alternatives = alternatives;
     for (auto& alternative : ret->alternatives) {
@@ -870,8 +866,7 @@ Type* StructType::expand(const Context& context, Type* pack, vector<Type*> to, E
       ret->destructor = replaceInFunction(ret->destructor.get(), from, to, errors);
       CHECK(ret->destructor->type.params[0] == PointerType::get(ret));
     }*/
-  } else
-    INFO << "Found instantiated: " << ret->getName();
+  }
   return std::move(ret);
 }
 

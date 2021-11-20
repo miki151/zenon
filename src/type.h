@@ -373,6 +373,33 @@ struct FunctionSignature {
   COMPARABLE(FunctionSignature, retVal, params, templateParams, parentType, variadicTemplate, variadicParams, requirements, concept, builtinOperator, generatedConstructor)
 };
 
+namespace std {
+  template <>
+  struct hash<FunctionSignature> {
+    size_t operator()(const FunctionSignature& x) const {
+      auto ret = size_t(x.retVal) + size_t(x.parentType) + size_t(x.concept ? x.concept.get().get() : nullptr)
+          + size_t(x.builtinOperator) + 2 * size_t(x.generatedConstructor) + 3 * size_t(x.variadicTemplate)
+          + 4 * size_t(x.variadicParams);
+      for (auto p : x.params)
+        ret += size_t(p);
+      for (auto p : x.templateParams)
+        ret += size_t(p);
+      for (auto& r : x.requirements) {
+        ret += size_t(r.variadic);
+        ret += r.base.visit(
+          [](const SConcept& concept) {
+            return size_t(concept.get());
+          },
+          [](const shared_ptr<Expression>& expr) {
+            return size_t(expr.get());
+          }
+        );
+      }
+      return ret;
+    }
+  };
+}
+
 struct FunctionInfo : public owned_object<FunctionInfo> {
   struct Private {};
   static FunctionInfo* getImplicit(FunctionId, FunctionSignature);
