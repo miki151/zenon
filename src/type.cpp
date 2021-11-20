@@ -357,7 +357,7 @@ FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionSignatu
 
 FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionSignature type, FunctionDefinition* definition)
   : id(std::move(id)), type(std::move(type)), definition(definition) {
-  genPrettyString()
+  genPrettyString();
 }
 
 Type::Type() : staticContext(nullptr) {
