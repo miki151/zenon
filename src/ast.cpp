@@ -36,7 +36,6 @@ IfStatement::IfStatement(CodeLoc loc, unique_ptr<VariableDeclaration> d, unique_
 }
 
 Constant::Constant(CodeLoc l, Type* v) : Expression(l), value(v) {
-  INFO << "Created constant " << v->getName() << " of type " << v->getType();
 }
 
 Variable::Variable(IdentifierInfo s) : Expression(s.codeLoc), identifier(std::move(s)) {
@@ -44,7 +43,6 @@ Variable::Variable(IdentifierInfo s) : Expression(s.codeLoc), identifier(std::mo
 
 FunctionCall::FunctionCall(IdentifierInfo id, bool methodCall) : Expression(id.codeLoc), identifier(std::move(id)),
     methodCall(methodCall), variadicTemplateArgs(identifier.parts.back().variadic) {
-  INFO << "Function call " << id.prettyString();;
 }
 
 FunctionCall::FunctionCall(IdentifierInfo id, unique_ptr<Expression> arg, bool methodCall)
@@ -57,7 +55,6 @@ VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, 
   string type = "auto";
   if (t)
     type = t->prettyString();
-  INFO << "Declared variable " << quote(id) << " of type " << quote(type);
 }
 
 FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionId name)
@@ -2614,7 +2611,6 @@ JustError<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
   realType = TRY(context.getTypeFromString(type));
   if (realType == BuiltinType::VOID)
     return codeLoc.getError("Can't declare constant of type " + quote(BuiltinType::VOID->getName()));
-  INFO << "Adding extern constant " << identifier << " of type " << realType->getName();
   context.addVariable(identifier, ReferenceType::get(realType), codeLoc);
   return success;
 }
