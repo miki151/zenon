@@ -407,7 +407,7 @@ Type* MutableReferenceType::removeReference() {
 
 ReferenceType* ReferenceType::get(Type* type) {
   type = type->removeReference();
-  static map<Type*, ReferenceType*> generated;
+  static unordered_map<Type*, ReferenceType*> generated;
   if (!generated.count(type)) {
     auto ret = new ReferenceType(type);
     generated.insert({type, ret});
@@ -420,7 +420,7 @@ ReferenceType::ReferenceType(Type* t) : underlying(t->removeReference()) {
 
 MutableReferenceType* MutableReferenceType::get(Type* type) {
   type = type->removeReference();
-  static map<Type*, MutableReferenceType*> generated;
+  static unordered_map<Type*, MutableReferenceType*> generated;
   if (!generated.count(type)) {
     auto ret = new MutableReferenceType(Private{}, type);
     generated.insert({type, ret});
@@ -433,7 +433,7 @@ MutableReferenceType::MutableReferenceType(Private, Type* t) : underlying(t) {
 
 PointerType* PointerType::get(Type* type) {
   type = type->removeReference();
-  static map<Type*, PointerType*> generated;
+  static unordered_map<Type*, PointerType*> generated;
   if (!generated.count(type)) {
     auto ret = new PointerType(Private{}, type);
     generated.insert({type, ret});
@@ -446,7 +446,7 @@ PointerType::PointerType(Private, Type* t) : underlying(t) {
 
 MutablePointerType* MutablePointerType::get(Type* type) {
   type = type->removeReference();
-  static map<Type*, MutablePointerType*> generated;
+  static unordered_map<Type*, MutablePointerType*> generated;
   if (!generated.count(type)) {
     auto ret = new MutablePointerType(Private{}, type);
     generated.insert({type, ret});
@@ -1719,7 +1719,7 @@ bool OptionalType::hasDestructor() const {
 
 OptionalType* OptionalType::get(Type* type) {
   type = type->removeReference();
-  static map<Type*, OptionalType*> generated;
+  static unordered_map<Type*, OptionalType*> generated;
   if (!generated.count(type)) {
     auto ret = new OptionalType(Private{}, type);
     generated.insert({type, ret});
