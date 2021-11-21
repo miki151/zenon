@@ -165,14 +165,14 @@ static void filterOverloads(const Context& context, vector<FunctionInfo*>& overl
     return param == arg->removeReference();
   };
   auto isExactReferenceArg = [] (Type* arg, Type* param) {
-    bool byConstRef = dynamic_cast<ReferenceType*>(param) &&
-        !dynamic_cast<MutableReferenceType*>(arg) &&
+    bool byConstRef = param->asReferenceType() &&
+        !arg->asMutableReferenceType() &&
         param->removeReference() == arg->removeReference();
     return byConstRef;
   };
   auto isConstToMutableReferenceArg = [] (Type* arg, Type* param) {
-    bool byConstRef = dynamic_cast<ReferenceType*>(param) &&
-        dynamic_cast<MutableReferenceType*>(arg) &&
+    bool byConstRef = param->asReferenceType() &&
+        arg->asMutableReferenceType() &&
         param->removeReference() == arg->removeReference();
     return byConstRef;
   };

@@ -809,7 +809,7 @@ struct RequirementVisitor {
         errors.push_back("Error evaluating expression: " + res.get_error().error);
     } else
     if (res->isConstant)
-      if (auto cValue = dynamic_cast<CompileTimeValue*>(res->value))
+      if (auto cValue = res->value->asCompileTimeValue())
       if (auto value = cValue->value.getValueMaybe<bool>())
         if (!*value)
           errors.push_back(expr->codeLoc.toString() + ": Requirement evaluates to false");
@@ -1008,7 +1008,7 @@ static JustError<MappingError> getDeductionError(TypeMapping& mapping, Type* par
 }
 
 JustError<MappingError> StructType::getMappingError(TypeMapping& mapping, Type* argType) const {
-  auto argStruct = dynamic_cast<StructType*>(argType);
+  auto argStruct = argType->asStructType();
   if (!argStruct || parent != argStruct->parent)
     return MappingError{argType, this};
   for (int i = 0; i < templateParams.size(); ++i)
@@ -1017,13 +1017,13 @@ JustError<MappingError> StructType::getMappingError(TypeMapping& mapping, Type* 
 }
 
 JustError<MappingError> PointerType::getMappingError(TypeMapping& mapping, Type* argType) const {
-  if (auto argPointer = dynamic_cast<PointerType*>(argType))
+  if (auto argPointer = argType->asPointerType())
     return ::getDeductionError(mapping, underlying, argPointer->underlying);
   return MappingError{argType, this};
 }
 
 JustError<MappingError> MutablePointerType::getMappingError(TypeMapping& mapping, Type* argType) const {
-  if (auto argPointer = dynamic_cast<MutablePointerType*>(argType))
+  if (auto argPointer = argType->asMutablePointerType())
     return ::getDeductionError(mapping, underlying, argPointer->underlying);
   return MappingError{argType, this};
 }
@@ -1041,7 +1041,7 @@ JustError<MappingError> ReferenceType::getMappingError(TypeMapping& mapping, Typ
 }
 
 JustError<MappingError> MutableReferenceType::getMappingError(TypeMapping& mapping, Type* from) const {
-  if (auto argRef = dynamic_cast<MutableReferenceType*>(from))
+  if (auto argRef = from->asMutableReferenceType())
     return ::getDeductionError(mapping, underlying, argRef->underlying);
   else
     return getCantBindError(from, this);
@@ -1169,8 +1169,7 @@ static JustError<ErrorLoc> checkImplicitCopies(const Context& context, const vec
   for (int i = 0; i < paramTypes.size(); ++i) {
     auto& paramType = paramTypes[i];
     auto& argType = argTypes[i];
-    if ((!dynamic_cast<ReferenceType*>(paramType) && !dynamic_cast<MutableReferenceType*>(paramType)) &&
-        (dynamic_cast<ReferenceType*>(argType) || dynamic_cast<MutableReferenceType*>(argType))) {
+    if (!paramType->isReference() && argType->isReference()) {
       if (argType->removeReference()->isBuiltinCopyable(context))
         argType = argType->removeReference();
       else
@@ -1184,13 +1183,13 @@ static JustError<ErrorLoc> getConversionError(const Context& context, FunctionIn
     const vector<Type*>& argTypes, const vector<CodeLoc>& argLoc, const vector<Type*>& funParams, TypeMapping& mapping) {
   for (int i = 0; i < argTypes.size(); ++i) {
     optional<ErrorLoc> firstError;
-    if (argTypes[i] != BuiltinType::NULL_TYPE || !dynamic_cast<OptionalType*>(funParams[i])) {
-      auto asConceptType = dynamic_cast<ConceptType*>(funParams[i]->removePointer());
+    if (argTypes[i] != BuiltinType::NULL_TYPE || !funParams[i]->asOptionalType()) {
+      auto asConceptType = funParams[i]->removePointer()->asConceptType();
       // If it's the concept type parameter we don't try to convert to it from types satisfying the concept.
       bool conceptParam = input->type.concept && asConceptType && input->type.concept == asConceptType->concept;
       for (auto tArg : context.getConversions(argTypes[i], funParams[i], !conceptParam))
         if (!input->id.contains<Operator>() || tArg == argTypes[i] ||
-            (dynamic_cast<BuiltinType*>(tArg) && dynamic_cast<BuiltinType*>(argTypes[i]))) {
+            (tArg->asBuiltinType() && argTypes[i]->asBuiltinType())) {
           if (auto res = getDeductionError(mapping, funParams[i], tArg); !res) {
             if (!firstError)
               firstError = argLoc[i].getError(res.get_error().toString());
@@ -1280,7 +1279,7 @@ static WithError<vector<Type*>> deduceTemplateArgs(const Context& context,
       ret.push_back(mapping.templateArgs[i]);
     else
       return "Couldn't deduce template argument " + quote(mapping.templateParams[i]->getName());
-    if (dynamic_cast<CompileTimeValue*>(ret.back()) &&
+    if (ret.back()->asCompileTimeValue() &&
         !ret.back()->getType()->removeReference()->canBeValueTemplateParam())
       return "Value template parameter cannot have type " + quote(ret.back()->getType()->getName());
   }
@@ -1705,7 +1704,7 @@ string OptionalType::getCodegenName() const {
 }
 
 JustError<MappingError> OptionalType::getMappingError(TypeMapping& mapping, Type* from) const {
-  if (auto argPointer = dynamic_cast<OptionalType*>(from))
+  if (auto argPointer = from->asOptionalType())
     return ::getDeductionError(mapping, underlying, argPointer->underlying);
   return MappingError{from, this};
 }

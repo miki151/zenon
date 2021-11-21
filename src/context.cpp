@@ -280,9 +280,9 @@ vector<Type*> Context::getConversions(Type* type, Type* to, bool withConcepts) c
   auto underlying = type->removeReference();
   if (underlying == BuiltinType::INT)
     ret.push_back(BuiltinType::DOUBLE);
-  if (auto ptr = dynamic_cast<MutablePointerType*>(underlying))
+  if (auto ptr = underlying->asMutablePointerType())
     ret.push_back(PointerType::get(ptr->underlying));
-  if (auto t = dynamic_cast<StructType*>(underlying))
+  if (auto t = underlying->asStructType())
     if (t->parent && getType("mutable_slice_t") == t->parent)
       ret.push_back(getSliceType(t->templateParams[0]));
   if (underlying != BuiltinType::NULL_TYPE)
@@ -290,9 +290,9 @@ vector<Type*> Context::getConversions(Type* type, Type* to, bool withConcepts) c
   if (withConcepts) {
     if (underlying->isPointer() &&
         to->isPointer() &&
-        !dynamic_cast<ConceptType*>(underlying->removePointer()) &&
-        dynamic_cast<ConceptType*>(to->removePointer()) &&
-        (dynamic_cast<PointerType*>(to) || dynamic_cast<MutablePointerType*>(underlying)))
+        !underlying->removePointer()->asConceptType() &&
+        to->removePointer()->asConceptType() &&
+        (to->asPointerType() || underlying->asMutablePointerType()))
       ret.push_back(to);
   }
   return ret;
@@ -309,14 +309,14 @@ JustError<string> Context::canConvert(Type* from, Type* to, unique_ptr<Expressio
   auto fromUnderlying = from->removeReference();
   auto toUnderlying = to->removeReference();
   if (fromUnderlying == toUnderlying && toUnderlying != to &&
-      (!dynamic_cast<ReferenceType*>(from) || !dynamic_cast<MutableReferenceType*>(to)))
+      (!from->asReferenceType() || !to->asMutableReferenceType()))
     return success;
   if (from != fromUnderlying && to->removeReference() == fromUnderlying)
     return fromUnderlying->isBuiltinCopyable(*this, expr);
-  if (fromUnderlying->isPointer() && to->isPointer() && !dynamic_cast<ConceptType*>(fromUnderlying->removePointer()))
-    if (auto conceptType = dynamic_cast<ConceptType*>(to->removePointer())) {
+  if (fromUnderlying->isPointer() && to->isPointer() && !fromUnderlying->removePointer()->asConceptType())
+    if (auto conceptType = to->removePointer()->asConceptType()) {
       auto concept = conceptType->getConceptFor(fromUnderlying->removePointer());
-      if (dynamic_cast<MutablePointerType*>(to) && !dynamic_cast<MutablePointerType*>(fromUnderlying))
+      if (to->asMutablePointerType() && !fromUnderlying->asMutablePointerType())
         return "Cannot cast value of type " + quote(fromUnderlying->getName()) + " to a mutable pointer";
       auto functions = TRY(getRequiredFunctionsForConceptType(*this, *concept, CodeLoc()));
       for (auto& fun : functions)
@@ -329,7 +329,7 @@ JustError<string> Context::canConvert(Type* from, Type* to, unique_ptr<Expressio
       }
       return success;
     }
-  if (auto structType = dynamic_cast<StructType*>(toUnderlying))
+  if (auto structType = toUnderlying->asStructType())
     if (!structType->alternatives.empty()) {
       const StructType::Variable* alternative = nullptr;
       for (auto& alt : structType->alternatives)
@@ -788,8 +788,8 @@ vector<FunctionInfo*> Context::getConstructorsFor(Type* type) const {
     if (fun->type.retVal == type) {
       ret.push_back(fun);
     } else
-    if (auto structType = dynamic_cast<StructType*>(fun->type.retVal))
-      if (auto origStruct = dynamic_cast<StructType*>(type))
+    if (auto structType = fun->type.retVal->asStructType())
+      if (auto origStruct = type->asStructType())
         if (structType->parent == origStruct->parent) {
           ret.push_back(fun);
         }
@@ -861,7 +861,7 @@ FunctionInfo* Context::getBuiltinOperator(Operator op, vector<Type*> argTypes) c
         break;
       case Operator::ASSIGNMENT:
         if (argTypes.size() == 2 && canConvert(argTypes[1], argTypes[0]->removeReference()))
-          if (auto referenceType = dynamic_cast<MutableReferenceType*>(argTypes[0]))
+          if (auto referenceType = argTypes[0]->asMutableReferenceType())
             return FunctionSignature(BuiltinType::VOID, {argTypes[0], referenceType->underlying}, {}).setBuiltin();
         break;
       case Operator::SUBSCRIPT:

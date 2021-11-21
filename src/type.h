@@ -17,7 +17,15 @@ struct Sections;
 struct StatementBlock;
 struct Statement;
 struct AttributeType;
-
+struct StructType;
+struct ReferenceType;
+struct MutableReferenceType;
+struct PointerType;
+struct MutablePointerType;
+struct ConceptType;
+struct OptionalType;
+struct BuiltinType;
+struct CompileTimeValue;
 struct MappingError {
   const Type* from;
   const Type* to;
@@ -36,6 +44,16 @@ struct Type : public owned_object<Type> {
   virtual Type* replaceImpl(const Context&, Type* from, Type* to, ErrorBuffer&);
   virtual Type* expand(const Context&, Type* pack, vector<Type*> to, ErrorBuffer& errors);
   virtual Type* getType() const;
+  virtual ReferenceType* asReferenceType()  { return nullptr; }
+  virtual MutableReferenceType* asMutableReferenceType()  { return nullptr; }
+  virtual PointerType* asPointerType()  { return nullptr; }
+  virtual MutablePointerType* asMutablePointerType()  { return nullptr; }
+  virtual StructType* asStructType() { return nullptr; }
+  virtual ConceptType* asConceptType() { return nullptr; }
+  virtual OptionalType* asOptionalType() { return nullptr; }
+  virtual BuiltinType* asBuiltinType() { return nullptr; }
+  virtual CompileTimeValue* asCompileTimeValue() { return nullptr; }
+
   struct MemberInfo {
     Type* type;
     string name;
@@ -88,6 +106,7 @@ struct BuiltinType : public Type {
   virtual bool canBeValueTemplateParam() const override;
   virtual bool canDeclareVariable() const override;
   virtual bool isMetaType() const override;
+  virtual BuiltinType* asBuiltinType() override { return this; }
   using DefType = BuiltinType*;
   static DefType INT;
   static DefType DOUBLE;
@@ -135,6 +154,7 @@ struct ReferenceType : public Type {
   virtual Type* removePointer() override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, ArgumentType) const override;
   virtual void codegenDefinition(Buffer*, Sections*) override;
+  virtual ReferenceType* asReferenceType() override { return this; }
 
   static ReferenceType* get(Type*);
   Type* underlying;
@@ -152,6 +172,7 @@ struct MutableReferenceType : public Type {
   virtual Type* removePointer() override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, ArgumentType) const override;
   virtual void codegenDefinition(Buffer*, Sections*) override;
+  virtual MutableReferenceType* asMutableReferenceType() override { return this; }
 
   static MutableReferenceType* get(Type*);
   Type* underlying;
@@ -168,6 +189,7 @@ struct PointerType : public Type {
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual Type* removePointer() override;
   virtual void codegenDefinition(Buffer*, Sections*) override;
+  virtual PointerType* asPointerType() override { return this; }
 
   static PointerType* get(Type*);
   Type* underlying;
@@ -184,6 +206,7 @@ struct MutablePointerType : public Type {
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual Type* removePointer() override;
   virtual void codegenDefinition(Buffer*, Sections*) override;
+  virtual MutablePointerType* asMutablePointerType() override { return this; }
 
   static MutablePointerType* get(Type*);
   Type* underlying;
@@ -199,6 +222,7 @@ struct OptionalType : public Type {
   virtual Type* transform(function<Type*(Type*)>) override;
   void codegenDefinition(Buffer*, Sections* accu) override;
   virtual bool hasDestructor() const override;
+  virtual OptionalType* asOptionalType() override { return this; }
 
   static OptionalType* get(Type*);
   Type* underlying;
@@ -218,6 +242,7 @@ struct CompileTimeValue : public Type {
   virtual Type* getType() const override;
   virtual optional<string> getMangledName() const override;
   virtual WithError<Type*> convertTo(Type*) override;
+  virtual CompileTimeValue* asCompileTimeValue() override { return this; }
   struct TemplateValue {
     Type* type;
     string name;
@@ -303,6 +328,7 @@ struct StructType : public Type {
   virtual Type* getType() const override;
   virtual WithError<Type*> getTypeOfMember(const string&, ArgumentType) const override;
   virtual bool hasDestructor() const override;
+  virtual StructType* asStructType() override { return this; }
   string name;
   StructType* getInstance(vector<Type*> templateParams);
   vector<Type*> templateParams;
@@ -493,6 +519,8 @@ struct ConceptType : public Type {
   virtual bool hasDestructor() const override;
   virtual Type* getType() const override;
   virtual void codegenDefinition(Buffer*, Sections*) override;
+  virtual ConceptType* asConceptType() override { return this; }
+
   SConcept getConceptFor(Type*) const;
   SConcept concept;
   vector<Type*> params;
