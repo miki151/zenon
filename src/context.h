@@ -114,19 +114,19 @@ class Context : public owned_object<Context> {
   };
 
   struct State : public owned_object<State> {
-    map<string, VariableInfo> vars;
-    map<string, string> shadowIds;
+    unordered_map<string, VariableInfo> vars;
+    unordered_map<string, string> shadowIds;
     vector<string> varsList;
-    map<string, Type*> types;
-    set<const Type*> typesSet;
+    unordered_map<string, Type*> types;
+    unordered_set<const Type*> typesSet;
     optional<pair<string, vector<Type*>>> expandedTypePack;
     optional<pair<string, vector<Type*>>> expandedVariablePack;
     optional<pair<string, Type*>> unexpandedVariablePack;
     optional<pair<string, Type*>> unexpandedTypePack;
-    map<FunctionId, vector<FunctionInfo*>> functions;
+    unordered_map<FunctionId, vector<FunctionInfo*>> functions;
     ReturnTypeChecker* returnTypeChecker = nullptr;
-    map<string, shared_ptr<Concept>> concepts;
-    map<string, BuiltInFunctionInfo> builtInFunctions;
+    unordered_map<string, shared_ptr<Concept>> concepts;
+    unordered_map<string, BuiltInFunctionInfo> builtInFunctions;
     optional<int> loopId;
     bool isBranch = false;
     bool isTemplateInstance = false;
