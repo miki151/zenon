@@ -1,0 +1,18 @@
+// 2
+
+int? g1() {
+  return null;
+}
+
+int? g2() {
+  return 2;
+}
+
+int main() {
+  mutable ret = 0;
+  if (const p = g1())
+    ret = *move(p);
+  if (const p = g2())
+    ret = *move(p);
+  return ret;
+}
