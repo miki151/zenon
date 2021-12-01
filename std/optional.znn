@@ -53,6 +53,7 @@ export template <T>
 T operator * (T? elem) {
   if (!elem)
     panic("Attempted to dereference a null value from " + to_string(T) + "?");
+  set_moved_in_embed(move(elem));
   embed_returns {
     return std::move(*elem);
   }
@@ -127,4 +128,12 @@ void destruct(T?* t) {
   if (*t)
     (*t)->destruct();
 }
+
+export template <T>
+T? create_null() {
+  embed_returns {
+    return zenon::optional<T>(null);
+  }
+}
+
 
