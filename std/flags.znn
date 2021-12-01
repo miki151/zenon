@@ -63,6 +63,12 @@ export int!string parse_member(string* name, string* value, dummy_struct<int>) {
   return "Can't parse integer from '{*value}'";
 }
 
+export double!string parse_member(string* name, string* value, dummy_struct<double>) {
+  if (const r = value->to_double())
+    return *r;
+  return "Can't parse double from '{*value}'";
+}
+
 export string!string parse_member(string* name, string* value, dummy_struct<string>) {
   return expected<string, string>::value(*value);
 }
