@@ -342,7 +342,13 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
       },
       [&](const Number&) -> WithErrorLine<unique_ptr<Expression>> {
         tokens.popNext();
-        return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(stoi(token.value))));
+        int ret = 0;
+        try {
+          ret = stoi(token.value);
+        } catch (std::out_of_range e) {
+          return token.codeLoc.getError("Constant value out of range");
+        }
+        return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(ret)));
       },
       [&](const RealNumber&) -> WithErrorLine<unique_ptr<Expression>> {
         tokens.popNext();
