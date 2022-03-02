@@ -294,4 +294,12 @@ void insert(vector<T> mutable* v, int index, vector<T>* content) {
   }
 }
 
+export template<T>
+void append(vector<T> mutable* v, vector<T> content) {
+  set_moved_in_embed(move(content));
+  embed {
+    for (auto& elem : content)
+      v->push_back(std::move(elem));
+  }
+}
 
