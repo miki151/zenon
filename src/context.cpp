@@ -278,8 +278,10 @@ vector<Type*> Context::getConversions(Type* type, Type* to, bool withConcepts) c
     ret.push_back(BuiltinType::ANY_TYPE);
   ret.push_back(BuiltinType::ANYTHING);
   auto underlying = type->removeReference();
-  if (underlying == BuiltinType::INT)
+  if (underlying == BuiltinType::INT) {
     ret.push_back(BuiltinType::DOUBLE);
+    ret.push_back(BuiltinType::LONG);
+  }
   if (auto ptr = underlying->asMutablePointerType())
     ret.push_back(PointerType::get(ptr->underlying));
   if (auto t = underlying->asStructType())

@@ -1,0 +1,8 @@
+// 7
+
+import "std/math.znn";
+
+int main() {
+  const a = 1000.as_long() * 1000000000 + 7;
+  return as_int(a % 10);
+}

@@ -110,6 +110,7 @@ struct BuiltinType : public Type {
   using DefType = BuiltinType*;
   static DefType INT;
   static DefType DOUBLE;
+  static DefType LONG;
   static DefType BOOL;
   static DefType VOID;
   static DefType CHAR;

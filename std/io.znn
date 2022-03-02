@@ -14,6 +14,14 @@ export string to_string(int* i) {
   }
 }
 
+export string to_string(long* i) {
+  embed_returns {
+    char buf[20];
+    snprintf(buf, 20, "%lld", *i);
+    return lite_str<>::owned(buf);
+  }
+}
+
 export string to_string(double* i) {
   embed_returns {
     char buf[20];

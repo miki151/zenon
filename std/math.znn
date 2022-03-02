@@ -27,7 +27,29 @@ export int as_int(double a) {
   }
 }
 
+export int as_int(long a) {
+  embed_returns {
+    return (int) a;
+  }
+}
+
+export long as_long(double a) {
+  embed_returns {
+    return (long long) a;
+  }
+}
+
+export long as_long(int a) {
+  return a;
+}
+
 export double as_double(int a) {
+  embed_returns {
+    return (double) a;
+  }
+}
+
+export double as_double(long a) {
   embed_returns {
     return (double) a;
   }
