@@ -14,5 +14,5 @@ int main(string[] args) {
   const v1 = *input.scan_int();
   const v2 = *input.scan_double();
   assert(!remove_file(path));
-  return text.size() + v1 + as_int(2 * v2).as_int();
+  return text.size() + v1 + as_int(2 * v2);
 }
