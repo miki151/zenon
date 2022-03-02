@@ -734,10 +734,17 @@ string codegen(const AST& ast, TypeRegistry& registry, const string& codegenIncl
   for (auto& elem : ast.elems) {
     if (auto fun = dynamic_cast<const FunctionDefinition*>(elem.get()))
       if (fun->functionInfo->isMainFunction()) {
-        if (fun->parameters.empty())
-          footer->add("#include \"" + codegenInclude + "/main_body.h\"");
-        else
-          footer->add("#include \"" + codegenInclude + "/main_body_args.h\"");
+        if (fun->parameters.empty()) {
+          if (fun->functionInfo->type.retVal == BuiltinType::VOID)
+            footer->add("#include \"" + codegenInclude + "/main_body_void.h\"");
+          else
+            footer->add("#include \"" + codegenInclude + "/main_body.h\"");
+        } else {
+          if (fun->functionInfo->type.retVal == BuiltinType::VOID)
+            footer->add("#include \"" + codegenInclude + "/main_body_args_void.h\"");
+          else
+            footer->add("#include \"" + codegenInclude + "/main_body_args.h\"");
+        }
       }
   }
   return sections.generate();

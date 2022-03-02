@@ -915,8 +915,9 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionSignature(const Context& cont
         return codeLoc.getError("The main() function should take no arguments or take a single argument of type "
             + quote(expectedParam->getName()));
     }
-    if (functionInfo->type.retVal != BuiltinType::INT)
-      return codeLoc.getError("The main() function should return a value of type " + quote(BuiltinType::INT->getName()));
+    if (functionInfo->type.retVal != BuiltinType::INT && functionInfo->type.retVal != BuiltinType::VOID)
+      return codeLoc.getError("The main() function should return a value of type " +
+          quote(BuiltinType::INT->getName()) + " or " + quote(BuiltinType::VOID->getName()));
   }
   return success;
 }
