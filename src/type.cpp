@@ -2,22 +2,24 @@
 #include "context.h"
 #include "ast.h"
 
-BuiltinType::DefType BuiltinType::INT = new BuiltinType("int");
-BuiltinType::DefType BuiltinType::DOUBLE = new BuiltinType("double");
-BuiltinType::DefType BuiltinType::LONG = new BuiltinType("long", "int64_t"s);
-BuiltinType::DefType BuiltinType::VOID = new BuiltinType("void", "void_t"s);
-BuiltinType::DefType BuiltinType::BOOL = new BuiltinType("bool");
-BuiltinType::DefType BuiltinType::STRING = new BuiltinType("string", "zenon_string"s);
-BuiltinType::DefType BuiltinType::CHAR = new BuiltinType("char");
-BuiltinType::DefType BuiltinType::NORETURN = new BuiltinType("noreturn", "[[noreturn]] void"s);
-BuiltinType::DefType BuiltinType::ANY_TYPE = new BuiltinType("any_type");
-BuiltinType::DefType BuiltinType::ANYTHING = new BuiltinType("anything");
-BuiltinType::DefType BuiltinType::ENUM_TYPE = new BuiltinType("enum_type");
-BuiltinType::DefType BuiltinType::NULL_TYPE = new BuiltinType("null_type");
-BuiltinType::DefType BuiltinType::STRUCT_TYPE = new BuiltinType("struct_type");
-BuiltinType::DefType BuiltinType::UNION_TYPE = new BuiltinType("union_type");
-BuiltinType::DefType BuiltinType::ATTRIBUTE_TYPE = new BuiltinType("attribute_type");
-BuiltinType::DefType BuiltinType::CONCEPT_TYPE = new BuiltinType("concept_type");
+BuiltinType::DefType BuiltinType::INT = new BuiltinType("int", true);
+BuiltinType::DefType BuiltinType::DOUBLE = new BuiltinType("double", true);
+BuiltinType::DefType BuiltinType::LONG = new BuiltinType("long", true, "int64_t"s);
+BuiltinType::DefType BuiltinType::SHORT = new BuiltinType("short", true, "int16_t"s);
+BuiltinType::DefType BuiltinType::BYTE = new BuiltinType("byte", true, "int8_t"s);
+BuiltinType::DefType BuiltinType::VOID = new BuiltinType("void", true, "void_t"s);
+BuiltinType::DefType BuiltinType::BOOL = new BuiltinType("bool", true);
+BuiltinType::DefType BuiltinType::STRING = new BuiltinType("string", true, "zenon_string"s);
+BuiltinType::DefType BuiltinType::CHAR = new BuiltinType("char", true);
+BuiltinType::DefType BuiltinType::NORETURN = new BuiltinType("noreturn", false, "[[noreturn]] void"s);
+BuiltinType::DefType BuiltinType::ANY_TYPE = new BuiltinType("any_type", false);
+BuiltinType::DefType BuiltinType::ANYTHING = new BuiltinType("anything", false);
+BuiltinType::DefType BuiltinType::ENUM_TYPE = new BuiltinType("enum_type", false);
+BuiltinType::DefType BuiltinType::NULL_TYPE = new BuiltinType("null_type", false);
+BuiltinType::DefType BuiltinType::STRUCT_TYPE = new BuiltinType("struct_type", false);
+BuiltinType::DefType BuiltinType::UNION_TYPE = new BuiltinType("union_type", false);
+BuiltinType::DefType BuiltinType::ATTRIBUTE_TYPE = new BuiltinType("attribute_type", false);
+BuiltinType::DefType BuiltinType::CONCEPT_TYPE = new BuiltinType("concept_type", false);
 
 string BuiltinType::getName(bool withTemplateArguments) const {
   return name;
@@ -27,8 +29,8 @@ string BuiltinType::getCodegenName() const {
   return codegenName;
 }
 
-BuiltinType::BuiltinType(const string& name, optional<std::string> codegenName)
-    : name(name), codegenName(codegenName.value_or(name)) {
+BuiltinType::BuiltinType(const string& name, bool canDeclareVar, optional<std::string> codegenName)
+    : name(name), codegenName(codegenName.value_or(name)), canDeclareVar(canDeclareVar) {
 }
 
 string ReferenceType::getName(bool withTemplateArguments) const {
@@ -471,7 +473,7 @@ bool BuiltinType::canBeValueTemplateParam() const {
 }
 
 bool BuiltinType::canDeclareVariable() const {
-  return INT == this || LONG == this || BOOL == this || CHAR == this || STRING == this || DOUBLE == this || VOID == this;
+  return canDeclareVar;
 }
 
 bool BuiltinType::isMetaType() const {

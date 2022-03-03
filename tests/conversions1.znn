@@ -1,0 +1,15 @@
+// 8
+
+import "std/math.znn";
+
+byte get() {
+  return 260.as_byte();
+}
+
+short get2() {
+  return 65539.as_short();
+}
+
+int main() {
+  return get() + get2() + as_int(1.2);
+}

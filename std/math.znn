@@ -21,38 +21,91 @@ T max(T a, T b) {
     return move(a);
 }
 
-export int as_int(double a) {
+template <U, T>
+U convert_to(T a) {
   embed_returns {
-    return (int) a;
+    return (U) a;
   }
+}
+
+export int as_int(double a) {
+  return a.convert_to<int>();
 }
 
 export int as_int(long a) {
-  embed_returns {
-    return (int) a;
-  }
+  return a.convert_to<int>();
+}
+
+export int as_int(short a) {
+  return a;
+}
+
+export int as_int(byte a) {
+  return a;
+}
+
+export short as_short(byte a) {
+  return a;
+}
+
+export short as_short(double a) {
+  return a.convert_to<short>();
+}
+
+export short as_short(long a) {
+  return a.convert_to<short>();
+}
+
+export short as_short(int a) {
+  return a.convert_to<short>();
+}
+
+export byte as_byte(double a) {
+  return a.convert_to<byte>();
+}
+
+export byte as_byte(long a) {
+  return a.convert_to<byte>();
+}
+
+export byte as_byte(int a) {
+  return a.convert_to<byte>();
+}
+
+export byte as_byte(short a) {
+  return a.convert_to<byte>();
 }
 
 export long as_long(double a) {
-  embed_returns {
-    return (long long) a;
-  }
+  return a.convert_to<long>();
 }
 
 export long as_long(int a) {
   return a;
 }
 
+export long as_long(short a) {
+  return a;
+}
+
+export long as_long(byte a) {
+  return a;
+}
+
 export double as_double(int a) {
-  embed_returns {
-    return (double) a;
-  }
+  return a.convert_to<double>();
+}
+
+export double as_double(short a) {
+  return a.convert_to<double>();
+}
+
+export double as_double(byte a) {
+  return a.convert_to<double>();
 }
 
 export double as_double(long a) {
-  embed_returns {
-    return (double) a;
-  }
+  return a.convert_to<double>();
 }
 
 export extern double sqrt(double value);
@@ -63,7 +116,11 @@ export long abs(long value) {
     return llabs(value);
   }
 }
-export extern double fabs(double value);
+export long abs(double value) {
+  embed_returns {
+    return fabs(value);
+  }
+}
 export extern double cos(double value);
 export extern double sin(double value);
 export extern double atan2(double x, double y);

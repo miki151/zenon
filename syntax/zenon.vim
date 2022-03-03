@@ -24,7 +24,7 @@ syn keyword cInclude            import
 syn keyword cppStatement	new delete this friend using move requires
 syn keyword cppAccess		public protected private
 syn keyword cppModifier		inline virtual explicit export
-syn keyword cppType		bool wchar_t string 
+syn keyword cppType		bool wchar_t string byte
 syn keyword cppExceptions	throw try catch
 syn keyword cppOperator		operator typeid
 syn keyword cppOperator		and bitor or xor compl bitand and_eq or_eq xor_eq not not_eq

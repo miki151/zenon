@@ -284,6 +284,17 @@ vector<Type*> Context::getConversions(Type* type, Type* to, bool withConcepts) c
     ret.push_back(BuiltinType::DOUBLE);
     ret.push_back(BuiltinType::LONG);
   }
+  if (underlying == BuiltinType::SHORT) {
+    ret.push_back(BuiltinType::DOUBLE);
+    ret.push_back(BuiltinType::LONG);
+    ret.push_back(BuiltinType::INT);
+  }
+  if (underlying == BuiltinType::BYTE) {
+    ret.push_back(BuiltinType::DOUBLE);
+    ret.push_back(BuiltinType::LONG);
+    ret.push_back(BuiltinType::INT);
+    ret.push_back(BuiltinType::SHORT);
+  }
   if (auto ptr = underlying->asMutablePointerType())
     ret.push_back(PointerType::get(ptr->underlying));
   if (auto t = underlying->asStructType())

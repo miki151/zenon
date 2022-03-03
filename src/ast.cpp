@@ -1546,8 +1546,8 @@ static void addBuiltInConcepts(Context& context) {
 Context createPrimaryContext(TypeRegistry* typeRegistry) {
   Context context(typeRegistry, true);
   context.addVariable("void_value", BuiltinType::VOID, CodeLoc(), true);
-  for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::DOUBLE, BuiltinType::BOOL,
-       BuiltinType::VOID, BuiltinType::CHAR, BuiltinType::STRING, BuiltinType::NULL_TYPE}) {
+  for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::SHORT, BuiltinType::BYTE, BuiltinType::DOUBLE,
+       BuiltinType::BOOL, BuiltinType::VOID, BuiltinType::CHAR, BuiltinType::STRING, BuiltinType::NULL_TYPE}) {
     context.addType(type->getName(), type);
     context.setTypeFullyDefined(type);
   }
@@ -1556,18 +1556,18 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   CHECK(context.addImplicitFunction(Operator::PLUS, FunctionSignature(BuiltinType::STRING,
       {BuiltinType::STRING, BuiltinType::CHAR}, {}).setBuiltin()));
   for (auto op : {Operator::PLUS_UNARY, Operator::MINUS_UNARY})
-    for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::DOUBLE})
+    for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::SHORT, BuiltinType::BYTE, BuiltinType::DOUBLE})
       CHECK(context.addImplicitFunction(op, FunctionSignature(type, {type}, {}).setBuiltin()));
   for (auto op : {Operator::INCREMENT, Operator::DECREMENT})
-    for (auto type : {BuiltinType::INT, BuiltinType::LONG})
+    for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::SHORT, BuiltinType::BYTE})
       CHECK(context.addImplicitFunction(op, FunctionSignature(BuiltinType::VOID,
           {MutableReferenceType::get(type)}, {}).setBuiltin()));
   for (auto op : {Operator::PLUS, Operator::MINUS, Operator::MULTIPLY, Operator::DIVIDE, Operator::MODULO})
-    for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::DOUBLE})
+    for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::SHORT, BuiltinType::BYTE, BuiltinType::DOUBLE})
       if (type != BuiltinType::DOUBLE || op != Operator::MODULO)
         CHECK(context.addImplicitFunction(op, FunctionSignature(type, {type, type}, {}).setBuiltin()));
   for (auto op : {Operator::INCREMENT_BY, Operator::DECREMENT_BY, Operator::MULTIPLY_BY, Operator::DIVIDE_BY})
-    for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::DOUBLE})
+    for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::SHORT, BuiltinType::BYTE, BuiltinType::DOUBLE})
       CHECK(context.addImplicitFunction(op, FunctionSignature(BuiltinType::VOID,
           {MutableReferenceType::get(type), type}, {}).setBuiltin()));
   for (auto op : {Operator::LOGICAL_AND, Operator::LOGICAL_OR})
@@ -1576,7 +1576,8 @@ Context createPrimaryContext(TypeRegistry* typeRegistry) {
   CHECK(context.addImplicitFunction(Operator::LOGICAL_NOT, FunctionSignature(BuiltinType::BOOL,
       {BuiltinType::BOOL}, {}).setBuiltin()));
   for (auto op : {Operator::EQUALS, Operator::NOT_EQUAL, Operator::LESS_THAN})
-    for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::STRING, BuiltinType::DOUBLE})
+    for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::SHORT, BuiltinType::BYTE, BuiltinType::STRING,
+         BuiltinType::DOUBLE})
       CHECK(context.addImplicitFunction(op, FunctionSignature(BuiltinType::BOOL,
           {type, type}, {}).setBuiltin()));
   for (auto op : {Operator::EQUALS, Operator::NOT_EQUAL})

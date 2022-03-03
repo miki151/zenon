@@ -111,6 +111,8 @@ struct BuiltinType : public Type {
   static DefType INT;
   static DefType DOUBLE;
   static DefType LONG;
+  static DefType SHORT;
+  static DefType BYTE;
   static DefType BOOL;
   static DefType VOID;
   static DefType CHAR;
@@ -124,11 +126,12 @@ struct BuiltinType : public Type {
   static DefType UNION_TYPE;
   static DefType ATTRIBUTE_TYPE;
   static DefType CONCEPT_TYPE;
-  BuiltinType(const string& name, optional<string> codegenName = none);
+  BuiltinType(const string& name, bool canDeclareVar, optional<string> codegenName = none);
 
   private:
   string name;
   string codegenName;
+  bool canDeclareVar;
 };
 
 struct AttributeType : public Type {
