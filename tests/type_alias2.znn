@@ -1,0 +1,15 @@
+// 5
+
+using int32 = int;
+
+template <T>
+struct X {
+  T elem;
+};
+
+using X32 = X<int32>;
+
+int main() {
+  const x = X32(5);
+  return x.elem;
+}

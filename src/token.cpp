@@ -41,6 +41,7 @@ static const unordered_map<string, Keyword> keywords {
   {"attribute", Keyword::ATTRIBUTE},
   {"try", Keyword::TRY},
   {"mixin", Keyword::MIXIN},
+  {"using", Keyword::USING},
   {"::", Keyword::NAMESPACE_ACCESS},
   {"(", Keyword::OPEN_BRACKET},
   {")", Keyword::CLOSE_BRACKET},

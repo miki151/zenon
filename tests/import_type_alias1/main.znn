@@ -1,0 +1,8 @@
+// 5
+
+import "input2.znn";
+import "input3.znn";
+
+int main() {
+  return get();
+}

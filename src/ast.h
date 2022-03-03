@@ -357,6 +357,18 @@ struct AliasDeclaration : Statement {
   WithErrorLine<Type*> getRealType(const Context&) const;
 };
 
+struct TypeAliasDeclaration : Statement {
+  TypeAliasDeclaration(CodeLoc, string identifier, IdentifierInfo);
+  string identifier;
+  IdentifierInfo typeId;
+  Type* type = nullptr;
+  virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry*) override;
+  NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
+  NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
+  virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+  virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
+};
+
 struct ExternConstantDeclaration : Statement {
   ExternConstantDeclaration(CodeLoc, IdentifierInfo type, string identifier);
   IdentifierInfo type;

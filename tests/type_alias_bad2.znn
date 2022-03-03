@@ -1,0 +1,13 @@
+// no_compile
+
+using int32 = int;
+
+template <T>
+struct X {
+  T elem;
+};
+
+using X32 = X;
+
+void main() {
+}

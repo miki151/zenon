@@ -21,6 +21,11 @@ JustError<string> TypeRegistry::addEnum(const string& name, bool external, CodeL
   return success;
 }
 
+void TypeRegistry::addAlias(const string& name, Type* t) {
+  CHECK(!getType(name));
+  aliases.insert(make_pair(name, t));
+}
+
 StructType* TypeRegistry::getStruct(const string& name) const {
   if (auto s = getValueMaybe(structs, name))
     return *s;
@@ -34,6 +39,8 @@ EnumType* TypeRegistry::getEnum(const string& name) const {
 }
 
 Type* TypeRegistry::getType(const string& name) const {
+  if (auto s = getValueMaybe(aliases, name))
+    return *s;
   if (auto s = getStruct(name))
     return s;
   if (auto s = getEnum(name))
@@ -62,3 +69,4 @@ vector<EnumType*> TypeRegistry::getAllEnums() const {
     ret.push_back(elem.second);
   return ret;
 }
+

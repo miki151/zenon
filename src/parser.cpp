@@ -874,6 +874,15 @@ WithErrorLine<unique_ptr<Statement>> parseIfStatement(Tokens& tokens) {
       unique<IfStatement>(ifToken.codeLoc, std::move(decl), std::move(cond), std::move(ifTrue), std::move(ifFalse)));
 }
 
+WithErrorLine<unique_ptr<Statement>> parseTypeAlias(Tokens& tokens) {
+  auto loc = TRY(tokens.eat(Keyword::USING)).codeLoc;
+  auto id = TRY(tokens.eat<IdentifierToken>("Expected name of type alias")).value;
+  TRY(tokens.eat(Operator::ASSIGNMENT));
+  auto type = TRY(parseIdentifier(tokens, true));
+  TRY(tokens.eat(Keyword::SEMICOLON));
+  return cast<Statement>(unique<TypeAliasDeclaration>(loc, id, type));
+}
+
 WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
   TRY(tokens.eat(Keyword::TEMPLATE));
   auto templateInfo = TRY(parseTemplateInfo(tokens));
@@ -1029,6 +1038,8 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
       },
       [&](const Keyword& k) -> WithErrorLine<unique_ptr<Statement>> {
         switch (k) {
+          case Keyword::USING:
+            return parseTypeAlias(tokens);
           case Keyword::TEMPLATE:
             return parseTemplateDefinition(tokens);
           case Keyword::IF:

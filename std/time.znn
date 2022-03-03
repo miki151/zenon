@@ -3,7 +3,9 @@ embed {
 #include <sys/time.h>
 }
 
-export long current_time_milli() {
+using milliseconds_t = long;
+
+export milliseconds_t current_time_milli() {
   embed_returns {
     timeval t;
     gettimeofday(&t, nullptr);

@@ -1,0 +1,11 @@
+// 1
+
+using type1 = int;
+
+type1 get() {
+  return 1;
+}
+
+int main() {
+  return get();
+}

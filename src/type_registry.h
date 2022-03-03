@@ -12,6 +12,7 @@ class TypeRegistry {
   public:
   JustError<string> addStruct(const string& name, bool external, CodeLoc definition);
   JustError<string> addEnum(const string& name, bool external, CodeLoc definition);
+  void addAlias(const string& name, Type*);
   StructType* getStruct(const string& name) const;
   EnumType* getEnum(const string& name) const;
   Type* getType(const string& name) const;
@@ -22,4 +23,5 @@ class TypeRegistry {
   JustError<string> checkNameConflict(const string& name) const;
   map<string, StructType*> structs;
   map<string, EnumType*> enums;
+  map<string, Type*> aliases;
 };

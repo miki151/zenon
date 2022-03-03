@@ -3203,3 +3203,28 @@ unique_ptr<Statement> getRangedLoop(CodeLoc l, string iterator, unique_ptr<Expre
       std::move(whileBody), std::move(incExpr)));
   return ret;
 }
+
+TypeAliasDeclaration::TypeAliasDeclaration(CodeLoc loc, string identifier, IdentifierInfo type)
+  : Statement(loc), identifier(std::move(identifier)), typeId(std::move(type)) {
+}
+
+JustError<ErrorLoc> TypeAliasDeclaration::registerTypes(const Context& primaryContext, TypeRegistry* r) {
+  if (!type) {
+    type = TRY(primaryContext.getTypeFromString(typeId));
+    TRY(primaryContext.checkNameConflict(identifier, "type alias").addCodeLoc(codeLoc));
+    r->addAlias(identifier, type);
+  }
+  return success;
+}
+
+JustError<ErrorLoc> TypeAliasDeclaration::addToContext(Context&) {
+  return success;
+}
+
+JustError<ErrorLoc> TypeAliasDeclaration::check(Context&, bool) {
+  return success;
+}
+
+unique_ptr<Statement> TypeAliasDeclaration::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
+  return unique<TypeAliasDeclaration>(codeLoc, identifier, typeId);
+}

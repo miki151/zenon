@@ -1,0 +1,7 @@
+
+
+using type1 = int;
+
+export type1 get() {
+  return 5;
+}

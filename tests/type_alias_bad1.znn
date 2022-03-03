@@ -1,0 +1,10 @@
+// no_compile
+
+template <T>
+struct X {
+};
+
+using double = X<int>;
+
+void main() {
+}
