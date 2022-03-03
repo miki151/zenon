@@ -278,6 +278,8 @@ vector<Type*> Context::getConversions(Type* type, Type* to, bool withConcepts) c
     ret.push_back(BuiltinType::ANY_TYPE);
   ret.push_back(BuiltinType::ANYTHING);
   auto underlying = type->removeReference();
+  if (underlying == BuiltinType::LONG)
+    ret.push_back(BuiltinType::DOUBLE);
   if (underlying == BuiltinType::INT) {
     ret.push_back(BuiltinType::DOUBLE);
     ret.push_back(BuiltinType::LONG);
