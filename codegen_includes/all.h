@@ -15,6 +15,7 @@ namespace zenon {
 using zenon_string = lite_str<>;
 constexpr auto null = tl::nullopt;
 using null_type = tl::nullopt_t;
+using std::int64_t;
 
 template <typename T>
 const T* op_get_address(const T& t) {

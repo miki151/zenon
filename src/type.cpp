@@ -4,7 +4,7 @@
 
 BuiltinType::DefType BuiltinType::INT = new BuiltinType("int");
 BuiltinType::DefType BuiltinType::DOUBLE = new BuiltinType("double");
-BuiltinType::DefType BuiltinType::LONG = new BuiltinType("long", "long long"s);
+BuiltinType::DefType BuiltinType::LONG = new BuiltinType("long", "int64_t"s);
 BuiltinType::DefType BuiltinType::VOID = new BuiltinType("void", "void_t"s);
 BuiltinType::DefType BuiltinType::BOOL = new BuiltinType("bool");
 BuiltinType::DefType BuiltinType::STRING = new BuiltinType("string", "zenon_string"s);
