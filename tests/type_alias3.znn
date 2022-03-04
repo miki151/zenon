@@ -1,0 +1,25 @@
+// 5
+
+concept <T> C {
+  int f(T*);
+};
+
+template <T>
+struct X {
+  T* elem;
+};
+
+using XC = X<C>;
+
+struct A {
+};
+
+int f(A*) {
+  return 5;
+}
+
+int main() {
+  const a = A();
+  const x = XC(&a);
+  return x.elem->f();
+}

@@ -576,6 +576,7 @@ struct ConceptDefinition : Statement {
   string name;
   vector<unique_ptr<FunctionDefinition>> functions;
   TemplateInfo templateInfo;
+  Concept* concept = nullptr;
   struct FatPointerInfo {
     Type* type;
     vector<FunctionInfo*> vTable;
@@ -587,6 +588,7 @@ struct ConceptDefinition : Statement {
   virtual void codegen(Buffer*, Sections*) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
+  virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry*) override;
 
   private:
   vector<FatPointerInfo> fatPointers;
@@ -665,7 +667,7 @@ struct FunctionDefinition : Statement {
   virtual void codegenInstance(Buffer*, Sections*, FunctionInfo*) const;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
-  NODISCARD JustError<ErrorLoc> setFunctionSignature(const Context&, nullable<SConcept> concept = nullptr, bool builtInImport = false);
+  NODISCARD JustError<ErrorLoc> setFunctionSignature(const Context&, Concept* concept = nullptr, bool builtInImport = false);
   void handlePointerParamsInOperator(Buffer*, Sections*, const StatementBlock*) const;
   void handlePointerReturnInOperator(Buffer*, Sections*, const StatementBlock*) const;
   void addStacktraceGenerator(Buffer*, Sections*, const StatementBlock*) const;

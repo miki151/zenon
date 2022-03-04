@@ -311,7 +311,7 @@ struct TemplateParameterType : public Type {
 };
 
 struct TemplateRequirement {
-  using Base = variant<SConcept, shared_ptr<Expression>>;
+  using Base = variant<Concept*, shared_ptr<Expression>>;
   TemplateRequirement(Base base, bool variadic) : base(std::move(base)), variadic(variadic) {}
   Base base;
   bool variadic;
@@ -401,7 +401,7 @@ struct FunctionSignature {
   vector<Type*> templateParams;
   vector<TemplateRequirement> requirements;
   Type* parentType = nullptr;
-  nullable<SConcept> concept;
+  Concept* concept = nullptr;
   bool builtinOperator = false;
   bool generatedConstructor = false;
   bool variadicTemplate = false;
@@ -413,7 +413,7 @@ namespace std {
   template <>
   struct hash<FunctionSignature> {
     size_t operator()(const FunctionSignature& x) const {
-      auto ret = size_t(x.retVal) + size_t(x.parentType) + size_t(x.concept ? x.concept.get().get() : nullptr)
+      auto ret = size_t(x.retVal) + size_t(x.parentType) + size_t(x.concept)
           + size_t(x.builtinOperator) + 2 * size_t(x.generatedConstructor) + 3 * size_t(x.variadicTemplate)
           + 4 * size_t(x.variadicParams);
       for (auto p : x.params)
@@ -423,8 +423,8 @@ namespace std {
       for (auto& r : x.requirements) {
         ret += size_t(r.variadic);
         ret += r.base.visit(
-          [](const SConcept& concept) {
-            return size_t(concept.get());
+          [](Concept* concept) {
+            return size_t(concept);
           },
           [](const shared_ptr<Expression>& expr) {
             return size_t(expr.get());
@@ -492,9 +492,9 @@ struct ConceptDefinition;
 struct Concept : public owned_object<Concept> {
   Concept(const string& name, ConceptDefinition*, Context emptyContext, bool variadic);
   string getName(bool withTemplateParams = true) const;
-  SConcept translate(vector<Type*> params, bool variadicParams, ErrorBuffer&) const;
-  SConcept replace(const Context&, Type* from, Type* to, ErrorBuffer&) const;
-  SConcept expand(const Context&, Type* from, vector<Type*> newParams, ErrorBuffer& errors);
+  Concept* translate(vector<Type*> params, bool variadicParams, ErrorBuffer&) const;
+  Concept* replace(const Context&, Type* from, Type* to, ErrorBuffer&) const;
+  Concept* expand(const Context&, Type* from, vector<Type*> newParams, ErrorBuffer& errors);
   const vector<Type*>& getParams() const;
   bool isVariadic() const;
   JustError<ErrorLoc> canCreateConceptType() const;
@@ -511,9 +511,9 @@ struct Concept : public owned_object<Concept> {
 };
 
 struct ConceptType : public Type {
-  static ConceptType* get(SConcept, vector<Type*> params, bool variadic);
+  static ConceptType* get(Concept*, vector<Type*> params, bool variadic);
   struct Private{};
-  ConceptType(Private, SConcept, vector<Type*> params, bool variadic);
+  ConceptType(Private, Concept*, vector<Type*> params, bool variadic);
   virtual string getName(bool withTemplateArguments = true) const override;
   virtual optional<string> getMangledName() const override;
   virtual Type* replaceImpl(const Context&, Type* from, Type* to, ErrorBuffer&) override;
@@ -525,8 +525,8 @@ struct ConceptType : public Type {
   virtual void codegenDefinition(Buffer*, Sections*) override;
   virtual ConceptType* asConceptType() override { return this; }
 
-  SConcept getConceptFor(Type*) const;
-  SConcept concept;
+  Concept* getConceptFor(Type*) const;
+  Concept* concept = nullptr;
   vector<Type*> params;
   bool variadic;
 };

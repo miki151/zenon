@@ -580,8 +580,8 @@ WithErrorLine<vector<Type*>> Context::getTypeList(const vector<TemplateParameter
   return params;
 }
 
-void Context::addConcept(const string& name, SConcept i) {
-  state->concepts.insert({name, i});
+void Context::addConcept(const string& name, Concept* i) {
+  state->concepts.insert(i);
   if (i->canCreateConceptType()) {
     ErrorBuffer errors;
     for (auto& fun : i->getContext().getAllFunctions()) {
@@ -597,12 +597,12 @@ void Context::addConcept(const string& name, SConcept i) {
   }
 }
 
-nullable<SConcept> Context::getConcept(const string& name) const {
-  for (auto state : getReversedStates())
-    if (state->concepts.count(name))
-      return state->concepts.at(name);
+Concept* Context::getConcept(const string& name) const {
+  auto c = typeRegistry->getConcept(name);
+  for (auto s : getReversedStates())
+    if (s->concepts.count(c))
+      return c;
   return nullptr;
-
 }
 
 Type* Context::getType(const string& s) const {
@@ -692,7 +692,7 @@ WithErrorLine<Type*> Context::getTypeFromString(IdentifierInfo id, optional<bool
     auto name = id.parts[0].name;
     if (auto id = getShadowId(name))
       name = *id;
-    if (auto concept = getConcept(name)) {
+    if (auto concept = typeRegistry->getConcept(name)) {
       if (auto res = concept->canCreateConceptType(); !res)
         return id.codeLoc.getError("Can't create a concept type from concept " + quote(concept->getName()) + ":\n" + res.get_error().toString());
       bool variadic = typePack.value_or(false);
@@ -700,7 +700,7 @@ WithErrorLine<Type*> Context::getTypeFromString(IdentifierInfo id, optional<bool
       if (concept->getParams().size() - 2 > templateParams.size() ||
           ((!concept->isVariadic() || variadic) && templateParams.size() != concept->getParams().size() - 1))
         return id.codeLoc.getError("Wrong number of template parameters to concept type " + quote(concept->getName()));
-      auto type = ConceptType::get(concept.get(), std::move(templateParams), variadic);
+      auto type = ConceptType::get(concept, std::move(templateParams), variadic);
       concept->def->addConceptType(type);
       return (Type*)type;
     } else

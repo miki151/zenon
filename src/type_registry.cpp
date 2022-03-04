@@ -48,6 +48,12 @@ Type* TypeRegistry::getType(const string& name) const {
   return nullptr;
 }
 
+Concept* TypeRegistry::getConcept(const string& name) const {
+  if (auto s = getValueMaybe(concepts, name))
+    return *s;
+  return nullptr;
+}
+
 JustError<string> TypeRegistry::checkNameConflict(const string& name) const {
   if (auto s = getStruct(name))
     return quote(name) + " conflicts with existing type declared at: " + s->definition->toString();
@@ -70,3 +76,7 @@ vector<EnumType*> TypeRegistry::getAllEnums() const {
   return ret;
 }
 
+
+void TypeRegistry::addConcept(const string& name, Concept* c) {
+  concepts.insert(make_pair(name, c));
+}

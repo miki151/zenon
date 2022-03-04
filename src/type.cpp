@@ -799,7 +799,7 @@ struct RequirementVisitor {
   Type* from = nullptr;
   Type* to = nullptr;
   ErrorBuffer& errors;
-  void operator()(SConcept& concept) {
+  void operator()(Concept*& concept) {
     concept = concept->replace(context, from, to, errors);
   }
   void operator()(shared_ptr<Expression>& expr) {
@@ -951,7 +951,7 @@ static JustError<ErrorLoc> checkRequirements(const Context& context,
     const vector<TemplateRequirement>& requirements, CodeLoc codeLoc,
     vector<FunctionSignature> existing) {
   for (auto& req : requirements)
-    if (auto concept = req.base.getReferenceMaybe<SConcept>())
+    if (auto concept = req.base.getReferenceMaybe<Concept*>())
       TRY(context.getRequiredFunctions(**concept, existing).addCodeLoc(codeLoc));
     else if (auto expr1 = req.base.getReferenceMaybe<shared_ptr<Expression>>()) {
       if (expr1->get()->eval(context)->value == CompileTimeValue::get(false))
@@ -1132,13 +1132,13 @@ static JustError<ErrorLoc> expandVariadicTemplate(const Context& context, Functi
   for (auto requirement : type.requirements)
     if (!requirement.variadic) {
       newRequirements.push_back(requirement);
-      if (auto concept = newRequirements.back().base.getReferenceMaybe<SConcept>())
-        if (concept->get()->isVariadic() && concept->get()->getParams().back() == lastTemplateParam)
-          newRequirements.back().base = concept->get()->expand(context, lastTemplateParam, expandedTypes, errors);
+      if (auto concept = newRequirements.back().base.getReferenceMaybe<Concept*>())
+        if ((*concept)->isVariadic() && (*concept)->getParams().back() == lastTemplateParam)
+          newRequirements.back().base = (*concept)->expand(context, lastTemplateParam, expandedTypes, errors);
     } else {
       for (auto& expanded : expandedTypes)
         newRequirements.push_back(requirement.base.visit(
-            [&](const SConcept& r) {
+            [&](Concept*& r) {
               return TemplateRequirement(r->replace(context, lastTemplateParam, expanded, errors), false);
             },
             [&](const shared_ptr<Expression>& r) {
@@ -1240,7 +1240,7 @@ vector<FunctionInfo*> getSpecialOverloads(const FunctionId& id, const vector<Typ
 static JustError<MappingError> deduceTemplateArgsFromConcepts(const Context& context,
     TypeMapping& mapping, const vector<TemplateRequirement>& requirements, ErrorBuffer& errors) {
   for (auto& elem : requirements)
-    if (auto req1 = elem.base.getReferenceMaybe<SConcept>()) {
+    if (auto req1 = elem.base.getReferenceMaybe<Concept*>()) {
       auto req = *req1;
       for (int i = 0; i < mapping.templateParams.size(); ++i)
         if (!!mapping.templateArgs[i])
@@ -1347,8 +1347,8 @@ string Concept::getName(bool withTemplateParams) const {
   return name;
 }
 
-SConcept Concept::translate(vector<Type*> newParams, bool variadicParams, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name, def, Context(context.typeRegistry, false), variadicParams);
+Concept* Concept::translate(vector<Type*> newParams, bool variadicParams, ErrorBuffer& errors) const {
+  auto ret = new Concept(name, def, Context(context.typeRegistry, false), variadicParams);
   ret->context.deepCopyFrom(context);
   ret->params = newParams;
   if (!variadic || variadicParams) {
@@ -1364,8 +1364,8 @@ SConcept Concept::translate(vector<Type*> newParams, bool variadicParams, ErrorB
   return ret;
 }
 
-SConcept Concept::expand(const Context&, Type* from, vector<Type*> newParams, ErrorBuffer& errors) {
-  auto ret = shared<Concept>(name, def, Context(context.typeRegistry, false), variadic);
+Concept* Concept::expand(const Context&, Type* from, vector<Type*> newParams, ErrorBuffer& errors) {
+  auto ret = new Concept(name, def, Context(context.typeRegistry, false), variadic);
   ret->context.deepCopyFrom(context);
   ret->params = params;
   ret->variadic = false;
@@ -1374,8 +1374,8 @@ SConcept Concept::expand(const Context&, Type* from, vector<Type*> newParams, Er
   return ret;
 }
 
-SConcept Concept::replace(const Context& repContext, Type* from, Type* to, ErrorBuffer& errors) const {
-  auto ret = shared<Concept>(name, def, Context(context.typeRegistry), variadic);
+Concept* Concept::replace(const Context& repContext, Type* from, Type* to, ErrorBuffer& errors) const {
+  auto ret = new Concept(name, def, Context(context.typeRegistry), variadic);
   ret->context.deepCopyFrom(context);
   ret->params = params;
   ret->variadic = variadic;
@@ -1853,15 +1853,15 @@ Type* convertReferenceToPointer(Type* type) {
     return type;
 }
 
-ConceptType* ConceptType::get(SConcept c, vector<Type*> params, bool variadic) {
+ConceptType* ConceptType::get(Concept* c, vector<Type*> params, bool variadic) {
   static map<tuple<Concept*, vector<Type*>, bool>, ConceptType*> cache;
-  if (!cache.count({c.get(), params, variadic})) {
-    cache.insert(make_pair(make_tuple(c.get(), params, variadic), new ConceptType(Private{}, c, params, variadic)));
+  if (!cache.count({c, params, variadic})) {
+    cache.insert(make_pair(make_tuple(c, params, variadic), new ConceptType(Private{}, c, params, variadic)));
   }
-  return cache.at({c.get(), params, variadic});
+  return cache.at({c, params, variadic});
 }
 
-ConceptType::ConceptType(ConceptType::Private, SConcept c, vector<Type*> params, bool variadic)
+ConceptType::ConceptType(ConceptType::Private, Concept* c, vector<Type*> params, bool variadic)
     : concept(std::move(c)), params(std::move(params)), variadic(variadic) {
 }
 
@@ -1911,7 +1911,7 @@ Type* ConceptType::getType() const {
   return BuiltinType::CONCEPT_TYPE;
 }
 
-SConcept ConceptType::getConceptFor(Type* t) const {
+Concept* ConceptType::getConceptFor(Type* t) const {
   ErrorBuffer errors;
   auto res = concept->translate(concat({t}, params), false, errors);
   CHECK(errors.empty());

@@ -1,0 +1,11 @@
+// no_compile
+
+import "input2.znn";
+
+template <T> requires C<T>
+void g() {
+}
+
+int main() {
+  return 0;
+}

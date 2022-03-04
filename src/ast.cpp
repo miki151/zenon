@@ -728,7 +728,7 @@ static WithErrorLine<vector<Type*>> translateConceptParams(const Context& contex
     const TemplateInfo::ConceptRequirement& requirement) {
   auto& reqId = requirement.identifier;
   auto& requirementArgs = reqId.parts[0].templateArguments;
-  auto concept = context.getConcept(reqId.parts[0].name).get();
+  auto concept = context.getConcept(reqId.parts[0].name);
   vector<Type*> translatedParams;
   bool missingTypePack = requirement.variadic;
   for (int i = 0; i < requirementArgs.size(); ++i) {
@@ -851,7 +851,7 @@ unique_ptr<Statement> FunctionDefinition::transformImpl(const StmtTransformFun& 
   return ret;
 }
 
-JustError<ErrorLoc> FunctionDefinition::setFunctionSignature(const Context& context, nullable<SConcept> concept,
+JustError<ErrorLoc> FunctionDefinition::setFunctionSignature(const Context& context, Concept* concept,
     bool builtInImport) {
   if (functionInfo)
     return success;
@@ -1533,8 +1533,9 @@ void FunctionDefinition::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) c
 
 static void addBuiltInConcepts(Context& context) {
   auto addType = [&context](const char* name, Type* type) {
-    shared_ptr<Concept> concept = shared<Concept>(name, nullptr, Context(context.typeRegistry, true), false);
+    auto concept = new Concept(name, nullptr, Context(context.typeRegistry, true), false);
     concept->modParams().push_back(new TemplateParameterType(type, "T", CodeLoc()));
+    context.typeRegistry->addConcept(name, concept);
     context.addConcept(name, concept);
   };
   addType("is_enum", BuiltinType::ENUM_TYPE);
@@ -2474,23 +2475,22 @@ void ConceptDefinition::addConceptType(ConceptType* conceptType) {
 }
 
 JustError<ErrorLoc> ConceptDefinition::addToContext(Context& context) {
-  auto concept = shared<Concept>(name, this, Context(context.typeRegistry, true), templateInfo.variadic);
   auto declarationsContext = context.getChild();
-  for (int i = 0; i < templateInfo.params.size(); ++i) {
-    auto& param = templateInfo.params[i];
-    if (param.type)
-      return param.codeLoc.getError("Concept value template parameters are not supported.");
-    concept->modParams().push_back(new TemplateParameterType(param.name, param.codeLoc));
-    declarationsContext.addType(param.name, concept->modParams().back());
-    if (templateInfo.variadic && i == templateInfo.params.size() - 1)
-      declarationsContext.addUnexpandedTypePack(templateInfo.params[i].name, concept->modParams().back());
-  }
-  for (auto& function : functions) {
-    if (function->isVirtual)
-      return function->codeLoc.getError("Virtual functions are not allowed here");
-    TRY(function->setFunctionSignature(declarationsContext, concept));
-    TRY(function->check(declarationsContext));
-    TRY(concept->modContext().addFunction(function->functionInfo).addCodeLoc(function->codeLoc));
+  if (!functions.empty() && concept->getContext().getAllFunctions().empty()) {
+    // A bit iffy that we're adding the functions once but with a specific Context that happened to be first.
+    for (int i = 0; i < templateInfo.params.size(); ++i) {
+      auto& param = templateInfo.params[i];
+      declarationsContext.addType(param.name, concept->getParams()[i]);
+      if (templateInfo.variadic && i == templateInfo.params.size() - 1)
+        declarationsContext.addUnexpandedTypePack(templateInfo.params[i].name, concept->modParams().back());
+    }
+    for (auto& function : functions) {
+      if (function->isVirtual)
+        return function->codeLoc.getError("Virtual functions are not allowed here");
+      TRY(function->setFunctionSignature(declarationsContext, concept));
+      TRY(function->check(declarationsContext));
+      TRY(concept->modContext().addFunction(function->functionInfo).addCodeLoc(function->codeLoc));
+    }
   }
   context.addConcept(name, concept);
   return success;
@@ -2506,6 +2506,20 @@ unique_ptr<Statement> ConceptDefinition::transformImpl(const StmtTransformFun& f
     ret->functions.push_back(cast<FunctionDefinition>(f1(f.get())));
   ret->templateInfo = templateInfo;
   return ret;
+}
+
+JustError<ErrorLoc> ConceptDefinition::registerTypes(const Context& primaryContext, TypeRegistry* r) {
+  if (!concept) {
+    concept = new Concept(name, this, Context(primaryContext.typeRegistry, true), templateInfo.variadic);
+    for (int i = 0; i < templateInfo.params.size(); ++i) {
+      auto& param = templateInfo.params[i];
+      if (param.type)
+        return param.codeLoc.getError("Concept value template parameters are not supported.");
+      concept->modParams().push_back(new TemplateParameterType(param.name, param.codeLoc));
+    }
+    r->addConcept(name, concept);
+  }
+  return success;
 }
 
 JustError<ErrorLoc> BreakStatement::check(Context& context, bool) {

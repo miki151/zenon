@@ -1,0 +1,4 @@
+
+concept <T> C {
+  void f(T*);
+};
