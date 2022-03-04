@@ -1291,6 +1291,11 @@ static WithError<vector<Type*>> deduceTemplateArgs(const Context& context,
 
 WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context1, FunctionInfo* input, CodeLoc codeLoc,
     vector<Type*> templateArgs, vector<Type*> argTypes, vector<CodeLoc> argLoc, vector<FunctionSignature> existing) {
+  if (input->id == ConstructorTag{} && input->getParent() != input && !input->type.concept) {
+    // This is a special case of an already instantiated constructor using a type alias, the condition
+    // may need to be refined.
+    return input;
+  }
   FunctionSignature type = input->type;
   auto context = context1.getTopLevel();
   auto origParams = type.templateParams;

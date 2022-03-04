@@ -1,0 +1,20 @@
+// 5
+
+template <T>
+struct X {
+};
+
+template <T>
+X() { return X<T>::X();}
+
+template <T>
+T f(X<T>*, T t) {
+  return move(t);
+}
+
+using A = X<int>;
+
+int main() {
+  const a = A();
+  return a.f(5);
+}

@@ -806,7 +806,16 @@ vector<FunctionInfo*> Context::getConstructorsFor(Type* type) const {
     if (auto structType = fun->type.retVal->asStructType())
       if (auto origStruct = type->asStructType())
         if (structType->parent == origStruct->parent) {
-          ret.push_back(fun);
+          auto constructor = fun;
+          if (origStruct->parent != origStruct) {
+            // Template type alias case
+            ErrorBuffer errors;
+            for (int i = 0; i < origStruct->templateParams.size(); ++i)
+              constructor = replaceInFunction(*this, constructor, constructor->getParent()->type.templateParams[i],
+                  origStruct->templateParams[i], errors);
+            CHECK(errors.empty()) << errors[0];
+          }
+          ret.push_back(constructor);
         }
   }
   return ret;
