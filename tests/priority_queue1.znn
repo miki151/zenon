@@ -1,0 +1,25 @@
+// 22
+
+import "std/priority_queue.znn";
+
+template <T>
+struct X {
+  T a;
+};
+
+int main() {
+  mutable queue = priority_queue<X<int>>([](X<int>* x1, X<int>* x2) { 
+    return x1->a < x2->a;
+  });
+  mutable ret = 0;
+  queue.push(X(4));
+  ret += queue.pop().a;
+  queue.push(X(5));
+  queue.push(X(2));
+  ret += queue.pop().a;
+  queue.push(X(7));
+  ret += queue.pop().a;
+  queue.push(X(1));
+  ret += queue.pop().a;
+  return ret + 10 * queue.size();
+}

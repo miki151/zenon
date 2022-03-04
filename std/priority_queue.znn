@@ -1,0 +1,44 @@
+
+export import "std/vector.znn";
+export import "std/panic.znn";
+import "std/range.znn";
+
+export template <T, Comparator> requires invoke<Comparator, bool, T*, T*>
+struct priority_queue {
+  vector<T> elems;
+  Comparator comparator;
+};
+
+export template <T, Comparator> requires invoke<Comparator, bool, T*, T*>
+priority_queue(Comparator comparator) {
+  return priority_queue<T, Comparator>::priority_queue(vector<T>(), move(comparator));
+}
+
+export template <T, Comparator> requires invoke<Comparator, bool, T*, T*>
+void push(priority_queue<T, Comparator> mutable* queue, T elem) {
+  queue->elems.push_back(move(elem));
+}
+
+export template <T, Comparator> requires invoke<Comparator, bool, T*, T*>
+bool empty(priority_queue<T, Comparator>* queue) {
+  return queue->elems.empty();
+}
+
+export template <T, Comparator> requires invoke<Comparator, bool, T*, T*>
+int size(priority_queue<T, Comparator>* queue) {
+  return queue->elems.size();
+}
+
+export template <T, Comparator> requires invoke<Comparator, bool, T*, T*>
+T pop(priority_queue<T, Comparator> mutable* queue) {
+  assert(!queue->empty());
+  mutable ret = 0;
+  for (i : range(1, queue->elems.size()))
+    if (queue->comparator(&queue->elems[i], &queue->elems[ret]))
+      ret = i;
+  if (ret != queue->elems.size() - 1)
+    swap(&queue->elems[ret], queue->elems.back());
+  return queue->elems.pop_back();
+}
+
+
