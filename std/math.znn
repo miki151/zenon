@@ -116,7 +116,7 @@ export long abs(long value) {
     return llabs(value);
   }
 }
-export long abs(double value) {
+export double abs(double value) {
   embed_returns {
     return fabs(value);
   }
