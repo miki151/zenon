@@ -185,7 +185,7 @@ int main(int argc, char* argv[]) {
           ? buildDir + "/"s + to_string(std::hash<string>()(cppCode + gccCmd)) + ".znn.o"
           : binaryOutput;
       if ((!fullCompile || !fs::exists(objFile)) && compileCpp(gccCmd, cppCode, objFile)) {
-        cerr << "C++ compilation failed, which is a Zenon bug :(\n\n" << endl;
+        cerr << "C++ compilation failed:\n\n" << endl;
         //cerr << cppCode << endl;
         return 2;
       } else if (fullCompile)

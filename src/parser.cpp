@@ -451,6 +451,10 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
             break;
           rhs = TRY(parseExpressionImpl(tokens, std::move(rhs), getPrecedence(op2->op)));
         } else
+        if (*token == Keyword::POINTER_DEREFERENCE_POSTFIX) {
+          tokens.popNext();
+          rhs = unique<UnaryExpression>(token->codeLoc, Operator::POINTER_DEREFERENCE, std::move(rhs));
+        } else
         if (*token == Keyword::MEMBER_ACCESS || *token == Keyword::ARROW_MEMBER_ACCESS)
           rhs = TRY(parseMemberAccess(tokens, std::move(rhs)));
         else if (*token == Keyword::OPEN_BRACKET)
@@ -468,6 +472,10 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
           lhs = unique<UnaryExpression>(token->codeLoc, Operator::LOGICAL_NOT, std::move(lhs));
       }
     } else
+    if (*token == Keyword::POINTER_DEREFERENCE_POSTFIX) {
+      tokens.popNext();
+      lhs = unique<UnaryExpression>(token->codeLoc, Operator::POINTER_DEREFERENCE, std::move(lhs));
+    } else
     if (*token == Keyword::OPEN_SQUARE_BRACKET) {
       tokens.popNext();
       auto rhs = TRY(parseExpression(tokens));
@@ -478,7 +486,7 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
       lhs = TRY(parseMemberAccess(tokens, std::move(lhs)));
     } else
     if (*token == Keyword::OPEN_BRACKET)
-     lhs = TRY(parseFunctionCall(tokens, std::move(lhs)));
+      lhs = TRY(parseFunctionCall(tokens, std::move(lhs)));
     else
       break;
   }

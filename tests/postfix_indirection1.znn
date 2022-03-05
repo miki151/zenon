@@ -1,0 +1,14 @@
+// 6
+
+struct X {
+  int a;
+};
+
+int main() {
+  const a = 5;
+  const p = &a;
+  mutable x = X(0);
+  x.a = p^ + 1;
+  const p2 = &x;
+  return p2^.a;
+}
