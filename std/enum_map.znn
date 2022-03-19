@@ -23,3 +23,7 @@ Value* operator [](enum_map<Key,Value>* map, Key key) {
   return &map->values[key.asInt()];
 }
 
+export template <Key, Value> requires is_enum<Key>
+void set(enum_map<Key,Value> mutable* map, Key key, Value value) {
+  map->values[key.asInt()] = move(value);
+}

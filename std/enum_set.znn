@@ -31,6 +31,13 @@ bool contains(enum_set<Key>* set, Key key) {
 }
 
 export template <Key> requires is_enum<Key>
+bool is_subset_of(enum_set<Key>* set, enum_set<Key>* superset) {
+  embed_returns {
+    return (set->values | superset->values) == superset->values;
+  }
+}
+
+export template <Key> requires is_enum<Key>
 int size(enum_set<Key>* set) {
   embed_returns {
     return set->values.count();
