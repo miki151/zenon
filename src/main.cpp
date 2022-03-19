@@ -24,6 +24,7 @@ static po::parser getCommandLineFlags() {
   flags["c"].description("Do not link binary.");
   flags["codegen"].type(po::string).description("Directory to output generated C++ code for the whole project.");
   flags["l"].type(po::string).multi().description("Linking flags.");
+  flags["I"].type(po::string).multi().description("Import directories.");
   flags[""].type(po::string).description("Path to the input program.");
   return flags;
 }
@@ -47,10 +48,10 @@ static int linkObjs(const string& cmd, const vector<string>& objs, const string&
   return system(command.data());
 }
 
-void initLogging(ofstream& logFile) {
+void initLogging() {
   FatalLog.addOutput(DebugOutput::crash());
   FatalLog.addOutput(DebugOutput::toStream(std::cerr));
-  InfoLog.addOutput(DebugOutput::toStream(logFile));
+  //InfoLog.addOutput(DebugOutput::toStream(logFile));
   ErrorLog.addOutput(DebugOutput::exitProgram(1));
   ErrorLog.addOutput(DebugOutput::toStream(std::cerr));
 }
@@ -94,8 +95,7 @@ int main(int argc, char* argv[]) {
     std::cout << flags << endl;
     return 0;
   }
-  ofstream logFile("log.out");
-  initLogging(logFile);
+  initLogging();
   if (flags["lsp"].was_set()) {
     startLsp(installDir);
     return 0;
@@ -118,8 +118,11 @@ int main(int argc, char* argv[]) {
       return getBinaryName(flags[""].begin()->string);
   }();
   vector<string> linkFlags;
+  vector<string> importDirs = {installDir};
   for (int i = 0; i < flags["l"].count(); ++i)
     linkFlags.push_back("-l" + flags["l"].get(i).string);
+  for (int i = 0; i < flags["I"].count(); ++i)
+    importDirs.push_back(flags["I"].get(i).string);
   vector<ModuleInfo> toCompile;
   set<string> finished;
   for (auto pathElem : flags[""]) {
@@ -141,7 +144,7 @@ int main(int argc, char* argv[]) {
   {
     auto initialAST = getOrCompileError(astCache.getAST(fs::canonical(toCompile.begin()->path)));
     for (auto& elem : initialAST->elems)
-      checkCompileError(elem->registerTypes(primaryContext, &typeRegistry, astCache, {installDir}));
+      checkCompileError(elem->registerTypes(primaryContext, &typeRegistry, astCache, importDirs));
   }
   struct CodegenElem {
     AST* ast;
