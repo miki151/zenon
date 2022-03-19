@@ -124,7 +124,6 @@ struct Sections {
     if (type->getMangledName() && !typeDefEmitted.count(type)) {
       typeDefEmitted.insert(type);
       auto buf = unique<Buffer>(includeLineNumbers);
-      //buf->newLine("// " + type->getName());
       type->codegenDefinition(buf.get(), this);
       sections[Section::TYPES].push_back(std::move(buf));
     }
@@ -452,7 +451,7 @@ void FunctionDefinition::codegenInstance(Buffer* buffer, Sections* sections, Fun
         buffer->add("inline ");
       auto declBuf = sections->newBuffer(Section::DECLARATIONS);
       auto signature = getSignature(functionInfo, this);
-      declBuf ->add(signature + ";");
+      declBuf ->add(signature + ";\n");
       buffer->add(signature);
       if (body) {
         buffer->add("{");
@@ -613,6 +612,7 @@ void EnumType::codegenDefinition(Buffer* buffer, Sections* sections) {
       buffer->newLine(elem + ",");
     --buffer->indent;
     buffer->newLine("};");
+  }
     buffer->newLine("template<> struct EnumInfo<" + name + "> {");
     buffer->newLine("  static const char* getString(" + name + " elem) {");
     buffer->newLine("    switch (elem) {");
@@ -621,14 +621,13 @@ void EnumType::codegenDefinition(Buffer* buffer, Sections* sections) {
     buffer->newLine("    }");
     buffer->newLine("  }");
     buffer->newLine("};");
-  }
 }
 
 void StructType::codegenDefinition(Buffer* buffer, Sections* sections) {
   if (external) {
     if (auto name = getMangledName()) {
       for (auto& elem : parent->memberTemplateParams)
-        sections->registerTypePointer(templateParams[elem]);
+        sections->registerTypeAccess(templateParams[elem]);
     }
     return;
   }
@@ -964,7 +963,7 @@ void ConceptType::codegenDefinition(Buffer* buffer, Sections* sections) {
       if (param->removePointer() == this)
         virtualArg = "return " + getArgName(i) + ".vTable->" + getVTableFunName(fun->id) + "(" + virtualArg + getArgName(i) + ".object";
       else
-        virtualArg += getArgName(i);
+        virtualArg += "std::move(" + getArgName(i) + ")";
     }
     CHECK(!virtualArg.empty());
     buffer->add(") {");
