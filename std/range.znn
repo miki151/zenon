@@ -1,4 +1,5 @@
 import "std/math.znn";
+import "std/builtin_types.znn";
 
 export struct range {
   int start;
