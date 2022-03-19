@@ -683,7 +683,7 @@ struct FunctionDefinition : Statement {
   NODISCARD JustError<ErrorLoc> checkBody(const Context& callContext, StatementBlock& myBody,
       const FunctionInfo& instanceInfo, vector<unique_ptr<Statement> >& destructorCalls) const;
   void addParamsToContext(Context&, const FunctionInfo&) const;
-  NODISCARD JustError<ErrorLoc> checkForIncompleteTypes(const Context&);
+  NODISCARD JustError<ErrorLoc> checkForIncompleteTypes(const FunctionInfo&, const Context&) const;
   WithErrorLine<Type*> getReturnType(const Context&) const;
   JustError<ErrorLoc> handleIsMemberParamsFunction();
 };

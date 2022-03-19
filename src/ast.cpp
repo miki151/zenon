@@ -953,8 +953,12 @@ static WithError<FunctionInfo*> getFunction(const Context& context,
   }
   if (id == "destruct"s) {
     if (!argTypes.empty() && dynamic_cast<PointerType*>(argTypes[0]->removeReference())) {
-      if (auto s = dynamic_cast<ConceptType*>(argTypes[0]->removePointer()))
-        return s->getConceptFor(argTypes[0]->removePointer())->getContext().getFunctions("destruct"s, false)[0];
+      if (auto s = dynamic_cast<ConceptType*>(argTypes[0]->removePointer())) {
+        auto funs = s->getConceptFor(argTypes[0]->removePointer())->getContext().getFunctions("destruct"s, false);
+        if (funs.empty())
+          return "Concept type " + quote(s->getName()) + " has no destruct function defined.";
+        return funs[0];
+      }
       if (auto s = dynamic_cast<StructType*>(argTypes[0]->removePointer()))
         if (s->destructor) {
           CHECK(templateArgs.empty());
@@ -1377,6 +1381,7 @@ JustError<ErrorLoc> FunctionDefinition::checkBody(const Context& callContext,
   auto retVal = instanceInfo.type.retVal;
   if (name.contains<Operator>())
     retVal = convertReferenceToPointer(retVal);
+  TRY(checkForIncompleteTypes(instanceInfo, bodyContext));
   ReturnTypeChecker returnChecker(retVal);
   bodyContext.addReturnTypeChecker(&returnChecker);
   TRY(myBody.check(bodyContext));
@@ -1397,12 +1402,13 @@ JustError<ErrorLoc> FunctionDefinition::checkBody(const Context& callContext,
   return success;
 }
 
-JustError<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const Context& context) {
-  for (int i = 0; i < functionInfo->type.params.size(); ++i) {
-    auto paramType = functionInfo->type.params[i];
-    TRY(paramType->getSizeError(context).addCodeLoc(parameters[i].codeLoc));
+JustError<ErrorLoc> FunctionDefinition::checkForIncompleteTypes(const FunctionInfo& info,
+    const Context& context) const {
+  for (int i = 0; i < info.type.params.size(); ++i) {
+    auto paramType = info.type.params[i];
+    TRY(paramType->getSizeError(context).addCodeLoc(parameters[min(i, parameters.size() - 1)].codeLoc));
   }
-  TRY(functionInfo->type.retVal->getSizeError(context).addCodeLoc(returnType.codeLoc));
+  TRY(info.type.retVal->getSizeError(context).addCodeLoc(returnType.codeLoc));
   return success;
 }
 
@@ -1438,7 +1444,6 @@ JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport
     }
     if (!errors.empty())
       return codeLoc.getError(errors[0]);
-    TRY(checkForIncompleteTypes(paramsContext));
     // For checking the template we use the Context that includes the template params.
     definitionContext.emplace(paramsContext.getChild());
     TRY(checkBody(*definitionContext, *body, *thisFunctionInfo, destructorCalls));
