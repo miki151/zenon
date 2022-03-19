@@ -8,6 +8,24 @@ export int implicit_copy(int* b) {
   }
 }
 
+export long implicit_copy(long* b) {
+  embed_returns {
+    return *b;
+  }
+}
+
+export short implicit_copy(short* b) {
+  embed_returns {
+    return *b;
+  }
+}
+
+export byte implicit_copy(byte* b) {
+  embed_returns {
+    return *b;
+  }
+}
+
 export string implicit_copy(string* b) {
   embed_returns {
     return *b;
