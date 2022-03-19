@@ -35,21 +35,27 @@ flag_info!string parse_flag(string flag) {
 export struct flag_map {
   map<string, string> values;
   hash_set<string> flags;
+  vector<string> all;
 };
 
 export flag_map!string parse_flags(string[] cmd) {
   mutable ret = flag_map(
       map<string, string>(),
-      hash_set<string>()
+      hash_set<string>(),
+      vector<string>()
   );
   for (it : cmd) {
-    const flag = try parse_flag(*it);
-    if (ret.values.contains(&flag.name) || ret.flags.contains(&flag.name))
-      return "Duplicate flag: '{flag.name}'";
-    if (flag.value)
-      ret.values.insert(flag.name, *flag.value);
-    else
-      ret.flags.insert(flag.name);
+    if (it^[0] != '-')
+      ret.all.push_back(*it);
+    else {
+      const flag = try parse_flag(*it);
+      if (ret.values.contains(&flag.name) || ret.flags.contains(&flag.name))
+        return "Duplicate flag: '{flag.name}'";
+      if (flag.value)
+        ret.values.insert(flag.name, *flag.value);
+      else
+        ret.flags.insert(flag.name);
+    }
   }
   return move(ret);
 }
@@ -123,10 +129,14 @@ T!string read_struct(flag_map* flags) {
       returnStmt = returnStmt + ", ";
     static const name = get_member_name(T, i);
     unused.erase(&name);
-    returnStmt = returnStmt + "try parse_member(&\"" + to_string(name) + "\", "
-        + "flags->values.getMaybe(&\"" + to_string(name) + "\"), "
-        + "flags->flags.contains(&\"" + to_string(name) + "\"), "
-        + "dummy_struct<" + to_string(get_member_type(T, i)) + ">())";    
+    static if (name == "all") {
+      returnStmt = returnStmt + "flags->all.copy()";    
+    } else {
+      returnStmt = returnStmt + "try parse_member(&\"" + to_string(name) + "\", "
+          + "flags->values.getMaybe(&\"" + to_string(name) + "\"), "
+          + "flags->flags.contains(&\"" + to_string(name) + "\"), "
+          + "dummy_struct<" + to_string(get_member_type(T, i)) + ">())";    
+    }
   }
   for (it : unused)
     return "Unrecognized flag: {*it}";
