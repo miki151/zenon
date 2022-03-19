@@ -6,6 +6,11 @@ export embed{
 #include <cerrno>
 }
 
+embed {
+#include <cstdlib>
+#include <climits>
+}
+
 export string to_string(int* i) {
   embed_returns {
     char buf[12];
@@ -81,6 +86,14 @@ export struct file_input {
 export void destruct(file_input* f) {
   embed {
     fclose(f->handle);
+  }
+}
+
+export string get_canonical_path(string path) {
+  embed_returns {
+    char buf[PATH_MAX];
+    realpath(path.data(), buf);
+    return zenon_string::owned(buf);
   }
 }
 
