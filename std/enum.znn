@@ -58,3 +58,8 @@ Enum operator *(enum_iterator<Enum>* e) {
   return fromInt<Enum>(e->index);
 }
 
+export template <Enum> requires is_enum<Enum>
+int get_hash(Enum* t) {
+  return t^.asInt();
+}
+
