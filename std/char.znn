@@ -2,19 +2,56 @@ export embed {
 #include <ctype.h>
 }
 
-export extern bool isalnum(char c);
-export extern bool isalpha(char c);
-export extern bool iscntrl(char c);
-export extern bool isdigit(char c);
-export extern bool isgraph(char c);
-export extern bool islower(char c);
-export extern bool isprbool(char c);
-export extern bool ispunct(char c);
-export extern bool isspace(char c);
-export extern bool isupper(char c);
-export extern bool isxdigit(char c);
+export bool isalnum(char c) {
+  embed_returns { return isalnum(c); }
+}
 
-export extern bool isascii(char c);
-export extern bool isblank(char c);
+export bool isalpha(char c) {
+  embed_returns { return isalpha(c); }
+}
+
+export bool iscntrl(char c) {
+  embed_returns { return iscntrl(c); }
+}
+
+export bool isdigit(char c) {
+  embed_returns { return isdigit(c); }
+}
+
+export bool isgraph(char c) {
+  embed_returns { return isgraph(c); }
+}
+
+export bool islower(char c) {
+  embed_returns { return islower(c); }
+}
+
+export bool isprint(char c) {
+  embed_returns { return isprint(c); }
+}
+
+export bool ispunct(char c) {
+  embed_returns { return ispunct(c); }
+}
+
+export bool isspace(char c) {
+  embed_returns { return isspace(c); }
+}
+
+export bool isupper(char c) {
+  embed_returns { return isupper(c); }
+}
+
+export bool isxdigit(char c) {
+  embed_returns { return isxdigit(c); }
+}
+
+export bool isascii(char c) {
+  embed_returns { return isascii(c); }
+}
+
+export bool isblank(char c) {
+  embed_returns { return isblank(c); }
+}
 
 
