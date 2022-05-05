@@ -48,13 +48,21 @@ export bool ends_with(string* s, string* suffix) {
   if (suffix^.size() > s^.size())
     return false;
   for (c : *suffix)
-    if (*c != s^[s^.size() - 1 - c.index])
+    if (*c != s^[s^.size() - suffix^.size() + c.index])
       return false;
   return true;
 }
 
 export string insert(string* s, int start, string content) {
   return s->substring(0, start) + move(content) + s->substring(start, s->size() - start);
+}
+
+export int? find(string* s, string pattern) {
+  return s->find(&pattern);
+}
+
+export int? find(string* s, int start, string pattern) {
+  return s->find(start, &pattern);
 }
 
 export int? find(string* s, string* pattern) {
@@ -74,12 +82,17 @@ export int? find(string* s, int start, string* pattern) {
   return null;
 }
 
-export string replace(string* s, string* pattern, string* by) {
-  embed_returns {
-    std::regex r(pattern->data());
-    auto ret = std::regex_replace(s->data(), r, by->data());
-    return zenon_string::owned(ret.data());
+export string? replace(string* s, string* pattern, string* by) {
+  mutable string? ret = null;
+  embed {
+    try {
+      std::regex r(pattern->data());
+      auto value = std::regex_replace(s->data(), r, by->data());
+      ret = zenon_string::owned(value.data());
+    } catch (std::regex_error&) {
+    }
   }
+  return move(ret);
 }
 
 export char operator [](string* s, int index) {
