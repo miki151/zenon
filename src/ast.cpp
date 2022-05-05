@@ -326,11 +326,6 @@ unique_ptr<Expression> BinaryExpression::transform(const StmtTransformFun&, cons
   return get(codeLoc, op, fun(expr[0].get()), fun(expr[1].get()));
 }
 
-void BinaryExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  for (auto& e : expr)
-    f2(e.get());
-}
-
 JustError<ErrorLoc> BinaryExpression::checkMoves(MoveChecker& checker) const {
   for (auto& e : expr)
     TRY(e->checkMoves(checker));
@@ -365,10 +360,6 @@ unique_ptr<Expression> UnaryExpression::transform(const StmtTransformFun&, const
   return unique<UnaryExpression>(codeLoc, op, fun(expr.get()));
 }
 
-void UnaryExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f2(expr.get());
-}
-
 JustError<ErrorLoc> UnaryExpression::checkMoves(MoveChecker& checker) const {
   return expr->checkMoves(checker);
 }
@@ -401,11 +392,6 @@ unique_ptr<Statement> StatementBlock::transformImpl(const StmtTransformFun& fun,
   for (auto& elem : elems)
     ret->elems.push_back(fun(elem.get()));
   return ret;
-}
-
-void StatementBlock::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  for (auto& elem : elems)
-    f1(elem.get());
 }
 
 JustError<ErrorLoc> IfStatement::check(Context& context, bool) {
@@ -464,16 +450,6 @@ unique_ptr<Statement> IfStatement::transformImpl(const StmtTransformFun& fun,
       condition ? exprFun(condition.get()) : nullptr,
       fun(ifTrue.get()),
       ifFalse ? fun(ifFalse.get()) : nullptr);
-}
-
-void IfStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  if (declaration)
-    f1(declaration.get());
-  if (condition)
-    f2(condition.get());
-  f1(ifTrue.get());
-  if (ifFalse)
-    f1(ifFalse.get());
 }
 
 WithEvalError<StatementEvalResult> IfStatement::eval(Context& context) {
@@ -589,12 +565,6 @@ unique_ptr<Statement> VariableDeclaration::transformImpl(const StmtTransformFun&
   return ret;
 }
 
-void VariableDeclaration::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f2(initExpr.get());
-  if (destructorCall)
-    f1(destructorCall.get());
-}
-
 AliasDeclaration::AliasDeclaration(CodeLoc l, string id, unique_ptr<Expression> ini)
     : Statement(l), identifier(id), initExpr(std::move(ini)) {
 }
@@ -621,12 +591,6 @@ unique_ptr<Statement> AliasDeclaration::transformImpl(const StmtTransformFun&,
   return ret;
 }
 
-void AliasDeclaration::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f2(initExpr.get());
-  if (destructorCall)
-    f1(destructorCall.get());
-}
-
 JustError<ErrorLoc> ReturnStatement::check(Context& context, bool) {
   auto returnType = TRY([&]() -> WithErrorLine<Type*> {
     if (expr)
@@ -647,11 +611,6 @@ JustError<ErrorLoc> ReturnStatement::checkMovesImpl(MoveChecker& checker) const 
 
 unique_ptr<Statement> ReturnStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun& fun) const {
   return unique<ReturnStatement>(codeLoc, expr ? fun(expr.get()) : nullptr);
-}
-
-void ReturnStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  if (expr)
-    f2(expr.get());
 }
 
 JustError<ErrorLoc> Statement::addToContext(Context&) {
@@ -1528,14 +1487,6 @@ JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCac
   return success;
 }
 
-void FunctionDefinition::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  if (body && templateInfo.params.empty())
-    f1(body.get());
-  for (auto& call : destructorCalls)
-    if (call)
-      f1(call.get());
-}
-
 static void addBuiltInConcepts(Context& context) {
   auto addType = [&context](const char* name, Type* type) {
     auto concept = new Concept(name, nullptr, Context(context.typeRegistry, true), false);
@@ -1750,10 +1701,6 @@ unique_ptr<Statement> ExpressionStatement::transformImpl(const StmtTransformFun&
   ret->canDiscard = canDiscard;
   ret->noReturnExpr = noReturnExpr;
   return ret;
-}
-
-void ExpressionStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f2(expr.get());
 }
 
 JustError<ErrorLoc> ExpressionStatement::checkMovesImpl(MoveChecker& checker) const {
@@ -1990,11 +1937,6 @@ unique_ptr<Expression> FunctionCall::transform(const StmtTransformFun&, const Ex
   return ret;
 }
 
-void FunctionCall::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  for (auto& arg : arguments)
-    f2(arg.get());
-}
-
 JustError<ErrorLoc> FunctionCall::checkMoves(MoveChecker& checker) const {
   for (auto& e : arguments)
     TRY(e->checkMoves(checker));
@@ -2044,14 +1986,6 @@ unique_ptr<Statement> SwitchStatement::transformImpl(const StmtTransformFun& fun
   for (auto& elem : caseElems)
     ret->caseElems.push_back(elem.transform(fun, exprFun));
   return ret;
-}
-
-void SwitchStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f2(expr.get());
-  for (auto& elem : caseElems)
-    elem.visit(f1, f2);
-  if (defaultBlock)
-    f1(defaultBlock.get());
 }
 
 bool SwitchStatement::hasReturnStatement() const {
@@ -2305,13 +2239,6 @@ unique_ptr<Statement> WhileLoopStatement::transformImpl(const StmtTransformFun& 
       exprFun(cond.get()),
       fun(body.get()),
       afterContinue ? fun(afterContinue.get()) : nullptr);
-}
-
-void WhileLoopStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f2(cond.get());
-  f1(body.get());
-  if (afterContinue)
-    f1(afterContinue.get());
 }
 
 WithEvalError<StatementEvalResult> WhileLoopStatement::eval(Context& context) {
@@ -2585,11 +2512,6 @@ unique_ptr<Expression> ArrayLiteral::transform(const StmtTransformFun&, const Ex
   return ret;
 }
 
-void ArrayLiteral::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  for (auto& elem : contents)
-    f2(elem.get());
-}
-
 JustError<ErrorLoc> ArrayLiteral::checkMoves(MoveChecker& checker) const {
   for (auto& e : contents)
     TRY(e->checkMoves(checker));
@@ -2620,10 +2542,6 @@ SwitchStatement::CaseElem SwitchStatement::CaseElem::transform(const StmtTransfo
   ret.ids = ids;
   ret.block = cast<StatementBlock>(fun(block.get()));
   return ret;
-}
-
-void SwitchStatement::CaseElem::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f1(block.get());
 }
 
 ExternConstantDeclaration::ExternConstantDeclaration(CodeLoc l, IdentifierInfo type, string identifier)
@@ -2789,15 +2707,6 @@ unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, 
   return ret;
 }
 
-void LambdaExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f1(block.get());
-  for (auto& elem : type->destructorCalls)
-    if (elem)
-      f1(elem.get());
-  if (type->destructor)
-    f1(type->destructor.get());
-}
-
 CountOfExpression::CountOfExpression(CodeLoc l, string id) : Expression(l), identifier(std::move(id)) {
 }
 
@@ -2909,10 +2818,6 @@ unique_ptr<Expression> MemberAccessExpression::transform(const StmtTransformFun&
   return unique<MemberAccessExpression>(codeLoc, lhs->transform(fun1, fun2), identifier);
 }
 
-void MemberAccessExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f2(lhs.get());
-}
-
 JustError<ErrorLoc> MemberAccessExpression::checkMoves(MoveChecker& checker) const {
   return lhs->checkMoves(checker);
 }
@@ -2954,12 +2859,6 @@ unique_ptr<Expression> TernaryExpression::transform(const StmtTransformFun& f1, 
   return unique<TernaryExpression>(codeLoc, f2(condExpr.get()), f2(e1.get()), f2(e2.get()));
 }
 
-void TernaryExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f2(condExpr.get());
-  f2(e1.get());
-  f2(e2.get());
-}
-
 JustError<ErrorLoc> TernaryExpression::checkMoves(MoveChecker& checker) const {
   TRY(condExpr->checkMoves(checker));
   checker.startBlock();
@@ -2998,10 +2897,6 @@ unique_ptr<Expression> FatPointerConversion::transform(const StmtTransformFun& f
   return f2(arg.get());
 }
 
-void FatPointerConversion::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f2(arg.get());
-}
-
 JustError<ErrorLoc> FatPointerConversion::checkMoves(MoveChecker& c) const {
   return arg->checkMoves(c);
 }
@@ -3025,10 +2920,6 @@ JustError<ErrorLoc> UncheckedStatement::checkMovesImpl(MoveChecker& checker) con
 
 unique_ptr<Statement> UncheckedStatement::transformImpl(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
   return unique<UncheckedStatement>(codeLoc, elem->transform(f1, f2));
-}
-
-void UncheckedStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f1(elem.get());
 }
 
 AttributeDefinition::AttributeDefinition(CodeLoc l, string name) : Statement(l), name(std::move(name)) {
@@ -3068,10 +2959,6 @@ unique_ptr<Statement> ExternalStatement::transformImpl(const StmtTransformFun& f
   return elem->transform(f1, f2);
 }
 
-void ExternalStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  f1(elem);
-}
-
 StatementExpression::StatementExpression(CodeLoc l, vector<unique_ptr<Statement>> s, unique_ptr<Expression> v)
     : Expression(l), statements(std::move(s)), value(std::move(v)) {
 }
@@ -3087,12 +2974,6 @@ unique_ptr<Expression> StatementExpression::transform(const StmtTransformFun& f1
   return unique<StatementExpression>(codeLoc,
       statements.transform([&](auto& s) { return s->transform(f1, f2); }),
       value->transform(f1, f2));
-}
-
-void StatementExpression::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  for (auto& s : statements)
-    f1(s.get());
-  f2(value.get());
 }
 
 JustError<ErrorLoc> StatementExpression::checkMoves(MoveChecker& checker) const {
@@ -3149,11 +3030,6 @@ JustError<ErrorLoc> MixinStatement::checkMovesImpl(MoveChecker& checker) const {
   return success;
 }
 
-void MixinStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  if (result)
-    result->visit(f1, f2);
-}
-
 StaticStatement::StaticStatement(CodeLoc l, unique_ptr<Statement> value) : Statement(l), value(std::move(value)) {
 }
 
@@ -3177,11 +3053,6 @@ bool StaticStatement::hasReturnStatement() const {
 
 JustError<ErrorLoc> StaticStatement::checkMovesImpl(MoveChecker& checker) const {
   return value->checkMovesImpl(checker);
-}
-
-void StaticStatement::visit(const StmtVisitFun& f1, const ExprVisitFun& f2) const {
-  for (auto& s : results)
-    f1(s.get());
 }
 
 bool StaticStatement::canHaveAttributes() const {
