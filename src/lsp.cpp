@@ -11,107 +11,65 @@
 #include "type_registry.h"
 #include "import_cache.h"
 #include "ast_cache.h"
+#include "nlohmann/json.hpp"
+
+using nlohmann::json;
 
 void output(const string& s) {
   cout << "Content-Length: " << s.size() << "\r\n\r\n" << s << std::flush;
   cerr << "Writing: [" << s << "]" << endl;
 }
 
-optional<string> findValue(const string& s, const string& key) {
-  cerr << "Searching for [" << key << "]" << endl;
-  auto ind = s.find("\"" + key + "\"");
-  if (ind == string::npos)
-    return none;
-  ind += key.size() + 3;
-  bool withQuotes = false;
-  if (s[ind] == '\"') {
-    ++ind;
-    withQuotes = true;
-  }
-  auto end = ind;
-  if (withQuotes)
-    while (1) {
-      cerr << "With quotes " << end << endl;
-      end = s.find("\"", end + 1);
-      CHECK(end != string::npos);
-      if (s[end - 1] != '\\')
-        break;
-    }
-  else {
-    cerr << "No quotes " << end << endl;
-    end = s.find(",", ind + 1);
-    if (end == string::npos)
-      end = s.find("}", ind + 1);
-    CHECK(end != string::npos);
-  }
-  cerr << ind << " " << end << endl;
-  auto ret = s.substr(ind, end - ind);
-  cerr << "Value [" + key + "] = [" + ret + "]" << endl;
-  return ret;
-}
-
-static char buf[1000000];
-
-string readData(int cnt, ostream& outCopy) {
-  std::cin.read(buf, cnt);
-  buf[cnt] = 0;
-  outCopy << buf;
-  outCopy.flush();
-  return buf;
-}
-
-void eat(istream& i, char c, ostream& outCopy) {
-  CHECK(i.peek() == c) << "Expected \"" << c << "\"";
+void eat(istream& i, char c) {
+  CHECK(i.peek() == c) << "Expected \"" << c << " got " << i.peek() << "\"";
   i.ignore(1);
-  outCopy << c;
-  outCopy.flush();
 }
 
-void eat(istream& i, const string& s, ostream& outCopy) {
+void eat(istream& i, const string& s) {
   for (char c : s)
-    eat(i, c, outCopy);
+    eat(i, c);
 }
 
-bool readHeaderLine(int& v, ostream& outCopy) {
+bool readHeaderLine(int& v) {
   if (std::cin.peek() == '\r') {
-    eat(std::cin, "\r\n", outCopy);
+    eat(std::cin, "\r\n");
     return false;
   }
-  eat(std::cin, "Content-", outCopy);
+  eat(std::cin, "Content-");
   if (std::cin.peek() == 'L') {
-    eat(std::cin, "Length: ", outCopy);
+    eat(std::cin, "Length: ");
     std::cin >> v;
-    outCopy << v;
   } else {
     // We assume 'Content-Type: '
-    eat(std::cin, "Type: ", outCopy);
+    eat(std::cin, "Type: ");
     string type;
     while (std::cin.peek() != '\r')
       type += std::cin.get();
   }
   // Assume good delimeters
-  eat(std::cin, "\r\n", outCopy);
+  eat(std::cin, "\r\n");
   return true;
 }
 
-int readHeader(ostream& outCopy) {
+int readHeader() {
   int v;
-  while (readHeaderLine(v, outCopy));
+  while (readHeaderLine(v));
   return v;
 }
 
-string readInput(ostream& outCopy) {
-  int cnt = readHeader(outCopy);
+string readInput() {
+  int cnt = readHeader();
   cerr << "count: " << cnt << endl;
-  string s = readData(cnt, outCopy);
-  cerr << "Read: [" << s << "]" << endl;
-  return s;
+  static char buf[1000000];
+  std::cin.read(buf, cnt);
+  buf[cnt] = 0;
+  return buf;
 }
 
 
-string getHeader(const string& id) {
+string getHeader(const int& id) {
   return "{"
-     "\"id\":" + id  + ","
+     "\"id\":" + to_string(id)  + ","
      "\"jsonrpc\":\"2.0\","
      "\"result\":{"
          "\"capabilities\":{"
@@ -141,13 +99,28 @@ string getHeader(const string& id) {
   "}";
 }
 
-string diagnosticsToJson(const string& path, const string& messages) {
-  return "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/publishDiagnostics\",\"params\":{\"diagnostics\":["
-      + messages + "],\"uri\":\"file://" + path + "\"  }}";
+json diagnosticsMessage(const string& path, json messages) {
+  return json {
+      {"jsonrpc", "2.0"},
+      {"method", "textDocument/publishDiagnostics"},
+      {"params", {
+          {"diagnostics", std::move(messages)},
+          {"uri", "file://" + path}
+      }}
+  };
 }
 
-string toJson(const CodeLoc& l) {
-  return "{\"character\":" + to_string(l.column) + ",\"line\":" + to_string(l.line) + "}";
+json toJson(const CodeLoc& l) {
+  return json { 
+      {"start", {
+          {"character", l.column},
+          {"line", l.line}
+      }},
+      {"end", {
+          {"character", l.column + 5},
+          {"line", l.line}
+      }},
+  };
 }
 
 void replace(string& subject, const string& search, const string& replace) {
@@ -158,61 +131,27 @@ void replace(string& subject, const string& search, const string& replace) {
   }
 }
 
-string escape(string text) {
-  replace(text, "\"", "\\\"");
-  replace(text, "\n", "\\n");
-  return text;
-}
-
-static string deEscape(string contents) {
-  string ret;
-  auto is = [&](int& index, const string& c) {
-    if (index + c.size() <= contents.size() && contents.substr(index, c.size()) == c) {
-      index += c.size();
-      return true;
-    } else
-      return false;
-  };
-  int i = 0;
-  while (i < contents.size()) {
-    if (is(i, "\\\\"))
-      ret += "\\";
-    else if (is(i, "\\n"))
-      ret += "\n";
-    else if (is(i, "\\\""))
-      ret += "\"";
-    else {
-      ret.push_back(contents[i]);
-      ++i;
-    }
-  }
-  return ret;
-}
-
 void printDiagnostics(const vector<string>& importDirs, string path, string content) {
   ASTCache astCache;
   astCache.setContent(path, std::move(content));
   path = fs::canonical(path);
-  //cerr << "Compiling ["  << text << "]" << endl;
   TypeRegistry typeRegistry;
-  string res;
-  bool wasAdded = false;
+  json diagnostics = json::array();
   auto add = [&](string msg, CodeLoc begin) {
     if (begin.file != path)
       return;
-    auto end = begin;
-    end.column = begin.column + 5;
-    if (wasAdded)
-      res += ",";
-    wasAdded = true;
-    res += "{\"message\":\"" + escape(msg) + "\", \"range\":{\"start\":" + toJson(begin) + ",\"end\":" + toJson(end) + "}, \"severity\":1}";
+    diagnostics.push_back(json {
+      {"message", msg},
+      {"range", toJson(begin)},
+      {"severity", 1}
+    });
   };
   const auto primaryContext = createPrimaryContext(&typeRegistry);
   if (auto ast = astCache.getAST(path)) {
     for (auto& elem : (*ast)->elems)
       if (auto res2 = elem->registerTypes(primaryContext, &typeRegistry, astCache, importDirs); !res2) {
         add(res2.get_error().error, res2.get_error().loc);
-        output(diagnosticsToJson(path, res));
+        output(diagnosticsMessage(path, std::move(diagnostics)).dump());
         return;
       }
     ImportCache importCache;
@@ -221,34 +160,38 @@ void printDiagnostics(const vector<string>& importDirs, string path, string cont
       add(res2.get_error().error, res2.get_error().loc);
   } else
     add(ast.get_error().error, ast.get_error().loc);
-  output(diagnosticsToJson(path, res));
+  output(diagnosticsMessage(path, diagnostics).dump());
 }
 
 void startLsp(const vector<string>& importDirs) {
-  ofstream log("/home/michal/lsp.log");
-//  cerr.rdbuf(log.rdbuf());
-  cerr << "Starting log" << endl;
   for (auto dir : importDirs)
     cerr << "Dir " << dir << endl;
-  ofstream outCopy("/home/michal/lsp.out");
   while (1) {
-    auto input = readInput(outCopy);
-    auto method = findValue(input, "method");
-    if (method)
-      cerr << "Got method: " << *method << endl;
-    if (method == "initialize"s) {
-      auto id = *findValue(input, "id");
+    auto message = readInput();
+    json input;
+    try {
+      input = json::parse(message);
+    } catch (nlohmann::detail::parse_error e) {
+      cerr << e.what() << endl;
+      continue;
+    }
+    if (!input.contains("method"))
+      continue;
+    auto method = input["method"].get<string>();
+    if (method == "initialize") {
+      auto id = input["id"].get<int>();
       output(getHeader(id));
     } else
-    if (method == "initialized"s) {
+    if (method == "initialized") {
       cerr << "Initialized!" << endl;
     } else
-    if (method == "textDocument/didOpen"s || method == "textDocument/didChange"s) {
-      auto path = *findValue(input, "uri");
-      CHECK(path.substr(0, 7) == "file://");
-      path = path.substr(7);
-      cerr << "Opened " << path << endl;
-      printDiagnostics(importDirs, path, deEscape(*findValue(input, "text")));
+    if (method == "textDocument/didOpen") {
+      auto path = input["params"]["textDocument"]["uri"].get<string>().substr(7);
+      printDiagnostics(importDirs, path, input["params"]["textDocument"]["text"].get<string>());
+    } else
+    if (method == "textDocument/didChange") {
+      auto path = input["params"]["textDocument"]["uri"].get<string>().substr(7);
+      printDiagnostics(importDirs, path, input["params"]["contentChanges"][0]["text"].get<string>());
     }
   }
 }
