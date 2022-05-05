@@ -189,9 +189,12 @@ static string deEscape(string contents) {
   return ret;
 }
 
-void printDiagnostics(const vector<string>& importDirs, const string& text, const string& path) {
-  cerr << "Compiling ["  << text << "]" << endl;
-  auto tokens = lex(text, CodeLoc(path, 0, 0), "end of file");
+void printDiagnostics(const vector<string>& importDirs, string path, string content) {
+  ASTCache astCache;
+  astCache.setContent(path, std::move(content));
+  path = fs::canonical(path);
+  //cerr << "Compiling ["  << text << "]" << endl;
+  TypeRegistry typeRegistry;
   string res;
   bool wasAdded = false;
   auto add = [&](string msg, CodeLoc begin) {
@@ -204,41 +207,26 @@ void printDiagnostics(const vector<string>& importDirs, const string& text, cons
     wasAdded = true;
     res += "{\"message\":\"" + escape(msg) + "\", \"range\":{\"start\":" + toJson(begin) + ",\"end\":" + toJson(end) + "}, \"severity\":1}";
   };
-  if (!tokens) {
-    cerr << "Lexing error" << endl;
-    add(tokens.get_error().error, tokens.get_error().loc);
-  } else {
-    cerr << "Lexed " << tokens->getSize() << " tokens" << endl;
-    auto ast = parse(*tokens);
-    if (!ast) {
-      cerr << "Parsing error" << endl;
-      add(ast.get_error().error, ast.get_error().loc);
-    } else {
-      cerr << "Parsed " << ast->elems.size() << " top level statements" << endl;
-      TypeRegistry typeRegistry;
-      auto primaryContext = createPrimaryContext(&typeRegistry);
-      ImportCache importCache;
-      ASTCache astCache;
-      for (auto& elem : ast->elems)
-        if (auto res2 = elem->registerTypes(primaryContext, &typeRegistry, astCache, importDirs); !res2) {
-          add(res2.get_error().error, res2.get_error().loc);
-          output(diagnosticsToJson(path, res));
-          return;
-        }
-      auto context = primaryContext.getChild();
-      auto imported = correctness(fs::system_complete(path), *ast, context, primaryContext, importCache, false);
-      if (!imported) {
-        cerr << "Type error" << endl;
-        add(imported.get_error().error, imported.get_error().loc);
+  const auto primaryContext = createPrimaryContext(&typeRegistry);
+  if (auto ast = astCache.getAST(path)) {
+    for (auto& elem : (*ast)->elems)
+      if (auto res2 = elem->registerTypes(primaryContext, &typeRegistry, astCache, importDirs); !res2) {
+        add(res2.get_error().error, res2.get_error().loc);
+        output(diagnosticsToJson(path, res));
+        return;
       }
-    }
-  }
+    ImportCache importCache;
+    auto context = primaryContext.getChild(true);
+    if (auto res2 = correctness(path, **ast, context, primaryContext, importCache, false); !res2)
+      add(res2.get_error().error, res2.get_error().loc);
+  } else
+    add(ast.get_error().error, ast.get_error().loc);
   output(diagnosticsToJson(path, res));
 }
 
 void startLsp(const vector<string>& importDirs) {
   ofstream log("/home/michal/lsp.log");
-  cerr.rdbuf(log.rdbuf());
+//  cerr.rdbuf(log.rdbuf());
   cerr << "Starting log" << endl;
   for (auto dir : importDirs)
     cerr << "Dir " << dir << endl;
@@ -260,7 +248,7 @@ void startLsp(const vector<string>& importDirs) {
       CHECK(path.substr(0, 7) == "file://");
       path = path.substr(7);
       cerr << "Opened " << path << endl;
-      printDiagnostics(importDirs, deEscape(*findValue(input, "text")), path);
+      printDiagnostics(importDirs, path, deEscape(*findValue(input, "text")));
     }
   }
 }
