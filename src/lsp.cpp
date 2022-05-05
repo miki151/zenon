@@ -50,8 +50,9 @@ optional<string> findValue(const string& s, const string& key) {
   return ret;
 }
 
+static char buf[1000000];
+
 string readData(int cnt, ostream& outCopy) {
-  char buf[10000];
   std::cin.read(buf, cnt);
   buf[cnt] = 0;
   outCopy << buf;
@@ -110,7 +111,7 @@ string readInput(ostream& outCopy) {
 
 string getHeader(const string& id) {
   return "{"
-     "\"id\":\"" + id  + "\","
+     "\"id\":" + id  + ","
      "\"jsonrpc\":\"2.0\","
      "\"result\":{"
          "\"capabilities\":{"
@@ -188,7 +189,7 @@ static string deEscape(string contents) {
   return ret;
 }
 
-void printDiagnostics(const char* installDir, const string& text, const string& path) {
+void printDiagnostics(const vector<string>& importDirs, const string& text, const string& path) {
   cerr << "Compiling ["  << text << "]" << endl;
   auto tokens = lex(text, CodeLoc(path, 0, 0), "end of file");
   string res;
@@ -219,8 +220,9 @@ void printDiagnostics(const char* installDir, const string& text, const string& 
       ImportCache importCache;
       ASTCache astCache;
       for (auto& elem : ast->elems)
-        if (auto res = elem->registerTypes(primaryContext, &typeRegistry, astCache, {installDir}); !res) {
-          add(res.get_error().error, res.get_error().loc);
+        if (auto res2 = elem->registerTypes(primaryContext, &typeRegistry, astCache, importDirs); !res2) {
+          add(res2.get_error().error, res2.get_error().loc);
+          output(diagnosticsToJson(path, res));
           return;
         }
       auto context = primaryContext.getChild();
@@ -234,10 +236,12 @@ void printDiagnostics(const char* installDir, const string& text, const string& 
   output(diagnosticsToJson(path, res));
 }
 
-void startLsp(const char* installDir) {
+void startLsp(const vector<string>& importDirs) {
   ofstream log("/home/michal/lsp.log");
   cerr.rdbuf(log.rdbuf());
   cerr << "Starting log" << endl;
+  for (auto dir : importDirs)
+    cerr << "Dir " << dir << endl;
   ofstream outCopy("/home/michal/lsp.out");
   while (1) {
     auto input = readInput(outCopy);
@@ -256,7 +260,7 @@ void startLsp(const char* installDir) {
       CHECK(path.substr(0, 7) == "file://");
       path = path.substr(7);
       cerr << "Opened " << path << endl;
-      printDiagnostics(installDir, deEscape(*findValue(input, "text")), path);
+      printDiagnostics(importDirs, deEscape(*findValue(input, "text")), path);
     }
   }
 }

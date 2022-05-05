@@ -1,3 +1,5 @@
 #pragma once
 
-extern void startLsp(const char* installDir);
+#include "stdafx.h"
+
+extern void startLsp(const vector<string>& importDirs);

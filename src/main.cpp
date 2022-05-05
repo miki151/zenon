@@ -87,6 +87,14 @@ static string getBinaryName(const string& sourceFile) {
   return sourceFile + ".bin";
 }
 
+void initializeAndStartLsp() {
+  auto f = ifstream("zenon.paths");
+  vector<string> paths { installDir };
+  for (string s; std::getline(f, s);)
+    paths.push_back(s);
+  startLsp(paths);
+}
+
 int main(int argc, char* argv[]) {
   po::parser flags = getCommandLineFlags();
   if (!flags.parseArgs(argc, argv))
@@ -97,7 +105,7 @@ int main(int argc, char* argv[]) {
   }
   initLogging();
   if (flags["lsp"].was_set()) {
-    startLsp(installDir);
+    initializeAndStartLsp();
     return 0;
   }
   optional<string> codegenAll;
