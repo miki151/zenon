@@ -1,5 +1,6 @@
 
 export import "expected.znn";
+import "std/time.znn";
 
 export embed{
 #include <cstdio>
@@ -123,6 +124,15 @@ export expected<file_input, string> open_file_r(string path) {
 
 export expected<file_output, string> open_file_w(string path) {
   return open_file_impl<file_output>(move(path), "w");
+}
+
+export milliseconds_t? get_modification_time(string path) {
+  embed_returns {
+    struct stat info;
+    if (stat(path.data(), &info) == 0)
+      return info.st_mtime * 1000 + info.st_mtim.tv_nsec / 1000000;
+  }
+  return null;
 }
 
 template <T>
