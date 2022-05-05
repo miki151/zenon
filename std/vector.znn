@@ -215,8 +215,8 @@ void sort(vector<T> mutable* v, Fun* fun) {
   }
 }
 
-export template <T> requires equality<T>
-int? find(vector<T>* v, T* elem) {
+export template <T, U> requires equality2<T, U>
+int? find(vector<T>* v, U* elem) {
   for (i : range(0, v->size()))
     if ((*v)[i] == *elem)
       return i;

@@ -15,6 +15,10 @@ export concept <T> equality {
   bool operator == (T*, T*);
 };
 
+export concept <T, U> equality2 {
+  bool operator == (T*, U*);
+};
+
 export concept <Fun, Ret, Args...> invoke {
   Ret invoke(Fun*, Args...);
 };
