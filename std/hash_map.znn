@@ -6,6 +6,8 @@ export embed {
 #include <unordered_map>
 template<typename Key, typename Value>
 using hash_map = std::unordered_map<Key,Value,hash_adapter<Key>,hash_adapter<Key>>;
+template<typename Key, typename Value>
+using hash_map_iterator = typename hash_map<Key, Value>::const_iterator;
 using std::pair;
 }
 
@@ -73,6 +75,13 @@ Value*? get_maybe(hash_map<Key, Value>* m, Key* key) {
   return null;
 }
 
+export template <Key, Value> requires hash_key<Key>, copy<Key>
+Value mutable* get_or_init(hash_map<Key, Value> mutable* m, Key* key, Value value) {
+  if (!m->contains(key))
+    m^.insert(key^.copy(), move(value));
+  return m->get(key);
+}
+
 export template <Key, Value> requires hash_key<Key>
 Value mutable*? get_maybe(hash_map<Key, Value> mutable* m, Key* key) {
   if (m->contains(key))
@@ -87,3 +96,46 @@ int size(hash_map<Key, Value>* m) {
   }
 }
 
+export template <Key, Value>
+extern struct hash_map_iterator;
+
+export template <Key, Value>
+hash_map_iterator<Key, Value> implicit_copy(hash_map_iterator<Key, Value>* it) {
+  embed_returns {
+    return *it;
+  }
+}
+
+export template <Key, Value>
+hash_map_iterator<Key, Value> begin(hash_map<Key, Value>* m) {
+  embed_returns {
+    return m->begin();
+  }
+}
+
+export template <Key, Value>
+hash_map_iterator<Key, Value> end(hash_map<Key, Value>* m) {
+  embed_returns {
+    return m->end();
+  }
+}
+
+export template <Key, Value>
+Key* key(hash_map_iterator<Key, Value>* it) {
+  embed_returns {
+    return &(*it)->first;
+  }
+}
+
+export template <Key, Value>
+Value* value(hash_map_iterator<Key, Value>* it) {
+  embed_returns {
+    return &(*it)->second;
+  }
+}
+
+export template <Key, Value>
+extern hash_map_iterator<Key, Value> operator ++(hash_map_iterator<Key, Value> mutable* it);
+
+export template <Key, Value>
+extern bool operator == (hash_map_iterator<Key, Value>* it1, hash_map_iterator<Key, Value>* it2);
