@@ -2,7 +2,7 @@
 #include "ast.h"
 #include "type.h"
 #include "type_registry.h"
-
+#include "language_index.h"
 
 struct StateIterator {
   const Context* context;
@@ -33,14 +33,14 @@ struct StateContainer {
 };
 
 Context Context::getChild(bool isTopLevel) const {
-  Context ret(typeRegistry, isTopLevel);
+  Context ret(typeRegistry, languageIndex, isTopLevel);
   ret.parentStates = parentStates;
   ret.parentStates.push_back(state);
   return ret;
 }
 
 Context Context::getTopLevel() const {
-  Context ret(typeRegistry, false);
+  Context ret(typeRegistry, languageIndex, false);
   ret.parentStates.reserve(parentStates.size());
   for (auto& s : parentStates)
     if (s->isTopLevel)
@@ -62,7 +62,8 @@ void Context::merge(const Context& context) {
     parentStates.push_back(context.state);
 }
 
-Context::Context(TypeRegistry* t, bool isTopLevel) : typeRegistry(t), state(shared<State>()) {
+Context::Context(TypeRegistry* t, LanguageIndex* languageIndex, bool isTopLevel) : typeRegistry(t), languageIndex(languageIndex),
+    state(shared<State>()) {
   state->isTopLevel = isTopLevel;
 }
 
@@ -177,7 +178,7 @@ WithError<vector<FunctionInfo*>> Context::getRequiredFunctions(const Concept& re
   return ret;
 }
 
-WithError<Type*> Context::getTypeOfVariable(const string& id) const {
+WithError<Type*> Context::getTypeOfVariable(const string& id, CodeLoc codeLoc) const {
   vector<LambdaCaptureInfo*> lambdas;
   bool makeConstReference = false;
   for (auto state : getReversedStates()) {
@@ -195,6 +196,7 @@ WithError<Type*> Context::getTypeOfVariable(const string& id) const {
           } else
             return "Variable " + quote(id) + " is not captured by lambda";
         }
+      languageIndex->addDefinition(codeLoc, id.size(), varInfo->declarationLoc);    
       return makeConstReference
           ? ReferenceType::get(varInfo->type->removeReference())
           : varInfo->type;
@@ -597,11 +599,14 @@ void Context::addConcept(const string& name, Concept* i) {
   }
 }
 
-Concept* Context::getConcept(const string& name) const {
+Concept* Context::getConcept(const string& name, CodeLoc codeLoc) const {
   auto c = typeRegistry->getConcept(name);
   for (auto s : getReversedStates())
-    if (s->concepts.count(c))
+    if (s->concepts.count(c)) {
+      if (c->def)
+        languageIndex->addDefinition(codeLoc, name.size(), c->def->codeLoc);
       return c;
+    }
   return nullptr;
 }
 
@@ -679,8 +684,8 @@ Type* Context::getVariable(const string& name) const {
 WithErrorLine<Type*> Context::getTypeFromString(IdentifierInfo id, optional<bool> typePack) const {
   if (id.parts.size() > 1)
     return id.codeLoc.getError("Bad type identifier: " + id.prettyString());
-  Type* topType = nullptr;
   WithErrorLine<Type*> ret = [&]() -> WithErrorLine<Type*> {
+    Type* topType = nullptr;
     if (id.typeExpression) {
       if (auto res = id.typeExpression->eval(*this))
         return res->value;
@@ -721,7 +726,13 @@ WithErrorLine<Type*> Context::getTypeFromString(IdentifierInfo id, optional<bool
       return id.codeLoc.getError("Type " + quote(name) + " is not a variadic template");
     return topType->instantiate(getTopLevel(), templateArgs, id.codeLoc);
   }();
-  if (ret)
+  if (ret) {
+    if (!id.parts.empty()) {
+      if (auto target = (*ret)->getDefinition())
+        languageIndex->addDefinition(id.codeLoc, id.parts[0].name.size(), *target);
+      if (auto l = typeRegistry->getAliasCodeLoc(id.parts[0].name))
+        languageIndex->addDefinition(id.codeLoc, id.parts[0].name.size(), *l);
+    }
     for (auto& elem : id.typeOperator) {
       elem.visit(
           [&](IdentifierInfo::PointerType type) {
@@ -765,6 +776,7 @@ WithErrorLine<Type*> Context::getTypeFromString(IdentifierInfo id, optional<bool
       if (!ret)
         return ret;
     }
+  }
   return ret;
 }
 

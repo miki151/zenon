@@ -14,6 +14,7 @@ struct IdentifierInfo {
   struct IdentifierPart {
     string name;
     vector<TemplateParameterInfo> templateArguments;
+    CodeLoc codeLoc;
     string toString() const;
     bool operator == (const IdentifierPart&) const;
     bool variadic = false;

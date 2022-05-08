@@ -26,6 +26,7 @@ struct ConceptType;
 struct OptionalType;
 struct BuiltinType;
 struct CompileTimeValue;
+struct EnumDefinition;
 struct MappingError {
   const Type* from;
   const Type* to;
@@ -53,6 +54,7 @@ struct Type : public owned_object<Type> {
   virtual OptionalType* asOptionalType() { return nullptr; }
   virtual BuiltinType* asBuiltinType() { return nullptr; }
   virtual CompileTimeValue* asCompileTimeValue() { return nullptr; }
+  virtual optional<CodeLoc> getDefinition() const { return none; }
 
   struct MemberInfo {
     Type* type;
@@ -64,6 +66,7 @@ struct Type : public owned_object<Type> {
     MUTABLE_REFERENCE
   };
   virtual WithError<Type*> getTypeOfMember(const string& name, ArgumentType = ArgumentType::VALUE) const;
+  virtual optional<CodeLoc> getMemberLoc(const string& name) const; 
   virtual bool hasDestructor() const;
   virtual void codegenDefinition(Buffer*, Sections*);
   virtual ~Type() {}
@@ -155,6 +158,7 @@ struct ReferenceType : public Type {
   virtual JustError<MappingError> getMappingError(TypeMapping& mapping, Type* from) const override;
   virtual Type* transform(function<Type*(Type*)>) override;
   virtual WithError<Type*> getTypeOfMember(const string& name, ArgumentType) const override;
+  virtual optional<CodeLoc> getMemberLoc(const string& name) const override;
   virtual Type* removePointer() override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, ArgumentType) const override;
   virtual void codegenDefinition(Buffer*, Sections*) override;
@@ -173,6 +177,7 @@ struct MutableReferenceType : public Type {
   virtual JustError<MappingError> getMappingError(TypeMapping& mapping, Type* from) const override;
   virtual Type* transform(function<Type*(Type*)>) override;
   virtual WithError<Type*> getTypeOfMember(const string& name, ArgumentType) const override;
+  virtual optional<CodeLoc> getMemberLoc(const string& name) const override;
   virtual Type* removePointer() override;
   virtual JustError<ErrorLoc> handleSwitchStatement(SwitchStatement&, Context&, ArgumentType) const override;
   virtual void codegenDefinition(Buffer*, Sections*) override;
@@ -303,6 +308,7 @@ struct TemplateParameterType : public Type {
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual WithError<Type*> getTypeOfMember(const string&, ArgumentType) const override;
   virtual bool canBeValueTemplateParam() const override;
+  virtual optional<CodeLoc> getDefinition() const override;
   TemplateParameterType(string name, CodeLoc);
   TemplateParameterType(Type* type, string name, CodeLoc);
   string name;
@@ -331,8 +337,10 @@ struct StructType : public Type {
   virtual void codegenDefinition(Buffer*, Sections*) override;
   virtual Type* getType() const override;
   virtual WithError<Type*> getTypeOfMember(const string&, ArgumentType) const override;
+  virtual optional<CodeLoc> getMemberLoc(const string& name) const override;
   virtual bool hasDestructor() const override;
   virtual StructType* asStructType() override { return this; }
+  virtual optional<CodeLoc> getDefinition() const override;
   string name;
   StructType* getInstance(vector<Type*> templateParams);
   vector<Type*> templateParams;
@@ -344,6 +352,7 @@ struct StructType : public Type {
     string name;
     Type* type;
     bool isConst;
+    CodeLoc codeLoc;
   };
   vector<Variable> members;
   vector<Variable> alternatives;
@@ -361,11 +370,12 @@ struct EnumType : public Type {
   virtual bool isBuiltinCopyableImpl(const Context&, unique_ptr<Expression>&) const override;
   virtual Type* getType() const override;
   virtual void codegenDefinition(Buffer*, Sections*) override;
+  virtual optional<CodeLoc> getDefinition() const override;
 
   string name;
   vector<string> elements;
   bool external = false;
-  optional<CodeLoc> definition;
+  EnumDefinition* definition = nullptr;
   struct Private {};
   EnumType(string name, Private);
 };
@@ -524,6 +534,7 @@ struct ConceptType : public Type {
   virtual Type* getType() const override;
   virtual void codegenDefinition(Buffer*, Sections*) override;
   virtual ConceptType* asConceptType() override { return this; }
+  virtual optional<CodeLoc> getDefinition() const override;
 
   Concept* getConceptFor(Type*) const;
   Concept* concept = nullptr;

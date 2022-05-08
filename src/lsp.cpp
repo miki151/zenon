@@ -12,6 +12,7 @@
 #include "import_cache.h"
 #include "ast_cache.h"
 #include "nlohmann/json.hpp"
+#include "language_index.h"
 
 using nlohmann::json;
 
@@ -76,11 +77,12 @@ string getHeader(const int& id) {
               "\"codeActionProvider\":false,"
               "\"colorProvider\":false,"
               "\"definitionProvider\":false,"
+              //"\"signatureHelpProvider\":true,"
               "\"documentFormattingProvider\":false,"
               "\"documentHighlightProvider\":true,"
               "\"documentRangeFormattingProvider\":false,"
               "\"documentSymbolProvider\":false,"
-              "\"foldingRangeProvider\":true,"
+              "\"foldingRangeProvider\":false,"
               "\"hoverProvider\":false,"
               "\"implementationProvider\":false,"
               "\"referencesProvider\":false,"
@@ -131,13 +133,12 @@ void replace(string& subject, const string& search, const string& replace) {
   }
 }
 
-void printDiagnostics(const vector<string>& importDirs, string path, string content) {
-  ASTCache astCache;
-  astCache.setContent(path, std::move(content));
+void compile(const Context& primaryContext, ImportCache& importCache, ASTCache& astCache, LanguageIndex* languageIndex,
+    const vector<string>& importDirs, string path) {
   path = fs::canonical(path);
-  TypeRegistry typeRegistry;
   json diagnostics = json::array();
   auto add = [&](string msg, CodeLoc begin) {
+    cerr << begin.toString() << ": " << msg <<endl;
     if (begin.file != path)
       return;
     diagnostics.push_back(json {
@@ -146,15 +147,13 @@ void printDiagnostics(const vector<string>& importDirs, string path, string cont
       {"severity", 1}
     });
   };
-  const auto primaryContext = createPrimaryContext(&typeRegistry);
   if (auto ast = astCache.getAST(path)) {
     for (auto& elem : (*ast)->elems)
-      if (auto res2 = elem->registerTypes(primaryContext, &typeRegistry, astCache, importDirs); !res2) {
+      if (auto res2 = elem->registerTypes(primaryContext, primaryContext.typeRegistry, astCache, importDirs); !res2) {
         add(res2.get_error().error, res2.get_error().loc);
         output(diagnosticsMessage(path, std::move(diagnostics)).dump());
         return;
       }
-    ImportCache importCache;
     auto context = primaryContext.getChild(true);
     if (auto res2 = correctness(path, **ast, context, primaryContext, importCache, false); !res2)
       add(res2.get_error().error, res2.get_error().loc);
@@ -164,6 +163,23 @@ void printDiagnostics(const vector<string>& importDirs, string path, string cont
 }
 
 void startLsp(const vector<string>& importDirs) {
+  map<string, string> allContent;
+  set<string> compiled;
+  LanguageIndex languageIndex;
+  ASTCache astCache;
+  TypeRegistry typeRegistry;
+  ImportCache importCache;
+  auto primaryContext = createPrimaryContext(&typeRegistry, &languageIndex);
+  auto clearAST = [&] {
+    languageIndex = LanguageIndex{};
+    importCache = ImportCache{};
+    typeRegistry = TypeRegistry{};
+    astCache = ASTCache{};
+    primaryContext = createPrimaryContext(&typeRegistry, &languageIndex);
+    for (auto& elem : allContent)
+      astCache.setContent(elem.first, elem.second);
+    compiled.clear();
+  };
   for (auto dir : importDirs)
     cerr << "Dir " << dir << endl;
   while (1) {
@@ -187,11 +203,60 @@ void startLsp(const vector<string>& importDirs) {
     } else
     if (method == "textDocument/didOpen") {
       auto path = input["params"]["textDocument"]["uri"].get<string>().substr(7);
-      printDiagnostics(importDirs, path, input["params"]["textDocument"]["text"].get<string>());
+      compile(primaryContext, importCache, astCache, &languageIndex, importDirs, path);
+      compiled.insert(path);
     } else
     if (method == "textDocument/didChange") {
       auto path = input["params"]["textDocument"]["uri"].get<string>().substr(7);
-      printDiagnostics(importDirs, path, input["params"]["contentChanges"][0]["text"].get<string>());
+      auto content = input["params"]["contentChanges"][0]["text"].get<string>();
+      allContent[path] = content;
+      clearAST();
+      compile(primaryContext, importCache, astCache, &languageIndex, importDirs, path);
+      compiled.insert(path);
+    } else 
+    if (method == "textDocument/definition") {
+      auto path = input["params"]["textDocument"]["uri"].get<string>().substr(7);      
+      if (compiled.insert(path).second)
+        compile(primaryContext, importCache, astCache, &languageIndex, importDirs, path);
+      CodeLoc codeLoc(path, input["params"]["position"]["line"].get<int>(),
+          input["params"]["position"]["character"].get<int>());
+      int id = input["id"].get<int>();
+      auto results = json::array();
+      for (auto& elem : languageIndex.getTarget(codeLoc))
+        results.push_back(json {
+            {"uri", "file://" + elem.file},
+            {"range", {
+                {"start", {
+                    {"character", elem.column},
+                    {"line", elem.line}
+                }}
+            }}
+        });
+      output(json {
+        {"id", id},
+        {"jsonrpc", "2.0"},
+        {"result", results}
+      }.dump());
+    } else
+    if (method == "textDocument/signatureHelp") {
+      auto path = input["params"]["textDocument"]["uri"].get<string>().substr(7);      
+      if (compiled.insert(path).second)
+        compile(primaryContext, importCache, astCache, &languageIndex, importDirs, path);
+      CodeLoc codeLoc(path, input["params"]["position"]["line"].get<int>(),
+          input["params"]["position"]["character"].get<int>());
+      int id = input["id"].get<int>();
+      auto results = json::array();
+      for (auto& elem : languageIndex.getSignature(codeLoc))
+        results.push_back(json {
+            {"label", elem}
+        });
+      output(json {
+        {"id", id},
+        {"jsonrpc", "2.0"},
+        {"result", {
+            {"signatures", std::move(results)}
+        }}
+      }.dump());
     }
   }
 }

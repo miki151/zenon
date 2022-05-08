@@ -67,7 +67,7 @@ struct Constant : Expression {
 };
 
 struct EnumConstant : Expression {
-  EnumConstant(CodeLoc, string enumName, string enumElement);
+  EnumConstant(CodeLoc, string enumName, CodeLoc, string enumElement);
   virtual WithErrorLine<Type*> getTypeImpl(const Context&) override;
   virtual void codegen(Buffer*, Sections*) const override;
   virtual WithEvalError<EvalResult> eval(const Context&) const override;
@@ -75,6 +75,7 @@ struct EnumConstant : Expression {
   string enumName;
   Type* enumType = nullptr;
   string enumElement;
+  CodeLoc elemLoc;
 };
 
 struct Variable : Expression {
@@ -147,7 +148,7 @@ struct TernaryExpression : Expression {
 };
 
 struct MoveExpression : Expression {
-  MoveExpression(CodeLoc, string, bool hasDestructor = false);
+  MoveExpression(CodeLoc, string, CodeLoc variableLoc, bool hasDestructor = false);
   virtual WithErrorLine<Type*> getTypeImpl(const Context&) override;
   virtual unique_ptr<Expression> replaceVar(string from, string to) const override;
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
@@ -156,6 +157,7 @@ struct MoveExpression : Expression {
   string identifier;
   Type* type = nullptr;
   bool hasDestructor = false;
+  CodeLoc variableLoc;
 };
 
 struct CountOfExpression : Expression {
@@ -252,6 +254,7 @@ struct FunctionCall : Expression {
   virtual unique_ptr<Expression> transform(const StmtTransformFun&, const ExprTransformFun&) const override;
   NODISCARD virtual JustError<ErrorLoc> checkMoves(MoveChecker&) const override;
   IdentifierInfo identifier;
+  CodeLoc endLoc;
   optional<vector<Type*>> templateArgs;
   FunctionInfo* functionInfo = nullptr;
   vector<unique_ptr<Expression>> arguments;
@@ -579,7 +582,7 @@ struct ConceptDefinition : Statement {
 struct EnumDefinition : Statement {
   EnumDefinition(CodeLoc, string name);
   string name;
-  vector<string> elements;
+  vector<pair<string, CodeLoc>> elements;
   bool external = false;
   bool registered = false;
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
@@ -728,7 +731,7 @@ struct ModuleInfo {
 };
 
 extern WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST&, Context& context, const Context& primary, ImportCache&, bool builtIn);
-extern Context createPrimaryContext(TypeRegistry*);
+extern Context createPrimaryContext(TypeRegistry*, LanguageIndex*);
 extern WithErrorLine<FunctionInfo*> getCopyFunction(const Context&, CodeLoc callLoc, Type*);
 extern WithErrorLine<FunctionInfo*> getImplicitCopyFunction(const Context&, CodeLoc callLoc, Type*);
 extern WithError<vector<FunctionInfo*> > getRequiredFunctionsForConceptType(const Context& context,

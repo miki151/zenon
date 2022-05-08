@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "type_registry.h"
 #include "type.h"
+#include "ast.h"
 
 JustError<string> TypeRegistry::addStruct(const string& name, bool external, CodeLoc definition) {
   TRY(checkNameConflict(name));
@@ -12,7 +13,7 @@ JustError<string> TypeRegistry::addStruct(const string& name, bool external, Cod
   return success;
 }
 
-JustError<string> TypeRegistry::addEnum(const string& name, bool external, CodeLoc definition) {
+JustError<string> TypeRegistry::addEnum(const string& name, bool external, EnumDefinition* definition) {
   TRY(checkNameConflict(name));
   auto e = new EnumType(name, EnumType::Private{});
   e->external = external;
@@ -21,9 +22,9 @@ JustError<string> TypeRegistry::addEnum(const string& name, bool external, CodeL
   return success;
 }
 
-void TypeRegistry::addAlias(const string& name, Type* t) {
+void TypeRegistry::addAlias(const string& name, Type* t, CodeLoc l) {
   CHECK(!getType(name));
-  aliases.insert(make_pair(name, t));
+  aliases.insert(make_pair(name, make_pair(l, t)));
 }
 
 StructType* TypeRegistry::getStruct(const string& name) const {
@@ -38,9 +39,15 @@ EnumType* TypeRegistry::getEnum(const string& name) const {
   return nullptr;
 }
 
+optional<CodeLoc> TypeRegistry::getAliasCodeLoc(const string& name) const {
+  if (auto s = getValueMaybe(aliases, name))
+    return s->first;
+  return none;
+}
+
 Type* TypeRegistry::getType(const string& name) const {
   if (auto s = getValueMaybe(aliases, name))
-    return *s;
+    return s->second;
   if (auto s = getStruct(name))
     return s;
   if (auto s = getEnum(name))
@@ -58,7 +65,7 @@ JustError<string> TypeRegistry::checkNameConflict(const string& name) const {
   if (auto s = getStruct(name))
     return quote(name) + " conflicts with existing type declared at: " + s->definition->toString();
   if (auto s = getEnum(name))
-    return quote(name) + " conflicts with existing type declared at: " + s->definition->toString();
+    return quote(name) + " conflicts with existing type declared at: " + s->definition->codeLoc.toString();
   return success;
 }
 

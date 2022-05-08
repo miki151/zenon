@@ -1,7 +1,7 @@
 #include "identifier.h"
 #include "ast.h"
 
-IdentifierInfo::IdentifierInfo(string n, CodeLoc l) : parts(1, IdentifierPart{n, {}}), codeLoc(l) {
+IdentifierInfo::IdentifierInfo(string n, CodeLoc l) : parts(1, IdentifierPart{n, {}, {}}), codeLoc(l) {
   CHECK(!n.empty());
 }
 

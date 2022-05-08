@@ -156,6 +156,10 @@ bool TemplateParameterType::canBeValueTemplateParam() const {
   return true;
 }
 
+optional<CodeLoc> TemplateParameterType::getDefinition() const {
+  return declarationLoc;
+}
+
 TemplateParameterType::TemplateParameterType(string n, CodeLoc l) : name(n), declarationLoc(l), type(BuiltinType::ANY_TYPE) {}
 
 TemplateParameterType::TemplateParameterType(Type* type, string name, CodeLoc l)
@@ -370,7 +374,7 @@ FunctionInfo::FunctionInfo(FunctionInfo::Private, FunctionId id, FunctionSignatu
   genPrettyString();
 }
 
-Type::Type() : staticContext(nullptr) {
+Type::Type() : staticContext(nullptr, nullptr) {
 }
 
 string Type::getCodegenName() const {
@@ -544,6 +548,10 @@ Type* EnumType::getType() const {
   return BuiltinType::ENUM_TYPE;
 }
 
+optional<CodeLoc> EnumType::getDefinition() const {
+  return definition->codeLoc;
+}
+
 static JustError<string> checkMembers(const Context& context, set<const Type*> &visited, const Type* t,
     bool onlyIncomplete) {
   if (auto s = dynamic_cast<const StructType*>(t)) {
@@ -581,6 +589,10 @@ WithError<Type*> ReferenceType::getTypeOfMember(const string& name, ArgumentType
   return underlying->getTypeOfMember(name, ArgumentType::REFERENCE);
 }
 
+optional<CodeLoc> ReferenceType::getMemberLoc(const string& name) const {
+  return underlying->getMemberLoc(name);
+}
+
 Type* ReferenceType::removePointer() {
   return underlying->removePointer();
 }
@@ -591,6 +603,10 @@ JustError<ErrorLoc> MutableReferenceType::handleSwitchStatement(SwitchStatement&
 
 WithError<Type*> MutableReferenceType::getTypeOfMember(const string& name, ArgumentType) const {
   return underlying->getTypeOfMember(name, ArgumentType::MUTABLE_REFERENCE);
+}
+
+optional<CodeLoc> MutableReferenceType::getMemberLoc(const string& name) const {
+  return underlying->getMemberLoc(name);
 }
 
 Type* MutableReferenceType::removePointer() {
@@ -679,6 +695,13 @@ WithError<Type*> StructType::getTypeOfMember(const string& name, ArgumentType ar
   return "No " + (alternatives.empty() ? "member"s : "alternative"s) + " named " + quote(name) + " in type " + quote(getName());
 }
 
+optional<CodeLoc> StructType::getMemberLoc(const string& name) const {
+  for (auto& member : (alternatives.empty() ? members : alternatives))
+    if (member.name == name)
+      return member.codeLoc;
+  return none;
+}
+
 bool StructType::hasDestructor() const {
   if (!!destructor)
     return true;
@@ -689,6 +712,10 @@ bool StructType::hasDestructor() const {
     if (m.type->hasDestructor())
       return true;
   return false;
+}
+
+optional<CodeLoc> StructType::getDefinition() const {
+  return definition;
 }
 
 StructType* StructType::getInstance(vector<Type*> newTemplateParams) {
@@ -771,6 +798,10 @@ Type* Type::getType() const {
 
 WithError<Type*> Type::getTypeOfMember(const string&, ArgumentType) const {
   return "Type " + quote(getName()) + " doesn't support dot operator"s;
+}
+
+optional<CodeLoc> Type::getMemberLoc(const string& name) const {
+  return none;
 }
 
 bool Type::hasDestructor() const {
@@ -1353,7 +1384,7 @@ string Concept::getName(bool withTemplateParams) const {
 }
 
 Concept* Concept::translate(vector<Type*> newParams, bool variadicParams, ErrorBuffer& errors) const {
-  auto ret = new Concept(name, def, Context(context.typeRegistry, false), variadicParams);
+  auto ret = new Concept(name, def, Context(context.typeRegistry, context.languageIndex, false), variadicParams);
   ret->context.deepCopyFrom(context);
   ret->params = newParams;
   if (!variadic || variadicParams) {
@@ -1370,7 +1401,7 @@ Concept* Concept::translate(vector<Type*> newParams, bool variadicParams, ErrorB
 }
 
 Concept* Concept::expand(const Context&, Type* from, vector<Type*> newParams, ErrorBuffer& errors) {
-  auto ret = new Concept(name, def, Context(context.typeRegistry, false), variadic);
+  auto ret = new Concept(name, def, Context(context.typeRegistry, context.languageIndex, false), variadic);
   ret->context.deepCopyFrom(context);
   ret->params = params;
   ret->variadic = false;
@@ -1380,7 +1411,7 @@ Concept* Concept::expand(const Context&, Type* from, vector<Type*> newParams, Er
 }
 
 Concept* Concept::replace(const Context& repContext, Type* from, Type* to, ErrorBuffer& errors) const {
-  auto ret = new Concept(name, def, Context(context.typeRegistry), variadic);
+  auto ret = new Concept(name, def, Context(context.typeRegistry, context.languageIndex), variadic);
   ret->context.deepCopyFrom(context);
   ret->params = params;
   ret->variadic = variadic;
@@ -1914,6 +1945,10 @@ bool ConceptType::hasDestructor() const {
 
 Type* ConceptType::getType() const {
   return BuiltinType::CONCEPT_TYPE;
+}
+
+optional<CodeLoc> ConceptType::getDefinition() const {
+  return concept->def->codeLoc;
 }
 
 Concept* ConceptType::getConceptFor(Type* t) const {

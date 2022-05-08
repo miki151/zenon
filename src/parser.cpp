@@ -29,6 +29,7 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
     auto& token = tokens.popNext();
     ret.codeLoc = token.codeLoc;
     ret.parts.back().name = token.value;
+    ret.parts.back().codeLoc = token.codeLoc;
     auto beforeLessThan = tokens.getBookmark();
     if (tokens.eatMaybe(Operator::LESS_THAN)) {
       while (1) {
@@ -130,7 +131,7 @@ WithErrorLine<unique_ptr<FunctionCall>> parseFunctionCall(IdentifierInfo id, Tok
     } else
       break;
   }
-  TRY(tokens.eat(Keyword::CLOSE_BRACKET));
+  ret->endLoc = TRY(tokens.eat(Keyword::CLOSE_BRACKET)).codeLoc;
   return std::move(ret);
 }
 
@@ -273,7 +274,7 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
             TRY(tokens.eat(Keyword::CLOSE_BRACKET));
             if (!var.contains<IdentifierToken>())
               return var.codeLoc.getError("Expected variable identifier");
-            return cast<Expression>(unique<MoveExpression>(token.codeLoc, var.value));
+            return cast<Expression>(unique<MoveExpression>(token.codeLoc, var.value, var.codeLoc));
           }
           case Keyword::TRY : {
             tokens.popNext();
@@ -287,13 +288,13 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
                     cast<Expression>(unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT, varExpr->deepCopy())),
                     cast<Statement>(unique<ReturnStatement>(codeLoc,
                         cast<Expression>(unique<FunctionCall>(IdentifierInfo("get_error", codeLoc),
-                            cast<Expression>(unique<MoveExpression>(codeLoc, varName)), true)))),
+                            cast<Expression>(unique<MoveExpression>(codeLoc, varName, token.codeLoc)), true)))),
                     nullptr
                 ))
             );
             return cast<Expression>(unique<StatementExpression>(codeLoc, std::move(statements),
                 cast<Expression>(unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
-                    cast<Expression>(unique<MoveExpression>(codeLoc, varName))))));
+                    cast<Expression>(unique<MoveExpression>(codeLoc, varName, token.codeLoc))))));
           }
           case Keyword::COUNTOF: {
             tokens.popNext();
@@ -337,7 +338,7 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
             return cast<Expression>(unique<Variable>(identifier));
           else
             return cast<Expression>(unique<EnumConstant>(token.codeLoc, identifier.parts[0].name,
-                identifier.parts[1].name));
+                identifier.parts[1].codeLoc, identifier.parts[1].name));
         }
       },
       [&](const Number&) -> WithErrorLine<unique_ptr<Expression>> {
@@ -968,7 +969,7 @@ WithErrorLine<unique_ptr<Statement>> parseEnumStatement(Tokens& tokens, bool ext
       auto element = tokens.popNext();
       if (!element.contains<IdentifierToken>())
         return element.codeLoc.getError("Expected enum element, got: " + quote(element.value));
-      ret->elements.push_back(element.value);
+      ret->elements.push_back(make_pair(element.value, element.codeLoc));
       if (tokens.eatMaybe(Keyword::CLOSE_BLOCK))
         break;
       TRY(tokens.eat(Keyword::COMMA));

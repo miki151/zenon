@@ -9,6 +9,7 @@
 #include "type_registry.h"
 #include "import_cache.h"
 #include "ast_cache.h"
+#include "language_index.h"
 
 auto installDir = INSTALL_DIR;
 
@@ -148,7 +149,8 @@ int main(int argc, char* argv[]) {
   ImportCache importCache;
   TypeRegistry typeRegistry;
   ASTCache astCache;
-  const auto primaryContext = createPrimaryContext(&typeRegistry);
+  LanguageIndex languageIndex;
+  const auto primaryContext = createPrimaryContext(&typeRegistry, &languageIndex);
   {
     auto initialAST = getOrCompileError(astCache.getAST(fs::canonical(toCompile.begin()->path)));
     for (auto& elem : initialAST->elems)

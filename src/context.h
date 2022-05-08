@@ -17,13 +17,15 @@ class TypeRegistry;
 struct LambdaCaptureInfo;
 struct LambdaCapture;
 struct StateContainer;
+struct Node;
+struct LanguageIndex;
 
 class Context : public owned_object<Context> {
   public:
   Context getChild(bool isTopLevel = false) const;
   Context getTopLevel() const;
   void merge(const Context&);
-  Context(TypeRegistry*, bool isTopLevel = false);
+  Context(TypeRegistry*, LanguageIndex*, bool isTopLevel = false);
   Context(const Context&) = delete;
   Context(Context&&) = default;
   void operator = (const Context&) = delete;
@@ -34,7 +36,7 @@ class Context : public owned_object<Context> {
       vector<FunctionSignature> existing = {}) const;
   FunctionInfo* isGeneralizationWithoutReturnType(FunctionInfo* general, FunctionInfo* specific,
       vector<FunctionSignature> existing = {}) const;
-  WithError<Type*> getTypeOfVariable(const string&) const;
+  WithError<Type*> getTypeOfVariable(const string&, CodeLoc) const;
   bool isCapturedVariable(const string&) const;
   void addVariable(const string& ident, Type*, CodeLoc, bool global = false);
   void setShadowId(const string& oldId, const string& newId);
@@ -80,7 +82,7 @@ class Context : public owned_object<Context> {
   FunctionInfo* getBuiltinOperator(Operator, vector<Type*> argTypes) const;
   NODISCARD JustError<string> checkNameConflict(const string& name, const string& type) const;
   NODISCARD JustError<string> checkNameConflictExcludingFunctions(const string& name, const string& type) const;
-  Concept* getConcept(const string& name) const;
+  Concept* getConcept(const string& name, CodeLoc) const;
   void addConcept(const string& name, Concept*);
   void print() const;
   vector<Type*> getConversions(Type*, Type*, bool withConcepts) const;
@@ -142,7 +144,7 @@ class Context : public owned_object<Context> {
   vector<FunctionInfo*> getAllFunctions() const;
 
   TypeRegistry* typeRegistry;
-
+  LanguageIndex* languageIndex;
   private:
 
   friend struct StateIterator;

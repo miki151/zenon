@@ -9,6 +9,7 @@
 #include "move_checker.h"
 #include "import_cache.h"
 #include "ast_cache.h"
+#include "language_index.h"
 
 Node::Node(CodeLoc l) : codeLoc(l) {}
 
@@ -79,7 +80,7 @@ WithErrorLine<Type*> Variable::getTypeImpl(const Context& context) {
       identifier.parts[0].name = *newId;
       *id = *newId;
     }
-    if (auto varType = context.getTypeOfVariable(*id))
+    if (auto varType = context.getTypeOfVariable(*id, codeLoc))
       return *varType;
     else
       varError = varType.get_error();
@@ -114,7 +115,7 @@ JustError<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
 
 Type* Variable::getConstantValue(const Context& context) const {
   if (auto id = identifier.asBasicIdentifier())
-    if (!!context.getTypeOfVariable(*id))
+    if (!!context.getTypeOfVariable(*id, codeLoc))
       return nullptr;
   if (auto t = context.getTypeFromString(identifier))
     return t.get();
@@ -687,7 +688,7 @@ static WithErrorLine<vector<Type*>> translateConceptParams(const Context& contex
     const TemplateInfo::ConceptRequirement& requirement) {
   auto& reqId = requirement.identifier;
   auto& requirementArgs = reqId.parts[0].templateArguments;
-  auto concept = context.getConcept(reqId.parts[0].name);
+  auto concept = context.getConcept(reqId.parts[0].name, reqId.codeLoc);
   vector<Type*> translatedParams;
   bool missingTypePack = requirement.variadic;
   for (int i = 0; i < requirementArgs.size(); ++i) {
@@ -721,7 +722,7 @@ static WithErrorLine<TemplateRequirement> applyRequirement(Context& from,
   auto& reqId = requirement.identifier;
   if (requirement.variadic && reqId.parts[0].variadic)
     return reqId.codeLoc.getError("Requirement can't be both variadic and involving a variadic concept");
-  if (auto concept = from.getConcept(reqId.parts[0].name)) {
+  if (auto concept = from.getConcept(reqId.parts[0].name, reqId.codeLoc)) {
     if (!concept->isVariadic() && reqId.parts[0].variadic)
       return reqId.codeLoc.getError("Concept " + quote(concept->getName()) + " is not variadic");
     auto& requirementArgs = reqId.parts[0].templateArguments;
@@ -992,7 +993,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
   vector<Type*> args;
   for (int i = 0; i < parameters.size(); ++i)
     if (i != virtualIndex) {
-      functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
+      functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name, codeLoc));
       args.push_back(functionInfo->type.params[i]);
     } else {
       if (lvalueParam) {
@@ -1000,7 +1001,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
             unique<Variable>(IdentifierInfo(alternativeName, codeLoc))));
         args.push_back(convertReferenceToPointer(alternativeType));
       } else {
-        functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
+        functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName, codeLoc));
         args.push_back(alternativeType);
       }
     }
@@ -1015,13 +1016,13 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCall
   vector<Type*> argTypes;
   for (int i = 0; i < parameters.size(); ++i)
     if (i != virtualIndex) {
-      arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
+      arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name, codeLoc));
       argTypes.push_back(functionInfo->type.params[i]);
     } else {
       if (lvalueParam) {
         arguments.push_back(unique<Variable>(IdentifierInfo(alternativeName, codeLoc)));
       } else
-        arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName));
+        arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName, codeLoc));
       argTypes.push_back(alternativeType);
     }
   TRY(handleOperatorOverloads(context, codeLoc, op, argTypes, vector<CodeLoc>(argTypes.size(), codeLoc), arguments));
@@ -1065,7 +1066,7 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
     switchExpr = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
         unique<Variable>(IdentifierInfo(*virtualParam.name, codeLoc)));
   } else
-    switchExpr = unique<MoveExpression>(codeLoc, *virtualParam.name);
+    switchExpr = unique<MoveExpression>(codeLoc, *virtualParam.name, codeLoc);
   if (!unionType || unionType->alternatives.empty())
     return codeLoc.getError("Virtual parameter must be of a union type or a pointer to one");
   auto switchStatementPtr = unique<SwitchStatement>(codeLoc, std::move(switchExpr));
@@ -1134,7 +1135,7 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
       for (auto& alternative : structType->alternatives) {
         auto block = unique<StatementBlock>(codeLoc);
         auto constructorName = returnType;
-        constructorName.parts.push_back(IdentifierInfo::IdentifierPart { alternative.name, {} });
+        constructorName.parts.push_back(IdentifierInfo::IdentifierPart { alternative.name, {}, {} });
         auto constructorCall = unique<FunctionCall>(constructorName, false);
         if (alternative.type != BuiltinType::VOID)
           constructorCall->arguments.push_back(unique<FunctionCall>(IdentifierInfo(functionName, codeLoc),
@@ -1170,7 +1171,7 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const
     id.parts.back().templateArguments.clear();
     auto call = unique<FunctionCall>(std::move(id), false);
     for (int i = 0; i < structType->members.size(); ++i) {
-      call->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name));
+      call->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name, codeLoc));
     }
     body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
   }
@@ -1489,7 +1490,7 @@ JustError<ErrorLoc> FunctionDefinition::addToContext(Context& context, ImportCac
 
 static void addBuiltInConcepts(Context& context) {
   auto addType = [&context](const char* name, Type* type) {
-    auto concept = new Concept(name, nullptr, Context(context.typeRegistry, true), false);
+    auto concept = new Concept(name, nullptr, Context(context.typeRegistry, context.languageIndex, true), false);
     concept->modParams().push_back(new TemplateParameterType(type, "T", CodeLoc()));
     context.typeRegistry->addConcept(name, concept);
     context.addConcept(name, concept);
@@ -1500,8 +1501,8 @@ static void addBuiltInConcepts(Context& context) {
   addType("is_concept", BuiltinType::CONCEPT_TYPE);
 }
 
-Context createPrimaryContext(TypeRegistry* typeRegistry) {
-  Context context(typeRegistry, true);
+Context createPrimaryContext(TypeRegistry* typeRegistry, LanguageIndex* languageIndex) {
+  Context context(typeRegistry, languageIndex, true);
   context.addVariable("void_value", BuiltinType::VOID, CodeLoc(), true);
   for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::SHORT, BuiltinType::BYTE, BuiltinType::DOUBLE,
        BuiltinType::BOOL, BuiltinType::VOID, BuiltinType::CHAR, BuiltinType::STRING, BuiltinType::NULL_TYPE}) {
@@ -1691,7 +1692,7 @@ JustError<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
     return codeLoc.getError("Expression result of type " + quote(res->getName()) + " discarded");
   if (canDiscard && !isConstant) {
     expr = unique<FunctionCall>(IdentifierInfo("discard_impl", codeLoc), std::move(expr), false);
-    CHECK(!!getType(context, expr));
+    TRY(getType(context, expr));
   }
   return success;
 }
@@ -1756,7 +1757,7 @@ JustError<ErrorLoc> FunctionCall::checkVariadicCall(const Context& callContext) 
       context.addExpandedTypePack(templateArgs->back()->getName(), expanded);
     if (variadicCall)
       context.addExpandedVariablePack(callContext.getUnexpandedVariablePack()->first, expandedArgs);
-    auto funContext = Context(context.typeRegistry, true);
+    auto funContext = Context(context.typeRegistry, context.languageIndex, true);
     ErrorBuffer errors;
     for (auto& e : expanded)
       for (auto& fun : callContext.getAllFunctions())
@@ -1791,7 +1792,7 @@ JustError<ErrorLoc> FunctionCall::considerSpecialCalls(const Context& context) {
     return success;
   auto var = identifier.parts[0].name;
   auto type = [&]() -> Type*{
-    if (auto t = context.getTypeOfVariable(var))
+    if (auto t = context.getTypeOfVariable(var, identifier.codeLoc))
       return *t;
     if (auto t = context.getTypeFromString(identifier))
       if (!(*t)->getType()->isMetaType())
@@ -1892,6 +1893,9 @@ WithErrorLine<Type*> FunctionCall::getTypeImpl(const Context& callContext) {
           .unpack(functionInfo, error);
   }
   if (functionInfo) {
+    if (auto def = functionInfo->getDefinition())
+      callContext.languageIndex->addDefinition(codeLoc, identifier.parts[0].name.size(), def->codeLoc);
+    callContext.languageIndex->addSignature(codeLoc, endLoc.column, endLoc.line, functionInfo->prettyString());
     TRY(checkVariadicCall(callContext));
     TRY(functionInfo->type.retVal->getSizeError(callContext).addCodeLoc(codeLoc));
     if (!callContext.getExpandedVariablePack())
@@ -2047,7 +2051,8 @@ JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
       if (subtypeNames.count(subtype.name))
         return subtype.codeLoc.getError("Duplicate union member: " + quote(subtype.name));
       subtypeNames.insert(subtype.name);
-      type->alternatives.push_back({subtype.name, TRY(membersContext.getTypeFromString(subtype.type)), false});
+      type->alternatives.push_back({subtype.name, TRY(membersContext.getTypeFromString(subtype.type)), false,
+          subtype.codeLoc});
       vector<Type*> params;
       auto subtypeInfo = TRY(membersContext.getTypeFromString(subtype.type));
       if (subtypeInfo != BuiltinType::VOID)
@@ -2100,7 +2105,8 @@ JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
   type->requirements = TRY(applyRequirements(membersContext, templateInfo));
   if (members.size() > type->members.size())
     for (auto& member : members)
-      type->members.push_back({member.name, TRY(membersContext.getTypeFromString(member.type)), member.isConst});
+      type->members.push_back({member.name, TRY(membersContext.getTypeFromString(member.type)), member.isConst,
+          member.codeLoc});
   for (auto& member : members)
     TRY(type->members.back().type->getSizeError(membersContext).addCodeLoc(member.codeLoc));
   for (int i = 0; i < members.size(); ++i)
@@ -2150,12 +2156,12 @@ void StructDefinition::addGeneratedConstructor(Context& context, const AST& ast)
   }
 }
 
-MoveExpression::MoveExpression(CodeLoc l, string id, bool hasDestructor)
-    : Expression(l), identifier(id), hasDestructor(hasDestructor) {}
+MoveExpression::MoveExpression(CodeLoc l, string id, CodeLoc variableLoc, bool hasDestructor)
+    : Expression(l), identifier(id), hasDestructor(hasDestructor), variableLoc(variableLoc) {}
 
 WithErrorLine<Type*> MoveExpression::getTypeImpl(const Context& context) {
   if (!type) {
-    if (auto ret = context.getTypeOfVariable(identifier)) {
+    if (auto ret = context.getTypeOfVariable(identifier, variableLoc)) {
       if (context.isNonMovable(identifier))
         return codeLoc.getError("Can't move " + quote(identifier) + ", because the switch condition is an l-value");
       if (context.isCapturedVariable(identifier))
@@ -2173,13 +2179,13 @@ WithErrorLine<Type*> MoveExpression::getTypeImpl(const Context& context) {
 
 unique_ptr<Expression> MoveExpression::replaceVar(string from, string to) const {
   if (from == identifier)
-    return unique<MoveExpression>(codeLoc, to, hasDestructor);
+    return unique<MoveExpression>(codeLoc, to, variableLoc, hasDestructor);
   else
     return deepCopy();
 }
 
 unique_ptr<Expression> MoveExpression::transform(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<MoveExpression>(codeLoc, identifier, hasDestructor);
+  return unique<MoveExpression>(codeLoc, identifier, variableLoc, hasDestructor);
 }
 
 JustError<ErrorLoc> MoveExpression::checkMoves(MoveChecker& checker) const {
@@ -2330,7 +2336,7 @@ JustError<ErrorLoc> EnumDefinition::registerTypes(const Context&, TypeRegistry* 
   if (registered)
     return success;
   registered = true;
-  return r->addEnum(name, external, codeLoc).addCodeLoc(codeLoc);
+  return r->addEnum(name, external, this).addCodeLoc(codeLoc);
 }
 
 unique_ptr<Statement> EnumDefinition::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
@@ -2344,13 +2350,13 @@ JustError<ErrorLoc> EnumDefinition::addToContext(Context& context) {
   auto type = context.typeRegistry->getEnum(name);
   if (elements.empty())
     return codeLoc.getError("Enum requires at least one element");
-  type->definition = codeLoc;
-  type->elements = elements;
+  type->definition = this;
+  type->elements = elements.transform([](auto elem) { return elem.first;});
   type->external = external;
   unordered_set<string> occurences;
   for (auto& e : elements)
-    if (occurences.count(e))
-      return codeLoc.getError("Duplicate enum element: " + quote(e));
+    if (occurences.count(e.first))
+      return e.second.getError("Duplicate enum element: " + quote(e.first));
   context.addType(name, type);
   context.setTypeFullyDefined(type);
   return success;
@@ -2360,7 +2366,8 @@ JustError<ErrorLoc> EnumDefinition::check(Context&, bool) {
   return success;
 }
 
-EnumConstant::EnumConstant(CodeLoc l, string name, string element) : Expression(l), enumName(name), enumElement(element) {
+EnumConstant::EnumConstant(CodeLoc l, string name, CodeLoc elemLoc, string element)
+    : Expression(l), enumName(name), enumElement(element), elemLoc(std::move(elemLoc)) {
 }
 
 WithErrorLine<Type*> EnumConstant::getTypeImpl(const Context& context) {
@@ -2368,7 +2375,10 @@ WithErrorLine<Type*> EnumConstant::getTypeImpl(const Context& context) {
   if (auto enumType = dynamic_cast<EnumType*>(type)) {
     if (!context.isFullyDefined(enumType))
       return codeLoc.getError("Enum type " + quote(enumType->getName()) + " elements are not known in this context");
-    if (!contains(enumType->elements, enumElement))
+    if (auto ind = enumType->elements.findElement(enumElement)) {
+      if (enumType->definition)
+        context.languageIndex->addDefinition(elemLoc, enumElement.size(), enumType->definition->elements[*ind].second);
+    } else
       return codeLoc.getError(quote(enumElement) + " is not an element of enum " + quote(enumName));
   } else
     return codeLoc.getError(quote(type->getName()) + " is not an enum type");
@@ -2388,7 +2398,7 @@ WithEvalError<EvalResult> EnumConstant::eval(const Context& context) const {
 }
 
 unique_ptr<Expression> EnumConstant::transform(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<EnumConstant>(codeLoc, enumName, enumElement);
+  return unique<EnumConstant>(codeLoc, enumName, elemLoc, enumElement);
 }
 
 ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
@@ -2442,7 +2452,8 @@ unique_ptr<Statement> ConceptDefinition::transformImpl(const StmtTransformFun& f
 
 JustError<ErrorLoc> ConceptDefinition::registerTypes(const Context& primaryContext, TypeRegistry* r) {
   if (!concept) {
-    concept = new Concept(name, this, Context(primaryContext.typeRegistry, true), templateInfo.variadic);
+    concept = new Concept(name, this, Context(primaryContext.typeRegistry, primaryContext.languageIndex, true),
+        templateInfo.variadic);
     for (int i = 0; i < templateInfo.params.size(); ++i) {
       auto& param = templateInfo.params[i];
       if (param.type)
@@ -2581,7 +2592,7 @@ static Type* getCapturedType(Type* input, LambdaCaptureType type) {
 WithErrorLine<vector<LambdaCapture>> LambdaExpression::setLambda(Context& context) {
   vector<LambdaCapture> ret;
   for (auto& capture : captureInfo.captures) {
-    if (auto type = context.getTypeOfVariable(capture.name)) {
+    if (auto type = context.getTypeOfVariable(capture.name, capture.codeLoc)) {
       auto underlying = (*type)->removeReference();
 /*      if (capture.type == LambdaCaptureType::IMPLICIT_COPY && !context.canConvert(*type, underlying))
         return capture.codeLoc.getError("Variable " + capture.name + " of type " +
@@ -2811,6 +2822,8 @@ WithErrorLine<Type*> MemberAccessExpression::getTypeImpl(const Context& context)
   isUnion = leftType->removeReference()->getType() == BuiltinType::UNION_TYPE;
   auto ret = TRY(leftType->getTypeOfMember(identifier).addCodeLoc(codeLoc));
   TRY(initializeDestructor(context, leftType, identifier, codeLoc, destructorCall, isMainDestructor));
+  if (auto loc = leftType->getMemberLoc(identifier))
+    context.languageIndex->addDefinition(codeLoc, identifier.size(), *loc);
   return ret;
 }
 
@@ -3103,7 +3116,7 @@ JustError<ErrorLoc> TypeAliasDeclaration::registerTypes(const Context& primaryCo
   if (!type) {
     type = TRY(primaryContext.getTypeFromString(typeId));
     TRY(primaryContext.checkNameConflict(identifier, "type alias").addCodeLoc(codeLoc));
-    r->addAlias(identifier, type);
+    r->addAlias(identifier, type, codeLoc);
   }
   return success;
 }
