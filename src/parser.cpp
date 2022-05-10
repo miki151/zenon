@@ -110,7 +110,7 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
 }
 
 WithErrorLine<unique_ptr<FunctionCall>> parseFunctionCall(IdentifierInfo id, Tokens& tokens) {
-  auto ret = unique<FunctionCall>(id, false);
+  auto ret = make_unique<FunctionCall>(id, false);
   TRY(tokens.eat(Keyword::OPEN_BRACKET));
   while (tokens.peek() != Keyword::CLOSE_BRACKET) {
     optional<string> argName;
@@ -141,7 +141,7 @@ static string getInputReg() {
 
 WithErrorLine<unique_ptr<Expression>> parseStringLiteral(CodeLoc initialLoc, string literal) {
   if (literal.empty())
-    return cast<Expression>(unique<Constant>(initialLoc, CompileTimeValue::get(""s)));
+    return cast<Expression>(make_unique<Constant>(initialLoc, CompileTimeValue::get(""s)));
   unique_ptr<Expression> left;
   auto addElem = [&left] (unique_ptr<Expression> right, CodeLoc loc) {
     if (!left)
@@ -158,13 +158,13 @@ WithErrorLine<unique_ptr<Expression>> parseStringLiteral(CodeLoc initialLoc, str
         CodeLoc loc = initialLoc.plus(0, (int) it->position());
         //cout << "Matched \"" << it->str() << "\" with rule " << index << " at " << loc.line << ":" << loc.column << endl;
         if (index == 0) {
-          addElem(unique<Constant>(loc, CompileTimeValue::get(
+          addElem(make_unique<Constant>(loc, CompileTimeValue::get(
               regex_replace(it->str(), regex("\\\\([\\{\\}])"), "$1"))), loc);
         } else if (index == 1) {
           loc = loc.plus(0, 2);
           auto tokens = lex(it->str().substr(1, it->str().size() - 2), loc, "end of expression").get();
-          auto call = cast<Expression>(unique<FunctionCall>(IdentifierInfo("to_string", loc),
-              unique<UnaryExpression>(loc, Operator::GET_ADDRESS, TRY(parseExpression(tokens))), false));
+          auto call = cast<Expression>(make_unique<FunctionCall>(IdentifierInfo("to_string", loc),
+              make_unique<UnaryExpression>(loc, Operator::GET_ADDRESS, TRY(parseExpression(tokens))), false));
           addElem(std::move(call), loc);
         } else {
           return loc.getError("Unmatched " + quote("{"));
@@ -174,7 +174,7 @@ WithErrorLine<unique_ptr<Expression>> parseStringLiteral(CodeLoc initialLoc, str
 }
 
 static WithErrorLine<unique_ptr<Expression>> parseArrayLiteral(Tokens& tokens) {
-  auto ret = unique<ArrayLiteral>(tokens.peek().codeLoc);
+  auto ret = make_unique<ArrayLiteral>(tokens.peek().codeLoc);
   TRY(tokens.eat(Keyword::OPEN_BLOCK));
   if (tokens.eatMaybe(Operator::LESS_THAN)) {
     ret->typeId = TRY(parseIdentifier(tokens, true));
@@ -249,7 +249,7 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
   optional<IdentifierInfo> returnType;
   if (tokens.eat(Keyword::ARROW_MEMBER_ACCESS))
     returnType = TRY(parseIdentifier(tokens, true));
-  return cast<Expression>(unique<LambdaExpression>(beginToken.codeLoc, std::move(params), TRY(parseBlock(tokens)),
+  return cast<Expression>(make_unique<LambdaExpression>(beginToken.codeLoc, std::move(params), TRY(parseBlock(tokens)),
       std::move(returnType), std::move(captureInfo)));
 }
 
@@ -274,27 +274,27 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
             TRY(tokens.eat(Keyword::CLOSE_BRACKET));
             if (!var.contains<IdentifierToken>())
               return var.codeLoc.getError("Expected variable identifier");
-            return cast<Expression>(unique<MoveExpression>(token.codeLoc, var.value, var.codeLoc));
+            return cast<Expression>(make_unique<MoveExpression>(token.codeLoc, var.value, var.codeLoc));
           }
           case Keyword::TRY : {
             tokens.popNext();
 // try(expr) = ({ const x = expr; if (!x) return move(x).get_error(); return *move(x); })
             auto varName = "var1234"s;
             auto codeLoc = token.codeLoc;
-            auto varExpr = cast<Expression>(unique<Variable>(IdentifierInfo(varName, codeLoc)));
+            auto varExpr = cast<Expression>(make_unique<Variable>(IdentifierInfo(varName, codeLoc)));
             auto statements = makeVec<unique_ptr<Statement>>(
-                cast<Statement>(unique<VariableDeclaration>(codeLoc, none, varName, TRY(parseExpression(tokens, 10)))),
-                cast<Statement>(unique<IfStatement>(codeLoc, nullptr,
-                    cast<Expression>(unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT, varExpr->deepCopy())),
-                    cast<Statement>(unique<ReturnStatement>(codeLoc,
-                        cast<Expression>(unique<FunctionCall>(IdentifierInfo("get_error", codeLoc),
-                            cast<Expression>(unique<MoveExpression>(codeLoc, varName, token.codeLoc)), true)))),
+                cast<Statement>(make_unique<VariableDeclaration>(codeLoc, none, varName, TRY(parseExpression(tokens, 10)))),
+                cast<Statement>(make_unique<IfStatement>(codeLoc, nullptr,
+                    cast<Expression>(make_unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT, varExpr->deepCopy())),
+                    cast<Statement>(make_unique<ReturnStatement>(codeLoc,
+                        cast<Expression>(make_unique<FunctionCall>(IdentifierInfo("get_error", codeLoc),
+                            cast<Expression>(make_unique<MoveExpression>(codeLoc, varName, token.codeLoc)), true)))),
                     nullptr
                 ))
             );
-            return cast<Expression>(unique<StatementExpression>(codeLoc, std::move(statements),
-                cast<Expression>(unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
-                    cast<Expression>(unique<MoveExpression>(codeLoc, varName, token.codeLoc))))));
+            return cast<Expression>(make_unique<StatementExpression>(codeLoc, std::move(statements),
+                cast<Expression>(make_unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
+                    cast<Expression>(make_unique<MoveExpression>(codeLoc, varName, token.codeLoc))))));
           }
           case Keyword::COUNTOF: {
             tokens.popNext();
@@ -303,17 +303,17 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
             TRY(tokens.eat(Keyword::CLOSE_BRACKET));
             if (!var.contains<IdentifierToken>())
               return var.codeLoc.getError("Expected variable identifier");
-            return cast<Expression>(unique<CountOfExpression>(token.codeLoc, var.value));
+            return cast<Expression>(make_unique<CountOfExpression>(token.codeLoc, var.value));
           }
           case Keyword::FALSE:
             tokens.popNext();
-            return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(false)));
+            return cast<Expression>(make_unique<Constant>(token.codeLoc, CompileTimeValue::get(false)));
           case Keyword::TRUE:
             tokens.popNext();
-            return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(true)));
+            return cast<Expression>(make_unique<Constant>(token.codeLoc, CompileTimeValue::get(true)));
           case Keyword::NULL_TOKEN:
             tokens.popNext();
-            return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(CompileTimeValue::NullValue{})));
+            return cast<Expression>(make_unique<Constant>(token.codeLoc, CompileTimeValue::get(CompileTimeValue::NullValue{})));
           case Keyword::OPEN_BLOCK:
             return parseArrayLiteral(tokens);
           default:
@@ -330,14 +330,14 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
           auto expr = TRY(parseExpression(tokens));
           TRY(tokens.eat(Keyword::CLOSE_SQUARE_BRACKET));
           if (auto id = identifier.asBasicIdentifier())
-            return cast<Expression>(unique<VariablePackElement>(identifier.codeLoc, *id, std::move(expr)));
+            return cast<Expression>(make_unique<VariablePackElement>(identifier.codeLoc, *id, std::move(expr)));
           else
             return identifier.codeLoc.getError("Expected variable pack identifier");
         } else {
           if (identifier.parts.size() == 1)
-            return cast<Expression>(unique<Variable>(identifier));
+            return cast<Expression>(make_unique<Variable>(identifier));
           else
-            return cast<Expression>(unique<EnumConstant>(token.codeLoc, identifier.parts[0].name,
+            return cast<Expression>(make_unique<EnumConstant>(token.codeLoc, identifier.parts[0].name,
                 identifier.parts[1].codeLoc, identifier.parts[1].name));
         }
       },
@@ -349,11 +349,11 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
         } catch (std::out_of_range e) {
           return token.codeLoc.getError("Constant value out of range");
         }
-        return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(ret)));
+        return cast<Expression>(make_unique<Constant>(token.codeLoc, CompileTimeValue::get(ret)));
       },
       [&](const RealNumber&) -> WithErrorLine<unique_ptr<Expression>> {
         tokens.popNext();
-        return cast<Expression>(unique<Constant>(token.codeLoc, CompileTimeValue::get(stod(token.value))));
+        return cast<Expression>(make_unique<Constant>(token.codeLoc, CompileTimeValue::get(stod(token.value))));
       },
       [&](const StringToken&) -> WithErrorLine<unique_ptr<Expression>> {
         tokens.popNext();
@@ -361,13 +361,13 @@ WithErrorLine<unique_ptr<Expression>> parsePrimary(Tokens& tokens) {
       },
       [&](const CharToken&) -> WithErrorLine<unique_ptr<Expression>> {
         tokens.popNext();
-        return cast<Expression>(unique<Constant>(token.codeLoc,
+        return cast<Expression>(make_unique<Constant>(token.codeLoc,
             CompileTimeValue::get(CompileTimeValue::CharLiteral{token.value})));
       },
       [&](const Operator& op) -> WithErrorLine<unique_ptr<Expression>> {
         tokens.popNext();
         if (auto opUnary = getUnary(op)) {
-          return cast<Expression>(unique<UnaryExpression>(token.codeLoc, *opUnary,
+          return cast<Expression>(make_unique<UnaryExpression>(token.codeLoc, *opUnary,
               TRY(parseExpression(tokens, getPrecedence(*opUnary) + 1))));
         } else
           return token.codeLoc.getError(getString(op) + " is not a unary operator"s);
@@ -392,7 +392,7 @@ WithErrorLine<unique_ptr<Expression>> parseFunctionCall(Tokens& tokens, unique_p
 WithErrorLine<unique_ptr<Expression>> parseMemberAccess(Tokens& tokens, unique_ptr<Expression> lhs) {
   auto& token = tokens.popNext();
   if (token == Keyword::ARROW_MEMBER_ACCESS)
-    lhs = cast<Expression>(unique<UnaryExpression>(lhs->codeLoc, Operator::POINTER_DEREFERENCE, std::move(lhs)));
+    lhs = cast<Expression>(make_unique<UnaryExpression>(lhs->codeLoc, Operator::POINTER_DEREFERENCE, std::move(lhs)));
   if (auto id = parseIdentifier(tokens, false)) {
     if (tokens.peek() == Keyword::OPEN_BRACKET) {
       auto function = TRY(parseFunctionCall(*id, tokens));
@@ -400,7 +400,7 @@ WithErrorLine<unique_ptr<Expression>> parseMemberAccess(Tokens& tokens, unique_p
       function.get()->methodCall = true;
       return cast<Expression>(std::move(function));
     } else if (auto s = id->asBasicIdentifier())
-      return cast<Expression>(unique<MemberAccessExpression>(id->codeLoc, std::move(lhs), *s));
+      return cast<Expression>(make_unique<MemberAccessExpression>(id->codeLoc, std::move(lhs), *s));
     else
       return id->codeLoc.getError("Expected member name or method call");
   } else
@@ -454,7 +454,7 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
         } else
         if (*token == Keyword::POINTER_DEREFERENCE_POSTFIX) {
           tokens.popNext();
-          rhs = unique<UnaryExpression>(token->codeLoc, Operator::POINTER_DEREFERENCE, std::move(rhs));
+          rhs = make_unique<UnaryExpression>(token->codeLoc, Operator::POINTER_DEREFERENCE, std::move(rhs));
         } else
         if (*token == Keyword::MEMBER_ACCESS || *token == Keyword::ARROW_MEMBER_ACCESS)
           rhs = TRY(parseMemberAccess(tokens, std::move(rhs)));
@@ -464,18 +464,18 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
           break;
       }
       if (mhs)
-        lhs = cast<Expression>(unique<TernaryExpression>(token->codeLoc, std::move(lhs), std::move(mhs), std::move(rhs)));
+        lhs = cast<Expression>(make_unique<TernaryExpression>(token->codeLoc, std::move(lhs), std::move(mhs), std::move(rhs)));
       else {
         if (op1->reverse)
           swap(lhs, rhs);
         lhs = BinaryExpression::get(token->codeLoc, op1->op, std::move(lhs), std::move(rhs));
         if (op1->negate)
-          lhs = unique<UnaryExpression>(token->codeLoc, Operator::LOGICAL_NOT, std::move(lhs));
+          lhs = make_unique<UnaryExpression>(token->codeLoc, Operator::LOGICAL_NOT, std::move(lhs));
       }
     } else
     if (*token == Keyword::POINTER_DEREFERENCE_POSTFIX) {
       tokens.popNext();
-      lhs = unique<UnaryExpression>(token->codeLoc, Operator::POINTER_DEREFERENCE, std::move(lhs));
+      lhs = make_unique<UnaryExpression>(token->codeLoc, Operator::POINTER_DEREFERENCE, std::move(lhs));
     } else
     if (*token == Keyword::OPEN_SQUARE_BRACKET) {
       tokens.popNext();
@@ -502,7 +502,7 @@ WithErrorLine<unique_ptr<Statement>> parseNonTopLevelStatement(Tokens&);
 
 WithErrorLine<unique_ptr<StatementBlock>> parseBlock(Tokens& tokens) {
   auto openBlock = TRY(tokens.eat(Keyword::OPEN_BLOCK));
-  auto block = unique<StatementBlock>(openBlock.codeLoc);
+  auto block = make_unique<StatementBlock>(openBlock.codeLoc);
   while (1) {
     auto& token2 = tokens.peek();
     if (token2 == Keyword::CLOSE_BLOCK) {
@@ -520,15 +520,15 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionSignature(IdentifierI
   if (token2 == Keyword::OPERATOR) {
     if (auto op = tokens.peek().getValueMaybe<Operator>()) {
       tokens.popNext();
-      ret = unique<FunctionDefinition>(type.codeLoc, type, *op);
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, *op);
     } else {
       TRY(tokens.eat(Keyword::OPEN_SQUARE_BRACKET));
       TRY(tokens.eat(Keyword::CLOSE_SQUARE_BRACKET));
-      ret = unique<FunctionDefinition>(type.codeLoc, type, Operator::SUBSCRIPT);
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, Operator::SUBSCRIPT);
     }
   } else if (token2 == Keyword::OPEN_BRACKET) {
     if (auto typeName = type.asBasicIdentifier()) {
-      ret = unique<FunctionDefinition>(type.codeLoc, type, ConstructorTag { });
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, ConstructorTag { });
       tokens.rewind();
     } else
       return type.codeLoc.getError("Expected type name without template parameters");
@@ -536,11 +536,11 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionSignature(IdentifierI
     if (!token2.contains<IdentifierToken>())
       return token2.codeLoc.getError("Expected identifier, got: " + quote(token2.value));
     if (token2.value == "builtin_has_attribute")
-      ret = unique<FunctionDefinition>(type.codeLoc, type, AttributeTag{});
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, AttributeTag{});
     else if (token2.value == "builtin_has_members")
-      ret = unique<FunctionDefinition>(type.codeLoc, type, StructMembersTag{});
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, StructMembersTag{});
     else
-      ret = unique<FunctionDefinition>(type.codeLoc, type, token2.value);
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, token2.value);
   }
   TRY(tokens.eat(Keyword::OPEN_BRACKET));
   while (1) {
@@ -631,7 +631,7 @@ WithErrorLine<unique_ptr<StructDefinition>> parseStructDefinition(Tokens& tokens
   auto& token2 = tokens.popNext();
   if (!token2.contains<IdentifierToken>())
     return token2.codeLoc.getError("Expected struct name");
-  auto ret = unique<StructDefinition>(token2.codeLoc, token2.value);
+  auto ret = make_unique<StructDefinition>(token2.codeLoc, token2.value);
   if (external)
     ret->external = true;
   if (tokens.eatMaybe(Keyword::OPEN_BLOCK))
@@ -661,7 +661,7 @@ WithErrorLine<unique_ptr<ConceptDefinition>> parseConceptDefinition(Tokens& toke
   auto& token2 = tokens.popNext();
   if (!token2.contains<IdentifierToken>())
     return token2.codeLoc.getError("Expected concept name");
-  auto ret = unique<ConceptDefinition>(token2.codeLoc, token2.value);
+  auto ret = make_unique<ConceptDefinition>(token2.codeLoc, token2.value);
   ret->templateInfo = templateInfo;
   TRY(tokens.eat(Keyword::OPEN_BLOCK));
   while (1) {
@@ -687,7 +687,7 @@ WithErrorLine<unique_ptr<ConceptDefinition>> parseConceptDefinition(Tokens& toke
 
 WithErrorLine<unique_ptr<ReturnStatement>> parseReturnStatement(Tokens& tokens) {
   auto returnToken = TRY(tokens.eat(Keyword::RETURN));
-  auto ret = unique<ReturnStatement>(returnToken.codeLoc);
+  auto ret = make_unique<ReturnStatement>(returnToken.codeLoc);
   auto& token2 = tokens.peek();
   if (token2 == Keyword::SEMICOLON) {
     tokens.popNext();
@@ -701,13 +701,13 @@ WithErrorLine<unique_ptr<ReturnStatement>> parseReturnStatement(Tokens& tokens) 
 WithErrorLine<unique_ptr<BreakStatement>> parseBreakStatement(Tokens& tokens) {
   auto breakToken = TRY(tokens.eat(Keyword::BREAK));
   TRY(tokens.eat(Keyword::SEMICOLON));
-  return unique<BreakStatement>(breakToken.codeLoc);
+  return make_unique<BreakStatement>(breakToken.codeLoc);
 }
 
 WithErrorLine<unique_ptr<ContinueStatement>> parseContinueStatement(Tokens& tokens) {
   auto continueToken = TRY(tokens.eat(Keyword::CONTINUE));
   TRY(tokens.eat(Keyword::SEMICOLON));
-  return unique<ContinueStatement>(continueToken.codeLoc);
+  return make_unique<ContinueStatement>(continueToken.codeLoc);
 }
 
 WithErrorLine<unique_ptr<UnionDefinition>> parseUnionDefinition(Tokens& tokens) {
@@ -715,7 +715,7 @@ WithErrorLine<unique_ptr<UnionDefinition>> parseUnionDefinition(Tokens& tokens) 
   auto nameToken = tokens.popNext();
   if (!nameToken.contains<IdentifierToken>())
     return nameToken.codeLoc.getError("Expected union type name");
-  auto ret = unique<UnionDefinition>(nameToken.codeLoc, nameToken.value);
+  auto ret = make_unique<UnionDefinition>(nameToken.codeLoc, nameToken.value);
   TRY(tokens.eat(Keyword::OPEN_BLOCK));
   while (1) {
     auto memberToken = tokens.peek();
@@ -771,7 +771,7 @@ WithErrorLine<unique_ptr<WhileLoopStatement>> parseWhileLoopStatement(Tokens& to
   auto cond = TRY(parseExpression(tokens));
   TRY(tokens.eat(Keyword::CLOSE_BRACKET));
   auto body = TRY(parseNonTopLevelStatement(tokens));
-  return unique<WhileLoopStatement>(codeLoc, std::move(cond), std::move(body), nullptr);
+  return make_unique<WhileLoopStatement>(codeLoc, std::move(cond), std::move(body), nullptr);
 }
 
 WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) {
@@ -780,7 +780,7 @@ WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) 
   auto expr = TRY(parseExpression(tokens));
   TRY(tokens.eat(Keyword::CLOSE_BRACKET));
   TRY(tokens.eat(Keyword::OPEN_BLOCK));
-  auto ret = unique<SwitchStatement>(switchToken.codeLoc, std::move(expr));
+  auto ret = make_unique<SwitchStatement>(switchToken.codeLoc, std::move(expr));
   while (1) {
     auto& token = tokens.peek();
     if (token == Keyword::CLOSE_BLOCK) {
@@ -848,7 +848,7 @@ WithErrorLine<unique_ptr<VariableDeclaration>> parseVariableDeclaration(Tokens& 
     initExpression = TRY(parseExpression(tokens));
   if (eatSemicolon)
     TRY(tokens.eat(Keyword::SEMICOLON));
-  auto ret = unique<VariableDeclaration>(typeLoc, type, variableName, std::move(initExpression));
+  auto ret = make_unique<VariableDeclaration>(typeLoc, type, variableName, std::move(initExpression));
   ret->isMutable = isMutable;
   return std::move(ret);
 }
@@ -880,7 +880,7 @@ WithErrorLine<unique_ptr<Statement>> parseIfStatement(Tokens& tokens) {
       }
   }
   return cast<Statement>(
-      unique<IfStatement>(ifToken.codeLoc, std::move(decl), std::move(cond), std::move(ifTrue), std::move(ifFalse)));
+      make_unique<IfStatement>(ifToken.codeLoc, std::move(decl), std::move(cond), std::move(ifTrue), std::move(ifFalse)));
 }
 
 WithErrorLine<unique_ptr<Statement>> parseTypeAlias(Tokens& tokens) {
@@ -889,7 +889,7 @@ WithErrorLine<unique_ptr<Statement>> parseTypeAlias(Tokens& tokens) {
   TRY(tokens.eat(Operator::ASSIGNMENT));
   auto type = TRY(parseIdentifier(tokens, true));
   TRY(tokens.eat(Keyword::SEMICOLON));
-  return cast<Statement>(unique<TypeAliasDeclaration>(loc, id, type));
+  return cast<Statement>(make_unique<TypeAliasDeclaration>(loc, id, type));
 }
 
 WithErrorLine<unique_ptr<Statement>> parseTemplateDefinition(Tokens& tokens) {
@@ -954,7 +954,7 @@ WithErrorLine<unique_ptr<Statement>> parseImportStatement(Tokens& tokens) {
   TRY(tokens.eat(Keyword::IMPORT));
   auto path = TRY(tokens.eat(StringToken{}));
   TRY(tokens.eat(Keyword::SEMICOLON));
-  return cast<Statement>(unique<ImportStatement>(codeLoc, path.value, false));
+  return cast<Statement>(make_unique<ImportStatement>(codeLoc, path.value, false));
 }
 
 WithErrorLine<unique_ptr<Statement>> parseEnumStatement(Tokens& tokens, bool external) {
@@ -962,7 +962,7 @@ WithErrorLine<unique_ptr<Statement>> parseEnumStatement(Tokens& tokens, bool ext
   auto name = tokens.popNext();
   if (!name.contains<IdentifierToken>())
     return name.codeLoc.getError("Expected enum name, got: " + quote(name.value));
-  auto ret = unique<EnumDefinition>(tokens.peek().codeLoc, name.value);
+  auto ret = make_unique<EnumDefinition>(tokens.peek().codeLoc, name.value);
   ret->external = external;
   if (tokens.eatMaybe(Keyword::OPEN_BLOCK))
     while (1) {
@@ -994,7 +994,7 @@ WithErrorLine<unique_ptr<ExternConstantDeclaration>> parseExternalConstant(Token
   auto id1 = TRY(parseIdentifier(tokens, true));
   auto name = TRY(tokens.eat<IdentifierToken>("Expected identifier"));
   TRY(tokens.eat(Keyword::SEMICOLON));
-  return unique<ExternConstantDeclaration>(name.codeLoc, id1, name.value);
+  return make_unique<ExternConstantDeclaration>(name.codeLoc, id1, name.value);
 }
 
 WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLevel);
@@ -1024,7 +1024,7 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
   auto parseExpressionAndSemicolon = [&] () -> WithErrorLine<unique_ptr<ExpressionStatement>> {
     auto ret = TRY(parseExpression(tokens));
     TRY(tokens.eat(Keyword::SEMICOLON));
-    return unique<ExpressionStatement>(std::move(ret));
+    return make_unique<ExpressionStatement>(std::move(ret));
   };
   auto handleType = [&] () -> WithErrorLine<unique_ptr<Statement>> {
     if (topLevel) {
@@ -1085,7 +1085,7 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
             tokens.popNext();
             auto name = TRY(tokens.eat<IdentifierToken>("Expected attribute name"));
             TRY(tokens.eat(Keyword::SEMICOLON));
-            return cast<Statement>(unique<AttributeDefinition>(name.codeLoc, name.value));
+            return cast<Statement>(make_unique<AttributeDefinition>(name.codeLoc, name.value));
           }
           case Keyword::SWITCH:
             return cast<Statement>(parseSwitchStatement(tokens));
@@ -1113,17 +1113,17 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
           }
           case Keyword::STATIC: {
             tokens.popNext();
-            auto ret = cast<Statement>(unique<StaticStatement>(tokens.peek().codeLoc,
+            auto ret = cast<Statement>(make_unique<StaticStatement>(tokens.peek().codeLoc,
                 TRY(parseStatement(tokens, false))));
             return std::move(ret);
           }
           case Keyword::UNCHECKED:
             tokens.popNext();
-            return cast<Statement>(unique<UncheckedStatement>(tokens.peek().codeLoc,
+            return cast<Statement>(make_unique<UncheckedStatement>(tokens.peek().codeLoc,
                 TRY(parseStatement(tokens, false))));
           case Keyword::MIXIN: {
             tokens.popNext();
-            auto ret = cast<Statement>(unique<MixinStatement>(tokens.peek().codeLoc,
+            auto ret = cast<Statement>(make_unique<MixinStatement>(tokens.peek().codeLoc,
                 TRY(parseExpression(tokens))));
             TRY(tokens.eat(Keyword::SEMICOLON));
             return std::move(ret);
@@ -1144,14 +1144,14 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
       },
       [&](EmbedToken) -> WithErrorLine<unique_ptr<Statement>> {
         auto text = token.value;
-        auto ret = unique<EmbedStatement>(token.codeLoc, text);
+        auto ret = make_unique<EmbedStatement>(token.codeLoc, text);
         ret->isTopLevel = topLevel;
         tokens.popNext();
         return cast<Statement>(std::move(ret));
       },
       [&](EmbedReturnsToken) -> WithErrorLine<unique_ptr<Statement>> {
         auto text = token.value;
-        auto ret = unique<EmbedStatement>(token.codeLoc, text);
+        auto ret = make_unique<EmbedStatement>(token.codeLoc, text);
         ret->isTopLevel = topLevel;
         ret->returns = true;
         tokens.popNext();
@@ -1186,7 +1186,7 @@ WithErrorLine<unique_ptr<Statement>> parseTopLevelStatement(Tokens& tokens) {
 
 WithErrorLine<AST> parse(Tokens tokens) {
   AST ret;
-  ret.elems.push_back(unique<ImportStatement>(CodeLoc(tokens.peek().codeLoc.file, 0, 0), "std/builtin.znn", true));
+  ret.elems.push_back(make_unique<ImportStatement>(CodeLoc(tokens.peek().codeLoc.file, 0, 0), "std/builtin.znn", true));
   ret.elems.front()->exported = true;
   while (1) {
     auto s = TRY(parseTopLevelStatement(tokens));

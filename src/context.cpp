@@ -340,7 +340,7 @@ JustError<string> Context::canConvert(Type* from, Type* to, unique_ptr<Expressio
         CHECK(!!fun->addInstance(*this));
       if (expr) {
         auto loc = expr->codeLoc;
-        expr = unique<FatPointerConversion>(loc, functions, to, fromUnderlying, std::move(expr), conceptType);
+        expr = make_unique<FatPointerConversion>(loc, functions, to, fromUnderlying, std::move(expr), conceptType);
         auto err = expr->getTypeImpl(*this);
         CHECK(!!err) << err.get_error();
       }
@@ -364,13 +364,13 @@ JustError<string> Context::canConvert(Type* from, Type* to, unique_ptr<Expressio
           auto call = [&] () -> unique_ptr<Expression> {
             if (alternative->type == BuiltinType::VOID) {
               // This is not needed once there is a generic union constructor for each alternative
-              auto call = unique<FunctionCall>(IdentifierInfo("bogus", codeLoc), false);
+              auto call = make_unique<FunctionCall>(IdentifierInfo("bogus", codeLoc), false);
               call->functionInfo = structType->staticContext.getFunctions(alternative->name, false).getOnlyElement();
-              return unique<StatementExpression>(codeLoc,
-                  makeVec<unique_ptr<Statement>>(unique<ExpressionStatement>(std::move(expr))),
+              return make_unique<StatementExpression>(codeLoc,
+                  makeVec<unique_ptr<Statement>>(make_unique<ExpressionStatement>(std::move(expr))),
                   cast<Expression>(std::move(call)));
             } else {
-              auto call = unique<FunctionCall>(IdentifierInfo("bogus", codeLoc), std::move(expr), false);
+              auto call = make_unique<FunctionCall>(IdentifierInfo("bogus", codeLoc), std::move(expr), false);
               call->functionInfo = structType->staticContext.getFunctions(alternative->name, false).getOnlyElement();
               return call;
             }

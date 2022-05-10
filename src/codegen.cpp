@@ -107,7 +107,7 @@ struct Sections {
     sections[Section::DEFINITIONS] = {};
   }
   Buffer* newBuffer(Section section) {
-    sections[section].push_back(unique<Buffer>(includeLineNumbers));
+    sections[section].push_back(make_unique<Buffer>(includeLineNumbers));
     return sections[section].back().get();
   }
   void registerFunctionCall(FunctionInfo* functionInfo) {
@@ -123,7 +123,7 @@ struct Sections {
   void registerTypeAccess(Type* type) {
     if (type->getMangledName() && !typeDefEmitted.count(type)) {
       typeDefEmitted.insert(type);
-      auto buf = unique<Buffer>(includeLineNumbers);
+      auto buf = make_unique<Buffer>(includeLineNumbers);
       type->codegenDefinition(buf.get(), this);
       sections[Section::TYPES].push_back(std::move(buf));
     }
@@ -650,21 +650,21 @@ void StructType::codegenDefinition(Buffer* buffer, Sections* sections) {
 }
 
 static unique_ptr<StatementBlock> generateLambdaBody(Statement* body, const LambdaType& type) {
-  auto ret = unique<StatementBlock>(body->codeLoc);
+  auto ret = make_unique<StatementBlock>(body->codeLoc);
   for (auto& capture : type.captures) {
     auto memberExpr = cast<Expression>(MemberAccessExpression::getPointerAccess(body->codeLoc,
-        unique<Variable>(IdentifierInfo(lambdaArgName, body->codeLoc)), capture.name));
+        make_unique<Variable>(IdentifierInfo(lambdaArgName, body->codeLoc)), capture.name));
     auto type = capture.type;
     if (capture.captureType == LambdaCaptureType::REFERENCE) {
       type = convertPointerToReference(type->removeReference());
-      memberExpr = unique<UnaryExpression>(body->codeLoc, Operator::POINTER_DEREFERENCE, std::move(memberExpr));
+      memberExpr = make_unique<UnaryExpression>(body->codeLoc, Operator::POINTER_DEREFERENCE, std::move(memberExpr));
     } else
       type = ReferenceType::get(type);
-    auto decl = unique<VariableDeclaration>(body->codeLoc, none, capture.name, std::move(memberExpr));
+    auto decl = make_unique<VariableDeclaration>(body->codeLoc, none, capture.name, std::move(memberExpr));
     decl->realType = type;
     ret->elems.push_back(std::move(decl));
   }
-  ret->elems.push_back(unique<ExternalStatement>(body));
+  ret->elems.push_back(make_unique<ExternalStatement>(body));
   return ret;
 }
 
@@ -675,7 +675,7 @@ void codegenLambda(LambdaType* lambda, Buffer* buffer, Sections* sections) {
   if (lambda->functionInfo->getMangledSuffix()) {
     const auto dummyIdent = IdentifierInfo("ignore", lambda->body->codeLoc);
     auto getLambdaBody = [&lambda, &dummyIdent](Statement* body) {
-      auto def = unique<FunctionDefinition>(body->codeLoc, dummyIdent,
+      auto def = make_unique<FunctionDefinition>(body->codeLoc, dummyIdent,
           lambda->functionInfo->id);
       def->body = generateLambdaBody(body, *lambda);
       def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, string(lambdaArgName), false, false});
@@ -689,7 +689,7 @@ void codegenLambda(LambdaType* lambda, Buffer* buffer, Sections* sections) {
       mainBody->parameters.push_back(FunctionParameter{mainBody->body->codeLoc, dummyIdent,
           lambda->parameterNames[i - 1], false, false});
       if (auto call = lambda->destructorCalls[i - 1].get())
-        mainBody->destructorCalls.push_back(unique<ExternalStatement>(call));
+        mainBody->destructorCalls.push_back(make_unique<ExternalStatement>(call));
       else
         mainBody->destructorCalls.push_back(nullptr);
     }
@@ -701,7 +701,7 @@ void codegenLambda(LambdaType* lambda, Buffer* buffer, Sections* sections) {
       destructorBody->destructorCalls.emplace_back();
       destructorBody->functionInfo = FunctionInfo::getImplicit("destruct"s,
           FunctionSignature(BuiltinType::VOID, {PointerType::get(lambda)}, {}));
-      destructorBody->body->elems.push_back(unique<ReturnStatement>(destructorBody->codeLoc));
+      destructorBody->body->elems.push_back(make_unique<ReturnStatement>(destructorBody->codeLoc));
       destructorBody->codegen(buffer, sections);
     }
   }
@@ -931,7 +931,7 @@ static string getVTableFunName(const FunctionId id) {
 void ConceptType::codegenDefinition(Buffer* buffer, Sections* sections) {
   const auto vTableName = getVTableName(*getMangledName());
   auto functions = getConceptFor(concept->getParams()[0])->getContext().getAllFunctions();
-  auto typeBuf = unique<Buffer>(sections->includeLineNumbers);
+  auto typeBuf = make_unique<Buffer>(sections->includeLineNumbers);
   //buf->newLine("// " + type->getName());
   typeBuf->newLine("struct " + vTableName + " {");
   ++typeBuf->indent;

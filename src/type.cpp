@@ -517,8 +517,8 @@ JustError<string> Type::isBuiltinCopyable(const Context& context, unique_ptr<Exp
     if (expr) {
       auto tmpContext = context.getChild();
       auto codeLoc = expr->codeLoc;
-      expr = unique<FunctionCall>(IdentifierInfo("implicit_copy", codeLoc),
-          unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false);
+      expr = make_unique<FunctionCall>(IdentifierInfo("implicit_copy", codeLoc),
+          make_unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false);
       if (auto res = expr->getTypeImpl(tmpContext); !res)
         return res.get_error().error;
     }

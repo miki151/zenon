@@ -70,7 +70,7 @@ WithEvalError<EvalResult> Constant::eval(const Context&) const {
 }
 
 unique_ptr<Expression> Constant::transform(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<Constant>(codeLoc, value);
+  return make_unique<Constant>(codeLoc, value);
 }
 
 WithErrorLine<Type*> Variable::getTypeImpl(const Context& context) {
@@ -98,13 +98,13 @@ WithEvalError<EvalResult> Variable::eval(const Context& context) const {
 
 unique_ptr<Expression> Variable::replaceVar(string from, string to) const {
   if (identifier.asBasicIdentifier() == from)
-    return unique<Variable>(IdentifierInfo(to, codeLoc));
+    return make_unique<Variable>(IdentifierInfo(to, codeLoc));
   else
     return deepCopy();
 }
 
 unique_ptr<Expression> Variable::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
-  return unique<Variable>(identifier);
+  return make_unique<Variable>(identifier);
 }
 
 JustError<ErrorLoc> Variable::checkMoves(MoveChecker& checker) const {
@@ -241,7 +241,7 @@ static WithErrorLine<FunctionInfo*> getFunction(const Context&,
     const vector<CodeLoc>&, vector<unique_ptr<Expression>>&, bool compileTimeArgs);
 
 unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr) {
-  return unique<BinaryExpression>(Private{}, loc, op, std::move(expr));
+  return make_unique<BinaryExpression>(Private{}, loc, op, std::move(expr));
 }
 
 unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, unique_ptr<Expression> a,
@@ -254,28 +254,28 @@ BinaryExpression::BinaryExpression(BinaryExpression::Private, CodeLoc loc, Opera
 
 static vector<unique_ptr<Expression>> transformValueOrArg(vector<unique_ptr<Expression>> expr, CodeLoc codeLoc,
     bool usePointer) {
-  auto block = unique<StatementBlock>(codeLoc);
+  auto block = make_unique<StatementBlock>(codeLoc);
   if (usePointer)
-    expr[1] = unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr[1]));
-  block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(expr[1])));
-  expr[1] = unique<LambdaExpression>(codeLoc, vector<FunctionParameter>(), std::move(block), none,
+    expr[1] = make_unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr[1]));
+  block->elems.push_back(make_unique<ReturnStatement>(codeLoc, std::move(expr[1])));
+  expr[1] = make_unique<LambdaExpression>(codeLoc, vector<FunctionParameter>(), std::move(block), none,
       LambdaCaptureInfo{{}, {}, LambdaCaptureType::REFERENCE });
   return expr;
 }
 
 static unique_ptr<Expression> getDestructAndGetCall(CodeLoc codeLoc, unique_ptr<Expression> expr) {
-  return unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
-      (unique<FunctionCall>(IdentifierInfo("destruct_and_get", codeLoc),
-          unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false)));
+  return make_unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
+      (make_unique<FunctionCall>(IdentifierInfo("destruct_and_get", codeLoc),
+          make_unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false)));
 }
 
 static unique_ptr<Expression> getDestructorCall(CodeLoc codeLoc, unique_ptr<Expression> expr) {
-  return unique<FunctionCall>(IdentifierInfo("destruct", codeLoc),
-      unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false);
+  return make_unique<FunctionCall>(IdentifierInfo("destruct", codeLoc),
+      make_unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS, std::move(expr)), false);
 }
 
 static unique_ptr<Statement> getDestructorStatement(CodeLoc codeLoc, const string& identifier) {
-  return unique<ExpressionStatement>(getDestructorCall(codeLoc, unique<Variable>(IdentifierInfo(identifier, codeLoc))));
+  return make_unique<ExpressionStatement>(getDestructorCall(codeLoc, make_unique<Variable>(IdentifierInfo(identifier, codeLoc))));
 }
 
 WithErrorLine<Type*> BinaryExpression::getTypeImpl(const Context& context) {
@@ -358,7 +358,7 @@ WithEvalError<EvalResult> UnaryExpression::eval(const Context& context) const {
 }
 
 unique_ptr<Expression> UnaryExpression::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
-  return unique<UnaryExpression>(codeLoc, op, fun(expr.get()));
+  return make_unique<UnaryExpression>(codeLoc, op, fun(expr.get()));
 }
 
 JustError<ErrorLoc> UnaryExpression::checkMoves(MoveChecker& checker) const {
@@ -389,7 +389,7 @@ JustError<ErrorLoc> StatementBlock::checkMovesImpl(MoveChecker& checker) const {
 }
 
 unique_ptr<Statement> StatementBlock::transformImpl(const StmtTransformFun& fun, const ExprTransformFun&) const {
-  auto ret = unique<StatementBlock>(codeLoc);
+  auto ret = make_unique<StatementBlock>(codeLoc);
   for (auto& elem : elems)
     ret->elems.push_back(fun(elem.get()));
   return ret;
@@ -401,10 +401,10 @@ JustError<ErrorLoc> IfStatement::check(Context& context, bool) {
     TRY(declaration->check(ifContext));
   auto negate = [&] (unique_ptr<Expression> expr) {
     auto codeLoc = expr->codeLoc;
-    return unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT, std::move(expr));
+    return make_unique<UnaryExpression>(codeLoc, Operator::LOGICAL_NOT, std::move(expr));
   };
   if (!condition)
-    condition = negate(negate(unique<Variable>(IdentifierInfo(declaration->identifier, declaration->codeLoc))));
+    condition = negate(negate(make_unique<Variable>(IdentifierInfo(declaration->identifier, declaration->codeLoc))));
   auto condType = TRY(getType(ifContext, condition));
   if (!ifContext.canConvert(condType, BuiltinType::BOOL)) {
     condition = negate(negate(std::move(condition)));
@@ -446,7 +446,7 @@ JustError<ErrorLoc> IfStatement::checkMovesImpl(MoveChecker& checker) const {
 
 unique_ptr<Statement> IfStatement::transformImpl(const StmtTransformFun& fun,
     const ExprTransformFun& exprFun) const {
-  return unique<IfStatement>(codeLoc,
+  return make_unique<IfStatement>(codeLoc,
       declaration ? cast<VariableDeclaration>(fun(declaration.get())) : nullptr,
       condition ? exprFun(condition.get()) : nullptr,
       fun(ifTrue.get()),
@@ -560,7 +560,7 @@ WithEvalError<StatementEvalResult> VariableDeclaration::eval(Context& context) {
 
 unique_ptr<Statement> VariableDeclaration::transformImpl(const StmtTransformFun&,
     const ExprTransformFun& exprFun) const {
-  auto ret = unique<VariableDeclaration>(codeLoc, none, identifier, initExpr ? exprFun(initExpr.get()) : nullptr);
+  auto ret = make_unique<VariableDeclaration>(codeLoc, none, identifier, initExpr ? exprFun(initExpr.get()) : nullptr);
   ret->isMutable = isMutable;
   ret->type = type;
   return ret;
@@ -588,7 +588,7 @@ JustError<ErrorLoc> AliasDeclaration::checkMovesImpl(MoveChecker& checker) const
 
 unique_ptr<Statement> AliasDeclaration::transformImpl(const StmtTransformFun&,
     const ExprTransformFun& exprFun) const {
-  auto ret = unique<AliasDeclaration>(codeLoc, identifier, exprFun(initExpr.get()));
+  auto ret = make_unique<AliasDeclaration>(codeLoc, identifier, exprFun(initExpr.get()));
   return ret;
 }
 
@@ -611,7 +611,7 @@ JustError<ErrorLoc> ReturnStatement::checkMovesImpl(MoveChecker& checker) const 
 }
 
 unique_ptr<Statement> ReturnStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun& fun) const {
-  return unique<ReturnStatement>(codeLoc, expr ? fun(expr.get()) : nullptr);
+  return make_unique<ReturnStatement>(codeLoc, expr ? fun(expr.get()) : nullptr);
 }
 
 JustError<ErrorLoc> Statement::addToContext(Context&) {
@@ -674,7 +674,7 @@ bool StatementBlock::hasReturnStatement() const {
 }
 
 ReturnStatement::ReturnStatement(CodeLoc codeLoc)
-    : Statement(codeLoc), expr(unique<Variable>(IdentifierInfo("void_value", codeLoc))) {
+    : Statement(codeLoc), expr(make_unique<Variable>(IdentifierInfo("void_value", codeLoc))) {
 }
 
 ReturnStatement::ReturnStatement(CodeLoc codeLoc, unique_ptr<Expression> expr)
@@ -799,7 +799,7 @@ static WithErrorLine<vector<Type*>> getTemplateParams(const TemplateInfo& info, 
 }
 
 unique_ptr<Statement> FunctionDefinition::transformImpl(const StmtTransformFun& f1, const ExprTransformFun&) const {
-  auto ret = unique<FunctionDefinition>(codeLoc, returnType, name);
+  auto ret = make_unique<FunctionDefinition>(codeLoc, returnType, name);
   ret->parameters = parameters;
   if (body)
     ret->body = cast<StatementBlock>(f1(body.get()));
@@ -989,19 +989,19 @@ WithErrorLine<FunctionInfo*> getImplicitCopyFunction(const Context& context, Cod
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
     const string& funName, const string& alternativeName, Type* alternativeType, int virtualIndex,
     bool lvalueParam) {
-  auto functionCall = unique<FunctionCall>(IdentifierInfo(funName, codeLoc), false);
+  auto functionCall = make_unique<FunctionCall>(IdentifierInfo(funName, codeLoc), false);
   vector<Type*> args;
   for (int i = 0; i < parameters.size(); ++i)
     if (i != virtualIndex) {
-      functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name, codeLoc));
+      functionCall->arguments.push_back(make_unique<MoveExpression>(codeLoc, *parameters[i].name, codeLoc));
       args.push_back(functionInfo->type.params[i]);
     } else {
       if (lvalueParam) {
-        functionCall->arguments.push_back(unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
-            unique<Variable>(IdentifierInfo(alternativeName, codeLoc))));
+        functionCall->arguments.push_back(make_unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
+            make_unique<Variable>(IdentifierInfo(alternativeName, codeLoc))));
         args.push_back(convertReferenceToPointer(alternativeType));
       } else {
-        functionCall->arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName, codeLoc));
+        functionCall->arguments.push_back(make_unique<MoveExpression>(codeLoc, alternativeName, codeLoc));
         args.push_back(alternativeType);
       }
     }
@@ -1016,18 +1016,18 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCall
   vector<Type*> argTypes;
   for (int i = 0; i < parameters.size(); ++i)
     if (i != virtualIndex) {
-      arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name, codeLoc));
+      arguments.push_back(make_unique<MoveExpression>(codeLoc, *parameters[i].name, codeLoc));
       argTypes.push_back(functionInfo->type.params[i]);
     } else {
       if (lvalueParam) {
-        arguments.push_back(unique<Variable>(IdentifierInfo(alternativeName, codeLoc)));
+        arguments.push_back(make_unique<Variable>(IdentifierInfo(alternativeName, codeLoc)));
       } else
-        arguments.push_back(unique<MoveExpression>(codeLoc, alternativeName, codeLoc));
+        arguments.push_back(make_unique<MoveExpression>(codeLoc, alternativeName, codeLoc));
       argTypes.push_back(alternativeType);
     }
   TRY(handleOperatorOverloads(context, codeLoc, op, argTypes, vector<CodeLoc>(argTypes.size(), codeLoc), arguments));
   if (parameters.size() == 1)
-    return unique_ptr<Expression>(unique<UnaryExpression>(codeLoc, op, std::move(arguments[0])));
+    return unique_ptr<Expression>(make_unique<UnaryExpression>(codeLoc, op, std::move(arguments[0])));
   else {
     CHECK(parameters.size() == 2);
     return unique_ptr<Expression>(BinaryExpression::get(codeLoc, op, std::move(arguments)));
@@ -1057,19 +1057,19 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
   auto& virtualParam = parameters[virtualIndex];
   auto virtualType = bodyContext.getTypeFromString(virtualParam.type);
   unique_ptr<Expression> switchExpr;
-  body = unique<StatementBlock>(codeLoc);
+  body = make_unique<StatementBlock>(codeLoc);
   auto unionType = dynamic_cast<StructType*>(*virtualType);
   bool lvalueParam = false;
   if (!unionType) {
     unionType = dynamic_cast<StructType*>(virtualType.get()->removePointer());
     lvalueParam = true;
-    switchExpr = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
-        unique<Variable>(IdentifierInfo(*virtualParam.name, codeLoc)));
+    switchExpr = make_unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
+        make_unique<Variable>(IdentifierInfo(*virtualParam.name, codeLoc)));
   } else
-    switchExpr = unique<MoveExpression>(codeLoc, *virtualParam.name, codeLoc);
+    switchExpr = make_unique<MoveExpression>(codeLoc, *virtualParam.name, codeLoc);
   if (!unionType || unionType->alternatives.empty())
     return codeLoc.getError("Virtual parameter must be of a union type or a pointer to one");
-  auto switchStatementPtr = unique<SwitchStatement>(codeLoc, std::move(switchExpr));
+  auto switchStatementPtr = make_unique<SwitchStatement>(codeLoc, std::move(switchExpr));
   auto& switchStatement = *switchStatementPtr;
   body->elems.push_back(std::move(switchStatementPtr));
   for (auto& alternative : unionType->alternatives) {
@@ -1094,8 +1094,8 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
         return call.get_error();
       continue;
     }
-    auto block = unique<StatementBlock>(codeLoc);
-    block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(*call)));
+    auto block = make_unique<StatementBlock>(codeLoc);
+    block->elems.push_back(make_unique<ReturnStatement>(codeLoc, std::move(*call)));
     switchStatement.caseElems.push_back(
         SwitchStatement::CaseElem {
           codeLoc,
@@ -1117,31 +1117,31 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
     auto structType = dynamic_cast<StructType*>(type->removePointer());
     if (!structType)
       return codeLoc.getError("Can only generate copy function for user-defined types");
-    body = unique<StatementBlock>(codeLoc);
+    body = make_unique<StatementBlock>(codeLoc);
     if (structType->alternatives.empty()) {
-      auto call = unique<FunctionCall>(returnType, false);
+      auto call = make_unique<FunctionCall>(returnType, false);
       for (auto elem : structType->members) {
-        auto copiedParam = unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc));
-        auto copyCall = unique<FunctionCall>(IdentifierInfo(functionName, codeLoc), false);
-        copyCall->arguments.push_back(unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
+        auto copiedParam = make_unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc));
+        auto copyCall = make_unique<FunctionCall>(IdentifierInfo(functionName, codeLoc), false);
+        copyCall->arguments.push_back(make_unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
             MemberAccessExpression::getPointerAccess(codeLoc, std::move(copiedParam), elem.name)));
         call->arguments.push_back(std::move(copyCall));
       }
-      body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
+      body->elems.push_back(make_unique<ReturnStatement>(codeLoc, std::move(call)));
     } else {
-      auto copiedParam = unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
-          unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc)));
-      auto topSwitch = unique<SwitchStatement>(codeLoc, std::move(copiedParam));
+      auto copiedParam = make_unique<UnaryExpression>(codeLoc, Operator::POINTER_DEREFERENCE,
+          make_unique<Variable>(IdentifierInfo(*parameters[0].name, codeLoc)));
+      auto topSwitch = make_unique<SwitchStatement>(codeLoc, std::move(copiedParam));
       for (auto& alternative : structType->alternatives) {
-        auto block = unique<StatementBlock>(codeLoc);
+        auto block = make_unique<StatementBlock>(codeLoc);
         auto constructorName = returnType;
         constructorName.parts.push_back(IdentifierInfo::IdentifierPart { alternative.name, {}, {} });
-        auto constructorCall = unique<FunctionCall>(constructorName, false);
+        auto constructorCall = make_unique<FunctionCall>(constructorName, false);
         if (alternative.type != BuiltinType::VOID)
-          constructorCall->arguments.push_back(unique<FunctionCall>(IdentifierInfo(functionName, codeLoc),
-              unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
-                  unique<Variable>(IdentifierInfo(alternative.name, codeLoc))), false));
-        block->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(constructorCall)));
+          constructorCall->arguments.push_back(make_unique<FunctionCall>(IdentifierInfo(functionName, codeLoc),
+              make_unique<UnaryExpression>(codeLoc, Operator::GET_ADDRESS,
+                  make_unique<Variable>(IdentifierInfo(alternative.name, codeLoc))), false));
+        block->elems.push_back(make_unique<ReturnStatement>(codeLoc, std::move(constructorCall)));
         topSwitch->caseElems.push_back(
             SwitchStatement::CaseElem {
               codeLoc,
@@ -1165,15 +1165,15 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateDefaultConstructor(const
       return codeLoc.getError("Cannot generate default constructor for non-struct types");
     if (parameters.size() != structType->members.size())
       return codeLoc.getError("Expected exactly as many parameters as members in type " + quote(structType->getName()));
-    body = unique<StatementBlock>(codeLoc);
+    body = make_unique<StatementBlock>(codeLoc);
     IdentifierInfo id = returnType;
     id.parts.push_back(returnType.parts[0]);
     id.parts.back().templateArguments.clear();
-    auto call = unique<FunctionCall>(std::move(id), false);
+    auto call = make_unique<FunctionCall>(std::move(id), false);
     for (int i = 0; i < structType->members.size(); ++i) {
-      call->arguments.push_back(unique<MoveExpression>(codeLoc, *parameters[i].name, codeLoc));
+      call->arguments.push_back(make_unique<MoveExpression>(codeLoc, *parameters[i].name, codeLoc));
     }
-    body->elems.push_back(unique<ReturnStatement>(codeLoc, std::move(call)));
+    body->elems.push_back(make_unique<ReturnStatement>(codeLoc, std::move(call)));
   }
   return success;
 }
@@ -1322,7 +1322,7 @@ void FunctionDefinition::addParamsToContext(Context& context, const FunctionInfo
 static void considerAddingVoidReturn(const Context& context, StatementBlock* block, Type* retVal) {
   if (context.canConvert(BuiltinType::VOID, retVal)
       && (block->elems.empty() || !block->elems.back()->hasReturnStatement())) {
-    block->elems.push_back(unique<ReturnStatement>(block->codeLoc));
+    block->elems.push_back(make_unique<ReturnStatement>(block->codeLoc));
     auto c = context.getChild();
     CHECK(!!block->elems.back()->check(c));
   }
@@ -1691,14 +1691,14 @@ JustError<ErrorLoc> ExpressionStatement::check(Context& context, bool) {
   if (!canDiscard && res != BuiltinType::VOID && res != BuiltinType::NORETURN)
     return codeLoc.getError("Expression result of type " + quote(res->getName()) + " discarded");
   if (canDiscard && !isConstant) {
-    expr = unique<FunctionCall>(IdentifierInfo("discard_impl", codeLoc), std::move(expr), false);
+    expr = make_unique<FunctionCall>(IdentifierInfo("discard_impl", codeLoc), std::move(expr), false);
     TRY(getType(context, expr));
   }
   return success;
 }
 
 unique_ptr<Statement> ExpressionStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun& fun) const {
-  auto ret = unique<ExpressionStatement>(fun(expr.get()));
+  auto ret = make_unique<ExpressionStatement>(fun(expr.get()));
   ret->canDiscard = canDiscard;
   ret->noReturnExpr = noReturnExpr;
   return ret;
@@ -1806,7 +1806,7 @@ JustError<ErrorLoc> FunctionCall::considerSpecialCalls(const Context& context) {
       } else {
         auto tmp = std::move(arguments);
         arguments.clear();
-        arguments.push_back(unique<Variable>(identifier));
+        arguments.push_back(make_unique<Variable>(identifier));
         methodCall = true;
         arguments.append(std::move(tmp));
         identifier.parts[0].name = "invoke";
@@ -1821,7 +1821,7 @@ JustError<ErrorLoc> FunctionCall::considerSpecialCalls(const Context& context) {
       }
     } else
     if (argType->getTypeOfMember(var)) {
-      arguments[0] = unique<MemberAccessExpression>(codeLoc, std::move(arguments[0]), var);
+      arguments[0] = make_unique<MemberAccessExpression>(codeLoc, std::move(arguments[0]), var);
       identifier.parts[0].name = "invoke";
     }
   }
@@ -1930,7 +1930,7 @@ unique_ptr<Expression> FunctionCall::replaceVar(string from, string to) const {
 }
 
 unique_ptr<Expression> FunctionCall::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
-  auto ret = unique<FunctionCall>(codeLoc, methodCall, Private{});
+  auto ret = make_unique<FunctionCall>(codeLoc, methodCall, Private{});
   ret->identifier = identifier;
   for (auto& arg : arguments)
     ret->arguments.push_back(fun(arg.get()));
@@ -1983,7 +1983,7 @@ JustError<ErrorLoc> SwitchStatement::checkMovesImpl(MoveChecker& checker) const 
 
 unique_ptr<Statement> SwitchStatement::transformImpl(const StmtTransformFun& fun,
     const ExprTransformFun& exprFun) const {
-  auto ret = unique<SwitchStatement>(codeLoc, exprFun(expr.get()));
+  auto ret = make_unique<SwitchStatement>(codeLoc, exprFun(expr.get()));
   ret->targetType = targetType;
   if (defaultBlock)
     ret->defaultBlock = cast<StatementBlock>(fun(defaultBlock.get()));
@@ -2017,7 +2017,7 @@ JustError<ErrorLoc> UnionDefinition::registerTypes(const Context& primaryContext
 }
 
 unique_ptr<Statement> UnionDefinition::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<UnionDefinition>(*this);
+  return make_unique<UnionDefinition>(*this);
 }
 
 static WithErrorLine<set<AttributeType*>> getAttributeTypes(const Context& context,
@@ -2091,7 +2091,7 @@ JustError<ErrorLoc> StructDefinition::registerTypes(const Context& primaryContex
 }
 
 unique_ptr<Statement> StructDefinition::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<StructDefinition>(*this);
+  return make_unique<StructDefinition>(*this);
 }
 
 JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
@@ -2179,13 +2179,13 @@ WithErrorLine<Type*> MoveExpression::getTypeImpl(const Context& context) {
 
 unique_ptr<Expression> MoveExpression::replaceVar(string from, string to) const {
   if (from == identifier)
-    return unique<MoveExpression>(codeLoc, to, variableLoc, hasDestructor);
+    return make_unique<MoveExpression>(codeLoc, to, variableLoc, hasDestructor);
   else
     return deepCopy();
 }
 
 unique_ptr<Expression> MoveExpression::transform(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<MoveExpression>(codeLoc, identifier, variableLoc, hasDestructor);
+  return make_unique<MoveExpression>(codeLoc, identifier, variableLoc, hasDestructor);
 }
 
 JustError<ErrorLoc> MoveExpression::checkMoves(MoveChecker& checker) const {
@@ -2205,7 +2205,7 @@ Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
 }
 
 unique_ptr<Statement> EmbedStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
-  auto ret = unique<EmbedStatement>(codeLoc, value);
+  auto ret = make_unique<EmbedStatement>(codeLoc, value);
   ret->returns = returns;
   ret->isTopLevel = isTopLevel;
   return std::move(ret);
@@ -2241,7 +2241,7 @@ JustError<ErrorLoc> WhileLoopStatement::checkMovesImpl(MoveChecker& checker) con
 
 unique_ptr<Statement> WhileLoopStatement::transformImpl(const StmtTransformFun& fun,
     const ExprTransformFun& exprFun) const {
-  return unique<WhileLoopStatement>(codeLoc,
+  return make_unique<WhileLoopStatement>(codeLoc,
       exprFun(cond.get()),
       fun(body.get()),
       afterContinue ? fun(afterContinue.get()) : nullptr);
@@ -2271,7 +2271,7 @@ WithEvalError<StatementEvalResult> WhileLoopStatement::eval(Context& context) {
       return EvalError::withError(res.get_error().toString());
     if (afterContinue)
       TRY(afterContinue->eval(bodyContext2));
-    res.push_back(unique<StatementBlock>(codeLoc, makeVec(std::move(thisBody))));
+    res.push_back(make_unique<StatementBlock>(codeLoc, makeVec(std::move(thisBody))));
     if (onePass)
       break;
     if (++countIter > maxIterations)
@@ -2304,7 +2304,7 @@ JustError<ErrorLoc> ImportStatement::registerTypes(const Context& context, TypeR
 }
 
 unique_ptr<Statement> ImportStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<ImportStatement>(codeLoc, path, isBuiltIn);
+  return make_unique<ImportStatement>(codeLoc, path, isBuiltIn);
 }
 
 JustError<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
@@ -2340,7 +2340,7 @@ JustError<ErrorLoc> EnumDefinition::registerTypes(const Context&, TypeRegistry* 
 }
 
 unique_ptr<Statement> EnumDefinition::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
-  auto ret = unique<EnumDefinition>(codeLoc, name);
+  auto ret = make_unique<EnumDefinition>(codeLoc, name);
   ret->elements = elements;
   return ret;
 }
@@ -2398,7 +2398,7 @@ WithEvalError<EvalResult> EnumConstant::eval(const Context& context) const {
 }
 
 unique_ptr<Expression> EnumConstant::transform(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<EnumConstant>(codeLoc, enumName, elemLoc, enumElement);
+  return make_unique<EnumConstant>(codeLoc, enumName, elemLoc, enumElement);
 }
 
 ConceptDefinition::ConceptDefinition(CodeLoc l, string name) : Statement(l), name(name) {
@@ -2443,7 +2443,7 @@ JustError<ErrorLoc> ConceptDefinition::check(Context& context, bool) {
 }
 
 unique_ptr<Statement> ConceptDefinition::transformImpl(const StmtTransformFun& f1, const ExprTransformFun&) const {
-  auto ret = unique<ConceptDefinition>(codeLoc, name);
+  auto ret = make_unique<ConceptDefinition>(codeLoc, name);
   for (auto& f : functions)
     ret->functions.push_back(cast<FunctionDefinition>(f1(f.get())));
   ret->templateInfo = templateInfo;
@@ -2474,7 +2474,7 @@ JustError<ErrorLoc> BreakStatement::check(Context& context, bool) {
 }
 
 unique_ptr<Statement> BreakStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
-  auto ret = unique<BreakStatement>(codeLoc);
+  auto ret = make_unique<BreakStatement>(codeLoc);
   ret->loopId = loopId;
   return ret;
 }
@@ -2493,7 +2493,7 @@ JustError<ErrorLoc> ContinueStatement::check(Context& context, bool) {
 }
 
 unique_ptr<Statement> ContinueStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<ContinueStatement>(codeLoc);
+  return make_unique<ContinueStatement>(codeLoc);
 }
 
 JustError<ErrorLoc> ContinueStatement::checkMovesImpl(MoveChecker& checker) const {
@@ -2516,7 +2516,7 @@ WithErrorLine<Type*> ArrayLiteral::getTypeImpl(const Context& context) {
 }
 
 unique_ptr<Expression> ArrayLiteral::transform(const StmtTransformFun&, const ExprTransformFun& fun) const {
-  auto ret = unique<ArrayLiteral>(codeLoc);
+  auto ret = make_unique<ArrayLiteral>(codeLoc);
   for (auto& elem : contents)
     ret->contents.push_back(fun(elem.get()));
   ret->typeId = typeId;
@@ -2534,7 +2534,7 @@ WithErrorLine<Type*> getType(const Context& context, unique_ptr<Expression>& exp
   if (evaluateAtCompileTime) {
     if (auto type = expr->eval(context)) {
       if (type->isConstant) {
-          auto c = unique<Constant>(expr->codeLoc, type->value);
+          auto c = make_unique<Constant>(expr->codeLoc, type->value);
           auto refValue = type->value->removeValueReference();
           if (refValue != type->value)
             c->refValue = refValue;
@@ -2569,7 +2569,7 @@ JustError<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
 }
 
 unique_ptr<Statement> ExternConstantDeclaration::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<ExternConstantDeclaration>(codeLoc, type, identifier);
+  return make_unique<ExternConstantDeclaration>(codeLoc, type, identifier);
 }
 
 LambdaExpression::LambdaExpression(CodeLoc l, vector<FunctionParameter> params, unique_ptr<StatementBlock> block,
@@ -2670,7 +2670,7 @@ WithErrorLine<Type*> LambdaExpression::getTypeImpl(const Context& context) {
   TRY(checkBodyMoves());
   if (!block->hasReturnStatement() && retType != BuiltinType::VOID)
     return block->codeLoc.getError("Not all paths lead to a return statement in a lambda expression returning non-void");
-  type->body = cast<Statement>(unique<ExternalStatement>(block.get()));
+  type->body = cast<Statement>(make_unique<ExternalStatement>(block.get()));
   type->destructorCalls = getDestructorCalls(codeLoc,
       parameters.transform([](auto& p) { return *p.name;}),
       getSubsequence(type->functionInfo->type.params, 1));
@@ -2691,7 +2691,7 @@ WithErrorLine<Type*> LambdaExpression::getTypeImpl(const Context& context) {
     }
   }
   if (!toDestruct.empty())
-    type->destructor = unique<StatementBlock>(codeLoc, std::move(toDestruct));
+    type->destructor = make_unique<StatementBlock>(codeLoc, std::move(toDestruct));
   return type;
 }
 
@@ -2714,7 +2714,7 @@ JustError<ErrorLoc> LambdaExpression::checkMoves(MoveChecker& checker) const {
 }
 
 unique_ptr<Expression> LambdaExpression::transform(const StmtTransformFun& fun, const ExprTransformFun& exprFun) const {
-  auto ret = unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->transform(fun, exprFun)), returnType, captureInfo);
+  auto ret = make_unique<LambdaExpression>(codeLoc, parameters, cast<StatementBlock>(block->transform(fun, exprFun)), returnType, captureInfo);
   return ret;
 }
 
@@ -2738,7 +2738,7 @@ WithErrorLine<Type*> CountOfExpression::getTypeImpl(const Context& context) {
 }
 
 unique_ptr<Expression> CountOfExpression::transform(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<CountOfExpression>(codeLoc, identifier);
+  return make_unique<CountOfExpression>(codeLoc, identifier);
 }
 
 WithEvalError<EvalResult> CountOfExpression::eval(const Context& context) const {
@@ -2783,12 +2783,12 @@ WithErrorLine<Type*> VariablePackElement::getTypeImpl(const Context& context) {
 }
 
 unique_ptr<Expression> VariablePackElement::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
-  return cast<Expression>(unique<VariablePackElement>(codeLoc, packName, index->transform(f1, f2)));
+  return cast<Expression>(make_unique<VariablePackElement>(codeLoc, packName, index->transform(f1, f2)));
 }
 
 unique_ptr<MemberAccessExpression> MemberAccessExpression::getPointerAccess(CodeLoc l, unique_ptr<Expression> lhs, string id) {
-  return unique<MemberAccessExpression>(l,
-      unique<UnaryExpression>(l, Operator::POINTER_DEREFERENCE, std::move(lhs)),
+  return make_unique<MemberAccessExpression>(l,
+      make_unique<UnaryExpression>(l, Operator::POINTER_DEREFERENCE, std::move(lhs)),
       id);
 }
 
@@ -2828,7 +2828,7 @@ WithErrorLine<Type*> MemberAccessExpression::getTypeImpl(const Context& context)
 }
 
 unique_ptr<Expression> MemberAccessExpression::transform(const StmtTransformFun& fun1, const ExprTransformFun& fun2) const {
-  return unique<MemberAccessExpression>(codeLoc, lhs->transform(fun1, fun2), identifier);
+  return make_unique<MemberAccessExpression>(codeLoc, lhs->transform(fun1, fun2), identifier);
 }
 
 JustError<ErrorLoc> MemberAccessExpression::checkMoves(MoveChecker& checker) const {
@@ -2869,7 +2869,7 @@ WithEvalError<EvalResult> TernaryExpression::eval(const Context& context) const 
 }
 
 unique_ptr<Expression> TernaryExpression::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
-  return unique<TernaryExpression>(codeLoc, f2(condExpr.get()), f2(e1.get()), f2(e2.get()));
+  return make_unique<TernaryExpression>(codeLoc, f2(condExpr.get()), f2(e1.get()), f2(e2.get()));
 }
 
 JustError<ErrorLoc> TernaryExpression::checkMoves(MoveChecker& checker) const {
@@ -2932,7 +2932,7 @@ JustError<ErrorLoc> UncheckedStatement::checkMovesImpl(MoveChecker& checker) con
 }
 
 unique_ptr<Statement> UncheckedStatement::transformImpl(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
-  return unique<UncheckedStatement>(codeLoc, elem->transform(f1, f2));
+  return make_unique<UncheckedStatement>(codeLoc, elem->transform(f1, f2));
 }
 
 AttributeDefinition::AttributeDefinition(CodeLoc l, string name) : Statement(l), name(std::move(name)) {
@@ -2951,7 +2951,7 @@ JustError<ErrorLoc> AttributeDefinition::check(Context&, bool) {
 }
 
 unique_ptr<Statement> AttributeDefinition::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<AttributeDefinition>(codeLoc, name);
+  return make_unique<AttributeDefinition>(codeLoc, name);
 }
 
 ExternalStatement::ExternalStatement(Statement* s) : Statement(s->codeLoc), elem(s) {}
@@ -2984,7 +2984,7 @@ WithErrorLine<Type*> StatementExpression::getTypeImpl(const Context& context) {
 }
 
 unique_ptr<Expression> StatementExpression::transform(const StmtTransformFun& f1, const ExprTransformFun& f2) const {
-  return unique<StatementExpression>(codeLoc,
+  return make_unique<StatementExpression>(codeLoc,
       statements.transform([&](auto& s) { return s->transform(f1, f2); }),
       value->transform(f1, f2));
 }
@@ -3030,7 +3030,7 @@ JustError<ErrorLoc> MixinStatement::check(Context& context, bool) {
 
 
 unique_ptr<Statement> MixinStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun& f) const {
-  return unique<MixinStatement>(codeLoc, f(value.get()));
+  return make_unique<MixinStatement>(codeLoc, f(value.get()));
 }
 
 bool MixinStatement::hasReturnStatement() const {
@@ -3054,7 +3054,7 @@ JustError<ErrorLoc> StaticStatement::check(Context& context, bool) {
 }
 
 unique_ptr<Statement> StaticStatement::transformImpl(const StmtTransformFun& f, const ExprTransformFun&) const {
-  return unique<StaticStatement>(codeLoc, f(value.get()));
+  return make_unique<StaticStatement>(codeLoc, f(value.get()));
 }
 
 bool StaticStatement::hasReturnStatement() const {
@@ -3074,36 +3074,36 @@ bool StaticStatement::canHaveAttributes() const {
 
 unique_ptr<Statement> getForLoop(CodeLoc l, unique_ptr<VariableDeclaration> decl, unique_ptr<Expression> cond,
     unique_ptr<Expression> iter, unique_ptr<Statement> body) {
-  auto ret = unique<StatementBlock>(l);
+  auto ret = make_unique<StatementBlock>(l);
   decl->isMutable = true;
   ret->elems.push_back(std::move(decl));
-  auto exprStmt = unique<ExpressionStatement>(std::move(iter));
+  auto exprStmt = make_unique<ExpressionStatement>(std::move(iter));
   exprStmt->canDiscard = true;
-  ret->elems.push_back(unique<WhileLoopStatement>(l, std::move(cond), std::move(body), std::move(exprStmt)));
+  ret->elems.push_back(make_unique<WhileLoopStatement>(l, std::move(cond), std::move(body), std::move(exprStmt)));
   return ret;
 }
 
 unique_ptr<Statement> getRangedLoop(CodeLoc l, string iterator, unique_ptr<Expression> container,
     unique_ptr<Statement> body) {
-  auto ret = unique<StatementBlock>(l);
+  auto ret = make_unique<StatementBlock>(l);
   static int cnt = 0;
   ++cnt;
   auto containerId = "container" + to_string(cnt);
   auto itEndId = "itEnd" + to_string(cnt);
-  ret->elems.push_back(unique<AliasDeclaration>(l, containerId, std::move(container)));
-  auto itDecl = unique<VariableDeclaration>(l, none, iterator,
-      unique<FunctionCall>(IdentifierInfo("begin", l), unique<Variable>(IdentifierInfo(containerId, l)), true));
+  ret->elems.push_back(make_unique<AliasDeclaration>(l, containerId, std::move(container)));
+  auto itDecl = make_unique<VariableDeclaration>(l, none, iterator,
+      make_unique<FunctionCall>(IdentifierInfo("begin", l), make_unique<Variable>(IdentifierInfo(containerId, l)), true));
   itDecl->isMutable = true;
   ret->elems.push_back(std::move(itDecl));
-  ret->elems.push_back(unique<VariableDeclaration>(l, none, itEndId,
-      unique<FunctionCall>(IdentifierInfo("end", l), unique<Variable>(IdentifierInfo(containerId, l)), true)));
-  auto whileBody = unique<StatementBlock>(l);
+  ret->elems.push_back(make_unique<VariableDeclaration>(l, none, itEndId,
+      make_unique<FunctionCall>(IdentifierInfo("end", l), make_unique<Variable>(IdentifierInfo(containerId, l)), true)));
+  auto whileBody = make_unique<StatementBlock>(l);
   whileBody->elems.push_back(std::move(body));
-  auto incExpr = unique<ExpressionStatement>(unique<UnaryExpression>(l, Operator::INCREMENT,
-      unique<Variable>(IdentifierInfo(iterator, l))));
+  auto incExpr = make_unique<ExpressionStatement>(make_unique<UnaryExpression>(l, Operator::INCREMENT,
+      make_unique<Variable>(IdentifierInfo(iterator, l))));
   incExpr->canDiscard = true;
-  ret->elems.push_back(unique<WhileLoopStatement>(l, BinaryExpression::get(l, Operator::NOT_EQUAL,
-      unique<Variable>(IdentifierInfo(iterator, l)), unique<Variable>(IdentifierInfo(itEndId, l))),
+  ret->elems.push_back(make_unique<WhileLoopStatement>(l, BinaryExpression::get(l, Operator::NOT_EQUAL,
+      make_unique<Variable>(IdentifierInfo(iterator, l)), make_unique<Variable>(IdentifierInfo(itEndId, l))),
       std::move(whileBody), std::move(incExpr)));
   return ret;
 }
@@ -3130,5 +3130,5 @@ JustError<ErrorLoc> TypeAliasDeclaration::check(Context&, bool) {
 }
 
 unique_ptr<Statement> TypeAliasDeclaration::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
-  return unique<TypeAliasDeclaration>(codeLoc, identifier, typeId);
+  return make_unique<TypeAliasDeclaration>(codeLoc, identifier, typeId);
 }
