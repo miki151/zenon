@@ -6,10 +6,24 @@ void LanguageIndex::addDefinition(CodeLoc l, int length, CodeLoc target) {
   auto& def = files[l.file].definitions[Cursor(l.line, l.column)];
   def.length = length;
   def.targets.insert(target);
+  auto& ref = files[target.file].references[Cursor(target.line, target.column)];
+  ref.length = length;
+  ref.targets.insert(l);
 }
 
 set<CodeLoc> LanguageIndex::getTarget(CodeLoc l) {
   auto& m = files[l.file].definitions;
+  auto it = m.upper_bound(Cursor(l.line, l.column));
+  if (it != m.begin()) {
+    --it;
+    if (it->first.first == l.line && it->first.second + it->second.length >= l.column)
+      return it->second.targets;
+  }
+  return set<CodeLoc>();
+}
+
+set<CodeLoc> LanguageIndex::getReferences(CodeLoc l) {
+  auto& m = files[l.file].references;
   auto it = m.upper_bound(Cursor(l.line, l.column));
   if (it != m.begin()) {
     --it;

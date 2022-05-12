@@ -162,6 +162,34 @@ void compile(const Context& primaryContext, ImportCache& importCache, ASTCache& 
   output(diagnosticsMessage(path, diagnostics).dump());
 }
 
+json getLocation(CodeLoc elem) {
+  return json {
+      {"uri", "file://" + elem.file},
+      {"range", {
+          {"start", {
+              {"character", elem.column},
+              {"line", elem.line}
+          }}
+      }}
+  };
+}
+
+json getResult(int id, json result) {
+  return json {
+    {"id", id},
+    {"jsonrpc", "2.0"},
+    {"result", std::move(result)}
+  };
+}
+
+CodeLoc getCodeLoc(const json& j) {
+  return CodeLoc(
+      j["textDocument"]["uri"].get<string>().substr(7),
+      j["position"]["line"].get<int>(),
+      j["position"]["character"].get<int>()
+  );
+}
+
 void startLsp(const vector<string>& importDirs) {
   map<string, string> allContent;
   set<string> compiled;
@@ -215,48 +243,36 @@ void startLsp(const vector<string>& importDirs) {
       compiled.insert(path);
     } else 
     if (method == "textDocument/definition") {
-      auto path = input["params"]["textDocument"]["uri"].get<string>().substr(7);      
-      if (compiled.insert(path).second)
-        compile(primaryContext, importCache, astCache, &languageIndex, importDirs, path);
-      CodeLoc codeLoc(path, input["params"]["position"]["line"].get<int>(),
-          input["params"]["position"]["character"].get<int>());
+      auto codeLoc = getCodeLoc(input["params"]);
+      if (compiled.insert(codeLoc.file).second)
+        compile(primaryContext, importCache, astCache, &languageIndex, importDirs, codeLoc.file);
       int id = input["id"].get<int>();
       auto results = json::array();
       for (auto& elem : languageIndex.getTarget(codeLoc))
-        results.push_back(json {
-            {"uri", "file://" + elem.file},
-            {"range", {
-                {"start", {
-                    {"character", elem.column},
-                    {"line", elem.line}
-                }}
-            }}
-        });
-      output(json {
-        {"id", id},
-        {"jsonrpc", "2.0"},
-        {"result", results}
-      }.dump());
+        results.push_back(getLocation(elem));
+      output(getResult(id, std::move(results)).dump());
+    } else
+    if (method == "textDocument/references") {
+      auto codeLoc = getCodeLoc(input["params"]);
+      if (compiled.insert(codeLoc.file).second)
+        compile(primaryContext, importCache, astCache, &languageIndex, importDirs, codeLoc.file);
+      int id = input["id"].get<int>();
+      auto results = json::array();
+      for (auto& elem : languageIndex.getReferences(codeLoc))
+        results.push_back(getLocation(elem));
+      output(getResult(id, std::move(results)).dump());
     } else
     if (method == "textDocument/signatureHelp") {
-      auto path = input["params"]["textDocument"]["uri"].get<string>().substr(7);      
-      if (compiled.insert(path).second)
-        compile(primaryContext, importCache, astCache, &languageIndex, importDirs, path);
-      CodeLoc codeLoc(path, input["params"]["position"]["line"].get<int>(),
-          input["params"]["position"]["character"].get<int>());
+      auto codeLoc = getCodeLoc(input["params"]);
+      if (compiled.insert(codeLoc.file).second)
+        compile(primaryContext, importCache, astCache, &languageIndex, importDirs, codeLoc.file);
       int id = input["id"].get<int>();
       auto results = json::array();
       for (auto& elem : languageIndex.getSignature(codeLoc))
         results.push_back(json {
             {"label", elem}
         });
-      output(json {
-        {"id", id},
-        {"jsonrpc", "2.0"},
-        {"result", {
-            {"signatures", std::move(results)}
-        }}
-      }.dump());
+      output(getResult(id, {{"signatures", std::move(results)}}).dump());
     }
   }
 }

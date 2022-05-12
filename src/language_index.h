@@ -17,6 +17,7 @@ struct LanguageIndex {
   };
   struct File {
     map<Cursor, DefinitionInfo> definitions;
+    map<Cursor, DefinitionInfo> references;
     vector<Signature> signatures;
   };
   unordered_map<string, File> files;
@@ -25,5 +26,6 @@ struct LanguageIndex {
   void addSignature(CodeLoc, int endColumn, int endLine, string text);
   
   set<CodeLoc> getTarget(CodeLoc);
+  set<CodeLoc> getReferences(CodeLoc);
   const unordered_set<string>& getSignature(CodeLoc);
 };
