@@ -371,33 +371,6 @@ struct __any_backup_storage_required<variant<_Types...>> {
 template <typename ... _Types>
 union __variant_data;
 
-template <typename _Type, bool= std::is_literal_type<_Type>::value>
-struct __variant_storage {
-    typedef _Type __type;
-
-    static constexpr _Type& __get(__type& __val)
-    {
-        return __val;
-    }
-
-    static constexpr _Type&& __get_rref(__type& __val)
-    {
-        return std::move(__val);
-    }
-
-    static constexpr const _Type& __get(__type const& __val)
-    {
-        return __val;
-    }
-
-    static constexpr const _Type&& __get_rref(__type const& __val)
-    {
-        return std::move(__val);
-    }
-
-    static void __destroy(__type&) {}
-};
-
 template <typename _Type>
 struct __storage_wrapper {
     typename std::aligned_storage<sizeof(_Type), alignof(_Type)>::type __storage;
@@ -467,7 +440,7 @@ struct __storage_wrapper<_Type&> {
 };
 
 template <typename _Type>
-struct __variant_storage<_Type, false> {
+struct __variant_storage {
     typedef __storage_wrapper<_Type> __type;
 
     static constexpr _Type& __get(__type& __val)
@@ -496,8 +469,8 @@ struct __variant_storage<_Type, false> {
     }
 };
 
-template <typename _Type, bool __b>
-struct __variant_storage<_Type&, __b> {
+template <typename _Type>
+struct __variant_storage<_Type&> {
     typedef _Type* __type;
 
     static constexpr _Type& __get(__type& __val)
@@ -523,8 +496,8 @@ struct __variant_storage<_Type&, __b> {
     static void __destroy(__type&) {}
 };
 
-template <typename _Type, bool __b>
-struct __variant_storage<_Type&&, __b> {
+template <typename _Type>
+struct __variant_storage<_Type&&> {
     typedef _Type* __type;
 
     static constexpr _Type&& __get(__type& __val)
