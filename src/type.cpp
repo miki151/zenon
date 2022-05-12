@@ -512,8 +512,7 @@ WithError<Type*> Type::convertTo(Type* t) {
 JustError<string> Type::isBuiltinCopyable(const Context& context, unique_ptr<Expression>& expr) {
   if (isBuiltinCopyableImpl(context, expr))
     return success;
-  else
-  if (auto fun = getImplicitCopyFunction(context, CodeLoc(), this)) {
+  else if (auto fun = getImplicitCopyFunction(context, CodeLoc(), this)) {
     if (expr) {
       auto tmpContext = context.getChild();
       auto codeLoc = expr->codeLoc;
@@ -841,8 +840,8 @@ struct RequirementVisitor {
         errors.push_back("Cannot evaluate expression at compile time ");
       else
         errors.push_back("Error evaluating expression: " + res.get_error().error);
-    } else
-    if (res->isConstant)
+    }
+    else if (res->isConstant)
       if (auto cValue = res->value->asCompileTimeValue())
       if (auto value = cValue->value.getValueMaybe<bool>())
         if (!*value)

@@ -22,54 +22,54 @@ static WithErrorLine<IdentifierInfo> parseIdentifier(Tokens& tokens, bool allowP
     ret.typeExpression = getSharedPtr(TRY(parsePrimary(tokens)));
     ret.codeLoc = ret.typeExpression->codeLoc;
   } else
-  while (1) {
-    if (!tokens.peek().contains<IdentifierToken>())
-      return tokens.peek().codeLoc.getError("Expected identifier");
-    ret.parts.emplace_back();
-    auto& token = tokens.popNext();
-    ret.codeLoc = token.codeLoc;
-    ret.parts.back().name = token.value;
-    ret.parts.back().codeLoc = token.codeLoc;
-    auto beforeLessThan = tokens.getBookmark();
-    if (tokens.eatMaybe(Operator::LESS_THAN)) {
-      while (1) {
-        if (auto ident = parseIdentifier(tokens, true)) {
-          if (tokens.peek() == Keyword::COMMA || tokens.peek() == Keyword::MORE_THAN || tokens.peek() == Keyword::ELLIPSIS)
-            ret.parts.back().templateArguments.push_back(*ident);
-          else {
-            tokens.rewind(beforeLessThan);
-            ret.parts.back().templateArguments.clear();
-            break;
-          }
-        } else {
-          if (auto expr = parsePrimary(tokens)) {
+    while (1) {
+      if (!tokens.peek().contains<IdentifierToken>())
+        return tokens.peek().codeLoc.getError("Expected identifier");
+      ret.parts.emplace_back();
+      auto& token = tokens.popNext();
+      ret.codeLoc = token.codeLoc;
+      ret.parts.back().name = token.value;
+      ret.parts.back().codeLoc = token.codeLoc;
+      auto beforeLessThan = tokens.getBookmark();
+      if (tokens.eatMaybe(Operator::LESS_THAN)) {
+        while (1) {
+          if (auto ident = parseIdentifier(tokens, true)) {
             if (tokens.peek() == Keyword::COMMA || tokens.peek() == Keyword::MORE_THAN || tokens.peek() == Keyword::ELLIPSIS)
-              ret.parts.back().templateArguments.push_back(getSharedPtr(std::move(*expr)));
+              ret.parts.back().templateArguments.push_back(*ident);
             else {
-              ret.parts.back().templateArguments.clear();
               tokens.rewind(beforeLessThan);
+              ret.parts.back().templateArguments.clear();
               break;
             }
-          } else
-            return expr.get_error();
-        }
-        if (tokens.eatMaybe(Keyword::ELLIPSIS))
-          ret.parts.back().variadic = true;
-        if (tokens.eatMaybe(Keyword::MORE_THAN))
-          break;
-        else if (!tokens.eatMaybe(Keyword::COMMA)) {
-          ret.parts.back().templateArguments.clear();
-          tokens.rewind(beforeLessThan);
-          break;
+          } else {
+            if (auto expr = parsePrimary(tokens)) {
+              if (tokens.peek() == Keyword::COMMA || tokens.peek() == Keyword::MORE_THAN || tokens.peek() == Keyword::ELLIPSIS)
+                ret.parts.back().templateArguments.push_back(getSharedPtr(std::move(*expr)));
+              else {
+                ret.parts.back().templateArguments.clear();
+                tokens.rewind(beforeLessThan);
+                break;
+              }
+            } else
+              return expr.get_error();
+          }
+          if (tokens.eatMaybe(Keyword::ELLIPSIS))
+            ret.parts.back().variadic = true;
+          if (tokens.eatMaybe(Keyword::MORE_THAN))
+            break;
+          else if (!tokens.eatMaybe(Keyword::COMMA)) {
+            ret.parts.back().templateArguments.clear();
+            tokens.rewind(beforeLessThan);
+            break;
+          }
         }
       }
+      if (tokens.peek() == Keyword::NAMESPACE_ACCESS) {
+        tokens.popNext();
+        continue;
+      } else
+        break;
     }
-    if (tokens.peek() == Keyword::NAMESPACE_ACCESS) {
-      tokens.popNext();
-      continue;
-    } else
-      break;
-  }
   if (allowPointer) {
     while (1) {
       if (auto t = tokens.eatMaybe(Keyword::MUTABLE)) {
@@ -581,8 +581,8 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionDefinition(Identifier
     TRY(tokens.eat(Keyword::DEFAULT));
     ret.get()->isDefault = true;
     TRY(tokens.eat(Keyword::SEMICOLON));
-  } else
-  if (!ret.get()->isVirtual || !tokens.eatMaybe(Keyword::SEMICOLON))
+  }
+  else if (!ret.get()->isVirtual || !tokens.eatMaybe(Keyword::SEMICOLON))
     ret.get()->body = TRY(parseBlock(tokens));
   return std::move(ret);
 }

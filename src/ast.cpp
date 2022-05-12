@@ -820,8 +820,7 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionSignature(const Context& cont
       parameters[i].name = "parameter" + to_string(i);
   if (auto s = name.getReferenceMaybe<string>())
     TRY(context.checkNameConflictExcludingFunctions(*s, "Function").addCodeLoc(codeLoc));
-  else
-  if (auto op = name.getValueMaybe<Operator>()) {
+  else if (auto op = name.getValueMaybe<Operator>()) {
     if (!canOverload(*op, int(parameters.size())))
       return codeLoc.getError("Can't overload operator " + quote(getString(*op)) +
           " with " + to_string(parameters.size()) + " arguments.");
