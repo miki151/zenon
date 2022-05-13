@@ -1193,7 +1193,7 @@ void generateConversions(const Context& context, const vector<Type*>& paramTypes
   for (int i = 0; i < paramTypes.size(); ++i) {
     auto& paramType = paramTypes[i];
     auto& argType = argTypes[i];
-    CHECK(context.canConvert(argType, paramType, expr[i]));
+    CHECK(context.canConvert(argType, paramType, expr[i])) << argType->getName() << " " << paramType->getName();
   }
 }
 

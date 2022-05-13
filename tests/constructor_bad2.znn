@@ -1,0 +1,14 @@
+// no_compile
+
+template <T>
+struct S {
+  T elem;
+};
+
+template <T>
+S() {
+  return S<T>::S(0);
+}
+
+void main() {
+}
