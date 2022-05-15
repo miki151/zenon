@@ -37,7 +37,7 @@ struct IdentifierInfo {
   };
   vector<variant<PointerType, ArraySize, Optional, IdentifierInfo>> typeOperator;
   CodeLoc codeLoc;
-  nullable<shared_ptr<Expression>> typeExpression;
+  shared_ptr<Expression> typeExpression;
   string prettyString() const;
   bool operator == (const IdentifierInfo&) const;
   //HASH_ALL(parts)

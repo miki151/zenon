@@ -1734,7 +1734,9 @@ string OptionalType::getName(bool withTemplateArguments) const {
 }
 
 optional<string> OptionalType::getMangledName() const {
-  return underlying->getMangledName().map([](const string& name) { return "OP" + name;});
+  if (auto value = underlying->getMangledName())
+    return "OP" + *value;
+  return none;
 }
 
 string OptionalType::getCodegenName() const {

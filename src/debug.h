@@ -16,7 +16,10 @@
 #pragma once
 
 #include <vector>
-#include "stdafx.h"
+#include <string>
+#include <chrono>
+#include <functional>
+#include <iostream>
 
 using std::chrono::milliseconds;
 

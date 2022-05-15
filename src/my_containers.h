@@ -1,4 +1,4 @@
-#pragma once
+#pragma once  
 
 #include <vector>
 #include <set>
@@ -6,9 +6,10 @@
 #include <optional>
 #include "debug.h"
 
-using std::experimental::optional;
-using std::experimental::none;
 using std::initializer_list;
+using std::optional;
+
+constexpr auto none = std::nullopt;
 
 template <typename Iter>
 using RequireInputIter = typename

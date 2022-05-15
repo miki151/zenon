@@ -1,6 +1,5 @@
 #pragma once
 #include "stdafx.h"
-#include "optional.h"
 #include "variant.h"
 #include "identifier.h"
 #include "function_name.h"

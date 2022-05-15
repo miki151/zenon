@@ -1,7 +1,7 @@
 #pragma once
 
 #include "variant.hpp"
-#include "optional.h"
+#include <optional>
 
 namespace variant_helpers {
 
@@ -116,7 +116,7 @@ class variant : public stx::variant<Arg...> {
                     variant_helpers::is_one_of<typename variant_helpers::bare_type<Param>::type, Arg...>::value
             >::type>
   bool operator == (const Param& param) const {
-    return getReferenceMaybe<Param>() == param;
+    return contains<Param>() && get<Param>() == param;
   }
 
   bool operator == (const variant& v) const {
@@ -128,7 +128,7 @@ class variant : public stx::variant<Arg...> {
                     variant_helpers::is_one_of<typename variant_helpers::bare_type<Param>::type, Arg...>::value
             >::type>
   bool operator != (const Param& param) const {
-    return getReferenceMaybe<Param>() != param;
+    return !contains<Param>() || get<Param>() != param;
   }
 
   bool operator != (const variant& v) const {
@@ -165,19 +165,13 @@ class variant : public stx::variant<Arg...> {
   }
 
   template<typename T>
-  optional<T&> getReferenceMaybe() {
-    if (auto val = stx::get_if<T>(*this))
-      return *val;
-    else
-      return none;
+  T* getReferenceMaybe() {
+    return stx::get_if<T>(*this);
   }
 
   template<typename T>
-  optional<const T&> getReferenceMaybe() const {
-    if (auto val = stx::get_if<T>(*this))
-      return *val;
-    else
-      return none;
+  T const* getReferenceMaybe() const {
+    return stx::get_if<T>(*this);
   }
 
   template<typename T>
@@ -191,11 +185,11 @@ class variant : public stx::variant<Arg...> {
   }
 
   template<typename T>
-  optional<T> getValueMaybe() const {
+  std::optional<T> getValueMaybe() const {
     if (auto val = stx::get_if<T>(*this))
       return *val;
     else
-      return none;
+      return std::nullopt;
   }
 
   size_t getHash() const {
