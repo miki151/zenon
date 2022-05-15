@@ -929,8 +929,8 @@ static WithError<FunctionInfo*> getFunction(const Context& context,
         if (s->destructor)
           return FunctionInfo::getImplicit("destruct"s, FunctionSignature(BuiltinType::VOID, {PointerType::get(s)}, {}));
     }
-  } else
-  if (id == "invoke"s && !argTypes.empty() && argTypes[0]->isPointer())
+  }
+  else if (id == "invoke"s && !argTypes.empty() && argTypes[0]->isPointer())
     if (auto lambda = dynamic_cast<LambdaType*>(argTypes[0]->removePointer())) {
       if (auto f = instantiateFunction(context, lambda->functionInfo, codeLoc, templateArgs, argTypes, argLoc)) {
         if (!contains(overloads, *f))
@@ -1242,16 +1242,16 @@ JustError<ErrorLoc> FunctionDefinition::generateDefaultBodies(Context& context) 
   if (isVirtual) {
     auto bodyContext = TRY(getContext());
     TRY(generateVirtualDispatchBody(bodyContext));
-  } else
-  if (name == "copy"s || name == "implicit_copy"s) {
+  }
+  else if (name == "copy"s || name == "implicit_copy"s) {
     auto bodyContext = TRY(getContext());
     TRY(checkAndGenerateCopyFunction(bodyContext, name.get<string>()));
-  } else
-  if (name == ConstructorTag{}) {
+  }
+  else if (name == ConstructorTag{}) {
     auto bodyContext = TRY(getContext());
     TRY(checkAndGenerateDefaultConstructor(bodyContext));
-  } else
-  if (isDefault)
+  }
+  else if (isDefault)
     return codeLoc.getError("Cannot generate a default body for this function");
   return success;
 }
@@ -2255,8 +2255,8 @@ WithEvalError<StatementEvalResult> WhileLoopStatement::eval(Context& context) {
     auto bodyContext = forContext.getChild();
     auto condValue = TRY(cond->eval(bodyContext)).value;
     if (condValue->getType() != BuiltinType::BOOL)
-    return EvalError::withError("Expected a compile-time value of type " + quote(BuiltinType::BOOL->getName()) +
-        ", got " + quote(condValue->getName()));
+      return EvalError::withError("Expected a compile-time value of type " + quote(BuiltinType::BOOL->getName()) +
+          ", got " + quote(condValue->getName()));
     auto value = dynamic_cast<CompileTimeValue*>(condValue);
     bool onePass = false;
     if (auto b = value->value.getValueMaybe<bool>()) {

@@ -343,8 +343,8 @@ WithEvalError<Type*> eval(Operator op, vector<Type*> args1) {
         ? CompileTimeValue::get(args1[0] == args1[1])
         : CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, args1, BuiltinType::BOOL});
     return std::move(result);
-  } else
-  if (op == Operator::NOT_EQUAL && args1.size() == 2) {
+  } 
+  else if (op == Operator::NOT_EQUAL && args1.size() == 2) {
     auto result = args1[0]->getMangledName() && args1[1]->getMangledName()
         ? CompileTimeValue::get(args1[0] != args1[1])
         : CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, args1, BuiltinType::BOOL});

@@ -94,8 +94,8 @@ WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string&
             if (embedBlock->numBrackets > 0)
               embedBlock->value.append(skipped + matched);
             ++embedBlock->numBrackets;
-          } else
-          if (token == Token(Keyword::CLOSE_BLOCK)) {
+          }
+          else if (token == Token(Keyword::CLOSE_BLOCK)) {
             --embedBlock->numBrackets;
             if (embedBlock->numBrackets > 0)
               embedBlock->value.append(skipped + matched);
@@ -111,8 +111,8 @@ WithErrorLine<Tokens> lex(const string& input, CodeLoc initialPos, const string&
             embedBlock = none;
           }
           break;
-        } else
-        if (v[index].second(matched) == Token(Keyword::EMBED)) {
+        }
+        else if (v[index].second(matched) == Token(Keyword::EMBED)) {
           embedBlock = EmbedBlock { "", 0, codeLoc, false };
           break;
         }
