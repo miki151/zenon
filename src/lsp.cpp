@@ -241,7 +241,7 @@ void startLsp(const vector<string>& importDirs) {
       clearAST();
       compile(primaryContext, importCache, astCache, &languageIndex, importDirs, path);
       compiled.insert(path);
-    } else 
+    } else
     if (method == "textDocument/definition") {
       auto codeLoc = getCodeLoc(input["params"]);
       if (compiled.insert(codeLoc.file).second)

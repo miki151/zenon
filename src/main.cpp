@@ -10,6 +10,14 @@
 #include "import_cache.h"
 #include "ast_cache.h"
 #include "language_index.h"
+#include "nlohmann/json.hpp"
+#include "reader.h"
+
+using nlohmann::json;
+
+#ifndef INSTALL_DIR
+#define INSTALL_DIR "."
+#endif
 
 auto installDir = INSTALL_DIR;
 
@@ -19,19 +27,20 @@ static po::parser getCommandLineFlags() {
   flags["lsp"].description("Start language server");
   flags["print"].description("Print C++ output.");
   flags["run"].description("Run the resulting program.");
-  flags["o"].type(po::string).description("Binary output path.");
-  flags["cpp"].type(po::string).fallback("g++").description("C++ compiler path (default: g++).");
-  flags["linker_opts"].type(po::string).description("Additional linker options.");
-  flags["c"].description("Do not link binary.");
+  flags["output"].abbreviation('o').type(po::string).description("Binary output path.");
+  flags["cpp"].type(po::string).description("C++ compiler path (default: g++).");
   flags["codegen"].type(po::string).description("Directory to output generated C++ code for the whole project.");
-  flags["l"].type(po::string).multi().description("Linking flags.");
-  flags["I"].type(po::string).multi().description("Import directories.");
+  flags["cpp_libs"].type(po::string).multi().description("Linking flags for the C++ compiler.");
+  flags["cpp_includes"].type(po::string).multi().description("Include directories for the C++ compiler.");
+  flags["zenon_libs"].type(po::string).multi().description("Import directories.");
+  flags["O"].type(po::string).description("Pass the -O flag to the C++ compiler.");
+  flags["g"].description("Pass the -g flag to the C++ compiler.");  
   flags[""].type(po::string).description("Path to the input program.");
   return flags;
 }
 
-static int compileCpp(string command, const string& program, const string& output) {
-  command += " -xc++ - -std=c++17 -Wno-unused-value -Wno-trigraphs -c -o " + output;
+static int compileCpp(string command, const string& program, const string& output, const string& flags) {
+  command += " -xc++ - -std=c++17 -Wno-unused-value -Wno-trigraphs -c " + flags + " -o   " + output;
   cerr << command << endl;
   FILE* p = popen(command.c_str(), "w");
   fwrite(program.c_str(), 1, program.size(), p);
@@ -43,8 +52,8 @@ static int runProgram(string path) {
   return pclose(p) / 256;
 }
 
-static int linkObjs(const string& cmd, const vector<string>& objs, const string& output, const vector<string>& flags) {
-  auto command = cmd + " " + combine(objs, " ") + " -o " + output + " " + combine(flags, " ");
+static int linkObjs(const string& cmd, const vector<string>& objs, const string& output, const string& flags) {
+  auto command = cmd + " " + combine(objs, " ") + " -o " + output + " " + flags;
   cerr << command << endl;
   return system(command.data());
 }
@@ -88,59 +97,109 @@ static string getBinaryName(const string& sourceFile) {
   return sourceFile + ".bin";
 }
 
-void initializeAndStartLsp() {
-  auto f = ifstream("zenon.paths");
-  vector<string> paths { installDir };
-  for (string s; std::getline(f, s);)
-    paths.push_back(s);
-  startLsp(paths);
-}
+struct ZenonFlags {
+  ZenonFlags(po::parser flags, const string& path) : flags(std::move(flags)) {
+    if (auto content = readFromFile(path.data()))
+      json = json::parse(content->value);
+  }
+
+  po::parser flags;
+  json json;
+
+  bool getBoolean(const string& name) {
+    return flags[name].was_set() || (json.contains(name) && !!json[name].get<bool>());
+  }
+
+  optional<string> getString(const string& name) {
+    if (flags[name].was_set())
+      return flags[name].get().string;
+    if (json.contains(name))
+      return json[name].get<string>();
+    return none;
+  }
+
+  vector<string> getVector(const string& name) {
+    vector<string> ret;
+    if (flags[name].was_set())
+      for (int i = 0; i < flags[name].count(); ++i)
+        ret.push_back(flags[name].get(i).string);
+    else
+      for (auto elem : json[name])
+        ret.push_back(elem.get<string>());
+    return ret;
+  }
+
+  optional<string> getMainFile() {
+    if (flags[""].was_set())
+      return flags[""].get().string;
+    if (json.contains("input"))
+      return json["input"].get<string>();
+    return none;
+  }
+};
 
 int main(int argc, char* argv[]) {
-  po::parser flags = getCommandLineFlags();
-  if (!flags.parseArgs(argc, argv))
+  po::parser flags2 = getCommandLineFlags();
+  if (!flags2.parseArgs(argc, argv))
     return -1;
-  if (flags["help"].was_set() || argc == 1) {
-    std::cout << flags << endl;
+  if (flags2["help"].was_set()) {
+    std::cout << flags2 << endl;
     return 0;
   }
   initLogging();
-  if (flags["lsp"].was_set()) {
-    initializeAndStartLsp();
+  auto lsp = flags2["lsp"].was_set();
+  ZenonFlags flags(std::move(flags2), "zenon_flags.json");
+  auto cppLibs = flags.getVector("cpp_libs");
+  auto cppIncludes = flags.getVector("cpp_includes");
+  vector<string> importDirs = {installDir};
+  auto libs = flags.getVector("zenon_libs");
+  while (!libs.empty()) {
+    auto lib = libs.front();
+    libs.removeIndex(0);
+    importDirs.push_back(lib);
+    ZenonFlags flagsRec(po::parser{}, lib + "/zenon_flags.json");
+    cppLibs.append(flagsRec.getVector("cpp_libs"));
+    cppIncludes.append(flagsRec.getVector("cpp_includes"));
+    for (auto& lib : flagsRec.getVector("zenon_libs"))
+      if (!libs.contains(lib))
+        libs.push_back(lib);
+  }
+  if (lsp) {
+    startLsp(importDirs);
     return 0;
   }
-  optional<string> codegenAll;
-  if (flags["codegen"].was_set())
-    codegenAll = flags["codegen"].get().string;
-  auto gccCmd = flags["cpp"].get().string;
+  string linkFlags = combine(cppLibs.transform([](auto elem) { return "-l" + elem; }), " ");
+  string cppFlags = combine(cppIncludes.transform([](auto elem) { return "-I" + elem; }), " ");
+  optional<string> codegenAll = flags.getString("codegen");
+  auto gccCmd = flags.getString("cpp").value_or("g++");
+  if (auto f = flags.getString("O"))
+    gccCmd += " -O" + *f;
+  if (flags.getBoolean("g"))
+    gccCmd += " -g";
   auto linkCmd = gccCmd;
-  if (flags["linker_opts"].was_set())
-    linkCmd += " " + flags["linker_opts"].get().string;
-  bool fullCompile = !flags["c"].was_set() || codegenAll;
-  bool printCpp = flags["print"].was_set() && !codegenAll;
+  bool printCpp = flags.getBoolean("print");
+  string input;
+  if (auto s = flags.getMainFile())
+    input = *s;
+  else {
+    std::cerr << "No output specified" << std::endl;
+    return -1;
+  }
   string binaryOutput = [&] {
-    if (flags["o"].was_set())
-      return flags["o"].get().string;
-    else if (flags["run"].was_set())
+    if (auto path = flags.getString("output"))
+      return *path;
+    else if (flags.getBoolean("run"))
       return string(tmpnam(nullptr));
     else
-      return getBinaryName(flags[""].begin()->string);
+      return getBinaryName(input);
   }();
-  vector<string> linkFlags;
-  vector<string> importDirs = {installDir};
-  for (int i = 0; i < flags["l"].count(); ++i)
-    linkFlags.push_back("-l" + flags["l"].get(i).string);
-  for (int i = 0; i < flags["I"].count(); ++i)
-    importDirs.push_back(flags["I"].get(i).string);
   vector<ModuleInfo> toCompile;
   set<string> finished;
-  for (auto pathElem : flags[""]) {
-    std::error_code error;
-    toCompile.push_back({fs::canonical(pathElem.string, error), false});
-    if (error) {
-      std::cerr << "Error opening " << pathElem.string << ": " << error.message() << std::endl;
-      return -1;
-    }
+  std::error_code error;
+  toCompile.push_back({fs::canonical(input, error), false});
+  if (error) {
+    std::cerr << "Error opening " << input << ": " << error.message() << std::endl;
+    return -1;
   }
   vector<string> objFiles;
   auto buildDir = ".build_cache";
@@ -175,12 +234,11 @@ int main(int argc, char* argv[]) {
     if (builtInModule)
       importCache.popBuiltIn();
     codegenElems.push_back(CodegenElem{ast, path});
-    if (fullCompile)
-      for (auto& import : imported)
-        if (!finished.count(import.path)) {
-          toCompile.push_back(import);
-          finished.insert(import.path);
-        }
+    for (auto& import : imported)
+      if (!finished.count(import.path)) {
+        toCompile.push_back(import);
+        finished.insert(import.path);
+      }
   }
   for (auto& elem : codegenElems) {
     auto cppCode = codegen(*elem.ast, typeRegistry, installDir + "/codegen_includes/"s, !printCpp);
@@ -189,20 +247,16 @@ int main(int argc, char* argv[]) {
     if (printCpp) {
       cout << cppCode << endl;
       return 0;
-    }/* else
-      logFile << cppCode;*/
+    }
     if (codegenAll)
       ofstream(*codegenAll + "/"s + getCodegenAllFileName(elem.path) + ".cpp") << cppCode;
     else {
-      auto objFile = fullCompile
-          ? buildDir + "/"s + to_string(std::hash<string>()(cppCode + gccCmd)) + ".znn.o"
-          : binaryOutput;
-      if ((!fullCompile || !fs::exists(objFile)) && compileCpp(gccCmd, cppCode, objFile)) {
-        cerr << "C++ compilation failed:\n\n" << endl;
-        //cerr << cppCode << endl;
-        return 2;
-      } else if (fullCompile)
-        objFiles.push_back(objFile);
+      auto objFile = buildDir + "/"s + to_string(std::hash<string>()(cppCode + gccCmd)) + ".znn.o";
+      if (!fs::exists(objFile) && !!compileCpp(gccCmd, cppCode, objFile, cppFlags)) {
+        std::cerr << "C++ compilation failed:\n\n" <<   std::endl;
+        return -1;
+      }
+      objFiles.push_back(objFile);
     }
   }
   if (!objFiles.empty())
@@ -210,8 +264,8 @@ int main(int argc, char* argv[]) {
       cerr << "Linking failed" << endl;
       return 2;
     }
-  if (flags["run"].was_set()) {
-    cout << "Process exited with value:" << runProgram(binaryOutput) << "\n";
+  if (flags.getBoolean("run")) {
+    cout << "Process exited with value:" << runProgram(fs::canonical(binaryOutput)) << "\n";
     remove(binaryOutput.data());
   }
 }
