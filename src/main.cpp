@@ -33,8 +33,8 @@ static po::parser getCommandLineFlags() {
   flags["cpp_libs"].type(po::string).multi().description("Linking flags for the C++ compiler.");
   flags["cpp_includes"].type(po::string).multi().description("Include directories for the C++ compiler.");
   flags["zenon_libs"].type(po::string).multi().description("Import directories.");
-  flags["O"].type(po::string).description("Pass the -O flag to the C++ compiler.");
-  flags["g"].description("Pass the -g flag to the C++ compiler.");  
+  flags["optimize"].abbreviation('O').type(po::string).description("Pass the -O flag to the C++ compiler.");
+  flags["debug"].abbreviation('g').description("Pass the -g flag to the C++ compiler.");  
   flags[""].type(po::string).description("Path to the input program.");
   return flags;
 }
@@ -172,9 +172,9 @@ int main(int argc, char* argv[]) {
   string cppFlags = combine(cppIncludes.transform([](auto elem) { return "-I" + elem; }), " ");
   optional<string> codegenAll = flags.getString("codegen");
   auto gccCmd = flags.getString("cpp").value_or("g++");
-  if (auto f = flags.getString("O"))
+  if (auto f = flags.getString("optimize"))
     gccCmd += " -O" + *f;
-  if (flags.getBoolean("g"))
+  if (flags.getBoolean("debug"))
     gccCmd += " -g";
   auto linkCmd = gccCmd;
   bool printCpp = flags.getBoolean("print");
