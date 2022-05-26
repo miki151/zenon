@@ -135,6 +135,10 @@ export milliseconds_t? get_modification_time(string path) {
   return null;
 }
 
+export bool file_exists(string path) {
+  return !!get_modification_time(move(path));
+}
+
 template <T>
 T? scan_impl(file_input* f, string format) {
   embed {
