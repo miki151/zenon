@@ -2279,8 +2279,8 @@ WithEvalError<StatementEvalResult> WhileLoopStatement::eval(Context& context) {
   return std::move(res);
 }
 
-ImportStatement::ImportStatement(CodeLoc l, string p, bool isBuiltIn)
-    : Statement(l), path(p), isBuiltIn(isBuiltIn) {
+ImportStatement::ImportStatement(CodeLoc l, CodeLoc endLoc, string p, bool isBuiltIn)
+    : Statement(l), path(p), endLoc(std::move(endLoc)), isBuiltIn(isBuiltIn) {
 }
 
 JustError<ErrorLoc> ImportStatement::registerTypes(const Context& context, TypeRegistry* r, ASTCache& cache,
@@ -2303,7 +2303,7 @@ JustError<ErrorLoc> ImportStatement::registerTypes(const Context& context, TypeR
 }
 
 unique_ptr<Statement> ImportStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
-  return make_unique<ImportStatement>(codeLoc, path, isBuiltIn);
+  return make_unique<ImportStatement>(codeLoc, endLoc, path, isBuiltIn);
 }
 
 JustError<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache& cache, const Context& primaryContext) {
@@ -2317,6 +2317,7 @@ JustError<ErrorLoc> ImportStatement::addToContext(Context& context, ImportCache&
     TRY(addExportedContext(primaryContext, cache, *ast, *absolutePath, isBuiltIn));
   } else
     INFO << "Import " << *absolutePath << " already cached";
+  context.languageIndex->addDefinition(codeLoc, endLoc, CodeLoc(*absolutePath, 0, 0));
   context.merge(cache.getContext(*absolutePath));
   return success;
 }

@@ -1,13 +1,16 @@
 #include "stdafx.h"
 #include "language_index.h"
 
-
 void LanguageIndex::addDefinition(CodeLoc l, int length, CodeLoc target) {
+  addDefinition(l, CodeLoc(l.file, l.line, l.column + length - 1), target);
+}
+
+void LanguageIndex::addDefinition(CodeLoc l, CodeLoc end, CodeLoc target) {
   auto& def = files[l.file].definitions[Cursor(l.line, l.column)];
-  def.length = length;
+  def.end = make_pair(end.line, end.column + 1);
   def.targets.insert(target);
   auto& ref = files[target.file].references[Cursor(target.line, target.column)];
-  ref.length = length;
+  def.end = make_pair(end.line, end.column + 1);
   ref.targets.insert(l);
 }
 
@@ -16,7 +19,7 @@ set<CodeLoc> LanguageIndex::getTarget(CodeLoc l) {
   auto it = m.upper_bound(Cursor(l.line, l.column));
   if (it != m.begin()) {
     --it;
-    if (it->first.first == l.line && it->first.second + it->second.length >= l.column)
+    if (it->second.end >= Cursor(l.line, l.column))
       return it->second.targets;
   }
   return set<CodeLoc>();
@@ -27,7 +30,7 @@ set<CodeLoc> LanguageIndex::getReferences(CodeLoc l) {
   auto it = m.upper_bound(Cursor(l.line, l.column));
   if (it != m.begin()) {
     --it;
-    if (it->first.first == l.line && it->first.second + it->second.length >= l.column)
+    if (it->second.end >= Cursor(l.line, l.column))
       return it->second.targets;
   }
   return set<CodeLoc>();

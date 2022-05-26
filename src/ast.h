@@ -711,10 +711,11 @@ struct AST {
 };
 
 struct ImportStatement : Statement {
-  ImportStatement(CodeLoc, string path, bool isBuiltIn);
+  ImportStatement(CodeLoc, CodeLoc endLoc, string path, bool isBuiltIn);
   string path;
   optional<string> absolutePath;
   AST* ast = nullptr;
+  CodeLoc endLoc;
   const bool isBuiltIn;
   virtual JustError<ErrorLoc> addToContext(Context&, ImportCache& cache, const Context& primaryContext) override;
   virtual JustError<ErrorLoc> check(Context&, bool = false) override;

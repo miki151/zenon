@@ -953,8 +953,8 @@ WithErrorLine<unique_ptr<Statement>> parseImportStatement(Tokens& tokens) {
   auto codeLoc = tokens.peek().codeLoc;
   TRY(tokens.eat(Keyword::IMPORT));
   auto path = TRY(tokens.eat(StringToken{}));
-  TRY(tokens.eat(Keyword::SEMICOLON));
-  return cast<Statement>(make_unique<ImportStatement>(codeLoc, path.value, false));
+  auto endLoc =  TRY(tokens.eat(Keyword::SEMICOLON)).codeLoc;
+  return cast<Statement>(make_unique<ImportStatement>(codeLoc, endLoc, path.value, false));
 }
 
 WithErrorLine<unique_ptr<Statement>> parseEnumStatement(Tokens& tokens, bool external) {
@@ -1186,7 +1186,8 @@ WithErrorLine<unique_ptr<Statement>> parseTopLevelStatement(Tokens& tokens) {
 
 WithErrorLine<AST> parse(Tokens tokens) {
   AST ret;
-  ret.elems.push_back(make_unique<ImportStatement>(CodeLoc(tokens.peek().codeLoc.file, 0, 0), "std/builtin.znn", true));
+  auto loc = CodeLoc(tokens.peek().codeLoc.file, 0, 0);
+  ret.elems.push_back(make_unique<ImportStatement>(loc, loc, "std/builtin.znn", true));
   ret.elems.front()->exported = true;
   while (1) {
     auto s = TRY(parseTopLevelStatement(tokens));

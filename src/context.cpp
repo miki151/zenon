@@ -196,7 +196,7 @@ WithError<Type*> Context::getTypeOfVariable(const string& id, CodeLoc codeLoc) c
           } else
             return "Variable " + quote(id) + " is not captured by lambda";
         }
-      languageIndex->addDefinition(codeLoc, id.size(), varInfo->declarationLoc);    
+      languageIndex->addDefinition(codeLoc, id.size(), varInfo->declarationLoc);
       return makeConstReference
           ? ReferenceType::get(varInfo->type->removeReference())
           : varInfo->type;
@@ -728,8 +728,8 @@ WithErrorLine<Type*> Context::getTypeFromString(IdentifierInfo id, optional<bool
   }();
   if (ret) {
     if (!id.parts.empty()) {
-      if (auto target = (*ret)->getDefinition())
-        languageIndex->addDefinition(id.codeLoc, id.parts[0].name.size(), *target);
+      if (auto l = (*ret)->getDefinition())
+        languageIndex->addDefinition(id.codeLoc, id.parts[0].name.size(), *l);
       if (auto l = typeRegistry->getAliasCodeLoc(id.parts[0].name))
         languageIndex->addDefinition(id.codeLoc, id.parts[0].name.size(), *l);
     }
