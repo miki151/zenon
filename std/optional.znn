@@ -91,6 +91,14 @@ U? map_to(T?* elem, Fun* f) {
     return null;
 }
 
+export template <T, U, Fun> requires invoke<Fun, U?, T*>
+U? map_to(T?* elem, Fun* f) {
+  if (*elem)
+    return f->invoke(&**elem);
+  else
+    return null;
+}
+
 export bool operator ! (null_type*) {
   return true;
 }
