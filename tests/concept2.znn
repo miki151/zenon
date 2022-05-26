@@ -1,0 +1,22 @@
+// 6
+
+concept <T> C1 {
+  int a(T*);
+};
+
+concept <T> C2 {
+  int get(T*);
+};
+
+int get(string* s) {
+  return s->size();
+}
+
+template <C1> requires C2<C1>
+int f(C1* x) {
+  return x->get();
+}
+
+int main() {
+  return f(&"foobar");
+}
