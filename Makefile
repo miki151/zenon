@@ -1,6 +1,6 @@
 
 
-CFLAGS = -Wall -std=c++17 -Wno-sign-compare -Wno-unused-variable -Wno-shift-count-overflow -Wno-tautological-constant-out-of-range-compare -Wno-mismatched-tags -ftemplate-depth=512 -Wmissing-field-initializers -g -I/home/michal/json/include -O3
+CFLAGS = -Wall -std=c++17 -Wno-sign-compare -Wno-unused-variable -Wno-shift-count-overflow -Wno-tautological-constant-out-of-range-compare -Wno-mismatched-tags -ftemplate-depth=512 -Wmissing-field-initializers -g -I/home/michal/json/include
 
 CC = clang++
 LD = clang++
@@ -8,6 +8,12 @@ LD = clang++
 CFLAGS += -Werror -g
 
 OBJDIR = obj
+
+ifdef OPT
+CFLAGS += -O3
+OBJDIR = obj-opt
+endif
+
 
 NAME = zenon
 

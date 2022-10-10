@@ -1,0 +1,15 @@
+// 3
+
+int f() {
+  return 3;
+}
+
+struct X {
+  int a = f();
+};
+
+int main() {
+  const f = [] { return 4; };
+  const x = X();
+  return x.a;
+}

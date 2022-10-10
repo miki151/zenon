@@ -1,0 +1,12 @@
+// 6
+
+template <T>
+struct X {
+  T? a = null;
+};
+
+int main() {
+  const x = X<int>();
+  const y = X(1);
+  return x.a ?? 5 + y.a ?? 10;
+}

@@ -1,0 +1,18 @@
+// 28
+
+struct X {
+  int a = 3;
+  int b = 6;
+};
+
+int sum(X* x) {
+  return x->a + x->b;
+}
+
+int main() {
+  const x = X(.b = 4);
+  const y = X(.a = 2);
+  const z = X();
+  const u = X(.a = 1, .b = 3);
+  return sum(&x) + sum(&y) + sum(&z) + sum(&u);
+}

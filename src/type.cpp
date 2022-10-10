@@ -224,12 +224,18 @@ FunctionInfo* FunctionInfo::getDefined(FunctionId id, FunctionSignature type, Fu
   return generated.at(args);
 }
 
+FunctionInfo* FunctionInfo::getImplicit(FunctionId id, FunctionSignature type,
+    ConstructorParams constructorParams) {
+  auto ret = getImplicit(std::move(id), std::move(type));
+  ret->constructorParams = std::move(constructorParams);
+  return ret;
+}
+
 FunctionInfo* FunctionInfo::getImplicit(FunctionId id, FunctionSignature type) {
   auto args = make_tuple(id, type);
   static unordered_map<decltype(args), FunctionInfo*> generated;
-  if (!generated.count(args)) {
+  if (!generated.count(args))
     generated.insert(make_pair(args, new FunctionInfo(Private{}, id, type, (FunctionInfo*)nullptr)));
-  }
   return generated.at(args);
 }
 
@@ -249,6 +255,10 @@ FunctionInfo* FunctionInfo::getInstance(FunctionId id, FunctionSignature type, F
 
 const string& FunctionInfo::prettyString() const {
   return pretty;
+}
+
+const optional<ConstructorParams>& FunctionInfo::getConstructorParams() const {
+  return getParent()->constructorParams;
 }
 
 string FunctionInfo::getMangledName() {
@@ -345,7 +355,14 @@ FunctionInfo* FunctionInfo::getParent() {
     return this;
 }
 
-FunctionDefinition* FunctionInfo::getDefinition() {
+const FunctionInfo* FunctionInfo::getParent() const {
+  if (parent)
+    return parent;
+  else
+    return this;
+}
+
+FunctionDefinition* FunctionInfo::getDefinition() const {
   return getParent()->definition;
 }
 
@@ -1188,13 +1205,27 @@ static JustError<ErrorLoc> expandVariadicTemplate(const Context& context, Functi
   return success;
 }
 
-void generateConversions(const Context& context, const vector<Type*>& paramTypes, const vector<Type*>& argTypes,
-    vector<unique_ptr<Expression>>& expr) {
-  for (int i = 0; i < paramTypes.size(); ++i) {
-    auto& paramType = paramTypes[i];
-    auto& argType = argTypes[i];
-    CHECK(context.canConvert(argType, paramType, expr[i])) << argType->getName() << " " << paramType->getName();
-  }
+void generateConversions(const Context& context, FunctionInfo* fun, vector<Type*> argTypes,
+    vector<string>& argNames, vector<unique_ptr<Expression>>& expr) {
+  auto& paramTypes = fun->type.params;
+  unordered_set<int> defaulted;
+  auto& constructorParams = fun->getConstructorParams();
+  if (!!constructorParams && paramTypes.size() > argTypes.size() && (argTypes.empty() || !argNames.empty()) &&
+      !constructorParams->names.empty())
+    for (int index = 0; index < paramTypes.size(); ++index)
+      if ((index >= argNames.size() || argNames[index] != constructorParams->names[index]) &&
+          !!constructorParams->defaultArgs[index]) {
+        expr.insert(index, constructorParams->defaultArgs[index]->deepCopy());
+        argTypes.insert(index, *expr[index]->getTypeImpl(constructorParams->defaultArgsContext));
+        argNames.insert(index, constructorParams->names[index]);
+        defaulted.insert(index);
+      }
+  for (int i = 0; i < paramTypes.size(); ++i)
+    if (!defaulted.count(i)) {
+      auto& paramType = paramTypes[i];
+      auto& argType = argTypes[i];
+      CHECK(context.canConvert(argType, paramType, expr[i])) << argType->getName() << " " << paramType->getName();
+    }
 }
 
 static JustError<ErrorLoc> checkImplicitCopies(const Context& context, const vector<Type*>& paramTypes,
@@ -1320,19 +1351,33 @@ static WithError<vector<Type*>> deduceTemplateArgs(const Context& context,
 }
 
 WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context1, FunctionInfo* input, CodeLoc codeLoc,
-    vector<Type*> templateArgs, vector<Type*> argTypes, vector<CodeLoc> argLoc, vector<FunctionSignature> existing) {
+    vector<Type*> templateArgs, vector<Type*> argTypes, vector<string> argNames, vector<CodeLoc> argLoc,
+    vector<FunctionSignature> existing) {
   if (input->id == ConstructorTag{} && input->getParent() != input && !input->type.concept) {
     // This is a special case of an already instantiated constructor using a type alias, the condition
     // may need to be refined.
+    if (input->type.params.size() != argTypes.size())
+      return codeLoc.getError("Wrong number of function arguments. Expected " +
+           to_string(input->type.params.size()) + " got " + to_string(argTypes.size()));
     return input;
   }
   FunctionSignature type = input->type;
   auto context = context1.getTopLevel();
   auto origParams = type.templateParams;
   TRY(expandVariadicTemplate(context, type, codeLoc, templateArgs, argTypes));
+  auto& constructorParams = input->getConstructorParams();
+  if (!!constructorParams && type.params.size() > argTypes.size() && (argTypes.empty() || !argNames.empty()) &&
+      !constructorParams->names.empty())
+    for (int index = 0; index < constructorParams->names.size(); ++index)
+      if ((index >= argNames.size() || argNames[index] != constructorParams->names[index]) &&
+          !!constructorParams->defaultArgs[index]) {
+        argTypes.insert(index, TRY(constructorParams->defaultArgs[index]->getTypeImpl(context)));
+        argLoc.insert(index, constructorParams->defaultArgs[index]->codeLoc);
+        argNames.insert(index, constructorParams->names[index]);
+      }
   if (type.params.size() != argTypes.size())
     return codeLoc.getError("Wrong number of function arguments. Expected " +
-        to_string(argTypes.size()) + " got " + to_string(type.params.size()));
+        to_string(type.params.size()) + " got " + to_string(argTypes.size()));
   auto implicitCopySuccess = checkImplicitCopies(context, type.params, argTypes, argLoc);
   if (templateArgs.size() > type.templateParams.size())
     return codeLoc.getError("Too many template arguments.");

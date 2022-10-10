@@ -144,7 +144,7 @@ FunctionInfo* Context::isGeneralization(FunctionInfo* general, FunctionInfo* spe
 FunctionInfo* Context::isGeneralizationWithoutReturnType(FunctionInfo* general,
     FunctionInfo* specific, vector<FunctionSignature> existing) const {
   // the name can change during instantation if name is a type (if it's a constructor)
-  if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, specific->type.params,
+  if (auto inst = instantiateFunction(*this, general, CodeLoc(), {}, specific->type.params, {},
       vector<CodeLoc>(specific->type.params.size(), CodeLoc()), existing))
     return *inst;
   return nullptr;

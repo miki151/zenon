@@ -258,7 +258,7 @@ struct FunctionCall : Expression {
   optional<vector<Type*>> templateArgs;
   FunctionInfo* functionInfo = nullptr;
   vector<unique_ptr<Expression>> arguments;
-  vector<optional<string>> argNames;
+  vector<string> argNames;
   optional<MethodCallType> callType;
   FunctionInfo* destructorCall = nullptr;
   bool methodCall = false;
@@ -291,7 +291,7 @@ struct Statement : Node {
   NODISCARD virtual JustError<ErrorLoc> checkMovesImpl(MoveChecker&) const;
   unique_ptr<Statement> transform(const StmtTransformFun&, const ExprTransformFun&) const;
   NODISCARD virtual bool hasReturnStatement() const;
-  virtual void addGeneratedConstructor(Context&, const AST&) const {}
+  virtual JustError<ErrorLoc> addGeneratedConstructor(Context&, const AST&) const { return success; }
   virtual void codegen(Buffer*, Sections*) const override {}
   virtual unique_ptr<Statement> replaceVar(string from, string to) const;
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const = 0;
@@ -519,13 +519,14 @@ struct StructDefinition : Statement {
     string name;
     CodeLoc codeLoc;
     bool isConst;
+    shared_ptr<Expression> defaultValue;
   };
   vector<Member> members;
   TemplateInfo templateInfo;
   StructType* type = nullptr;
   NODISCARD virtual JustError<ErrorLoc> addToContext(Context&) override;
   NODISCARD virtual JustError<ErrorLoc> check(Context&, bool = false) override;
-  virtual void addGeneratedConstructor(Context&, const AST&) const override;
+  virtual JustError<ErrorLoc> addGeneratedConstructor(Context&, const AST&) const override;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
   virtual bool canHaveAttributes() const override { return true; }
   virtual JustError<ErrorLoc> registerTypes(const Context& primaryContext, TypeRegistry*) override;

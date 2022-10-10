@@ -113,16 +113,14 @@ WithErrorLine<unique_ptr<FunctionCall>> parseFunctionCall(IdentifierInfo id, Tok
   auto ret = make_unique<FunctionCall>(id, false);
   TRY(tokens.eat(Keyword::OPEN_BRACKET));
   while (tokens.peek() != Keyword::CLOSE_BRACKET) {
-    optional<string> argName;
     if (tokens.eatMaybe(Keyword::MEMBER_ACCESS)) {
       auto idToken = tokens.popNext();
       if (!idToken.contains<IdentifierToken>())
         return idToken.codeLoc.getError("Expected function parameter name");
-      argName = idToken.value;
+      ret->argNames.push_back(idToken.value);
       TRY(tokens.eat(Operator::ASSIGNMENT));
     }
     ret->arguments.push_back(TRY(parseExpression(tokens)));
-    ret->argNames.push_back(argName);
     if (tokens.peek() == Keyword::COMMA)
       tokens.popNext();
     else if (tokens.eatMaybe(Keyword::ELLIPSIS)) {
@@ -131,6 +129,8 @@ WithErrorLine<unique_ptr<FunctionCall>> parseFunctionCall(IdentifierInfo id, Tok
     } else
       break;
   }
+  if (!ret->argNames.empty() && ret->argNames.size() < ret->arguments.size())
+    return ret->codeLoc.getError("When using named arguments, all arguments must be named.");
   ret->endLoc = TRY(tokens.eat(Keyword::CLOSE_BRACKET)).codeLoc;
   return std::move(ret);
 }
@@ -646,7 +646,11 @@ WithErrorLine<unique_ptr<StructDefinition>> parseStructDefinition(Tokens& tokens
       auto memberName = tokens.popNext();
       if (!memberName.contains<IdentifierToken>())
         return memberName.codeLoc.getError("Expected identifier");
-      ret->members.push_back({typeIdent, memberName.value, memberToken.codeLoc, isConst});
+      unique_ptr<Expression> defaultExpr;
+      if (tokens.eatMaybe(Operator::ASSIGNMENT))
+        defaultExpr = TRY(parseExpression(tokens));
+      ret->members.push_back({typeIdent, memberName.value, memberToken.codeLoc, isConst,
+          getSharedPtr(std::move(defaultExpr))});
       TRY(tokens.eat(Keyword::SEMICOLON));
     }
   else if (!external)

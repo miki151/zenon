@@ -446,13 +446,21 @@ namespace std {
   };
 }
 
+struct ConstructorParams {
+  vector<string> names;
+  vector<unique_ptr<Expression>> defaultArgs;
+  Context defaultArgsContext;
+};
+
 struct FunctionInfo : public owned_object<FunctionInfo> {
   struct Private {};
   static FunctionInfo* getImplicit(FunctionId, FunctionSignature);
+  static FunctionInfo* getImplicit(FunctionId, FunctionSignature, ConstructorParams);
   static FunctionInfo* getInstance(FunctionId, FunctionSignature, FunctionInfo* parent);
   static FunctionInfo* getDefined(FunctionId, FunctionSignature, FunctionDefinition*);
   const FunctionId id;
   const FunctionSignature type;
+  const optional<ConstructorParams>& getConstructorParams() const;
   const string& prettyString() const;
   string getMangledName();
   bool isMainFunction() const;
@@ -461,12 +469,14 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   FunctionInfo* getWithoutRequirements();
   FunctionInfo(Private, FunctionId, FunctionSignature, FunctionInfo* parent);
   FunctionInfo(Private, FunctionId, FunctionSignature, FunctionDefinition*);
+  const FunctionInfo* getParent() const;
   FunctionInfo* getParent();
-  FunctionDefinition* getDefinition();
+  FunctionDefinition* getDefinition() const;
   JustError<ErrorLoc> addInstance(const Context&);
   bool isConceptTypeFunction() const;
 
   private:
+  optional<ConstructorParams> constructorParams;
   FunctionInfo* parent = nullptr;
   FunctionInfo* noRequirements = nullptr;
   FunctionDefinition* const definition = nullptr;
@@ -547,7 +557,7 @@ class Context;
 
 struct IdentifierInfo;
 extern WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context, FunctionInfo*, CodeLoc,
-    vector<Type*> templateArgs, vector<Type*> argTypes, vector<CodeLoc> argLoc,
+    vector<Type*> templateArgs, vector<Type*> argTypes, vector<string> argNames, vector<CodeLoc> argLoc,
     vector<FunctionSignature> existing = {});
 extern FunctionSignature replaceInFunction(const Context&, FunctionSignature, Type* from, Type* to, ErrorBuffer&,
     const vector<Type*>& origParams);
@@ -559,8 +569,8 @@ extern string joinTypeList(const vector<Type*>&);
 extern string joinTemplateParamsCodegen(const vector<Type*>&);
 extern string joinTypeListCodegen(const vector<Type*>&);
 extern string getExpandedParamName(const string& packName, int index);
-void generateConversions(const Context&, const vector<Type*>& paramTypes, const vector<Type*>& argTypes,
-    vector<unique_ptr<Expression>>&);
+void generateConversions(const Context&, FunctionInfo*, vector<Type*> argTypes, vector<string>& argNames,
+    vector<unique_ptr<Expression>>& args);
 
 Type* convertPointerToReference(Type*);
 Type* convertReferenceToPointer(Type*);

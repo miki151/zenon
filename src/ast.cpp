@@ -212,13 +212,14 @@ static WithErrorLine<FunctionInfo*> handleOperatorOverloads(const Context& conte
     overloads.push_back(fun);
   vector<string> errors;
   for (auto fun : context.getOperatorType(op))
-    if (auto inst = instantiateFunction(context, fun, codeLoc, {}, types, argLocs))
+    if (auto inst = instantiateFunction(context, fun, codeLoc, {}, types, {}, argLocs))
       overloads.push_back(inst.get());
     else
       errors.push_back("Candidate: " + fun->prettyString() + ": " + inst.get_error().error);
   filterOverloads(context, overloads, types);
   if (overloads.size() == 1) {
-    generateConversions(context, overloads[0]->type.params, types, expr);
+    vector<string> emptyNames;
+    generateConversions(context, overloads[0], types, emptyNames, expr);
     return overloads[0];
   } else {
     string error = (overloads.empty() ? "No overload" : "Multiple overloads") + " found for operator: "s +
@@ -234,11 +235,11 @@ static WithErrorLine<FunctionInfo*> handleOperatorOverloads(const Context& conte
 
 static WithErrorLine<FunctionInfo*> getFunction(const Context&,
     CodeLoc, IdentifierInfo, vector<Type*> templateArgs, const vector<Type*>& argTypes,
-    const vector<CodeLoc>&, bool compileTimeArgs);
+    const vector<string>& argNames, const vector<CodeLoc>&, bool compileTimeArgs);
 
 static WithErrorLine<FunctionInfo*> getFunction(const Context&,
     CodeLoc, IdentifierInfo, vector<Type*> templateArgs, const vector<Type*>& argTypes,
-    const vector<CodeLoc>&, vector<unique_ptr<Expression>>&, bool compileTimeArgs);
+    vector<string>& argNames, const vector<CodeLoc>&, vector<unique_ptr<Expression>>&, bool compileTimeArgs);
 
 unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr) {
   return make_unique<BinaryExpression>(Private{}, loc, op, std::move(expr));
@@ -306,7 +307,7 @@ WithErrorLine<Type*> BinaryExpression::getTypeImpl(const Context& context) {
 
 WithErrorLine<FunctionInfo*> getDestructor(const Context& context, Type* type, CodeLoc codeLoc) {
   return getFunction(context, codeLoc, IdentifierInfo("destruct"s, codeLoc), {},
-      {PointerType::get(type)}, {codeLoc}, false);
+      {PointerType::get(type)}, {}, {codeLoc}, false);
 }
 
 JustError<ErrorLoc> BinaryExpression::considerDestructorCall(const Context& context, int index, Type* argType) {
@@ -900,12 +901,12 @@ static IdentifierInfo translateDestructorId(IdentifierInfo id) {
 
 static WithError<FunctionInfo*> getFunction(const Context& context,
     CodeLoc codeLoc, FunctionId id, vector<FunctionInfo*> candidates,
-    vector<Type*> templateArgs, const vector<Type*>& argTypes,
+    vector<Type*> templateArgs, const vector<Type*>& argTypes, const vector<string>& argNames,
     const vector<CodeLoc>& argLoc) {
   vector<FunctionInfo*> overloads;
   string errors;
   for (auto& overload : candidates) {
-    if (auto f = instantiateFunction(context, overload, codeLoc, templateArgs, argTypes, argLoc)) {
+    if (auto f = instantiateFunction(context, overload, codeLoc, templateArgs, argTypes, argNames, argLoc)) {
       overloads.push_back(f.get());
     } else
       errors += "\nCandidate: "s + overload->prettyString() + ": " + f.get_error().error;
@@ -923,7 +924,7 @@ static WithError<FunctionInfo*> getFunction(const Context& context,
           CHECK(templateArgs.empty());
           CHECK(s->destructor->type.params[0] == PointerType::get(s));
           return TRY(instantiateFunction(context, s->destructor->getParent(), codeLoc, {}, s->destructor->type.params,
-              {codeLoc}).withoutCodeLoc());
+              {}, {codeLoc}).withoutCodeLoc());
         }
       if (auto s = dynamic_cast<LambdaType*>(argTypes[0]->removePointer()))
         if (s->destructor)
@@ -932,7 +933,8 @@ static WithError<FunctionInfo*> getFunction(const Context& context,
   }
   else if (id == "invoke"s && !argTypes.empty() && argTypes[0]->isPointer())
     if (auto lambda = dynamic_cast<LambdaType*>(argTypes[0]->removePointer())) {
-      if (auto f = instantiateFunction(context, lambda->functionInfo, codeLoc, templateArgs, argTypes, argLoc)) {
+      if (auto f = instantiateFunction(context, lambda->functionInfo, codeLoc, templateArgs, argTypes, argNames,
+          argLoc)) {
         if (!contains(overloads, *f))
           overloads.push_back(*f);
       } else
@@ -951,7 +953,7 @@ static WithError<FunctionInfo*> getFunction(const Context& context,
 
 static WithErrorLine<FunctionInfo*> getFunction(const Context& context,
     CodeLoc codeLoc, IdentifierInfo id, vector<Type*> templateArgs, const vector<Type*>& argTypes,
-    const vector<CodeLoc>& argLoc, bool compileTimeArgs) {
+    const vector<string>& argNames, const vector<CodeLoc>& argLoc, bool compileTimeArgs) {
   auto candidates = TRY(context.getFunctionTemplate(translateDestructorId(id), compileTimeArgs).addCodeLoc(codeLoc));
   auto error =  codeLoc.getError("Couldn't find function " + id.prettyString() +
       " matching arguments: (" + joinTypeList(argTypes) + ")");
@@ -959,7 +961,7 @@ static WithErrorLine<FunctionInfo*> getFunction(const Context& context,
     return error;
   auto functionId = candidates[0]->id;
   if (auto res = getFunction(context, codeLoc, functionId, std::move(candidates), std::move(templateArgs),
-      argTypes, argLoc))
+      argTypes, argNames, argLoc))
     return *res;
   else {
     error.error += res.get_error();
@@ -969,19 +971,19 @@ static WithErrorLine<FunctionInfo*> getFunction(const Context& context,
 
 static WithErrorLine<FunctionInfo*> getFunction(const Context& context,
     CodeLoc codeLoc, IdentifierInfo id, vector<Type*> templateArgs, const vector<Type*>& argTypes,
-    const vector<CodeLoc>& argLoc, vector<unique_ptr<Expression>>& expr, bool compileTimeArgs) {
-  auto fun = TRY(getFunction(context, codeLoc, std::move(id), std::move(templateArgs), std::move(argTypes),
+    vector<string>& argNames, const vector<CodeLoc>& argLoc, vector<unique_ptr<Expression>>& expr, bool compileTimeArgs) {
+  auto fun = TRY(getFunction(context, codeLoc, std::move(id), std::move(templateArgs), argTypes, argNames,
       std::move(argLoc), compileTimeArgs));
-  generateConversions(context, fun->type.params, argTypes, expr);
+  generateConversions(context, fun, argTypes, argNames, expr);
   return fun;
 }
 
 WithErrorLine<FunctionInfo*> getCopyFunction(const Context& context, CodeLoc callLoc, Type* t) {
-  return getFunction(context, callLoc, IdentifierInfo("copy", callLoc), {}, {PointerType::get(t)}, {callLoc}, false);
+  return getFunction(context, callLoc, IdentifierInfo("copy", callLoc), {}, {PointerType::get(t)}, {}, {callLoc}, false);
 }
 
 WithErrorLine<FunctionInfo*> getImplicitCopyFunction(const Context& context, CodeLoc callLoc, Type* t) {
-  return getFunction(context, callLoc, IdentifierInfo("implicit_copy", callLoc), {}, {PointerType::get(t)}, {callLoc},
+  return getFunction(context, callLoc, IdentifierInfo("implicit_copy", callLoc), {}, {PointerType::get(t)}, {}, {callLoc},
       false);
 }
 
@@ -1004,7 +1006,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
         args.push_back(alternativeType);
       }
     }
-  TRY(getFunction(context, codeLoc, IdentifierInfo(funName, codeLoc), {}, args,
+  TRY(getFunction(context, codeLoc, IdentifierInfo(funName, codeLoc), {}, args, {},
       vector<CodeLoc>(args.size(), codeLoc), false));
   return unique_ptr<Expression>(std::move(functionCall));
 }
@@ -1655,7 +1657,7 @@ static JustError<ErrorLoc> addExportedContext(const Context& primaryContext, Imp
   for (auto& elem : ast.elems) {
     if (elem->exported) {
       TRY(elem->addToContext(importContext, cache, primaryContext));
-      elem->addGeneratedConstructor(importContext, ast);
+      TRY(elem->addGeneratedConstructor(importContext, ast));
     }
   }
   for (auto& elem : ast.elems)
@@ -1673,7 +1675,7 @@ WithErrorLine<vector<ModuleInfo>> correctness(const string& path, AST& ast, Cont
   for (auto& elem : ast.elems)
     if (!elem->exported) {
       TRY(elem->addToContext(context, cache, primaryContext));
-      elem->addGeneratedConstructor(context, ast);
+      TRY(elem->addGeneratedConstructor(context, ast));
     }
   for (auto& elem : ast.elems)
     TRY(elem->check(context, true));
@@ -1721,14 +1723,17 @@ StructDefinition::StructDefinition(CodeLoc l, string n) : Statement(l), name(n) 
 
 JustError<ErrorLoc> FunctionCall::checkNamedArgs() const {
   int cnt = argNames.size();
-  if (variadicArgs)
-    --cnt;
+  if (cnt == 0)
+    return success;
   for (int i = 0; i < cnt; ++i) {
     optional<string> paramName;
-    if (auto def = functionInfo->getParent()->getDefinition())
+    if (auto def = functionInfo->getDefinition())
       paramName = functionInfo->getParamName(callType ? (i + 1) : i, def);
-    if (argNames[i] && paramName && argNames[i] != paramName) {
-      return arguments[i]->codeLoc.getError("Function argument " + quote(*argNames[i]) +
+    else if (auto& c = functionInfo->getConstructorParams())
+      if (i < c->names.size())
+        paramName = c->names[i];
+    if (paramName && argNames[i] != paramName) {
+      return arguments[i]->codeLoc.getError("Function argument " + quote(argNames[i]) +
           " doesn't match parameter " + quote(*paramName) + " of function " +
           functionInfo->prettyString());
     }
@@ -1863,7 +1868,7 @@ WithErrorLine<Type*> FunctionCall::getTypeImpl(const Context& callContext) {
         break;
       }
     auto tryMethodCall = [&](MethodCallType thisCallType, Type* origType) -> JustError<ErrorLoc> {
-      auto res = getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argLocs, arguments,
+      auto res = getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argNames, argLocs, arguments,
           compileTimeArgs);
       if (res)
         callType = thisCallType;
@@ -1888,7 +1893,7 @@ WithErrorLine<Type*> FunctionCall::getTypeImpl(const Context& callContext) {
         TRY(tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER, leftType));
       }
     } else
-      getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argLocs, arguments, compileTimeArgs)
+      getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argNames, argLocs, arguments, compileTimeArgs)
           .unpack(functionInfo, error);
   }
   if (functionInfo) {
@@ -1924,7 +1929,7 @@ unique_ptr<Expression> FunctionCall::replaceVar(string from, string to) const {
   auto ret = cast<FunctionCall>(transform(
       [from, to](Statement* expr) { return expr->replaceVar(from, to); },
       [from, to](Expression* expr) { return expr->replaceVar(from, to); }));
-  ret->argNames = ::transform(argNames, [&](auto& n) -> optional<string> { if (n == from) return to; else return n; });
+  ret->argNames = ::transform(argNames, [&](auto& n) { if (n == from) return to; else return n; });
   return ret;
 }
 
@@ -2134,7 +2139,7 @@ JustError<ErrorLoc> StructDefinition::check(Context& context, bool notInImport) 
   return success;
 }
 
-void StructDefinition::addGeneratedConstructor(Context& context, const AST& ast) const {
+JustError<ErrorLoc> StructDefinition::addGeneratedConstructor(Context& context, const AST& ast) const {
   bool hasUserDefinedConstructors = false;
   for (auto& elem : ast.elems)
     if (auto functionDef = dynamic_cast<const FunctionDefinition*>(elem.get()))
@@ -2146,13 +2151,26 @@ void StructDefinition::addGeneratedConstructor(Context& context, const AST& ast)
       constructorParams.push_back(member.type);
     auto fun = FunctionSignature(type, std::move(constructorParams), type->templateParams);
     fun.generatedConstructor = true;
+    auto getFunctionInfo = [&] (FunctionSignature fun) -> WithErrorLine<FunctionInfo*> {
+      ConstructorParams params { {}, {}, context.getChild()};
+      for (auto& member : members) {
+        params.names.push_back(member.name);
+        if (member.defaultValue) {
+          params.defaultArgs.push_back(member.defaultValue->deepCopy());
+          TRY(getType(context, params.defaultArgs.back()));
+        } else
+          params.defaultArgs.emplace_back();
+      }
+      return FunctionInfo::getImplicit(ConstructorTag{}, std::move(fun), std::move(params));
+    };
     if (!hasUserDefinedConstructors)
-      CHECK(context.addImplicitFunction(ConstructorTag{}, fun));
+      CHECK(context.addFunction(TRY(getFunctionInfo(fun))));
     fun.templateParams.clear();
     fun.parentType = type;
-    CHECK(type->getStaticContext().addImplicitFunction(ConstructorTag{}, fun));
+    CHECK(type->getStaticContext().addFunction(TRY(getFunctionInfo(fun))));
     type->getStaticContext().addType(name, type);
   }
+  return success;
 }
 
 MoveExpression::MoveExpression(CodeLoc l, string id, CodeLoc variableLoc, bool hasDestructor)
@@ -2807,7 +2825,7 @@ static JustError<ErrorLoc> initializeDestructor(const Context& context, Type* ty
       for (int i = 0; i < structType->members.size(); ++i)
         if (structType->members[i].name == member) {
           destructorCall = TRY(getFunction(context, codeLoc, IdentifierInfo("destruct_except", codeLoc),
-              {CompileTimeValue::get(i)}, {PointerType::get(type)}, {codeLoc}, false));
+              {CompileTimeValue::get(i)}, {PointerType::get(type)}, {}, {codeLoc}, false));
           TRY(destructorCall->addInstance(context));
         }
     }
@@ -2896,7 +2914,7 @@ WithError<vector<FunctionInfo*>> getRequiredFunctionsForConceptType(const Contex
     if (candidates.empty())
       return "No candidates found for function " + fun->prettyString();
     ret.push_back(TRY(getFunction(context, codeLoc, translateDestructorId(fun->id),
-        std::move(candidates), {}, fun->type.params,
+        std::move(candidates), {}, fun->type.params, {},
         vector<CodeLoc>(fun->type.params.size(), codeLoc))));
   }
   return ret;
