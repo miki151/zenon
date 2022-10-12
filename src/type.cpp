@@ -1216,7 +1216,10 @@ void generateConversions(const Context& context, FunctionInfo* fun, vector<Type*
       if ((index >= argNames.size() || argNames[index] != constructorParams->names[index]) &&
           !!constructorParams->defaultArgs[index]) {
         expr.insert(index, constructorParams->defaultArgs[index]->deepCopy());
-        argTypes.insert(index, *expr[index]->getTypeImpl(constructorParams->defaultArgsContext));
+        auto argContext = constructorParams->defaultArgsContext.getChild();
+        for (int i = 0; i < fun->type.templateParams.size(); ++i)
+          argContext.addType(fun->getParent()->type.templateParams[i]->getName(), fun->type.templateParams[i]);
+        argTypes.insert(index, *expr[index]->getTypeImpl(context));
         argNames.insert(index, constructorParams->names[index]);
         defaulted.insert(index);
       }
@@ -1365,7 +1368,10 @@ WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context1, Functi
     for (int index = 0; index < constructorParams->names.size(); ++index)
       if ((index >= argNames.size() || argNames[index] != constructorParams->names[index]) &&
           !!constructorParams->defaultArgs[index]) {
-        argTypes.insert(index, TRY(constructorParams->defaultArgs[index]->getTypeImpl(context)));
+        auto argContext = constructorParams->defaultArgsContext.getChild();
+        for (int i = 0; i < min(templateArgs.size(), type.templateParams.size()); ++i)
+          argContext.addType(type.templateParams[i]->getName(), templateArgs[i]);
+        argTypes.insert(index, TRY(constructorParams->defaultArgs[index]->deepCopy()->getTypeImpl(argContext)));
         argLoc.insert(index, constructorParams->defaultArgs[index]->codeLoc);
         argNames.insert(index, constructorParams->names[index]);
       }

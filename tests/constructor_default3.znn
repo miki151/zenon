@@ -1,0 +1,20 @@
+// 6
+
+template <T>
+struct X {
+};
+
+template <T>
+struct Y {
+  X<T> x = X<T>();
+};
+
+template <T>
+int get(X<T>*) {
+  return to_string(T).size();
+}
+
+int main() {
+  const y = Y<string>();
+  return y.x.get();
+}

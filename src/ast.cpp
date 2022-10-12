@@ -2152,12 +2152,14 @@ JustError<ErrorLoc> StructDefinition::addGeneratedConstructor(Context& context, 
     auto fun = FunctionSignature(type, std::move(constructorParams), type->templateParams);
     fun.generatedConstructor = true;
     auto getFunctionInfo = [&] (FunctionSignature fun) -> WithErrorLine<FunctionInfo*> {
+      auto argContext = context.getChild();
+      addTemplateParams(argContext, type->templateParams, false);
       ConstructorParams params { {}, {}, context.getChild()};
       for (auto& member : members) {
         params.names.push_back(member.name);
         if (member.defaultValue) {
           params.defaultArgs.push_back(member.defaultValue->deepCopy());
-          TRY(getType(context, params.defaultArgs.back()));
+          TRY(getType(argContext, params.defaultArgs.back()));
         } else
           params.defaultArgs.emplace_back();
       }
