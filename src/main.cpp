@@ -40,7 +40,7 @@ static po::parser getCommandLineFlags() {
 }
 
 static int compileCpp(string command, const string& program, const string& output, const string& flags) {
-  command += " -xc++ - -std=c++17 -Wno-unused-value -Wno-trigraphs -c " + flags + " -o   " + output;
+  command += " -xc++ - -std=c++17 -fpermissive -Wno-unused-value -Wno-trigraphs -c " + flags + " -o   " + output;
   cerr << command << endl;
   FILE* p = popen(command.c_str(), "w");
   fwrite(program.c_str(), 1, program.size(), p);

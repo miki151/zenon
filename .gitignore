@@ -10,6 +10,8 @@ docs/_build
 .build_cache
 find
 obj/
+obj-opt/
+compile_flags.txt
 tests/.build_cache
 tests/log.out
 zenon
