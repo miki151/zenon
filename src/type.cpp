@@ -793,7 +793,7 @@ Type* Type::replace(const Context& context, Type* from, Type* to, ErrorBuffer& e
 }
 
 bool Type::canReplaceBy(Type*) const {
-  return false;
+  return true;
 }
 
 Type* Type::transform(function<Type*(Type*)>) {
@@ -1339,13 +1339,15 @@ static WithError<vector<Type*>> deduceTemplateArgs(const Context& context,
       break;
     }
   for (int i = 0; i < mapping.templateParams.size(); ++i) {
-    if (!!mapping.templateArgs[i])
+    if (!!mapping.templateArgs[i]) {
       ret.push_back(mapping.templateArgs[i]);
-    else
+      if (ret.back()->asCompileTimeValue() &&
+          !ret.back()->getType()->removeReference()->canBeValueTemplateParam())
+        return "Value template parameter cannot have type " + quote(ret.back()->getType()->getName());
+    } else if (dynamic_cast<TemplateParameterType*>(mapping.templateParams[i]))
       return "Couldn't deduce template argument " + quote(mapping.templateParams[i]->getName());
-    if (ret.back()->asCompileTimeValue() &&
-        !ret.back()->getType()->removeReference()->canBeValueTemplateParam())
-      return "Value template parameter cannot have type " + quote(ret.back()->getType()->getName());
+    else
+      ret.push_back(mapping.templateParams[i]);
   }
   return ret;
 }
@@ -1353,14 +1355,6 @@ static WithError<vector<Type*>> deduceTemplateArgs(const Context& context,
 WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context1, FunctionInfo* input, CodeLoc codeLoc,
     vector<Type*> templateArgs, vector<Type*> argTypes, vector<string> argNames, vector<CodeLoc> argLoc,
     vector<FunctionSignature> existing) {
-  if (input->id == ConstructorTag{} && input->getParent() != input && !input->type.concept) {
-    // This is a special case of an already instantiated constructor using a type alias, the condition
-    // may need to be refined.
-    if (input->type.params.size() != argTypes.size())
-      return codeLoc.getError("Wrong number of function arguments. Expected " +
-           to_string(input->type.params.size()) + " got " + to_string(argTypes.size()));
-    return input;
-  }
   FunctionSignature type = input->type;
   auto context = context1.getTopLevel();
   auto origParams = type.templateParams;
