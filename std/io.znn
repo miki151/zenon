@@ -1,6 +1,7 @@
 
 export import "expected.znn";
 import "std/time.znn";
+import "std/optional.znn";
 
 export embed{
 #include <cstdio>
