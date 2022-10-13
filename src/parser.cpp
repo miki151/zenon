@@ -520,15 +520,15 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionSignature(IdentifierI
   if (token2 == Keyword::OPERATOR) {
     if (auto op = tokens.peek().getValueMaybe<Operator>()) {
       tokens.popNext();
-      ret = make_unique<FunctionDefinition>(type.codeLoc, type, *op);
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, *op, token2.codeLoc);
     } else {
       TRY(tokens.eat(Keyword::OPEN_SQUARE_BRACKET));
       TRY(tokens.eat(Keyword::CLOSE_SQUARE_BRACKET));
-      ret = make_unique<FunctionDefinition>(type.codeLoc, type, Operator::SUBSCRIPT);
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, Operator::SUBSCRIPT, token2.codeLoc);
     }
   } else if (token2 == Keyword::OPEN_BRACKET) {
     if (auto typeName = type.asBasicIdentifier()) {
-      ret = make_unique<FunctionDefinition>(type.codeLoc, type, ConstructorTag { });
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, ConstructorTag { }, type.codeLoc);
       tokens.rewind();
     } else
       return type.codeLoc.getError("Expected type name without template parameters");
@@ -536,11 +536,11 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionSignature(IdentifierI
     if (!token2.contains<IdentifierToken>())
       return token2.codeLoc.getError("Expected identifier, got: " + quote(token2.value));
     if (token2.value == "builtin_has_attribute")
-      ret = make_unique<FunctionDefinition>(type.codeLoc, type, AttributeTag{});
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, AttributeTag{}, token2.codeLoc);
     else if (token2.value == "builtin_has_members")
-      ret = make_unique<FunctionDefinition>(type.codeLoc, type, StructMembersTag{});
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, StructMembersTag{}, token2.codeLoc);
     else
-      ret = make_unique<FunctionDefinition>(type.codeLoc, type, token2.value);
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, token2.value, token2.codeLoc);
   }
   TRY(tokens.eat(Keyword::OPEN_BRACKET));
   while (1) {
@@ -649,7 +649,7 @@ WithErrorLine<unique_ptr<StructDefinition>> parseStructDefinition(Tokens& tokens
       unique_ptr<Expression> defaultExpr;
       if (tokens.eatMaybe(Operator::ASSIGNMENT))
         defaultExpr = TRY(parseExpression(tokens));
-      ret->members.push_back({typeIdent, memberName.value, memberToken.codeLoc, isConst,
+      ret->members.push_back({typeIdent, memberName.value, memberName.codeLoc, isConst,
           getSharedPtr(std::move(defaultExpr))});
       TRY(tokens.eat(Keyword::SEMICOLON));
     }

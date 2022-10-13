@@ -10,7 +10,7 @@ void LanguageIndex::addDefinition(CodeLoc l, CodeLoc end, CodeLoc target) {
   def.end = make_pair(end.line, end.column + 1);
   def.targets.insert(target);
   auto& ref = files[target.file].references[Cursor(target.line, target.column)];
-  def.end = make_pair(end.line, end.column + 1);
+  ref.end = Cursor(target.line, target.column + end.column - l.column);
   ref.targets.insert(l);
 }
 

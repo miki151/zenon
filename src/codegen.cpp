@@ -676,7 +676,7 @@ void codegenLambda(LambdaType* lambda, Buffer* buffer, Sections* sections) {
     const auto dummyIdent = IdentifierInfo("ignore", lambda->body->codeLoc);
     auto getLambdaBody = [&lambda, &dummyIdent](Statement* body) {
       auto def = make_unique<FunctionDefinition>(body->codeLoc, dummyIdent,
-          lambda->functionInfo->id);
+          lambda->functionInfo->id, body->codeLoc);
       def->body = generateLambdaBody(body, *lambda);
       def->parameters.push_back(FunctionParameter{def->body->codeLoc, dummyIdent, string(lambdaArgName), false, false});
       def->wasUsed = true;

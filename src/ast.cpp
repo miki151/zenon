@@ -58,8 +58,8 @@ VariableDeclaration::VariableDeclaration(CodeLoc l, optional<IdentifierInfo> t, 
     type = t->prettyString();
 }
 
-FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionId name)
-  : Statement(l), returnType(std::move(r)), name(name) {}
+FunctionDefinition::FunctionDefinition(CodeLoc l, IdentifierInfo r, FunctionId name, CodeLoc idLoc)
+  : Statement(l), returnType(std::move(r)), name(name), idLoc(std::move(idLoc)) {}
 
 WithErrorLine<Type*> Constant::getTypeImpl(const Context&) {
   return value->getType();
@@ -800,7 +800,7 @@ static WithErrorLine<vector<Type*>> getTemplateParams(const TemplateInfo& info, 
 }
 
 unique_ptr<Statement> FunctionDefinition::transformImpl(const StmtTransformFun& f1, const ExprTransformFun&) const {
-  auto ret = make_unique<FunctionDefinition>(codeLoc, returnType, name);
+  auto ret = make_unique<FunctionDefinition>(codeLoc, returnType, name, idLoc);
   ret->parameters = parameters;
   if (body)
     ret->body = cast<StatementBlock>(f1(body.get()));
@@ -1898,7 +1898,7 @@ WithErrorLine<Type*> FunctionCall::getTypeImpl(const Context& callContext) {
   }
   if (functionInfo) {
     if (auto def = functionInfo->getDefinition())
-      callContext.languageIndex->addDefinition(codeLoc, identifier.parts[0].name.size(), def->codeLoc);
+      callContext.languageIndex->addDefinition(codeLoc, identifier.parts[0].name.size(), def->idLoc);
     callContext.languageIndex->addSignature(codeLoc, endLoc.column, endLoc.line, functionInfo->prettyString());
     TRY(checkVariadicCall(callContext));
     TRY(functionInfo->type.retVal->getSizeError(callContext).addCodeLoc(codeLoc));

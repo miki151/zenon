@@ -620,9 +620,10 @@ struct SwitchStatement : Statement {
 };
 
 struct FunctionDefinition : Statement {
-  FunctionDefinition(CodeLoc, IdentifierInfo returnType, FunctionId);
+  FunctionDefinition(CodeLoc, IdentifierInfo returnType, FunctionId, CodeLoc idLoc);
   IdentifierInfo returnType;
   FunctionId name;
+  CodeLoc idLoc;
   using Parameter = FunctionParameter;
   vector<Parameter> parameters;
   vector<unique_ptr<Statement>> destructorCalls;
