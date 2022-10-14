@@ -34,7 +34,7 @@ static po::parser getCommandLineFlags() {
   flags["cpp_includes"].type(po::string).multi().description("Include directories for the C++ compiler.");
   flags["zenon_libs"].type(po::string).multi().description("Import directories.");
   flags["optimize"].abbreviation('O').type(po::string).description("Pass the -O flag to the C++ compiler.");
-  flags["debug"].abbreviation('g').description("Pass the -g flag to the C++ compiler.");  
+  flags["debug"].abbreviation('g').description("Pass the -g flag to the C++ compiler.");
   flags[""].type(po::string).description("Path to the input program.");
   return flags;
 }
@@ -91,7 +91,8 @@ static string getCodegenAllFileName(string s) {
   return s;
 }
 
-static string getBinaryName(const string& sourceFile) {
+static string getBinaryName(string sourceFile) {
+  sourceFile = std::filesystem::path(sourceFile).filename().u8string();
   if (endsWith(sourceFile, ".znn"))
     return sourceFile.substr(0, sourceFile.size() - 4);
   return sourceFile + ".bin";
