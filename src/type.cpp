@@ -1219,7 +1219,7 @@ void generateConversions(const Context& context, FunctionInfo* fun, vector<Type*
         auto argContext = constructorParams->defaultArgsContext.getChild();
         for (int i = 0; i < fun->type.templateParams.size(); ++i)
           argContext.addType(fun->getParent()->type.templateParams[i]->getName(), fun->type.templateParams[i]);
-        argTypes.insert(index, *expr[index]->getTypeImpl(context));
+        argTypes.insert(index, *expr[index]->getTypeImpl(argContext));
         argNames.insert(index, constructorParams->names[index]);
         defaulted.insert(index);
       }
