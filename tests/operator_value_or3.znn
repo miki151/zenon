@@ -5,8 +5,8 @@ struct X {
 };
 
 int inc(X mutable* x) {
-  ++x->a;
-  return x->a;
+  ++x^.a;
+  return x^.a;
 }
 
 int? get() {

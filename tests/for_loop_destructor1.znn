@@ -6,7 +6,7 @@ struct X {
 };
 
 void destruct(X* x) {
-  *x->cnt += x->value;
+  *x^.cnt += x^.value;
 }
 
 int main() {

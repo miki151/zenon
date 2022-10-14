@@ -9,7 +9,7 @@ struct box {
 
 export template <T> requires copy<T>
 box<T> copy(box<T>* b) {
-  return box((*b)->copy());
+  return box((*b)^.copy());
 }
 
 export template <T>
@@ -47,22 +47,22 @@ box<C> box_as(T value) {
 
 export template <C>
 C* operator *(box<C>* v) {
-  return v->elem;
+  return v^.elem;
 }
 
 export template <C>
 C mutable* operator *(box<C> mutable* v) {
-  return v->elem;
+  return v^.elem;
 }
 
 export template <C>
 C* get(box<C>* v) {
-  return v->elem;
+  return v^.elem;
 }
 
 export template <C>
 C mutable* get(box<C> mutable* v) {
-  return v->elem;
+  return v^.elem;
 }
 
 export template <C> requires is_concept<C>
@@ -82,7 +82,7 @@ void cpp_delete_impl(T* elem) {
 export template <C>
 void destruct(box<C>* v) {
   v^.destructor^(v^.elem);
-  cpp_delete_impl(v->elem);
+  cpp_delete_impl(v^.elem);
 }
 
 

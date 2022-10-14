@@ -2,7 +2,7 @@
 
 template <Fun> requires invoke<Fun, int, int>
 int get(Fun mutable* ar) {
-  return 1 + ar->invoke(1);
+  return 1 + ar^.invoke(1);
 }
 
 int main() {

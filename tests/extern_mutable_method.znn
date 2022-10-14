@@ -19,28 +19,28 @@ extern vector(int cnt, T);
 template <T>
 void push_back(vector<T> mutable* v, T elem) {
   embed {
-    v->push_back(std::move(elem));
+    v^.push_back(std::move(elem));
   }
 }
 
 template <T>
 T* at(vector<T>* v, int index) {
   embed_returns {
-    return &v->at(index);
+    return &v^.at(index);
   }
 }
 
 template <T>
 T mutable* at(vector<T> mutable* v, int index) {
   embed_returns {
-    return v->at(index);
+    return v^.at(index);
   }
 }
 
 template <T>
 int size(vector<T>* v) {
   embed_returns {
-    return v->size();
+    return v^.size();
   }
 }
 

@@ -5,7 +5,7 @@ struct X {
 };
 
 X copy(X* x) {
-  return X(x->a - 1);
+  return X(x^.a - 1);
 }
 
 int main() {

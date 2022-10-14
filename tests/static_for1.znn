@@ -16,7 +16,7 @@ int get_value(int* x) {
 }
 
 int get_value(string* s) {
-  return s->size();
+  return s^.size();
 }
 
 int get_value(bool* b) {

@@ -11,7 +11,7 @@ struct S1 {
 
 template <A> requires CanAdd<A>
 A get(S1<A>* s1) {
-  return s1->a + s1->a;
+  return s1^.a + s1^.a;
 }
 
 int main() {

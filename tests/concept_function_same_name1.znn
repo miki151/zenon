@@ -13,7 +13,7 @@ int get(X*) {
 
 template <T> requires get<T>
 int get2(T* t) {
-  return t->get() * 2;
+  return t^.get() * 2;
 }
 
 int main() {

@@ -10,7 +10,7 @@ struct Circle {
 
 template <T>
 int get(Circle<T>* c, int) {
-  return c->radius;
+  return c^.radius;
 }
 
 struct Rectangle {
@@ -19,7 +19,7 @@ struct Rectangle {
 };
 
 int get(Rectangle* r, int index) {
-  return r->width;
+  return r^.width;
 }
 
 struct Triangle {

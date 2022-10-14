@@ -247,7 +247,7 @@ WithErrorLine<unique_ptr<Expression>> parseLambda(Tokens& tokens) {
       params.push_back({paramCodeLoc, typeId, paramName, isParamMutable, false});
     }
   optional<IdentifierInfo> returnType;
-  if (tokens.eat(Keyword::ARROW_MEMBER_ACCESS))
+  if (tokens.eat(Keyword::LAMBDA_RETURN_TYPE))
     returnType = TRY(parseIdentifier(tokens, true));
   return cast<Expression>(make_unique<LambdaExpression>(beginToken.codeLoc, std::move(params), TRY(parseBlock(tokens)),
       std::move(returnType), std::move(captureInfo)));
@@ -390,9 +390,6 @@ WithErrorLine<unique_ptr<Expression>> parseFunctionCall(Tokens& tokens, unique_p
 }
 
 WithErrorLine<unique_ptr<Expression>> parseMemberAccess(Tokens& tokens, unique_ptr<Expression> lhs) {
-  auto& token = tokens.popNext();
-  if (token == Keyword::ARROW_MEMBER_ACCESS)
-    lhs = cast<Expression>(make_unique<UnaryExpression>(lhs->codeLoc, Operator::POINTER_DEREFERENCE, std::move(lhs)));
   if (auto id = parseIdentifier(tokens, false)) {
     if (tokens.peek() == Keyword::OPEN_BRACKET) {
       auto function = TRY(parseFunctionCall(*id, tokens));
@@ -404,7 +401,7 @@ WithErrorLine<unique_ptr<Expression>> parseMemberAccess(Tokens& tokens, unique_p
     else
       return id->codeLoc.getError("Expected member name or method call");
   } else
-    return token.codeLoc.getError("Bad use of member access operator");
+    return tokens.peek().codeLoc.getError("Bad use of member access operator");
 }
 
 struct OperatorInfo {
@@ -456,9 +453,10 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
           tokens.popNext();
           rhs = make_unique<UnaryExpression>(token->codeLoc, Operator::POINTER_DEREFERENCE, std::move(rhs));
         } else
-        if (*token == Keyword::MEMBER_ACCESS || *token == Keyword::ARROW_MEMBER_ACCESS)
+        if (*token == Keyword::MEMBER_ACCESS) {
+          tokens.popNext();
           rhs = TRY(parseMemberAccess(tokens, std::move(rhs)));
-        else if (*token == Keyword::OPEN_BRACKET)
+        } else if (*token == Keyword::OPEN_BRACKET)
           rhs = TRY(parseFunctionCall(tokens, std::move(rhs)));
         else
           break;
@@ -483,7 +481,8 @@ WithErrorLine<unique_ptr<Expression>> parseExpressionImpl(Tokens& tokens, unique
       TRY(tokens.eat(Keyword::CLOSE_SQUARE_BRACKET));
       lhs = BinaryExpression::get(token->codeLoc, Operator::SUBSCRIPT, std::move(lhs), std::move(rhs));
     } else
-    if (*token == Keyword::MEMBER_ACCESS || *token == Keyword::ARROW_MEMBER_ACCESS) {
+    if (*token == Keyword::MEMBER_ACCESS) {
+      tokens.popNext();
       lhs = TRY(parseMemberAccess(tokens, std::move(lhs)));
     } else
     if (*token == Keyword::OPEN_BRACKET)

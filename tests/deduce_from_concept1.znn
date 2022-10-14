@@ -3,7 +3,7 @@
 struct X { int a;};
 struct Y { string s; };
 
-X f(Y* y) { return X(y->s.size()); }
+X f(Y* y) { return X(y^.s.size()); }
 int f(int) { return 1;}
 void f() {}
 

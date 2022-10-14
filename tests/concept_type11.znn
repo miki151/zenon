@@ -1,7 +1,7 @@
 // 5
 
 int get(invoke<int>* i) {
-  return i->invoke();
+  return i^.invoke();
 }
 
 int main() {

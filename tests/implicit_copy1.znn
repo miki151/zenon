@@ -15,7 +15,7 @@ int get(X x, X y) {
 }
 
 X implicit_copy(X* x) {
-  return X(*x->a);
+  return X(*x^.a);
 }
 
 X operator + (X x, X y) {

@@ -9,7 +9,7 @@ struct X {
 };
 
 int call(X* x) {
-  return x->a;
+  return x^.a;
 }
 
 struct Y {
@@ -23,7 +23,7 @@ int main() {
   const x = X(5);
   mutable res = 1;
   mutable C1* c = &x;
-  res += c->call();
+  res += c^.call();
   const y = Y();
   c = &y;
   res += call(c);

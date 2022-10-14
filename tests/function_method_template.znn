@@ -14,7 +14,7 @@ struct A {
 };
 
 A operator + (A* a1, A* a2) {
-  return A(a1->v + a2->v);
+  return A(a1^.v + a2^.v);
 }
 
 int main() {

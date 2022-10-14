@@ -7,7 +7,7 @@ struct A {
 A copy(A*) = default;
 
 A mutable* operator ++ (mutable A mutable* a) {
-  ++a->x;
+  ++a^.x;
   return move(a);
 }
 

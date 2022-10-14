@@ -5,7 +5,7 @@ struct X {
 };
 
 void destruct(X* x) {
-  ++*x->cnt;
+  ++*x^.cnt;
 }
 
 struct Y {
@@ -13,7 +13,7 @@ struct Y {
 };
 
 void destruct(Y* x) {
-  *x->cnt += 2;
+  *x^.cnt += 2;
 }
 
 union V {

@@ -7,5 +7,5 @@ int main() {
   const y = 5;
   any* a = &x;
   any* b = &y;
-  return (*a->cast_to<string>())->size() + **b->cast_to<int>();
+  return (*a^.cast_to<string>())^.size() + **b^.cast_to<int>();
 }

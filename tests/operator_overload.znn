@@ -18,27 +18,27 @@ struct Vec {
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
 Vec<T, U> operator + (Vec<T, U>* v1, Vec<T, U>* v2) {
-  return Vec(v1->x + v2->x, v1->y + v2->y);
+  return Vec(v1^.x + v2^.x, v1^.y + v2^.y);
 }
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
 Vec<T, U> operator - (Vec<T, U>* v1, Vec<T, U>* v2) {
-  return Vec(v1->x - v2->x, v1->y - v2->y);
+  return Vec(v1^.x - v2^.x, v1^.y - v2^.y);
 }
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
 Vec<T, U> operator * (Vec<T, U>* v, int a) {
-  return Vec(v->x * a, v->y * a);
+  return Vec(v^.x * a, v^.y * a);
 }
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
 Vec<T, U> operator + (Vec<T, U>* v) {
-  return Vec(+v->x, +v->y);
+  return Vec(+v^.x, +v^.y);
 }
 
 template <T, U> requires Arithmetic<T>, Arithmetic<U>
 Vec<T, U> operator - (Vec<T, U>* v) {
-  return Vec(-v->x, -v->y);
+  return Vec(-v^.x, -v^.y);
 }
 
 template <T> requires Arithmetic<T>

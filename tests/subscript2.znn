@@ -5,7 +5,7 @@ struct A {
 };
 
 char operator[](A* a, int x) {
-  return a->s[x];
+  return a^.s[x];
 }
 
 int main() {

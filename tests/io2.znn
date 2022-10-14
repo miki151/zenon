@@ -8,7 +8,7 @@ int main(string[] args) {
   const t = "text";
   const n = 13;
   const d = 1.6;
-  open_file_w(path)->printf("{t} {n} {d}\n");
+  open_file_w(path)^.printf("{t} {n} {d}\n");
   const input = *open_file_r(path);
   const text = *input.scan_string(10);
   const v1 = *input.scan_int();

@@ -25,9 +25,9 @@ embed {
 }
 
 void destruct(X* x) {
-  ++*x->cnt;
-  assert(*x->dest == 0);
-  *x->dest = 1;
+  ++*x^.cnt;
+  assert(*x^.dest == 0);
+  *x^.dest = 1;
 }
 
 int operator - (X* y) {

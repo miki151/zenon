@@ -14,11 +14,11 @@ struct Z {
 };
 
 int invoke(Y* y, int x) {
-  return y->b + x;
+  return y^.b + x;
 }
 
 Y increase(Y* y) {
-  return Y(y->b + 1);
+  return Y(y^.b + 1);
 }
 
 X<Z> get(int a) {

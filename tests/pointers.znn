@@ -19,7 +19,7 @@ int main() {
   set(&a, false);
   mutable x1 = X(&x, *y);
   const x2 = &x1;
-  x2->a = y;
-  *y = -x2->b + 20;
-  return *x2->a;
+  x2^.a = y;
+  *y = -x2^.b + 20;
+  return *x2^.a;
 }

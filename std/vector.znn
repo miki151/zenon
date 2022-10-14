@@ -16,7 +16,7 @@ extern struct vector;
 export template <T> requires (known_size(T))
 void destruct(vector<T>* v) {
   for (it : *v)
-    it->destruct();
+    it^.destruct();
 }
 
 export template <T>
@@ -56,23 +56,23 @@ vector_iterator<T> begin(vector<T>* v) {
 
 export template <T>
 vector_iterator<T> end(vector<T>* v) {
-  return vector_iterator(v, v->size());
+  return vector_iterator(v, v^.size());
 }
 
 export template <T>
 T* operator *(vector_iterator<T>* it) {
-  return &(*it->v)[it->index];
+  return &(*it^.v)[it^.index];
 }
 
 export template <T>
 vector_iterator<T> operator ++(vector_iterator<T> mutable* it) {
-  ++it->index;
+  ++it^.index;
   return *it;
 }
 
 export template <T>
 bool operator == (vector_iterator<T>* it1, vector_iterator<T>* it2) {
-  return it1->index == it2->index;
+  return it1^.index == it2^.index;
 }
 
 export template <T>
@@ -82,30 +82,30 @@ vector_mut_iterator<T> begin(vector<T> mutable* v) {
 
 export template <T>
 vector_mut_iterator<T> end(vector<T> mutable* v) {
-  return vector_mut_iterator(v, v->size());
+  return vector_mut_iterator(v, v^.size());
 }
 
 
 export template <T>
 T mutable* operator *(vector_mut_iterator<T>* it) {
-  return &(*it->v)[it->index];
+  return &(*it^.v)[it^.index];
 }
 
 export template <T>
 vector_mut_iterator<T> operator ++(vector_mut_iterator<T> mutable* it) {
-  ++it->index;
+  ++it^.index;
   return *it;
 }
 
 export template <T>
 bool operator == (vector_mut_iterator<T>* it1, vector_mut_iterator<T>* it2) {
-  return it1->index == it2->index;
+  return it1^.index == it2^.index;
 }
 
 export template <T>
 void clear(vector<T> mutable* v) {
   for (it : *v)
-    it->destruct();
+    it^.destruct();
   embed {
     v->clear();
   }
@@ -151,12 +151,12 @@ T mutable* operator [](vector<T> mutable* v, int index) {
 
 export template <T>
 T* back(vector<T>* v) {
-  return &(*v)[v->size() - 1];
+  return &(*v)[v^.size() - 1];
 }
 
 export template <T>
 T mutable* back(vector<T> mutable* v) {
-  return &(*v)[v->size() - 1];
+  return &(*v)[v^.size() - 1];
 }
 
 export template <T>
@@ -178,25 +178,25 @@ int size(vector<T>* v) {
 
 export template <T>
 bool empty(vector<T>* v) {
-  return v->size() == 0;
+  return v^.size() == 0;
 }
 
 export template <T> requires copy<T>
 vector<T> copy(vector<T>* v) {
   mutable ret = vector<T>();
   for (elem : *v)
-    ret.push_back(elem->copy());
+    ret.push_back(elem^.copy());
   return move(ret);
 }
 
 export template <T> requires equality<T>
 bool operator == (vector<T>* v1, vector<T>* v2) {
-  return v1->slice() == v2->slice();
+  return v1^.slice() == v2^.slice();
 }
 
 export template <T> requires get_hash<T>
 int get_hash(vector<T>* v) {
-  return v->slice().get_hash();
+  return v^.slice().get_hash();
 }
 
 export template <T> requires inequality<T>
@@ -217,7 +217,7 @@ void sort(vector<T> mutable* v, Fun* fun) {
 
 export template <T, U> requires equality2<T, U>
 int? find(vector<T>* v, U* elem) {
-  for (i : range(0, v->size()))
+  for (i : range(0, v^.size()))
     if ((*v)[i] == *elem)
       return i;
   return null;
@@ -265,7 +265,7 @@ void reserve(vector<T> mutable* v, int cnt) {
 export template <U, T, Fun> requires invoke<Fun, U, T*>
 vector<U> transform(vector<T>* v, Fun f) {
   mutable ret = vector<U>();
-  ret.reserve(v->size());
+  ret.reserve(v^.size());
   for (it : *v)
     ret.push_back(f(&*it));
   return move(ret);
@@ -276,7 +276,7 @@ vector<T> filter(vector<T>* v, Fun f) {
   mutable ret = vector<T>();
   for (it : *v)
     if (f(&*it))
-      ret.push_back(it->copy());
+      ret.push_back(it^.copy());
   return move(ret);
 }
 

@@ -8,14 +8,14 @@ struct X {
 };
 
 void destruct(X* x) {
-  ++*x->cnt;
+  ++*x^.cnt;
 }
 
 int main() {
   mutable res = 0;
   {
   for (it : {X(1, &res), X(2, &res), X(3, &res)}.as_vector())
-    res += it->a;
+    res += it^.a;
   }
   return res;
 }

@@ -10,7 +10,7 @@ int f(X*) { return 2; }
 
 template<T> requires C<T>
 int eat(T* t) {
-  return t->f();
+  return t^.f();
 }
 
 int main() {

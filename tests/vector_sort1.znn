@@ -9,7 +9,7 @@ struct X {
 
 template <T> requires inequality<T>
 bool operator < (X<T>* a, X<T>* b) {
-  return a->a < b->a;
+  return a^.a < b^.a;
 }
 
 int main() {

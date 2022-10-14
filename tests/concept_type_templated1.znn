@@ -1,7 +1,7 @@
 // 8
 
 int calc(invoke<int, int>* f) {
-  return 2 * f->invoke(3);
+  return 2 * f^.invoke(3);
 }
 
 int main() {

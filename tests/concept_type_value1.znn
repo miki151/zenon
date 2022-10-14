@@ -13,21 +13,21 @@ struct X {
 };
 
 int get(X* x) {
-  return x->a;
+  return x^.a;
 }
 
 void set(X mutable* x, int a) {
-  x->a = a;
+  x^.a = a;
 }
 
 int f(box<C1> c) {
-  return c->get();
+  return c^.get();
 }
 
 int main() {
   const x = X(5);
   mutable c = move(x).box_as<C1>();
-  const res1 = c->get();
-  c->set(6);
+  const res1 = c^.get();
+  c^.set(6);
   return res1 + f(move(c));
 }

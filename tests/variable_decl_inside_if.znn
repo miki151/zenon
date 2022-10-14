@@ -28,7 +28,7 @@ int main() {
   if (const x = get1())
     return 3;
   if (const x = get2()) {
-    return x->value + x->f();
+    return x^.value + x^.f();
   } else
     return 4;
 }

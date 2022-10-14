@@ -9,7 +9,7 @@ concept <Fun, Ret, Args...> invoke2 {
 
 template <T>
 int get(box<invoke2<int, T>> fun, T t) {
-  return fun->invoke(move(t));
+  return fun^.invoke(move(t));
 }
 
 int main() {

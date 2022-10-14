@@ -9,7 +9,7 @@ void f(X<int>) {}
 
 template <T>
 void destruct(X<T>* x) {
-  ++*x->a;
+  ++*x^.a;
 }
 
 int main() {

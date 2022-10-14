@@ -14,5 +14,5 @@ int g(X*, double) { return 1; }
 int main() {
   const x = X();
   const C2* c2 = &x;
-  return c2->g(1);
+  return c2^.g(1);
 }

@@ -6,7 +6,7 @@ struct X {
 };
 
 int sum(X* x) {
-  return x->a + x->b;
+  return x^.a + x^.b;
 }
 
 int main() {

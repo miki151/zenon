@@ -7,12 +7,12 @@ struct X {
 
 template <T>
 void destruct(X<T>* x) {
-  x->elem();
+  x^.elem();
 }
 
 template <T> requires invoke<T, void>
 void destruct(X<T>* x) {
-  x->elem();
+  x^.elem();
 }
 
 int main() {

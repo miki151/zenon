@@ -24,7 +24,7 @@ extern hash_adapter();
 
 export template <Key> requires hash_key<Key>
 int invoke(hash_adapter<Key>*, Key* key) {
-  return key->get_hash();
+  return key^.get_hash();
 }
 
 export template <Key> requires hash_key<Key>

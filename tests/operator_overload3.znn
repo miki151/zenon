@@ -5,15 +5,15 @@ struct X {
 };
 
 X copy(X* x) {
-  return X(x->value + 13);
+  return X(x^.value + 13);
 }
 
 X operator + (X* x, int a) {
-  return X(x->value + a);
+  return X(x^.value + a);
 }
 
 X operator + (X* x, X* a) {
-  return X(x->value + a->value + 1);
+  return X(x^.value + a^.value + 1);
 }
 
 int main() {

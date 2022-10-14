@@ -5,7 +5,7 @@ struct X {
 };
 
 void destruct(X* x) {
-  ++*x->cnt;
+  ++*x^.cnt;
 }
 
 struct Z {

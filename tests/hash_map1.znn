@@ -7,7 +7,7 @@ int main() {
   mutable a = hash_map<string, int>();
   const keys = {"x", "xy", "abc", "qwer", "ghfgkg"};
   for (i : keys)
-    a.insert(*i, i->size());
+    a.insert(*i, i^.size());
   *a.get(&"xy") = 13;
   mutable res = 0;
   for (i : keys)

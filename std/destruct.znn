@@ -29,7 +29,7 @@ export template <T> requires is_union<T>
 void destruct_full(T* t) {
   destruct_impl_dont_call(t);
   static for (i = 0; i < union_count(T); ++i)
-    if (i == t->get_index())
+    if (i == t^.get_index())
       unchecked destruct(get_alternative<i>(t));
 }
 

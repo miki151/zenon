@@ -7,7 +7,7 @@ struct X {
 
 template <T>
 void destruct(X<T>* x) {
-  ++*x->a;
+  ++*x^.a;
 }
 
 int main() {

@@ -10,17 +10,17 @@ struct X {
 };
 
 int get(X* x) {
-  return x->a;
+  return x^.a;
 }
 
 void set(X mutable* x, int a) {
-  x->a = a;
+  x^.a = a;
 }
 
 int main() {
   const x = X(5);
   const C1 mutable* c = &x;
-  const res = c->get();
-  c->set(4);
-  return c->get() + res;
+  const res = c^.get();
+  c^.set(4);
+  return c^.get() + res;
 }

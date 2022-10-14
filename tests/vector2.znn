@@ -12,9 +12,9 @@ struct Y {
 };
 
 int sum(X* x) {
-  mutable ret = x->a;
-  for (y : x->elems)
-    ret += sum(&y->x);
+  mutable ret = x^.a;
+  for (y : x^.elems)
+    ret += sum(&y^.x);
   return ret;
 }
 

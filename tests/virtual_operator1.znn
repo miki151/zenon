@@ -10,7 +10,7 @@ struct Circle {
 
 template <T>
 int operator [](Circle<T>* c, int index) {
-  return c->radius;
+  return c^.radius;
 }
 
 struct Rectangle {
@@ -19,7 +19,7 @@ struct Rectangle {
 };
 
 int operator [](Rectangle* r, int index) {
-  return r->width;
+  return r^.width;
 }
 
 struct Triangle {
@@ -29,7 +29,7 @@ struct Triangle {
 };
 
 int operator [](Triangle* t, int index) {
-  return t->edge1;
+  return t^.edge1;
 }
 
 template <T>

@@ -20,7 +20,7 @@ struct S {
 
 template <A> requires CanAdd<A>
 void t2(S<A> mutable* s) {
-  times2(&s->a);
+  times2(&s^.a);
 }
 
 int main() {

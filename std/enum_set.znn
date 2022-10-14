@@ -61,7 +61,7 @@ void set(enum_set<Key> mutable* set, Key key, bool value) {
 
 export template <Key> requires is_enum<Key>
 void set(enum_set<Key> mutable* set, Key key) {
-  set->set(key, true);
+  set^.set(key, true);
 }
 
 export template <Key> requires is_enum<Key>

@@ -9,12 +9,12 @@ struct X {
 
 template <T>
 T mutable* get(X<T> mutable * t) {
-  return &t->t1;
+  return &t^.t1;
 }
 
 template <T>
 T* get(X<T>* t) {
-  return &t->t2;
+  return &t^.t2;
 }
 
 int main() {

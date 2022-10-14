@@ -11,7 +11,7 @@ struct Vector {
 Vector copy(Vector*) = default;
 
 Vector operator + (Vector* a, Vector* b) {
-  return Vector(a->v + b->v);
+  return Vector(a^.v + b^.v);
 }
 
 template <T> requires can_add<T>

@@ -7,7 +7,7 @@ struct X {
 
 template <T> requires implicit_copy<T>
 T get(X<T>* x) {
-  return x->elem;
+  return x^.elem;
 }
 
 bool get(X<int>* x) {
@@ -16,7 +16,7 @@ bool get(X<int>* x) {
 
 template <T> requires implicit_copy<T>
 X<T> implicit_copy(X<T>* x) {
-  return X(x->get());
+  return X(x^.get());
 }
 
 int main() {

@@ -9,7 +9,7 @@ S get() {
 }
 
 int value(S* s) {
-  return s->a;
+  return s^.a;
 }
 
 int value2(int* a) {

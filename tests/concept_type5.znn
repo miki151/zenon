@@ -10,11 +10,11 @@ struct X {
 };
 
 int get(X<int>* x) {
-  return x->a;
+  return x^.a;
 }
 
 int main() {
   const x = X(5);
   const C1* c = &x;
-  return c->get();
+  return c^.get();
 }

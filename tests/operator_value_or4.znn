@@ -5,7 +5,7 @@ struct X {
 };
 
 void inc(X mutable* x) {
-  ++x->a;
+  ++x^.a;
 }
 
 int main() {
@@ -14,7 +14,7 @@ int main() {
   mutable cnt = 0;
   const f = [&] (int a) { cnt += a; return &x2; };
   (x1 ?? *f(10)).inc();
-  const res1 = x1->a;
+  const res1 = x1^.a;
   x1 = null;
   (x1 ?? *f(20)).inc();
   return res1 + x2.a + cnt;

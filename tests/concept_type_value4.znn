@@ -30,7 +30,7 @@ struct X {
 };
 
 void destruct(X* x) {
-  ++*x->cnt;
+  ++*x^.cnt;
 }
 
 int f(X*) { return 1; }
@@ -40,7 +40,7 @@ int main() {
   mutable cnt2 = 0;
   {
     const c = X(&cnt, Y(&cnt2)).box_as<C1>();
-    cnt += c->f();
+    cnt += c^.f();
   }
   return cnt + cnt2 * 10;
 }

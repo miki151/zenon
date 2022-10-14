@@ -18,6 +18,6 @@ pair<T, U> implicit_copy(pair<T, U>*) = default;
 
 export template <T, U> requires get_hash<T>, get_hash<U>
 int get_hash(pair<T, U>* p) {
-  return p->first.get_hash() + p->second.get_hash();
+  return p^.first.get_hash() + p^.second.get_hash();
 }
 

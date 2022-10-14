@@ -5,7 +5,7 @@ int get(T* t) {
   static mutable a = 0;
   mutable res = 0;
   static while (a < struct_count(T)) {
-    unchecked res += *t->get_member<a>();
+    unchecked res += *t^.get_member<a>();
     ++a;
   }
   return res;

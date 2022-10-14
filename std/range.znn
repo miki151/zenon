@@ -19,17 +19,17 @@ export struct range_iterator {
 };
 
 export int begin(range* r) {
-  return r->start;
+  return r^.start;
 }
 
 export int end(range* r) {
-  return r->finish;
+  return r^.finish;
 }
 
 export bool empty(range* r) {
-  return r->start == r->finish;
+  return r^.start == r^.finish;
 }
 
 export range intersection(range* r1, range* r2) {
-  return range(max(r1->start, r2->start), min(r1->finish, r2->finish));
+  return range(max(r1^.start, r2^.start), min(r1^.finish, r2^.finish));
 }

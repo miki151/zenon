@@ -32,7 +32,7 @@ T operator [] (T[Size] a, int index) {
 
 export template <T, int Size> requires copy<T>
 T[Size] copy(T[Size]* array) {
-  const get = [](T* t) -> T { return t->copy(); };
+  const get = [](T* t) -> T { return t^.copy(); };
   embed_returns {
     std::array<T, Size> a;
     for (int i = 0; i < Size; ++i)
@@ -43,7 +43,7 @@ T[Size] copy(T[Size]* array) {
 
 export template <int Size, T> requires copy<T>, (Size >= 0)
 T[Size] array_repeat(T elem) {
-  const get = [](T* t) -> T { return t->copy(); };
+  const get = [](T* t) -> T { return t^.copy(); };
   embed_returns {
     std::array<T, Size> a;
     for (int i = 0; i < Size; ++i)
@@ -87,7 +87,7 @@ array_iterator<T> begin(T[Size]* array) {
 
 export template <int Size, T>
 array_iterator<T> end(T[Size]* array) {
-  const size = array->size();
+  const size = array^.size();
   embed_returns {
     return {&(*array)[array->size()], size};
   }
@@ -95,7 +95,7 @@ array_iterator<T> end(T[Size]* array) {
 
 export template <T>
 T* operator *(array_iterator<T>* it) {
-  return it->elem;
+  return it^.elem;
 }
 
 export template <T>
@@ -127,7 +127,7 @@ array_mut_iterator<T> begin(T[Size] mutable* array) {
 
 export template <int Size, T>
 array_mut_iterator<T> end(T[Size] mutable* array) {
-  const size = array->size();
+  const size = array^.size();
   embed_returns {
     return {&(*array)[array->size()], size};
   }
@@ -135,7 +135,7 @@ array_mut_iterator<T> end(T[Size] mutable* array) {
 
 export template <T>
 T mutable* operator *(array_mut_iterator<T>* it) {
-  return it->elem;
+  return it^.elem;
 }
 
 export template <T>
@@ -154,12 +154,12 @@ bool operator == (array_mut_iterator<T>* it1, array_mut_iterator<T>* it2) {
 
 export template <int Size, T> requires equality<T>
 bool operator == (T[Size]* v1, T[Size]* v2) {
-  return v1->slice() == v2->slice();
+  return v1^.slice() == v2^.slice();
 }
 
 export template <int Size, T> requires get_hash<T>
 int get_hash(T[Size]* v) {
-  return v->slice().get_hash();
+  return v^.slice().get_hash();
 }
 
 export template <T, int Size>

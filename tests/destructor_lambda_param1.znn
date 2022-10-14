@@ -4,7 +4,7 @@ struct X {
   int mutable* p;
 };
 
-void destruct(X* x) { ++*x->p; }
+void destruct(X* x) { ++*x^.p; }
 
 int main() {
   mutable a = 1;

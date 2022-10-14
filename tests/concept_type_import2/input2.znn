@@ -11,7 +11,7 @@ struct A {
 };
 
 int f(A* a) {
-  return a->value;
+  return a^.value;
 }
 
 export box<C1> getC1() {

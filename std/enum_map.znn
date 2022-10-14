@@ -9,7 +9,7 @@ struct enum_map {
 template <Key, Value> requires is_enum<Key>, copy<Value>
 enum_map(Value* value) {
   return enum_map<Key, Value>::enum_map(
-      array_repeat<(enum_count(Key))>(value->copy()));
+      array_repeat<(enum_count(Key))>(value^.copy()));
 }
 
 export template <Key, Value, Fun> requires is_enum<Key>, invoke<Fun, Value, Key>
@@ -20,10 +20,10 @@ enum_map<Key, Value> enum_map_generate(Fun fun) {
 
 export template <Key, Value> requires is_enum<Key>
 Value* operator [](enum_map<Key,Value>* map, Key key) {
-  return &map->values[key.asInt()];
+  return &map^.values[key.asInt()];
 }
 
 export template <Key, Value> requires is_enum<Key>
 void set(enum_map<Key,Value> mutable* map, Key key, Value value) {
-  map->values[key.asInt()] = move(value);
+  map^.values[key.asInt()] = move(value);
 }

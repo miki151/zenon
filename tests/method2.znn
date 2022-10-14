@@ -12,12 +12,12 @@ X<T> copy(X<T>*) = default;
 
 template<T> requires copy<T>
 void set(X<T> mutable* x, T t) {
-  x->v = t.copy();
+  x^.v = t.copy();
 }
 
 template <T>
 T* get(X<T>* x) {
-  return &x->v;
+  return &x^.v;
 }
 
 int main() {

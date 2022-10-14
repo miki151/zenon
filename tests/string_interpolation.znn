@@ -7,7 +7,7 @@ struct A {
 };
 
 string to_string(A* a) {
-  return "A\{{a->a}\}";
+  return "A\{{a^.a}\}";
 }
 
 int main() {

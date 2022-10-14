@@ -16,7 +16,7 @@ struct F2 {
 F2 implicit_copy(F2*) = default;
 
 F1 invoke(F2* f2) {
-  return f2->f1;
+  return f2^.f1;
 }
 
 struct F3 {
@@ -26,7 +26,7 @@ struct F3 {
 F3 implicit_copy(F3*) = default;
 
 F2 invoke(F3* f3) {
-  return f3->f2;
+  return f3^.f2;
 }
 
 int main() {

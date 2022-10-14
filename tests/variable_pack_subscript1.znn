@@ -1,6 +1,6 @@
 // 8
 
-int get_value(string* s) { return s->size(); }
+int get_value(string* s) { return s^.size(); }
 int get_value(int* a) { return *a; }
 
 concept <T> has_value {

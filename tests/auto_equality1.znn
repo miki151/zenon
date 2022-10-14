@@ -5,8 +5,8 @@ struct P {
 };
 
 bool operator == (P* p1, P* p2) {
-  ++*p1->x;
-  ++*p2->x;
+  ++*p1^.x;
+  ++*p2^.x;
   return true;
 }
 

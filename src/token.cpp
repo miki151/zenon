@@ -53,7 +53,7 @@ static const unordered_map<string, Keyword> keywords {
   {":", Keyword::COLON},
   {",", Keyword::COMMA},
   {".", Keyword::MEMBER_ACCESS},
-  {"->", Keyword::ARROW_MEMBER_ACCESS},
+  {"->", Keyword::LAMBDA_RETURN_TYPE},
   {"...", Keyword::ELLIPSIS},
   {">", Keyword::MORE_THAN},
   {"<=", Keyword::LESS_OR_EQUAL},

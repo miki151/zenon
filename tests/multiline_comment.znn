@@ -9,6 +9,6 @@ int main() {
   mutable v = vector<int>();
   /* ppokwef */
   const x = &v;
-  x->push_back(5);
+  x^.push_back(5);
   return v[0];
 }

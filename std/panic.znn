@@ -32,7 +32,7 @@ export extern noreturn exit(int);
 export noreturn panic(string message) {
   const handler = *get_panic_handler();
   if (!is_null_invoke(handler)) {
-    handler->invoke(message);
+    handler^.invoke(message);
     exit(1);
   } else {
     printf("The program panicked with the message: " + message + "\n");

@@ -12,7 +12,7 @@ struct B {
 };
 
 int getValue(B* b) {
-  return b->a;
+  return b^.a;
 }
 
 concept <S> hasValue {

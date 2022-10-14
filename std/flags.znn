@@ -64,13 +64,13 @@ export template <T>
 struct dummy_struct {};
 
 export int!string parse_member(string* name, string* value, dummy_struct<int>) {
-  if (const r = value->to_int())
+  if (const r = value^.to_int())
     return *r;
   return "Can't parse integer from '{*value}'";
 }
 
 export double!string parse_member(string* name, string* value, dummy_struct<double>) {
-  if (const r = value->to_double())
+  if (const r = value^.to_double())
     return *r;
   return "Can't parse double from '{*value}'";
 }
@@ -120,8 +120,8 @@ T?!string parse_member(string* name, string*? value, bool flag, dummy_struct<T?>
 
 export template <T> requires is_struct<T>
 T!string read_struct(flag_map* flags) {
-  mutable unused = flags->flags.copy();
-  for (it : flags->values.getAllKeys())
+  mutable unused = flags^.flags.copy();
+  for (it : flags^.values.getAllKeys())
     unused.insert(*it);
   static mutable returnStmt = "return " + to_string(T) + "(";
   static for (i = 0; i < struct_count(T); ++i) {
@@ -130,11 +130,11 @@ T!string read_struct(flag_map* flags) {
     static const name = get_member_name(T, i);
     unused.erase(&name);
     static if (name == "all") {
-      returnStmt = returnStmt + "flags->all.copy()";    
+      returnStmt = returnStmt + "flags^.all.copy()";    
     } else {
       returnStmt = returnStmt + "try parse_member(&\"" + to_string(name) + "\", "
-          + "flags->values.getMaybe(&\"" + to_string(name) + "\"), "
-          + "flags->flags.contains(&\"" + to_string(name) + "\"), "
+          + "flags^.values.getMaybe(&\"" + to_string(name) + "\"), "
+          + "flags^.flags.contains(&\"" + to_string(name) + "\"), "
           + "dummy_struct<" + to_string(get_member_type(T, i)) + ">())";    
     }
   }

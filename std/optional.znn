@@ -13,7 +13,7 @@ bool operator ! (T?* elem) {
 export template <T> requires copy<T>
 T? copy(T?* elem) {
   if (*elem)
-    return (*elem)->copy();
+    return (*elem)^.copy();
   else
     return null;
 }
@@ -86,7 +86,7 @@ T operator ?? (T? elem, Fun f) {
 export template <T, U, Fun> requires invoke<Fun, U, T*>
 U? map_to(T?* elem, Fun* f) {
   if (*elem)
-    return f->invoke(&**elem);
+    return f^.invoke(&**elem);
   else
     return null;
 }
@@ -94,7 +94,7 @@ U? map_to(T?* elem, Fun* f) {
 export template <T, U, Fun> requires invoke<Fun, U?, T*>
 U? map_to(T?* elem, Fun* f) {
   if (*elem)
-    return f->invoke(&**elem);
+    return f^.invoke(&**elem);
   else
     return null;
 }
@@ -134,7 +134,7 @@ export bool operator == (null_type*, null_type*) {
 export template <T>
 void destruct(T?* t) {
   if (*t)
-    (*t)->destruct();
+    (*t)^.destruct();
 }
 
 export template <T>

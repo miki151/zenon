@@ -7,7 +7,7 @@ struct S {
 
 template <int Size, T>
 T* get(S<Size, T>* s) {
-  return &(s->elems[0]);
+  return &(s^.elems[0]);
 }
 
 template <int N>

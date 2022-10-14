@@ -6,7 +6,7 @@ struct X {
 };
 
 X operator + (X* x1, X* x2) {
-  return X(x1->x + x2->x);
+  return X(x1^.x + x2^.x);
 }
 
 int main() {

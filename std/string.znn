@@ -14,7 +14,7 @@ export int size(string* s) {
 }
 
 export bool empty(string* s) {
-  return s->size() == 0;
+  return s^.size() == 0;
 }
 
 export string substring(string* s, int start, int length) {
@@ -54,29 +54,29 @@ export bool ends_with(string* s, string* suffix) {
 }
 
 export string insert(string* s, int start, string content) {
-  return s->substring(0, start) + move(content) + s->substring(start, s->size() - start);
+  return s^.substring(0, start) + move(content) + s^.substring(start, s^.size() - start);
 }
 
 export int? find(string* s, string pattern) {
-  return s->find(&pattern);
+  return s^.find(&pattern);
 }
 
 export int? find(string* s, int start, string pattern) {
-  return s->find(start, &pattern);
+  return s^.find(start, &pattern);
 }
 
 export int? find(string* s, string* pattern) {
-  return s->find(0, pattern);
+  return s^.find(0, pattern);
 }
 
 export int? find(string* s, int start, string* pattern) {
   const matches = [&](int index) {
-    for (i : range(0, pattern->size()))
+    for (i : range(0, pattern^.size()))
       if (s^[index + i] != pattern^[i])
         return false;
     return true;
   };
-  for (i : range(start, s->size() - pattern->size() + 1))
+  for (i : range(start, s^.size() - pattern^.size() + 1))
     if (matches(i))
       return i;
   return null;
@@ -108,7 +108,7 @@ export char[] slice(string* s) {
 }
 
 export int get_hash(string* s) {
-  return s->slice().get_hash();
+  return s^.slice().get_hash();
 }
 
 embed {
@@ -117,7 +117,7 @@ embed {
 
 export int? to_int(string* s) {
   const int? err = null;
-  if (s->empty())
+  if (s^.empty())
     return err;
   embed_returns {
     char* control;
@@ -130,7 +130,7 @@ export int? to_int(string* s) {
 
 export double? to_double(string* s) {
   const double? err = null;
-  if (s->empty())
+  if (s^.empty())
     return err;
   embed_returns {
     char* control;
@@ -153,19 +153,19 @@ export string_iterator begin(string* s) {
 }
 
 export string_iterator end(string* s) {
-  return string_iterator(s, s->size());
+  return string_iterator(s, s^.size());
 }
 
 export char operator *(string_iterator* it) {
-  return (*it->v)[it->index];
+  return (*it^.v)[it^.index];
 }
 
 export string_iterator operator ++(string_iterator mutable* it) {
-  ++it->index;
+  ++it^.index;
   return *it;
 }
 
 export bool operator == (string_iterator* it1, string_iterator* it2) {
-  return it1->index == it2->index;
+  return it1^.index == it2^.index;
 }
 

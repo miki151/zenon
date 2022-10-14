@@ -17,5 +17,5 @@ C1* get(T* x) {
 int main() {
   const x = X();
   const c = get(&x);
-  return c->fun1();
+  return c^.fun1();
 }

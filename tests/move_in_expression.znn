@@ -5,7 +5,7 @@ struct S {
 };
 
 int get(S* s, int x) {
-  return x + s->x;
+  return x + s^.x;
 }
 
 int get(S s) {

@@ -2,7 +2,7 @@
 
 int main(string[] args) {
   const a = {"pokpok", "xyz", "u" };
-  const b = a.transform([](string* s) { return s->size(); });
+  const b = a.transform([](string* s) { return s^.size(); });
   mutable res = 0;
   for (it : b)
     res += (it.index + 1) * *it;

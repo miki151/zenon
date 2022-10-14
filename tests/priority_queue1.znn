@@ -9,7 +9,7 @@ struct X {
 
 int main() {
   mutable queue = priority_queue<X<int>>([](X<int>* x1, X<int>* x2) { 
-    return x1->a < x2->a;
+    return x1^.a < x2^.a;
   });
   mutable ret = 0;
   queue.push(X(4));

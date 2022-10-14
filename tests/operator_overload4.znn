@@ -5,19 +5,19 @@ struct X {
 };
 
 X operator + (X* a, X* b) {
-  return X(a->a + b->a);
+  return X(a^.a + b^.a);
 }
 
 X operator - (X* a, X* b) {
-  return X(a->a - b->a);
+  return X(a^.a - b^.a);
 }
 
 X operator / (X* a, X* b) {
-  return X(a->a / b->a);
+  return X(a^.a / b^.a);
 }
 
 X operator * (X* a, X* b) {
-  return X(a->a * b->a);
+  return X(a^.a * b^.a);
 }
 
 int main() {

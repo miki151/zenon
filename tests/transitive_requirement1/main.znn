@@ -7,7 +7,7 @@ struct X {
 };
 
 int g(X* x) {
-  return x->a;
+  return x^.a;
 }
 
 int main() {

@@ -60,8 +60,8 @@ bool operator == (T* t1, T* t2) {
 
 export template <T> requires is_union<T>, has_attribute<T, @auto_equality>
 bool operator == (T* t1, T* t2) {
-  const index = t1->get_index();
-  if (index != t2->get_index())
+  const index = t1^.get_index();
+  if (index != t2^.get_index())
     return false;
   unchecked static for (i = 0; i < union_count(T); ++i)
     if (i == index)

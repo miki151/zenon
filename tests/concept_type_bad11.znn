@@ -1,7 +1,7 @@
 // no_compile
 
 int calc(invoke<int>* f) {
-  return 2 * f->invoke();
+  return 2 * f^.invoke();
 }
 
 int main() {

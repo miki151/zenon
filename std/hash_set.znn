@@ -42,7 +42,7 @@ export template <T> requires copy<T>, hash_key<T>
 hash_set<T> copy(hash_set<T>* v) {
   mutable ret = hash_set<T>();
   for (elem : *v)
-    ret.insert(elem->copy());
+    ret.insert(elem^.copy());
   return move(ret);
   const key = getNullPointer<T>();
   discard hash_adapter<T>().invoke(key);

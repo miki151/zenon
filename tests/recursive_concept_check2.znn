@@ -12,7 +12,7 @@ concept <T> F2 {
 
 template <A> requires F1<A>, copy<A>
 int f2(mutable A mutable* a) {
-  return 1 + f1(a->copy());
+  return 1 + f1(a^.copy());
 }
 
 template <A> requires F2<A>

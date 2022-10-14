@@ -11,7 +11,7 @@ int getFrom(T t) {
 
 struct X { int a; };
 
-int get(X* x) { return x->a; }
+int get(X* x) { return x^.a; }
 
 int main() {
   return getFrom(X(5));

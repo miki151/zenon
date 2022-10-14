@@ -8,11 +8,11 @@ struct X {
 };
 
 int get_hash(X* x) {
-  return x->a % 2;
+  return x^.a % 2;
 }
 
 bool operator == (X* x1, X* x2) {
-  return x1->a == x2->a;
+  return x1^.a == x2^.a;
 }
 
 int main() {
@@ -24,6 +24,6 @@ int main() {
     if (a.contains(&X(i)))
       res += i;
   for (it : a)
-    res += it->a;
+    res += it^.a;
   return res;
 }

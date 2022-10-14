@@ -10,12 +10,12 @@ struct Circle {
 
 template <T>
 int get(Circle<T>* c, int) {
-  return c->radius;
+  return c^.radius;
 }
 
 template <T>
 void set(Circle<T> mutable* c, int v) {
-  c->radius = v;
+  c^.radius = v;
 }
 
 struct Rectangle {
@@ -24,11 +24,11 @@ struct Rectangle {
 };
 
 int get(Rectangle* r, int index) {
-  return r->width;
+  return r^.width;
 }
 
 void set(Rectangle mutable* r, int v) {
-  r->width = v;
+  r^.width = v;
 }
 
 struct Triangle {

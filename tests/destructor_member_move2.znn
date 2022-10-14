@@ -5,15 +5,15 @@ struct X {
 };
 
 X implicit_copy(X* x) {
-  *x->elem += 1;
-  return X(x->elem);
+  *x^.elem += 1;
+  return X(x^.elem);
 }
 
 struct Y {
   X x;
 };
 
-void destruct(Y* y) { *y->x.elem *= 2; }
+void destruct(Y* y) { *y^.x.elem *= 2; }
 
 Y get(int mutable* a) {
   return Y(X(a));

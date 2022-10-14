@@ -9,7 +9,7 @@ struct X {
 };
 
 int get(X* x) {
-  return x->a;
+  return x^.a;
 }
 
 template <T>
@@ -19,16 +19,16 @@ struct Y {
 
 template <T> requires implicit_copy<T>
 T get(Y<T>* y) {
-  return y->a;
+  return y^.a;
 }
 
 int main() {
   const x = X(5);
   mutable C1<int>* c1 = &x;
-  const res1 = c1->get();
+  const res1 = c1^.get();
   const y1 = Y(4);
   c1 = &y1;
   const y2 = Y("pokpok");
   const C1<string>* c2 = &y2;
-  return res1 + c1->get() + c2->get().size();
+  return res1 + c1^.get() + c2^.get().size();
 }
