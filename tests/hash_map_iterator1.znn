@@ -1,0 +1,13 @@
+// 40
+
+import "std/hash_map.znn";
+
+int main() {
+  mutable m = hash_map<string, int>();
+  m.insert("pok", 1);
+  m.insert("pakpak", 30);
+  mutable res = 0;
+  for (it : m)
+    res += it.key()^.size() + *it.value();
+  return res;
+}

@@ -1,0 +1,25 @@
+// 12
+
+embed {
+  struct X {
+    X() : a(1) {}
+    void add(int x) { a += x; }
+    int get() const { return a; }
+    int a;
+  };
+}
+
+extern struct X;
+extern X();
+[@member]
+extern void add(X mutable*, int);
+[@member]
+extern int get(X*);
+
+int main() {
+  mutable x = X();
+  x.add(5);
+  const y = &x;
+  y^.add(6);
+  return x.get();
+}
