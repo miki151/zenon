@@ -40,7 +40,7 @@ static po::parser getCommandLineFlags() {
 }
 
 static int compileCpp(string command, const string& program, const string& output, const string& flags) {
-  command += " -xc++ - -std=c++17 -fpermissive -Wno-unused-value -Wno-trigraphs -c " + flags + " -o   " + output;
+  command += " -xc++ - -std=c++17 -fpermissive -Wno-return-type -Wno-unused-value -Wno-trigraphs -c " + flags + " -o   " + output;
   cerr << command << endl;
   FILE* p = popen(command.c_str(), "w");
   fwrite(program.c_str(), 1, program.size(), p);
@@ -82,13 +82,6 @@ T getOrCompileError(WithErrorLine<T> value) {
 static void checkCompileError(JustError<ErrorLoc> value) {
   if (!value)
     exitWithError(value.get_error().loc, value.get_error().error);
-}
-
-static string getCodegenAllFileName(string s) {
-  for (auto& c : s)
-    if (c == '/')
-      c = '_';
-  return s;
 }
 
 static string getBinaryName(string sourceFile) {
@@ -216,11 +209,7 @@ int main(int argc, char* argv[]) {
     for (auto& elem : initialAST->elems)
       checkCompileError(elem->registerTypes(primaryContext, &typeRegistry, astCache, importDirs));
   }
-  struct CodegenElem {
-    AST* ast;
-    string path;
-  };
-  vector<CodegenElem> codegenElems;
+  vector<const AST*> codegenElems;
   while (!toCompile.empty()) {
     auto path = string(fs::canonical(toCompile.begin()->path));
     bool builtInModule = toCompile.begin()->builtIn;
@@ -234,31 +223,27 @@ int main(int argc, char* argv[]) {
     auto imported = getOrCompileError(correctness(path, *ast, context, primaryContext, importCache, builtInModule));
     if (builtInModule)
       importCache.popBuiltIn();
-    codegenElems.push_back(CodegenElem{ast, path});
+    codegenElems.push_back(ast);
     for (auto& import : imported)
       if (!finished.count(import.path)) {
         toCompile.push_back(import);
         finished.insert(import.path);
       }
   }
-  for (auto& elem : codegenElems) {
-    auto cppCode = codegen(*elem.ast, typeRegistry, installDir + "/codegen_includes/"s, !printCpp);
-    if (cppCode.empty())
-      continue;
-    if (printCpp) {
-      cout << cppCode << endl;
-      return 0;
+  auto cppCode = codegen(codegenElems, typeRegistry, installDir + "/codegen_includes/"s, !printCpp);
+  if (printCpp) {
+    cout << cppCode << endl;
+    return 0;
+  }
+  if (codegenAll)
+    ofstream(*codegenAll + "/"s + "codegen.cpp") << cppCode;
+  else {
+    auto objFile = buildDir + "/"s + to_string(std::hash<string>()(cppCode + gccCmd)) + ".znn.o";
+    if (!fs::exists(objFile) && !!compileCpp(gccCmd, cppCode, objFile, cppFlags)) {
+      std::cerr << "C++ compilation failed:\n\n" <<   std::endl;
+      return -1;
     }
-    if (codegenAll)
-      ofstream(*codegenAll + "/"s + getCodegenAllFileName(elem.path) + ".cpp") << cppCode;
-    else {
-      auto objFile = buildDir + "/"s + to_string(std::hash<string>()(cppCode + gccCmd)) + ".znn.o";
-      if (!fs::exists(objFile) && !!compileCpp(gccCmd, cppCode, objFile, cppFlags)) {
-        std::cerr << "C++ compilation failed:\n\n" <<   std::endl;
-        return -1;
-      }
-      objFiles.push_back(objFile);
-    }
+    objFiles.push_back(objFile);
   }
   if (!objFiles.empty())
     if (linkObjs(linkCmd, objFiles, binaryOutput, linkFlags) != 0) {

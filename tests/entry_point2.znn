@@ -1,0 +1,27 @@
+// 12
+
+struct X {
+  int mutable* a;
+};
+
+void destruct(X* x) {
+  ++*x^.a;
+}
+
+[@entry_point]
+int f(X x) {
+  return 10;
+}
+
+int main() {
+  mutable cnt = 1;
+  mutable fres = 0;
+  {
+    const x = X(&cnt);
+    set_moved_in_embed(move(x));
+    embed {
+      fres = f(std::move(x));
+    }
+  }
+  return cnt + fres;
+}

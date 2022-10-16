@@ -219,7 +219,11 @@ FunctionInfo* FunctionInfo::getDefined(FunctionId id, FunctionSignature type, Fu
   auto args = make_tuple(id, type, definition);
   static unordered_map<decltype(args), FunctionInfo*> generated;
   if (!generated.count(args)) {
-    generated.insert(make_pair(args, new FunctionInfo(Private{}, id, type, definition)));
+    auto fun = new FunctionInfo(Private{}, id, type, definition);
+    generated.insert(make_pair(args, fun));
+    for (auto& attr : definition->attributes)
+      if (attr.name == "@entry_point")
+        fun->entryPoint = true;
   }
   return generated.at(args);
 }
@@ -268,7 +272,7 @@ string FunctionInfo::getMangledName() {
     return id.get<string>();
   return id.visit(
       [this](const string& s) {
-        if (type.builtinOperator)
+        if (type.builtinOperator || entryPoint)
           return s;
         auto suf = getMangledSuffix();
         CHECK(!!suf) << prettyString();
@@ -294,6 +298,10 @@ string FunctionInfo::getMangledName() {
 
 bool FunctionInfo::isMainFunction() const {
   return id == "main"s;
+}
+
+bool FunctionInfo::isEntryPoint() const {
+  return isMainFunction() || entryPoint;
 }
 
 bool FunctionInfo::isConceptTypeFunction() const {

@@ -816,6 +816,9 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionSignature(const Context& cont
     bool builtInImport) {
   if (functionInfo)
     return success;
+  for (auto& attr : attributes)
+    if (attr.name == "@entry_point" && !templateInfo.params.empty())
+      return codeLoc.getError("Function can't be a template function and an entry point at the same time.");
   for (int i = 0; i < parameters.size(); ++i)
     if (!parameters[i].name)
       parameters[i].name = "parameter" + to_string(i);

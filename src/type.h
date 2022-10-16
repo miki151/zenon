@@ -464,6 +464,7 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   const string& prettyString() const;
   string getMangledName();
   bool isMainFunction() const;
+  bool isEntryPoint() const;
   optional<string> getMangledSuffix();
   optional<string> getParamName(int index, const FunctionDefinition*) const;
   FunctionInfo* getWithoutRequirements();
@@ -482,6 +483,7 @@ struct FunctionInfo : public owned_object<FunctionInfo> {
   FunctionDefinition* const definition = nullptr;
   string pretty;
   void genPrettyString();
+  bool entryPoint = false;
 };
 
 struct LambdaType : public Type {

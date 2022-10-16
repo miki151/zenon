@@ -1,0 +1,13 @@
+// no_compile
+
+[@entry_point]
+template <T>
+int f(T a) {
+  return 1;
+}
+
+int main() {
+  embed_returns {
+    return f(false);
+  }
+}

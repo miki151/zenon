@@ -707,45 +707,43 @@ void codegenLambda(LambdaType* lambda, Buffer* buffer, Sections* sections) {
   }
 }
 
-string codegen(const AST& ast, TypeRegistry& registry, const string& codegenInclude,
+string codegen(const vector<const AST*>& astList, TypeRegistry& registry, const string& codegenInclude,
     bool includeLineNumbers) {
   Sections sections(includeLineNumbers);
   auto header = sections.newBuffer(Section::HEADER);
   header->add("#include \"" + codegenInclude + "/all.h\"");
   header->newLine();
-  for (auto& elem : ast.elems) {
-    if (auto embed = dynamic_cast<EmbedStatement*>(elem.get()))
-      sections.addEmbed(embed);
-    if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
-      sections.addImport(import);
-  }
-  bool hasMain = false;
-  for (auto& elem : ast.elems) {
-    if (auto def = dynamic_cast<FunctionDefinition*>(elem.get()))
-      if (def->functionInfo->isMainFunction()) {
-        elem->codegen(sections.newBuffer(Section::DEFINITIONS), &sections);
-        hasMain = true;
-      }
-  }
-  if (!hasMain)
-    return "";
+  for (auto ast : astList)
+    for (auto& elem : ast->elems) {
+      if (auto embed = dynamic_cast<EmbedStatement*>(elem.get()))
+        sections.addEmbed(embed);
+      if (auto import = dynamic_cast<ImportStatement*>(elem.get()))
+        sections.addImport(import);
+    }
+  for (auto ast : astList)
+    for (auto& elem : ast->elems) {
+      if (auto def = dynamic_cast<FunctionDefinition*>(elem.get()))
+        if (def->functionInfo->isEntryPoint())
+          elem->codegen(sections.newBuffer(Section::DEFINITIONS), &sections);
+    }
   auto footer = sections.newBuffer(Section::FOOTER);
-  for (auto& elem : ast.elems) {
-    if (auto fun = dynamic_cast<const FunctionDefinition*>(elem.get()))
-      if (fun->functionInfo->isMainFunction()) {
-        if (fun->parameters.empty()) {
-          if (fun->functionInfo->type.retVal == BuiltinType::VOID)
-            footer->add("#include \"" + codegenInclude + "/main_body_void.h\"");
-          else
-            footer->add("#include \"" + codegenInclude + "/main_body.h\"");
-        } else {
-          if (fun->functionInfo->type.retVal == BuiltinType::VOID)
-            footer->add("#include \"" + codegenInclude + "/main_body_args_void.h\"");
-          else
-            footer->add("#include \"" + codegenInclude + "/main_body_args.h\"");
+  for (auto ast : astList)
+    for (auto& elem : ast->elems) {
+      if (auto fun = dynamic_cast<const FunctionDefinition*>(elem.get()))
+        if (fun->functionInfo->isMainFunction()) {
+          if (fun->parameters.empty()) {
+            if (fun->functionInfo->type.retVal == BuiltinType::VOID)
+              footer->add("#include \"" + codegenInclude + "/main_body_void.h\"");
+            else
+              footer->add("#include \"" + codegenInclude + "/main_body.h\"");
+          } else {
+            if (fun->functionInfo->type.retVal == BuiltinType::VOID)
+              footer->add("#include \"" + codegenInclude + "/main_body_args_void.h\"");
+            else
+              footer->add("#include \"" + codegenInclude + "/main_body_args.h\"");
+          }
         }
-      }
-  }
+    }
   return sections.generate();
 }
 

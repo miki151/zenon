@@ -1,0 +1,12 @@
+// 4
+
+[@entry_point]
+int f(bool a) {
+  return a ? 1 : 4;
+}
+
+int main() {
+  embed_returns {
+    return f(false);
+  }
+}

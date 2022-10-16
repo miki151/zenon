@@ -649,6 +649,7 @@ struct FunctionDefinition : Statement {
   virtual void codegen(Buffer*, Sections*) const override;
   virtual void codegenInstance(Buffer*, Sections*, FunctionInfo*) const;
   virtual TopLevelAllowance allowTopLevel() const override { return TopLevelAllowance::MUST; }
+  virtual bool canHaveAttributes() const override { return true; }
   virtual unique_ptr<Statement> transformImpl(const StmtTransformFun&, const ExprTransformFun&) const override;
   NODISCARD JustError<ErrorLoc> setFunctionSignature(const Context&, Concept* concept = nullptr, bool builtInImport = false);
   void handlePointerParamsInOperator(Buffer*, Sections*, const StatementBlock*) const;
