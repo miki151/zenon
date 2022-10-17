@@ -13,8 +13,8 @@ struct Z {
   Y y;
 };
 
-int invoke(Y* y, int x) {
-  return y^.b + x;
+int invoke(Y* y, int* x) {
+  return y^.b + *x;
 }
 
 Y increase(Y* y) {
@@ -28,5 +28,5 @@ X<Z> get(int a) {
 int main() {
   mutable a = 5;
   const x = X([&]{ ++a; return a;});
-  return x.elem().get().elem.y.increase()(a);
+  return x.elem().get().elem.y.increase()(&a);
 }
