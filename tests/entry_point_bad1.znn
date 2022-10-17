@@ -7,7 +7,7 @@ int f(T a) {
 }
 
 int main() {
-  embed_returns {
+  embed {
     return f(false);
   }
 }

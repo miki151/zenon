@@ -2,7 +2,7 @@
 
 template <E> requires is_enum<E>
 int f(E e1) {
-  embed_returns {
+  embed {
     return int(e1);
   }
 }

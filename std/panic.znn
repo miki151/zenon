@@ -5,7 +5,7 @@ export import "std/concepts.znn";
 
 invoke<void, string>* mutable* get_panic_handler() {
   static mutable stmt =
-      "embed_returns \{ static const_fat_ptr<invokevoid_tzenon_string_vtable> ptr = \{\}; return &ptr; }";
+      "embed \{ static const_fat_ptr<invokevoid_tzenon_string_vtable> ptr = \{\}; return &ptr; }";
   mixin stmt;
 }
 
@@ -14,7 +14,7 @@ export void set_panic_handler(invoke<void, string>* handler) {
 }
 
 bool is_null_invoke(invoke<void, string>* ptr) {
-  embed_returns {
+  embed {
     return !ptr.object;
   }
 }
@@ -36,7 +36,7 @@ export noreturn panic(string message) {
     exit(1);
   } else {
     printf("The program panicked with the message: " + message + "\n");
-    embed_returns {
+    embed {
       if (runningUnderDebugger())
         throw std::exception{};
       else

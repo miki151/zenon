@@ -3,55 +3,55 @@ export embed {
 }
 
 export bool isalnum(char c) {
-  embed_returns { return isalnum(c); }
+  embed { return isalnum(c); }
 }
 
 export bool isalpha(char c) {
-  embed_returns { return isalpha(c); }
+  embed { return isalpha(c); }
 }
 
 export bool iscntrl(char c) {
-  embed_returns { return iscntrl(c); }
+  embed { return iscntrl(c); }
 }
 
 export bool isdigit(char c) {
-  embed_returns { return isdigit(c); }
+  embed { return isdigit(c); }
 }
 
 export bool isgraph(char c) {
-  embed_returns { return isgraph(c); }
+  embed { return isgraph(c); }
 }
 
 export bool islower(char c) {
-  embed_returns { return islower(c); }
+  embed { return islower(c); }
 }
 
 export bool isprint(char c) {
-  embed_returns { return isprint(c); }
+  embed { return isprint(c); }
 }
 
 export bool ispunct(char c) {
-  embed_returns { return ispunct(c); }
+  embed { return ispunct(c); }
 }
 
 export bool isspace(char c) {
-  embed_returns { return isspace(c); }
+  embed { return isspace(c); }
 }
 
 export bool isupper(char c) {
-  embed_returns { return isupper(c); }
+  embed { return isupper(c); }
 }
 
 export bool isxdigit(char c) {
-  embed_returns { return isxdigit(c); }
+  embed { return isxdigit(c); }
 }
 
 export bool isascii(char c) {
-  embed_returns { return isascii(c); }
+  embed { return isascii(c); }
 }
 
 export bool isblank(char c) {
-  embed_returns { return isblank(c); }
+  embed { return isblank(c); }
 }
 
 

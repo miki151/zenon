@@ -15,7 +15,7 @@ export template <T, U> requires (U == any)
 T*? cast_to(U* a) {
   if (to_string(T) != a^.get_type())
     return null;
-  embed_returns {
+  embed {
     return (T*)a.object;
   }
 }
@@ -25,7 +25,7 @@ T? cast_to(box<U> a) {
   if (to_string(T) != a^.get_type())
     return null;
   set_moved_in_embed(move(a));
-  embed_returns {
+  embed {
     return std::move(*(T*)a.elem.object);
   }
 }
@@ -34,7 +34,7 @@ export template <T, U> requires (U == any)
 T mutable*? cast_to(U mutable* a) {
   if (to_string(T) != a^.get_type())
     return null;
-  embed_returns {
+  embed {
     return (T*)a.object;
   }
 }

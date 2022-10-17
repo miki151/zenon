@@ -6,7 +6,7 @@ int f(bool a) {
 }
 
 int main() {
-  embed_returns {
+  embed {
     return f(false);
   }
 }

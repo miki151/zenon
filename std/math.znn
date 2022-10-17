@@ -23,7 +23,7 @@ T max(T a, T b) {
 
 template <U, T>
 U convert_to(T a) {
-  embed_returns {
+  embed {
     return (U) a;
   }
 }
@@ -112,12 +112,12 @@ export extern double sqrt(double value);
 export extern double pow(double x, double y);
 export extern int abs(int value);
 export long abs(long value) {
-  embed_returns {
+  embed {
     return llabs(value);
   }
 }
 export double abs(double value) {
-  embed_returns {
+  embed {
     return fabs(value);
   }
 }

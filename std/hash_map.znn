@@ -34,7 +34,7 @@ void insert(hash_map<Key, Value> mutable* m, Key key, Value value) {
 
 export template <Key, Value> requires hash_key<Key>
 bool contains(hash_map<Key, Value>* m, Key* key) {
-  embed_returns {
+  embed {
     return m->count(*key);
   }
   discard hash_adapter<Key>().invoke(key);
@@ -43,7 +43,7 @@ bool contains(hash_map<Key, Value>* m, Key* key) {
 
 export template <Key, Value> requires hash_key<Key>
 void erase(hash_map<Key, Value> mutable* m, Key* key) {
-  embed_returns {
+  embed {
     return m->erase(*key);
   }
   discard hash_adapter<Key>().invoke(key);
@@ -52,7 +52,7 @@ void erase(hash_map<Key, Value> mutable* m, Key* key) {
 
 export template <Key, Value> requires hash_key<Key>
 Value* get(hash_map<Key, Value>* m, Key* key) {
-  embed_returns {
+  embed {
     return op_get_address(m->at(*key));
   }
   discard hash_adapter<Key>().invoke(key);
@@ -61,7 +61,7 @@ Value* get(hash_map<Key, Value>* m, Key* key) {
 
 export template <Key, Value> requires hash_key<Key>
 Value mutable* get(hash_map<Key, Value> mutable* m, Key* key) {
-  embed_returns {
+  embed {
     return &m->at(*key);
   }
   discard hash_adapter<Key>().invoke(key);
@@ -97,7 +97,7 @@ extern struct hash_map_iterator;
 
 export template <Key, Value>
 hash_map_iterator<Key, Value> implicit_copy(hash_map_iterator<Key, Value>* it) {
-  embed_returns {
+  embed {
     return *it;
   }
 }
@@ -110,14 +110,14 @@ extern hash_map_iterator<Key, Value> end(hash_map<Key, Value>* m);
 
 export template <Key, Value>
 Key* key(hash_map_iterator<Key, Value>* it) {
-  embed_returns {
+  embed {
     return &(*it)->first;
   }
 }
 
 export template <Key, Value>
 Value* value(hash_map_iterator<Key, Value>* it) {
-  embed_returns {
+  embed {
     return &(*it)->second;
   }
 }

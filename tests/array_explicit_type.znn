@@ -1,7 +1,7 @@
 // 12
 
 int as_int(double d) {
-  embed_returns {
+  embed {
     return (int)d;
   }
 }

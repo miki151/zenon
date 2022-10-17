@@ -10,28 +10,28 @@ extern struct shared_ptr;
 
 template <T>
 shared_ptr<T> copy(shared_ptr<T>* s) {
-  embed_returns {
+  embed {
     return *s;
   }
 }
 
 template <T>
 T mutable* get(shared_ptr<T> mutable* ptr) {
-  embed_returns {
+  embed {
     return ptr->get();
   }
 }
 
 template <T>
 T* get(shared_ptr<T>* ptr) {
-  embed_returns {
+  embed {
     return ptr->get();
   }
 }
 
 template <T>
 shared_ptr<T> shared(T t) {
-  embed_returns {
+  embed {
     return std::make_shared<T>(std::move(t));
   }
 }

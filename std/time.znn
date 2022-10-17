@@ -6,7 +6,7 @@ embed {
 using milliseconds_t = long;
 
 export milliseconds_t current_time_milli() {
-  embed_returns {
+  embed {
     timeval t;
     gettimeofday(&t, nullptr);
     return t.tv_sec * 1000 + t.tv_usec / 1000;

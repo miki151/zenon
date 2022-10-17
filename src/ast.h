@@ -677,7 +677,6 @@ struct EmbedStatement : Statement {
   string value;
   bool isTopLevel = false;
   vector<Context::SubstitutionInfo> replacements;
-  bool returns = false;
   virtual JustError<ErrorLoc> check(Context&, bool = false) override;
   virtual void codegen(Buffer*, Sections*) const override;
   virtual TopLevelAllowance allowTopLevel() const override;

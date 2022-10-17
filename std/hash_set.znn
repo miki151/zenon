@@ -19,11 +19,11 @@ extern struct hash_set_iterator;
 
 export template<Key> requires hash_key<Key>
 hash_set() {
-  embed_returns {
+  embed {
   return hash_set<Key>{};
   }
   const key = [] -> Key* {
-    embed_returns {
+    embed {
       return nullptr;
     }
   }();
@@ -33,7 +33,7 @@ hash_set() {
 
 export template <T>
 T* getNullPointer() {
-  embed_returns {
+  embed {
     return nullptr;
   }
 }
@@ -72,7 +72,7 @@ void erase(hash_set<Key> mutable* m, Key* key) {
 
 export template <Key> requires hash_key<Key>
 bool contains(hash_set<Key>* m, Key* key) {
-  embed_returns {
+  embed {
     return m->count(*key);
   }
   discard hash_adapter<Key>().invoke(key);
@@ -81,7 +81,7 @@ bool contains(hash_set<Key>* m, Key* key) {
 
 export template <Key> requires hash_key<Key>
 int size(hash_set<Key> mutable* m) {
-  embed_returns {
+  embed {
     return m->size();
   }
   const key = getNullPointer<Key>();
@@ -91,7 +91,7 @@ int size(hash_set<Key> mutable* m) {
 
 export template <T> requires hash_key<T>
 hash_set_iterator<T> begin(hash_set<T>* v) {
-  embed_returns {
+  embed {
     return v->begin();
   }
   const key = getNullPointer<T>();
@@ -101,7 +101,7 @@ hash_set_iterator<T> begin(hash_set<T>* v) {
 
 export template <T> requires hash_key<T>
 hash_set_iterator<T> end(hash_set<T>* v) {
-  embed_returns {
+  embed {
     return v->end();
   }
   const key = getNullPointer<T>();
@@ -111,21 +111,21 @@ hash_set_iterator<T> end(hash_set<T>* v) {
 
 export template <T>
 T* operator *(hash_set_iterator<T>* it) {
-  embed_returns {
+  embed {
     return &**it;
   }
 }
 
 export template <T>
 hash_set_iterator<T> operator ++(hash_set_iterator<T> mutable* it) {
-  embed_returns {
+  embed {
     return ++*it;
   }
 }
 
 export template <T>
 bool operator == (hash_set_iterator<T>* it1, hash_set_iterator<T>* it2) {
-  embed_returns {
+  embed {
     return *it1 == *it2;
   }
 }

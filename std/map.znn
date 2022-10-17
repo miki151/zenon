@@ -27,7 +27,7 @@ void insert(map<Key, Value> mutable* m, Key key, Value value) {
 
 export template <Key, Value> requires inequality<Key>
 Value* get(map<Key, Value>* m, Key* key) {
-  embed_returns {
+  embed {
     return &m->at(*key);
   }
   discard inequality_adapter<Key>().invoke(key, key);
@@ -35,7 +35,7 @@ Value* get(map<Key, Value>* m, Key* key) {
 
 export template <Key, Value> requires inequality<Key>
 Value mutable* get(map<Key, Value> mutable* m, Key* key) {
-  embed_returns {
+  embed {
     return &m->at(*key);
   }
   discard inequality_adapter<Key>().invoke(key, key);
@@ -43,7 +43,7 @@ Value mutable* get(map<Key, Value> mutable* m, Key* key) {
 
 export template <Key, Value> requires inequality<Key>
 bool contains(map<Key, Value>* m, Key* key) {
-  embed_returns {
+  embed {
     return m->count(*key);
   }
   discard inequality_adapter<Key>().invoke(key, key);
@@ -54,7 +54,7 @@ extern int size(map<Key, Value>* m);
 
 export template <Key, Value> requires inequality<Key>
 Value*? getMaybe(map<Key, Value>* m, Key* key) {
-  embed_returns {
+  embed {
     if (m->count(*key) > 0)
       return &m->at(*key);
     else
@@ -65,7 +65,7 @@ Value*? getMaybe(map<Key, Value>* m, Key* key) {
 
 export template <Key, Value> requires inequality<Key>
 Value mutable*? getMaybe(map<Key, Value> mutable* m, Key key) {
-  embed_returns {
+  embed {
     if (m->count(key) > 0)
       return &m->at(key);
     else
@@ -76,7 +76,7 @@ Value mutable*? getMaybe(map<Key, Value> mutable* m, Key key) {
 
 export template <Key, Value> requires inequality<Key>
 Value mutable* getOrInit(map<Key, Value> mutable* m, Key key) {
-  embed_returns {
+  embed {
     return &(*m)[key];
   }
   discard inequality_adapter<Key>().invoke(&key, &key);

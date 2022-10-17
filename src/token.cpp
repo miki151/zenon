@@ -13,7 +13,6 @@ static const unordered_map<string, Keyword> keywords {
   {"struct", Keyword::STRUCT},
   {"extern", Keyword::EXTERN},
   {"embed", Keyword::EMBED},
-  {"embed_returns", Keyword::EMBED_RETURNS},
   {"union", Keyword::UNION},
   {"switch", Keyword::SWITCH},
   {"case", Keyword::CASE},
@@ -101,9 +100,6 @@ string getString(Token t) {
       [](EmbedToken) {
         return "embed block";
       },
-    [](EmbedReturnsToken) {
-      return "returning embed block";
-    },
       [](StringToken) {
         return "string literal";
       },

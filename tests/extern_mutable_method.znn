@@ -25,21 +25,21 @@ void push_back(vector<T> mutable* v, T elem) {
 
 template <T>
 T* at(vector<T>* v, int index) {
-  embed_returns {
+  embed {
     return &v^.at(index);
   }
 }
 
 template <T>
 T mutable* at(vector<T> mutable* v, int index) {
-  embed_returns {
+  embed {
     return v^.at(index);
   }
 }
 
 template <T>
 int size(vector<T>* v) {
-  embed_returns {
+  embed {
     return v^.size();
   }
 }

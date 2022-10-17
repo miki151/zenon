@@ -16,7 +16,7 @@ export template <T>
 box(T value) {
   const c = [](T value) -> T mutable* {
     set_moved_in_embed(move(value));
-    embed_returns {
+    embed {
       return new T(std::move(value));
     }
   }(move(value));
@@ -25,7 +25,7 @@ box(T value) {
 
 export template <T, C> requires is_concept<C>
 T* get_concept_object(C* c) {
-  embed_returns {
+  embed {
     return (T*)c.object;
   }
 }
@@ -35,7 +35,7 @@ box<C> box_as(T value) {
   unchecked {
     C mutable* c = [](T value) -> T mutable* {
       set_moved_in_embed(move(value));
-      embed_returns {
+      embed {
         return new T(std::move(value));
       }
     }(move(value));

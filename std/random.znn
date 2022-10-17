@@ -16,7 +16,7 @@ export void init_random() {
 
 export int get_random(int max) {
   assert(max > 0);
-  embed_returns {
+  embed {
     return rand() % max;
   }
 }
@@ -33,7 +33,7 @@ export double get_random_d() {
 export template <T> requires is_enum<T>
 T get_random() {
   const value = get_random(enum_count(T));
-  embed_returns {
+  embed {
     return T(value);
   }
 }

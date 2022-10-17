@@ -14,7 +14,7 @@ embed {
 }
 
 export string to_string(int* i) {
-  embed_returns {
+  embed {
     char buf[12];
     snprintf(buf, 12, "%d", *i);
     return lite_str<>::owned(buf);
@@ -22,7 +22,7 @@ export string to_string(int* i) {
 }
 
 export string to_string(long* i) {
-  embed_returns {
+  embed {
     char buf[20];
     snprintf(buf, 20, "%lld", *i);
     return lite_str<>::owned(buf);
@@ -30,7 +30,7 @@ export string to_string(long* i) {
 }
 
 export string to_string(double* i) {
-  embed_returns {
+  embed {
     char buf[20];
     snprintf(buf, 20, "%f", *i);
     return lite_str<>::owned(buf);
@@ -42,7 +42,7 @@ export string to_string(string* s) {
 }
 
 export string to_string(char* s) {
-  embed_returns {
+  embed {
     char buf[2];
     buf[0] = *s;
     buf[1] = '\0';
@@ -92,7 +92,7 @@ export void destruct(file_input* f) {
 }
 
 export string get_canonical_path(string path) {
-  embed_returns {
+  embed {
     char buf[PATH_MAX];
     realpath(path.data(), buf);
     return zenon_string::owned(buf);
@@ -111,7 +111,7 @@ expected<file_type, string> open_file_impl(string path, string perm) {
   const gen_value = [&] (FILE mutable* h) -> expected<file_type, string> {
     return file_type(h);
   };
-  embed_returns {
+  embed {
     auto handle = fopen(path.data(), perm.data());
     if (!handle)
       return invoke(&gen_error, zenon_string::reference(strerror(errno)));
@@ -128,7 +128,7 @@ export expected<file_output, string> open_file_w(string path) {
 }
 
 export milliseconds_t? get_modification_time(string path) {
-  embed_returns {
+  embed {
     struct stat info;
     if (stat(path.data(), &info) == 0)
       return info.st_mtime * 1000 + info.st_mtim.tv_nsec / 1000000;
@@ -188,7 +188,7 @@ export string!string read_content(file_input* f) {
   const get_result = [&](string res) -> string!string {
     return expected<string, string>::value(move(res));
   };
-  embed_returns {
+  embed {
     fseek(f->handle, 0, SEEK_END);
     int size = ftell(f->handle);
     rewind(f->handle);

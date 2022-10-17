@@ -25,28 +25,28 @@ enum_set() {
 export template <Key> requires is_enum<Key>
 bool contains(enum_set<Key>* set, Key key) {
   const index = key.asInt();
-  embed_returns {
+  embed {
     return set->values.test(index);
   }
 }
 
 export template <Key> requires is_enum<Key>
 bool is_subset_of(enum_set<Key>* set, enum_set<Key>* superset) {
-  embed_returns {
+  embed {
     return (set->values | superset->values) == superset->values;
   }
 }
 
 export template <Key> requires is_enum<Key>
 int size(enum_set<Key>* set) {
-  embed_returns {
+  embed {
     return set->values.count();
   }
 }
 
 export template <Key> requires is_enum<Key>
 bool empty(enum_set<Key>* set) {
-  embed_returns {
+  embed {
     return set->values.none();
   }
 }

@@ -1,7 +1,7 @@
 // 5
 
 noreturn exitProgram() {
-  embed_returns {
+  embed {
     throw std::exception();
   }
 }

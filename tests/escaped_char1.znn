@@ -2,7 +2,7 @@
 
 
 int from_char(char c) {
-  embed_returns {
+  embed {
     return int(c);
   }
 }

@@ -92,7 +92,7 @@ export [@member]
 extern char operator [](string*, int index);
 
 export char[] slice(string* s) {
-  embed_returns {
+  embed {
     return slice_t<char>{&s->data()[0], &s->data()[s->size()]};
   }
 }
@@ -109,7 +109,7 @@ export int? to_int(string* s) {
   const int? err = null;
   if (s^.empty())
     return err;
-  embed_returns {
+  embed {
     char* control;
     int result = std::strtol(s->data(), &control, 0);
     if (control != s->data() + s->size())
@@ -122,7 +122,7 @@ export double? to_double(string* s) {
   const double? err = null;
   if (s^.empty())
     return err;
-  embed_returns {
+  embed {
     char* control;
     double result = std::strtod(s->data(), &control);
     if (control != s->data() + s->size())

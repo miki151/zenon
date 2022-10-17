@@ -123,7 +123,7 @@ extern void push_back(vector<T> mutable* v, T elem);
 
 export template <T>
 T pop_back(vector<T> mutable* v) {
-  embed_returns {
+  embed {
     T t = std::move(v->back());
     v->pop_back();
     return std::move(t);
@@ -158,7 +158,7 @@ T mutable* front(vector<T> mutable* v) {
 
 export template <T>
 int size(vector<T>* v) {
-  embed_returns {
+  embed {
     return v->size();
   }
 }
@@ -228,14 +228,14 @@ vector<T> as_vector(mutable T[Sz] array) {
 
 export template <T>
 T[] slice(vector<T>* v) {
-  embed_returns {
+  embed {
     return slice_t<T>{&v->front(), &v->back() + 1};
   }
 }
 
 export template <T>
 T mutable[] slice(vector<T> mutable* v) {
-  embed_returns {
+  embed {
     return mutable_slice_t<T>{&v->front(), &v->back() + 1};
   }
 }

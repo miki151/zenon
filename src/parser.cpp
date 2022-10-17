@@ -1152,14 +1152,6 @@ WithErrorLine<unique_ptr<Statement>> parseStatement(Tokens& tokens, bool topLeve
         tokens.popNext();
         return cast<Statement>(std::move(ret));
       },
-      [&](EmbedReturnsToken) -> WithErrorLine<unique_ptr<Statement>> {
-        auto text = token.value;
-        auto ret = make_unique<EmbedStatement>(token.codeLoc, text);
-        ret->isTopLevel = topLevel;
-        ret->returns = true;
-        tokens.popNext();
-        return cast<Statement>(std::move(ret));
-      },
       [&](const auto&) -> WithErrorLine<unique_ptr<Statement>> {
         return cast<Statement>(parseExpressionAndSemicolon());
       }

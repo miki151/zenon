@@ -2223,18 +2223,17 @@ JustError<ErrorLoc> EmbedStatement::check(Context& context, bool) {
 }
 
 Statement::TopLevelAllowance EmbedStatement::allowTopLevel() const {
-  return returns ? TopLevelAllowance::CANT : TopLevelAllowance::CAN;
+  return isTopLevel ? TopLevelAllowance::CAN : TopLevelAllowance::CANT;
 }
 
 unique_ptr<Statement> EmbedStatement::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
   auto ret = make_unique<EmbedStatement>(codeLoc, value);
-  ret->returns = returns;
   ret->isTopLevel = isTopLevel;
   return std::move(ret);
 }
 
 bool EmbedStatement::hasReturnStatement() const {
-  return returns;
+  return true;
 }
 
 WhileLoopStatement::WhileLoopStatement(CodeLoc l, unique_ptr<Expression> c, unique_ptr<Statement> b,

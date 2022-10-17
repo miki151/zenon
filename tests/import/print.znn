@@ -4,14 +4,14 @@ embed {
 }
 
 export int getInt(int x) {
-  embed_returns {
+  embed {
     return g + x;
   }
 }
 
 export template <T>
 T getSecond(T t, T u, T v) {
-  embed_returns {
+  embed {
     return u;
   }
 }

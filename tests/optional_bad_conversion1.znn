@@ -2,7 +2,7 @@
 
 template <T>
 T get(T? a) {
-  embed_returns {}
+  embed {}
 }
 
 int main() {

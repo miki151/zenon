@@ -16,35 +16,35 @@ T copy(T* b) {
 
 export template <Enum> requires is_enum<Enum>
 bool operator == (Enum e1, Enum e2) {
-  embed_returns {
+  embed {
     return e1 == e2;
   }
 }
 
 export template <T>
 bool operator == (T** t1, T** t2) {
-  embed_returns {
+  embed {
     return *t1 == *t2;
   }
 }
 
 export template <T>
 bool operator == (T mutable** t1, T** t2) {
-  embed_returns {
+  embed {
     return *t1 == *t2;
   }
 }
 
 export template <T>
 bool operator == (T** t1, T mutable** t2) {
-  embed_returns {
+  embed {
     return *t1 == *t2;
   }
 }
 
 export template <T>
 bool operator == (T mutable** t1, T mutable** t2) {
-  embed_returns {
+  embed {
     return *t1 == *t2;
   }
 }
