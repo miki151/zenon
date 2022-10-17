@@ -7,21 +7,14 @@ embed {
 #include <regex>
 }
 
-export int size(string* s) {
-  embed_returns {
-    return s->size();
-  }
-}
+export [@member]
+extern int size(string*);
 
-export bool empty(string* s) {
-  return s^.size() == 0;
-}
+export [@member]
+extern bool empty(string*);
 
-export string substring(string* s, int start, int length) {
-  embed_returns {
-    return s->substring(start, length);
-  }
-}
+export [@member]
+extern string substring(string*, int start, int length);
 
 export string substring(string* s, int start) {
   return s^.substring(start, s^.size() - start);
@@ -95,11 +88,8 @@ export string? replace(string* s, string* pattern, string* by) {
   return move(ret);
 }
 
-export char operator [](string* s, int index) {
-  embed_returns {
-    return (*s)[index];
-  }
-}
+export [@member]
+extern char operator [](string*, int index);
 
 export char[] slice(string* s) {
   embed_returns {

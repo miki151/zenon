@@ -118,13 +118,8 @@ void reverse(vector<T> mutable* v) {
   }
 }
 
-export template <T>
-void push_back(vector<T> mutable* v, T elem) {
-  embed {
-    v->push_back(std::move(elem));
-  }
-  set_moved_in_embed(move(elem));
-}
+export [@member] template <T>
+extern void push_back(vector<T> mutable* v, T elem);
 
 export template <T>
 T pop_back(vector<T> mutable* v) {
@@ -135,19 +130,11 @@ T pop_back(vector<T> mutable* v) {
   }
 }
 
-export template <T>
-T* operator [](vector<T>* v, int index) {
-  embed_returns {
-    return &v->at(index);
-  }
-}
+export [@member] template <T>
+extern T* operator [](vector<T>* v, int index);
 
-export template <T>
-T mutable* operator [](vector<T> mutable* v, int index) {
-  embed_returns {
-    return &v->at(index);
-  }
-}
+export [@member] template <T>
+extern T mutable* operator [](vector<T> mutable* v, int index);
 
 export template <T>
 T* back(vector<T>* v) {
@@ -176,10 +163,8 @@ int size(vector<T>* v) {
   }
 }
 
-export template <T>
-bool empty(vector<T>* v) {
-  return v^.size() == 0;
-}
+export [@member] template <T>
+extern bool empty(vector<T>* v);
 
 export template <T> requires copy<T>
 vector<T> copy(vector<T>* v) {
@@ -255,12 +240,8 @@ T mutable[] slice(vector<T> mutable* v) {
   }
 }
 
-export template<T>
-void reserve(vector<T> mutable* v, int cnt) {
-  embed {
-    v->reserve(cnt);
-  }
-}
+export [@member] template<T>
+extern void reserve(vector<T> mutable* v, int cnt);
 
 export template <U, T, Fun> requires invoke<Fun, U, T*>
 vector<U> transform(vector<T>* v, Fun f) {

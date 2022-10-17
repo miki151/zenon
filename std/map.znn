@@ -49,12 +49,8 @@ bool contains(map<Key, Value>* m, Key* key) {
   discard inequality_adapter<Key>().invoke(key, key);
 }
 
-export template <Key, Value> requires inequality<Key>
-int size(map<Key, Value>* m) {
-  embed_returns {
-    return m->size();
-  }
-}
+export [@member] template <Key, Value> requires inequality<Key>
+extern int size(map<Key, Value>* m);
 
 export template <Key, Value> requires inequality<Key>
 Value*? getMaybe(map<Key, Value>* m, Key* key) {

@@ -336,7 +336,7 @@ static string getFunctionCallName(FunctionInfo& functionInfo, bool methodCall) {
   auto functionTemplateParams = functionInfo.type.templateParams;
   if (functionInfo.type.parentType)
     typePrefix = functionInfo.type.parentType->getCodegenName() + "::";
-  else if (!methodCall)
+  else if (!methodCall && !functionInfo.isMemberFunction())
     typePrefix += "::";
   return typePrefix + functionInfo.getMangledName();
 }
@@ -352,11 +352,22 @@ void FunctionCall::codegen(Buffer* buffer, Sections* sections) const {
     buffer->add(id + "{");
     suffix = "}";
   } else {
+    if (functionInfo->isMemberFunction()) {
+      buffer->add("(");
+      if (!methodCall)
+        buffer->add("*");
+      arguments[0]->codegen(buffer, sections);
+      buffer->add(").");
+    }
     buffer->add(id + "(");
     suffix = ")";
   }
   bool extractPointer = callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER;
   for (auto& arg : arguments) {
+    if (functionInfo->isMemberFunction() && arg == arguments[0]) {
+      extractPointer = false;
+      continue;
+    }
     if (extractPointer) {
       buffer->add("op_get_address(");
       if (destructorCall) {
@@ -371,11 +382,8 @@ void FunctionCall::codegen(Buffer* buffer, Sections* sections) const {
       buffer->add(")");
       extractPointer = false;
     }
-    buffer->add(", ");
-  }
-  if (!arguments.empty()) {
-    buffer->pop_back();
-    buffer->pop_back();
+    if (arg != arguments.back())
+      buffer->add(", ");
   }
   buffer->add(suffix);
   if (voidConversion)

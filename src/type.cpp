@@ -221,9 +221,12 @@ FunctionInfo* FunctionInfo::getDefined(FunctionId id, FunctionSignature type, Fu
   if (!generated.count(args)) {
     auto fun = new FunctionInfo(Private{}, id, type, definition);
     generated.insert(make_pair(args, fun));
-    for (auto& attr : definition->attributes)
+    for (auto& attr : definition->attributes) {
       if (attr.name == "@entry_point")
         fun->entryPoint = true;
+      if (attr.name == "@member")
+        fun->memberFunction = true;
+    }
   }
   return generated.at(args);
 }
@@ -302,6 +305,10 @@ bool FunctionInfo::isMainFunction() const {
 
 bool FunctionInfo::isEntryPoint() const {
   return isMainFunction() || entryPoint;
+}
+
+bool FunctionInfo::isMemberFunction() const {
+  return getParent()->memberFunction;
 }
 
 bool FunctionInfo::isConceptTypeFunction() const {

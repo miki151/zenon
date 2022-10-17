@@ -89,12 +89,8 @@ Value mutable*? get_maybe(hash_map<Key, Value> mutable* m, Key* key) {
   return null;
 }
 
-export template <Key, Value> requires hash_key<Key>
-int size(hash_map<Key, Value>* m) {
-  embed_returns {
-    return m->size();
-  }
-}
+export [@member] template <Key, Value> requires hash_key<Key>
+extern int size(hash_map<Key, Value>* m);
 
 export template <Key, Value>
 extern struct hash_map_iterator;
@@ -106,19 +102,11 @@ hash_map_iterator<Key, Value> implicit_copy(hash_map_iterator<Key, Value>* it) {
   }
 }
 
-export template <Key, Value>
-hash_map_iterator<Key, Value> begin(hash_map<Key, Value>* m) {
-  embed_returns {
-    return m->begin();
-  }
-}
+export [@member] template <Key, Value>
+extern hash_map_iterator<Key, Value> begin(hash_map<Key, Value>* m);
 
-export template <Key, Value>
-hash_map_iterator<Key, Value> end(hash_map<Key, Value>* m) {
-  embed_returns {
-    return m->end();
-  }
-}
+export [@member] template <Key, Value>
+extern hash_map_iterator<Key, Value> end(hash_map<Key, Value>* m);
 
 export template <Key, Value>
 Key* key(hash_map_iterator<Key, Value>* it) {
