@@ -24,10 +24,8 @@ box(T value) {
 }
 
 export template <T, C> requires is_concept<C>
-T* get_concept_object(C* c) {
-  embed {
-    return (T*)c.object;
-  }
+T* get_concept_object(C* c) embed {
+  return (T*)c.object;
 }
 
 export template <C, T> requires is_concept<C>
@@ -66,17 +64,13 @@ C mutable* get(box<C> mutable* v) {
 }
 
 export template <C> requires is_concept<C>
-void cpp_delete_impl(C* elem) {
-  embed {
-    elem.vTable->cpp_delete(elem.object);
-  }
+void cpp_delete_impl(C* elem) embed {
+  elem.vTable->cpp_delete(elem.object);
 }
 
 export template <T>
-void cpp_delete_impl(T* elem) {
-  embed {
-    delete elem;
-  }
+void cpp_delete_impl(T* elem) embed {
+  delete elem;
 }
 
 export template <C>

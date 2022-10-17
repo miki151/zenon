@@ -112,22 +112,18 @@ void clear(vector<T> mutable* v) {
 }
 
 export template <T>
-void reverse(vector<T> mutable* v) {
-  embed {
-    std::reverse(v->begin(), v->end());
-  }
+void reverse(vector<T> mutable* v) embed {
+  std::reverse(v->begin(), v->end());
 }
 
 export [@member] template <T>
 extern void push_back(vector<T> mutable* v, T elem);
 
 export template <T>
-T pop_back(vector<T> mutable* v) {
-  embed {
-    T t = std::move(v->back());
-    v->pop_back();
-    return std::move(t);
-  }
+T pop_back(vector<T> mutable* v) embed {
+  T t = std::move(v->back());
+  v->pop_back();
+  return std::move(t);
 }
 
 export [@member] template <T>
@@ -157,10 +153,8 @@ T mutable* front(vector<T> mutable* v) {
 }
 
 export template <T>
-int size(vector<T>* v) {
-  embed {
-    return v->size();
-  }
+int size(vector<T>* v) embed {
+  return v->size();
 }
 
 export [@member] template <T>
@@ -194,10 +188,8 @@ void sort(vector<T> mutable* v) {
 }
 
 export template <T, Fun> requires invoke<Fun, bool, T*, T*>
-void sort(vector<T> mutable* v, Fun* fun) {
-  embed {
-    std::sort(v->begin(), v->end(), [&](const T& t1, const T& t2){ return invoke(fun, &t1, &t2); } );
-  }
+void sort(vector<T> mutable* v, Fun* fun) embed {
+  std::sort(v->begin(), v->end(), [&](const T& t1, const T& t2){ return invoke(fun, &t1, &t2); } );
 }
 
 export template <T, U> requires equality2<T, U>
@@ -209,10 +201,8 @@ int? find(vector<T>* v, U* elem) {
 }
 
 export template <T>
-void remove(vector<T> mutable* v, int index) {
-  embed {
-    v->erase(v->begin() + index);
-  }
+void remove(vector<T> mutable* v, int index) embed {
+  v->erase(v->begin() + index);
 }
 
 export template <T, int Sz>
@@ -227,17 +217,13 @@ vector<T> as_vector(mutable T[Sz] array) {
 }
 
 export template <T>
-T[] slice(vector<T>* v) {
-  embed {
-    return slice_t<T>{&v->front(), &v->back() + 1};
-  }
+T[] slice(vector<T>* v) embed {
+  return slice_t<T>{&v->front(), &v->back() + 1};
 }
 
 export template <T>
-T mutable[] slice(vector<T> mutable* v) {
-  embed {
-    return mutable_slice_t<T>{&v->front(), &v->back() + 1};
-  }
+T mutable[] slice(vector<T> mutable* v) embed {
+  return mutable_slice_t<T>{&v->front(), &v->back() + 1};
 }
 
 export [@member] template<T>
@@ -262,17 +248,13 @@ vector<T> filter(vector<T>* v, Fun f) {
 }
 
 export template<T>
-void erase(vector<T> mutable* v, int index, int count) {
-  embed {
-    v->erase(v->begin() + index, v->begin() + index + count);
-  }
+void erase(vector<T> mutable* v, int index, int count) embed {
+  v->erase(v->begin() + index, v->begin() + index + count);
 }
 
 export template<T>
-void insert(vector<T> mutable* v, int index, vector<T>* content) {
-  embed {
-    v->insert(v->begin() + index, content->begin(), content->end());
-  }
+void insert(vector<T> mutable* v, int index, vector<T>* content) embed {
+  v->insert(v->begin() + index, content->begin(), content->end());
 }
 
 export template<T>

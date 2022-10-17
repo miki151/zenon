@@ -96,10 +96,8 @@ export template <Key, Value>
 extern struct hash_map_iterator;
 
 export template <Key, Value>
-hash_map_iterator<Key, Value> implicit_copy(hash_map_iterator<Key, Value>* it) {
-  embed {
-    return *it;
-  }
+hash_map_iterator<Key, Value> implicit_copy(hash_map_iterator<Key, Value>* it) embed {
+  return *it;
 }
 
 export [@member] template <Key, Value>
@@ -109,17 +107,13 @@ export [@member] template <Key, Value>
 extern hash_map_iterator<Key, Value> end(hash_map<Key, Value>* m);
 
 export template <Key, Value>
-Key* key(hash_map_iterator<Key, Value>* it) {
-  embed {
-    return &(*it)->first;
-  }
+Key* key(hash_map_iterator<Key, Value>* it) embed {
+  return &(*it)->first;
 }
 
 export template <Key, Value>
-Value* value(hash_map_iterator<Key, Value>* it) {
-  embed {
-    return &(*it)->second;
-  }
+Value* value(hash_map_iterator<Key, Value>* it) embed {
+  return &(*it)->second;
 }
 
 export template <Key, Value>

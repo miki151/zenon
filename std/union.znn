@@ -1,9 +1,7 @@
 
 export template <T> requires is_union<T>
-int get_index(T* t) {
-  embed {
-    return int(t->unionElem);
-  }
+int get_index(T* t) embed {
+  return int(t->unionElem);
 }
 
 export template <int Index, T> requires is_union<T>

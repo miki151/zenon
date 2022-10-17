@@ -581,8 +581,14 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionDefinition(Identifier
     ret.get()->isDefault = true;
     TRY(tokens.eat(Keyword::SEMICOLON));
   }
-  else if (!ret.get()->isVirtual || !tokens.eatMaybe(Keyword::SEMICOLON))
-    ret.get()->body = TRY(parseBlock(tokens));
+  else if (!ret.get()->isVirtual || !tokens.eatMaybe(Keyword::SEMICOLON)) {
+    if (tokens.peek().contains<EmbedToken>()) {
+      ret.get()->body = make_unique<StatementBlock>(tokens.peek().codeLoc, makeVec(
+          TRY(parseStatement(tokens, false))
+      ));
+    } else
+      ret.get()->body = TRY(parseBlock(tokens));
+  }
   return std::move(ret);
 }
 

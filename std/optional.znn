@@ -4,11 +4,7 @@ export import "std/concepts.znn";
 export import "std/destruct.znn";
 
 export template <T>
-bool operator ! (T?* elem) {
-  embed {
-    return !*elem;
-  }
-}
+extern bool operator ! (T?* elem);
 
 export template <T> requires copy<T>
 T? copy(T?* elem) {
@@ -138,10 +134,8 @@ void destruct(T?* t) {
 }
 
 export template <T>
-T? create_null() {
-  embed {
-    return zenon::optional<T>(null);
-  }
+T? create_null() embed {
+  return zenon::optional<T>(null);
 }
 
 

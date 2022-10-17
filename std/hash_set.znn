@@ -32,10 +32,8 @@ hash_set() {
 }
 
 export template <T>
-T* getNullPointer() {
-  embed {
-    return nullptr;
-  }
+T* getNullPointer() embed {
+  return nullptr;
 }
 
 export template <T> requires copy<T>, hash_key<T>
@@ -110,23 +108,17 @@ hash_set_iterator<T> end(hash_set<T>* v) {
 }
 
 export template <T>
-T* operator *(hash_set_iterator<T>* it) {
-  embed {
-    return &**it;
-  }
+T* operator *(hash_set_iterator<T>* it) embed {
+  return &**it;
 }
 
 export template <T>
-hash_set_iterator<T> operator ++(hash_set_iterator<T> mutable* it) {
-  embed {
-    return ++*it;
-  }
+hash_set_iterator<T> operator ++(hash_set_iterator<T> mutable* it) embed {
+  return ++*it;
 }
 
 export template <T>
-bool operator == (hash_set_iterator<T>* it1, hash_set_iterator<T>* it2) {
-  embed {
-    return *it1 == *it2;
-  }
+bool operator == (hash_set_iterator<T>* it1, hash_set_iterator<T>* it2) embed {
+  return *it1 == *it2;
 }
 

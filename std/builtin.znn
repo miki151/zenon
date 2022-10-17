@@ -15,39 +15,19 @@ T copy(T* b) {
 }
 
 export template <Enum> requires is_enum<Enum>
-bool operator == (Enum e1, Enum e2) {
-  embed {
-    return e1 == e2;
-  }
-}
+extern bool operator == (Enum e1, Enum e2);
 
 export template <T>
-bool operator == (T** t1, T** t2) {
-  embed {
-    return *t1 == *t2;
-  }
-}
+extern bool operator == (T** t1, T** t2);
 
 export template <T>
-bool operator == (T mutable** t1, T** t2) {
-  embed {
-    return *t1 == *t2;
-  }
-}
+extern bool operator == (T mutable** t1, T** t2);
 
 export template <T>
-bool operator == (T** t1, T mutable** t2) {
-  embed {
-    return *t1 == *t2;
-  }
-}
+extern bool operator == (T** t1, T mutable** t2);
 
 export template <T>
-bool operator == (T mutable** t1, T mutable** t2) {
-  embed {
-    return *t1 == *t2;
-  }
-}
+extern bool operator == (T mutable** t1, T mutable** t2);
 
 export template <Enum> requires is_enum<Enum>
 Enum implicit_copy(Enum* e) {
@@ -55,12 +35,9 @@ Enum implicit_copy(Enum* e) {
 }
 
 export template <T>
-void swap(T mutable* x, T mutable* y) {
-  embed {
-    auto z = std::move(*x);
-    *x = std::move(*y);
-    *y = std::move(z);
-  }
+void swap(T mutable* x, T mutable* y) embed {
+  auto z = std::move(*x);
+  *x = std::move(*y);
+  *y = std::move(z);
 }
-
 

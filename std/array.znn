@@ -5,17 +5,13 @@ export import "std/destruct.znn";
 export import "std/slice.znn";
 
 export template <T, int Size>
-T* operator [] (T[Size]* a, int index) {
-  embed {
-    return &a->at(index);
-  }
+T* operator [] (T[Size]* a, int index) embed {
+  return &a->at(index);
 }
 
 export template <T, int Size>
-T mutable* operator [] (T[Size] mutable* a, int index) {
-  embed {
-    return &a->at(index);
-  }
+T mutable* operator [] (T[Size] mutable* a, int index) embed {
+  return &a->at(index);
 }
 
 
@@ -53,13 +49,11 @@ T[Size] array_repeat(T elem) {
 }
 
 export template <int Size, T, Fun> requires invoke<Fun, T, int>, (Size >= 0)
-T[Size] array_generate(Fun fun) {
-  embed {
-    std::array<T, Size> a;
-    for (int i = 0; i < Size; ++i)
-      a[i] = invoke(&fun, i);
-    return a;
-  }
+T[Size] array_generate(Fun fun) embed {
+  std::array<T, Size> a;
+  for (int i = 0; i < Size; ++i)
+    a[i] = invoke(&fun, i);
+  return a;
 }
 
 export template <int Size, T, Ret, Fun> requires invoke<Fun, Ret, T*>
@@ -79,18 +73,13 @@ struct array_iterator {
 };
 
 export template <int Size, T>
-array_iterator<T> begin(T[Size]* array) {
-  embed {
-    return {&(*array)[0], 0};
-  }
+array_iterator<T> begin(T[Size]* array) embed {
+  return {&(*array)[0], 0};
 }
 
 export template <int Size, T>
-array_iterator<T> end(T[Size]* array) {
-  const size = array^.size();
-  embed {
-    return {&(*array)[array->size()], size};
-  }
+array_iterator<T> end(T[Size]* array) embed {
+  return {&(*array)[array->size()], array->size()};
 }
 
 export template <T>
@@ -99,17 +88,13 @@ T* operator *(array_iterator<T>* it) {
 }
 
 export template <T>
-array_iterator<T> operator ++(array_iterator<T> mutable* it) {
-  embed {
-    return {++it->elem, ++it->index};
-  }
+array_iterator<T> operator ++(array_iterator<T> mutable* it) embed {
+  return {++it->elem, ++it->index};
 }
 
 export template <T>
-bool operator == (array_iterator<T>* it1, array_iterator<T>* it2) {
-  embed {
-    return it1->elem == it2->elem;
-  }
+bool operator == (array_iterator<T>* it1, array_iterator<T>* it2) embed {
+  return it1->elem == it2->elem;
 }
 
 export template <T>
@@ -119,18 +104,13 @@ struct array_mut_iterator {
 };
 
 export template <int Size, T>
-array_mut_iterator<T> begin(T[Size] mutable* array) {
-  embed {
-    return {&(*array)[0], 0};
-  }
+array_mut_iterator<T> begin(T[Size] mutable* array) embed {
+  return {&(*array)[0], 0};
 }
 
 export template <int Size, T>
-array_mut_iterator<T> end(T[Size] mutable* array) {
-  const size = array^.size();
-  embed {
-    return {&(*array)[array->size()], size};
-  }
+array_mut_iterator<T> end(T[Size] mutable* array) embed {
+  return {&(*array)[array->size()], array->size()};
 }
 
 export template <T>
@@ -139,17 +119,13 @@ T mutable* operator *(array_mut_iterator<T>* it) {
 }
 
 export template <T>
-array_mut_iterator<T> operator ++(array_mut_iterator<T> mutable* it) {
-  embed {
-    return {++it->elem, ++it->index};
-  }
+array_mut_iterator<T> operator ++(array_mut_iterator<T> mutable* it) embed {
+  return {++it->elem, ++it->index};
 }
 
 export template <T>
-bool operator == (array_mut_iterator<T>* it1, array_mut_iterator<T>* it2) {
-  embed {
-    return it1->elem == it2->elem;
-  }
+bool operator == (array_mut_iterator<T>* it1, array_mut_iterator<T>* it2) embed {
+  return it1->elem == it2->elem;
 }
 
 export template <int Size, T> requires equality<T>

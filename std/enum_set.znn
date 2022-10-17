@@ -23,40 +23,28 @@ enum_set() {
 }
 
 export template <Key> requires is_enum<Key>
-bool contains(enum_set<Key>* set, Key key) {
-  const index = key.asInt();
-  embed {
-    return set->values.test(index);
-  }
+bool contains(enum_set<Key>* set, Key key) embed {
+  return set->values.test((int)key);
 }
 
 export template <Key> requires is_enum<Key>
-bool is_subset_of(enum_set<Key>* set, enum_set<Key>* superset) {
-  embed {
-    return (set->values | superset->values) == superset->values;
-  }
+bool is_subset_of(enum_set<Key>* set, enum_set<Key>* superset) embed {
+  return (set->values | superset->values) == superset->values;
 }
 
 export template <Key> requires is_enum<Key>
-int size(enum_set<Key>* set) {
-  embed {
-    return set->values.count();
-  }
+int size(enum_set<Key>* set) embed {
+  return set->values.count();
 }
 
 export template <Key> requires is_enum<Key>
-bool empty(enum_set<Key>* set) {
-  embed {
-    return set->values.none();
-  }
+bool empty(enum_set<Key>* set) embed {
+  return set->values.none();
 }
 
 export template <Key> requires is_enum<Key>
-void set(enum_set<Key> mutable* set, Key key, bool value) {
-  const index = key.asInt();
-  embed {
-    set->values.set(index, value);
-  }
+void set(enum_set<Key> mutable* set, Key key, bool value) embed {
+  set->values.set((int)key, value);
 }
 
 export template <Key> requires is_enum<Key>
@@ -65,9 +53,7 @@ void set(enum_set<Key> mutable* set, Key key) {
 }
 
 export template <Key> requires is_enum<Key>
-void clear(enum_set<Key> mutable* set) {
-  embed {
-    set->values.reset();
-  }
+void clear(enum_set<Key> mutable* set) embed {
+  set->values.reset();
 }
 

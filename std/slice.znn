@@ -33,10 +33,8 @@ export template <T>
 void discard_impl(T) {}
 
 export template <T>
-int size(T[]* s) {
-  embed {
-    return s->end - s->begin;
-  }
+int size(T[]* s) embed {
+  return s->end - s->begin;
 }
 
 export template <T>
@@ -45,10 +43,8 @@ bool empty(T[]* s) {
 }
 
 export template <T>
-T[] implicit_copy(T[]* s) {
-  embed {
-    return *s;
-  }
+T[] implicit_copy(T[]* s) embed {
+  return *s;
 }
 
 export template <T>
@@ -79,10 +75,8 @@ export template <T>
 slice_iterator<T> implicit_copy(slice_iterator<T>*) = default;
 
 export template <T>
-slice_iterator<T> begin(T[]* v) {
-  embed {
-    return {v->begin, 0};
-  }
+slice_iterator<T> begin(T[]* v) embed {
+  return {v->begin, 0};
 }
 
 export template <T>
@@ -108,10 +102,8 @@ slice_iterator<T> operator ++(slice_iterator<T> mutable* it) {
 }
 
 export template <T>
-bool operator == (slice_iterator<T>* it1, slice_iterator<T>* it2) {
-  embed {
-    return it1->elem == it2->elem;
-  }
+bool operator == (slice_iterator<T>* it1, slice_iterator<T>* it2) embed {
+  return it1->elem == it2->elem;
 }
 
 export template <T>
@@ -144,26 +136,20 @@ bool operator == (T[] v1, T[] v2) {
 }
 
 export template <T, int N>
-T[] slice(T[N]* array) {
-  embed {
-    if (array->empty())
-      return slice_t<T>{nullptr, nullptr};
-    return slice_t<T>{&array->front(), &array->back() + 1};
-  }
+T[] slice(T[N]* array) embed {
+  if (array->empty())
+    return slice_t<T>{nullptr, nullptr};
+  return slice_t<T>{&array->front(), &array->back() + 1};
 }
 
 export template <T>
-T[] singleton_slice(T* elem) {
-  embed {
-    return slice_t<T>{elem, elem + 1};
-  }
+T[] singleton_slice(T* elem) embed {
+  return slice_t<T>{elem, elem + 1};
 }
 
 export template <T>
-int size(T mutable[]* s) {
-  embed {
-    return s->end - s->begin;
-  }
+int size(T mutable[]* s) embed {
+  return s->end - s->begin;
 }
 
 export template <T>
@@ -172,10 +158,8 @@ bool empty(T mutable[]* s) {
 }
 
 export template <T>
-T mutable[] implicit_copy(T mutable[]* s) {
-  embed {
-    return *s;
-  }
+T mutable[] implicit_copy(T mutable[]* s) embed {
+  return *s;
 }
 
 export template <T>
@@ -206,10 +190,8 @@ export template <T>
 mutable_slice_iterator<T> implicit_copy(mutable_slice_iterator<T>*) = default;
 
 export template <T>
-mutable_slice_iterator<T> begin(T mutable[]* v) {
-  embed {
-    return {v->begin, 0};
-  }
+mutable_slice_iterator<T> begin(T mutable[]* v) embed {
+  return {v->begin, 0};
 }
 
 export template <T>
@@ -235,10 +217,8 @@ mutable_slice_iterator<T> operator ++(mutable_slice_iterator<T> mutable* it) {
 }
 
 export template <T>
-bool operator == (mutable_slice_iterator<T>* it1, mutable_slice_iterator<T>* it2) {
-  embed {
-    return it1->elem == it2->elem;
-  }
+bool operator == (mutable_slice_iterator<T>* it1, mutable_slice_iterator<T>* it2) embed {
+  return it1->elem == it2->elem;
 }
 
 export template <T>
@@ -260,18 +240,14 @@ bool operator == (T mutable[] v1, T mutable[] v2) {
 }
 
 export template <T, int N>
-T mutable[] slice(T[N] mutable* array) {
-  embed {
-    if (array->empty())
-      return mutable_slice_t<T>{nullptr, nullptr};
-    return mutable_slice_t<T>{&array->front(), &array->back() + 1};
-  }
+T mutable[] slice(T[N] mutable* array) embed {
+  if (array->empty())
+    return mutable_slice_t<T>{nullptr, nullptr};
+  return mutable_slice_t<T>{&array->front(), &array->back() + 1};
 }
 
 export template <T>
-T mutable[] singleton_slice(T mutable* elem) {
-  embed {
-    return mutable_slice_t<T>{elem, elem + 1};
-  }
+T mutable[] singleton_slice(T mutable* elem) embed {
+  return mutable_slice_t<T>{elem, elem + 1};
 }
 

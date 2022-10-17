@@ -13,10 +13,8 @@ export void set_panic_handler(invoke<void, string>* handler) {
   *get_panic_handler() = handler;
 }
 
-bool is_null_invoke(invoke<void, string>* ptr) {
-  embed {
-    return !ptr.object;
-  }
+bool is_null_invoke(invoke<void, string>* ptr) embed {
+  return !ptr.object;
 }
 
 export noreturn panic() {

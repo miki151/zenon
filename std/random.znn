@@ -8,10 +8,8 @@ import "std/range.znn";
 import "std/math.znn";
 import "std/panic.znn";
 
-export void init_random() {
-  embed {
-    srand(time(0));
-  }
+export void init_random() embed {
+  srand(time(0));
 }
 
 export int get_random(int max) {
