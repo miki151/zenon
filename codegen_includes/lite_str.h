@@ -50,7 +50,7 @@ namespace detail {
 template <typename char_type, typename char_traits, typename allocator_t = detail::lite_str_allocator<char_type>>
 class basic_lite_str {
   const char_type *ptr;
-  typedef uint32_t length_t;
+  typedef int32_t length_t;
   length_t length;
   enum Type {
     OWNED,
