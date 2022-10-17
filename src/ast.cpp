@@ -1324,8 +1324,7 @@ void FunctionDefinition::addParamsToContext(Context& context, const FunctionInfo
 }
 
 static void considerAddingVoidReturn(const Context& context, StatementBlock* block, Type* retVal) {
-  if (context.canConvert(BuiltinType::VOID, retVal)
-      && (block->elems.empty() || !block->elems.back()->hasReturnStatement())) {
+  if (context.canConvert(BuiltinType::VOID, retVal)) {
     block->elems.push_back(make_unique<ReturnStatement>(block->codeLoc));
     auto c = context.getChild();
     CHECK(!!block->elems.back()->check(c));
