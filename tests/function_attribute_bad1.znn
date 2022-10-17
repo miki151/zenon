@@ -1,0 +1,10 @@
+// no_compile
+
+
+[@bogus]
+void f() {
+}
+
+int main() {
+  return 0;
+}

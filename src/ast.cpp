@@ -812,10 +812,25 @@ unique_ptr<Statement> FunctionDefinition::transformImpl(const StmtTransformFun& 
   return ret;
 }
 
+static WithErrorLine<set<AttributeType*>> getAttributeTypes(const Context& context,
+    const vector<AttributeInfo>& attributes) {
+  set<AttributeType*> ret;
+  for (auto& attr : attributes)
+    if (auto t = context.getType(attr.name)) {
+      if (auto attrType = dynamic_cast<AttributeType*>(t))
+        ret.insert(attrType);
+      else
+        return attr.codeLoc.getError(quote(attr.name) + " is not an attribute");
+    } else
+      return attr.codeLoc.getError("Attribute not found: " + quote(attr.name));
+  return ret;
+}
+
 JustError<ErrorLoc> FunctionDefinition::setFunctionSignature(const Context& context, Concept* concept,
     bool builtInImport) {
   if (functionInfo)
     return success;
+  TRY(getAttributeTypes(context, attributes));
   for (auto& attr : attributes)
     if (attr.name == "@entry_point" && !templateInfo.params.empty())
       return codeLoc.getError("Function can't be a template function and an entry point at the same time.");
@@ -1507,6 +1522,13 @@ static void addBuiltInConcepts(Context& context) {
 Context createPrimaryContext(TypeRegistry* typeRegistry, LanguageIndex* languageIndex) {
   Context context(typeRegistry, languageIndex, true);
   context.addVariable("void_value", BuiltinType::VOID, CodeLoc(), true);
+  auto addAttribute = [&context] (const char* name) {
+    auto t = AttributeType::get(name);
+    context.addType(name, t);
+    context.setTypeFullyDefined(t);
+  };
+  addAttribute("@member");
+  addAttribute("@entry_point");
   for (auto type : {BuiltinType::INT, BuiltinType::LONG, BuiltinType::SHORT, BuiltinType::BYTE, BuiltinType::DOUBLE,
        BuiltinType::BOOL, BuiltinType::VOID, BuiltinType::CHAR, BuiltinType::STRING, BuiltinType::NULL_TYPE}) {
     context.addType(type->getName(), type);
@@ -2024,20 +2046,6 @@ JustError<ErrorLoc> UnionDefinition::registerTypes(const Context& primaryContext
 
 unique_ptr<Statement> UnionDefinition::transformImpl(const StmtTransformFun&, const ExprTransformFun&) const {
   return make_unique<UnionDefinition>(*this);
-}
-
-static WithErrorLine<set<AttributeType*>> getAttributeTypes(const Context& context,
-    const vector<AttributeInfo>& attributes) {
-  set<AttributeType*> ret;
-  for (auto& attr : attributes)
-    if (auto t = context.getType(attr.name)) {
-      if (auto attrType = dynamic_cast<AttributeType*>(t))
-        ret.insert(attrType);
-      else
-        return attr.codeLoc.getError(quote(attr.name) + " is not an attribute");
-    } else
-      return attr.codeLoc.getError("Attribute not found: " + quote(attr.name));
-  return ret;
 }
 
 JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
