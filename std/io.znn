@@ -16,19 +16,31 @@ embed {
 export string to_string(int* i) embed {
   char buf[12];
   snprintf(buf, 12, "%d", *i);
-  return lite_str<>::owned(buf);
+  return lite_str::owned(buf);
+}
+
+export string to_string(short* i) embed {
+  char buf[12];
+  snprintf(buf, 12, "%d", (int)*i);
+  return lite_str::owned(buf);
+}
+
+export string to_string(byte* i) embed {
+  char buf[12];
+  snprintf(buf, 12, "%d", (int)*i);
+  return lite_str::owned(buf);
 }
 
 export string to_string(long* i) embed {
   char buf[20];
   snprintf(buf, 20, "%lld", *i);
-  return lite_str<>::owned(buf);
+  return lite_str::owned(buf);
 }
 
 export string to_string(double* i) embed {
   char buf[20];
   snprintf(buf, 20, "%f", *i);
-  return lite_str<>::owned(buf);
+  return lite_str::owned(buf);
 }
 
 export string to_string(string* s) {
@@ -36,10 +48,7 @@ export string to_string(string* s) {
 }
 
 export string to_string(char* s) embed {
-  char buf[2];
-  buf[0] = *s;
-  buf[1] = '\0';
-  return lite_str<>::owned(buf);
+  return lite_str() + *s;
 }
 
 export string to_string(bool* b) {
@@ -140,10 +149,6 @@ export double? scan_double(file_input* f) {
   return scan_impl<double>(f, "%lf");
 }
 
-export char? scan_char(file_input* f) {
-  return scan_impl<char>(f, "%c");
-}
-
 export string? scan_string(file_input* f, int max_length) {
   const format = "%{max_length}s";
   embed {
@@ -186,7 +191,7 @@ export string!string read_content(file_input* f) {
 export string? remove_file(string path) {
   embed {
     if (remove(path.data()))
-      return lite_str<>::reference(strerror(errno));
+      return lite_str::reference(strerror(errno));
   }
   return null;
 }

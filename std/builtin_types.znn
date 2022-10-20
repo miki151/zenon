@@ -1,6 +1,9 @@
 
 export int get_hash(int* a) { return *a; }
 
+export int get_hash(short* a) embed { return *a; }
+export int get_hash(byte* a) embed { return *a; }
+
 export int get_hash(char* a) embed { 
   return static_cast<int>(*a);
 }

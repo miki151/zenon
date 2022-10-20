@@ -12,7 +12,7 @@ namespace zenon {
   template <typename T>
   using optional = tl::optional<T>;
 }
-using zenon_string = lite_str<>;
+using zenon_string = lite_str;
 constexpr auto null = tl::nullopt;
 using null_type = tl::nullopt_t;
 using std::int64_t;

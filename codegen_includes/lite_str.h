@@ -28,27 +28,15 @@ SOFTWARE.
 #include <utility>
 #include <cstdint>
 #include <cctype>
+#include <cuchar>
+#include <clocale>
+#include <stdexcept>
 
-namespace detail {
-  template<typename char_type>
-  struct lite_str_allocator {
-    static char_type* allocate(size_t size) {
-      return new char_type[size];
-    }
-    static void deallocate(const char_type* ptr) {
-      delete [] ptr;
-    }
-  };
+class lite_str {
+  public:
+  using char_type = char;
 
-  struct char_char_traits {
-    static size_t get_length(const char* s) {
-      return strlen(s);
-    }
-  };
-}
-
-template <typename char_type, typename char_traits, typename allocator_t = detail::lite_str_allocator<char_type>>
-class basic_lite_str {
+  private:
   const char_type *ptr;
   typedef int32_t length_t;
   length_t length;
@@ -67,49 +55,49 @@ class basic_lite_str {
 
   void destruct() {
     if (type == OWNED && --get_ref_counter() == 0) {
-      allocator_t::deallocate(ptr);
+      delete[] ptr;
     }
   }
 
   public:
 
-  basic_lite_str() : ptr(""), length(0), type(REFERENCE) {}
+  lite_str() : ptr(""), length(0), type(REFERENCE) {}
 
-  static basic_lite_str reference(const char_type* s = "") {
-    basic_lite_str ret;
+  static lite_str reference(const char_type* s = "") {
+    lite_str ret;
     ret.ptr = s;
-    ret.length = char_traits::get_length(s);
+    ret.length = strlen(s);
     return ret;
   }
 
-  static basic_lite_str owned(const char_type* s) {
-    basic_lite_str ret;
-    auto buf = ret.create_buffer(char_traits::get_length(s));
+  static lite_str owned(const char_type* s) {
+    lite_str ret;
+    auto buf = ret.create_buffer(strlen(s));
     strcpy(buf, s);
     return ret;
   }
 
-  basic_lite_str(const basic_lite_str& other) {
+  lite_str(const lite_str& other) {
     copy_from(other);
   }
 
-  basic_lite_str(basic_lite_str&& other) {
+  lite_str(lite_str&& other) {
     move_from(std::move(other));
   }
 
-  basic_lite_str& operator = (const basic_lite_str& other) {
+  lite_str& operator = (const lite_str& other) {
     destruct();
     copy_from(other);
     return *this;
   }
 
-  basic_lite_str& operator = (basic_lite_str&& other) {
+  lite_str& operator = (lite_str&& other) {
     destruct();
     move_from(std::move(other));
     return *this;
   }
 
-  void move_from(basic_lite_str&& other) {
+  void move_from(lite_str&& other) {
     ptr = other.ptr;
     type = other.type;
     length = other.length;
@@ -117,7 +105,7 @@ class basic_lite_str {
     other.type = REFERENCE;
   }
 
-  void copy_from(const basic_lite_str& other) {
+  void copy_from(const lite_str& other) {
     ptr = other.ptr;
     type = other.type;
     length = other.length;
@@ -131,7 +119,7 @@ class basic_lite_str {
     length = l;
     auto alloc_info_size = (sizeof(ref_counter_t) - 1) / sizeof(char_type) + 1;
     // Allocate enough for the string, the '\0' and the ref count at the end.
-    auto buf = allocator_t::allocate(length + 1 + alloc_info_size);
+    auto buf = new char_type[length + 1 + alloc_info_size];
     buf[length] = '\0';
     ptr = buf;
     get_ref_counter() = 1;
@@ -139,16 +127,68 @@ class basic_lite_str {
     return buf;
   }
 
-  ~basic_lite_str() {
+  ~lite_str() {
     destruct();
   }
 
-  char_type operator [](int ind) const {
-    return ptr[ind];
+
+  char32_t char_at_index(int index) const {
+    if (index >= length)
+      throw std::runtime_error("lite_str index out of bounds");
+    std::setlocale(LC_ALL, "en_US.utf8");
+    char32_t c32{};
+    std::mbstate_t mbstate {};
+    std::mbrtoc32(&c32, ptr + index, length - index, &mbstate);
+    return c32;
+  }
+
+  char32_t operator [](int index) const {
+    std::setlocale(LC_ALL, "en_US.utf8");
+    char32_t c32{};
+    std::mbstate_t mbstate {};
+    int curInd = 0;
+    for (int i = 0; i <= index; ++i) {
+      if (curInd == length)
+        throw std::runtime_error("lite_str index out of bounds");
+      auto rc = std::mbrtoc32(&c32, ptr + curInd, length - curInd, &mbstate);
+      if (rc == (std::size_t)-1 || rc == (std::size_t)-2)
+        throw std::runtime_error("lite_str encoding error");
+      curInd += rc;
+    }
+    return c32;
+  }
+
+  length_t buffer_size() const {
+    return length;
+  }
+
+  int next_char(int index) const {
+    unsigned char c = ptr[index];
+    auto jump = [&] {
+      if (c <= 127)
+        return 1;
+      if ((c & 0xE0) == 0xC0)
+        return 2;
+      else if ((c & 0xF0) == 0xE0)
+        return 3;
+      else if ((c & 0xF8) == 0xF0)
+        return 4;
+      else
+        throw std::runtime_error("lite_str encoding error");
+    }();
+    if (index + jump > length)
+      throw std::runtime_error("lite_str encoding error");
+    return index + jump;
   }
 
   length_t size() const {
-    return length;
+    int res = 0;
+    int index = 0;
+    while (ptr[index] != '\0') {
+      index = next_char(index);
+      ++res;
+    }
+    return res;
   }
 
   bool empty() const {
@@ -159,26 +199,103 @@ class basic_lite_str {
     return ptr;
   }
 
-  basic_lite_str substring(int index, int length) const {
-    basic_lite_str<char_type, char_traits, allocator_t> ret;
-    auto buf = ret.create_buffer(length);
-    memcpy(buf, ptr + index, length * sizeof(char_type));
+  lite_str substring(int index, int count) const {
+    int buf_index = 0;
+    for (int i = 0; i < index && buf_index < length; ++i) {
+      buf_index = next_char(buf_index);
+    }
+    int buf_end = buf_index;
+    for (int i = 0; i < count && buf_end < length; ++i) {
+      buf_end = next_char(buf_end);
+    }
+    lite_str ret;
+    auto buf = ret.create_buffer(buf_end - buf_index);
+    memcpy(buf, ptr + buf_index, (buf_end - buf_index) * sizeof(char_type));
     return ret;
   }
 };
 
-template <typename allocator = detail::lite_str_allocator<char>>
-using lite_str = basic_lite_str<char, detail::char_char_traits, allocator>;
+inline lite_str concatenate(const lite_str::char_type* s1, const lite_str::char_type* s2) {
+  int l1 = strlen(s1);
+  int l2 = strlen(s2);
+  lite_str ret;
+  auto buf = ret.create_buffer(l1 + l2);
+  memcpy(buf, s1, l1 * sizeof(lite_str::char_type));
+  memcpy(buf + l1 * sizeof(lite_str::char_type), s2, (l2 + 1) * sizeof(lite_str::char_type));
+  return ret;
+}
 
-template <typename stream, typename char_type, typename char_traits, typename alloc>
-stream& operator << (stream& os, const basic_lite_str<char_type, char_traits, alloc>& s) {
+inline lite_str operator + (const lite_str& s1, const lite_str& s2) {
+  return concatenate(s1.data(), s2.data());
+}
+
+inline lite_str operator + (const lite_str& s1, const lite_str::char_type* s2) {
+  return concatenate(s1.data(), s2);
+}
+
+inline lite_str operator + (const lite_str::char_type* s1, const lite_str& s2) {
+  return concatenate(s1, s2.data());
+}
+
+inline lite_str operator + (const lite_str& s1, char32_t s2) {
+  std::setlocale(LC_ALL, "en_US.utf8");
+  char buf[5] = {0};
+  std::mbstate_t state{};
+  std::c32rtomb(buf, s2, &state);
+  return s1 + buf;
+}
+
+inline lite_str& operator += (lite_str& s1, const lite_str::char_type* s2) {
+  s1 = concatenate(s1.data(), s2);
+  return s1;
+}
+
+inline lite_str& operator += (lite_str& s1, const lite_str& s2) {
+  s1 = concatenate(s1.data(), s2.data());
+  return s1;
+}
+
+inline bool operator == (const lite_str& s1, const lite_str& s2) {
+  return s1.data() == s2.data() || (s1.buffer_size() == s2.buffer_size() && memcmp(s1.data(), s2.data(), s1.buffer_size()) == 0);
+}
+
+inline bool operator == (const lite_str& s1, const lite_str::char_type* s2) {
+  return s1.data() == s2 || (s1.buffer_size() == strlen(s2) && memcmp(s1.data(), s2, s1.buffer_size()) == 0);
+}
+
+inline bool operator == (const lite_str::char_type* s1, const lite_str& s2) {
+  return s1 == s2.data() || (s2.buffer_size() == strlen(s1) && memcmp(s2.data(), s1, s2.buffer_size()) == 0);
+}
+
+inline bool operator != (const lite_str& s1, const lite_str& s2) {
+  return !(s1 == s2);
+}
+
+inline bool operator != (const lite_str& s1, const lite_str::char_type* s2) {
+  return !(s1 == s2);
+}
+
+inline bool operator != (const lite_str::char_type* s1, const lite_str& s2) {
+  return !(s1 == s2);
+}
+
+inline bool operator < (const lite_str& s1, const lite_str& s2) {
+  return s1.data() != s2.data() && (strcmp(s1.data(), s2.data()) < 0);
+}
+
+inline lite_str operator "" _lstr(const char* str, size_t) {
+  return lite_str::reference(str);
+}
+
+template <typename stream>
+stream& operator << (stream& os, const lite_str& s) {
   os << s.data();
   return os;
 }
 
-template <typename stream, typename char_type, typename char_traits, typename alloc>
-stream& operator >> (stream& os, basic_lite_str<char_type, char_traits, alloc>& s) {
-  s = basic_lite_str<char_type, char_traits, alloc>();
+template <typename stream>
+stream& operator >> (stream& os, lite_str& s) {
+  s = lite_str();
   while (1) {
     char buf[2] = {0};
     os.get(buf[0]);
@@ -190,87 +307,3 @@ stream& operator >> (stream& os, basic_lite_str<char_type, char_traits, alloc>& 
   return os;
 }
 
-template <typename char_type, typename char_traits, typename alloc>
-static basic_lite_str<char_type, char_traits, alloc> concatenate(const char_type* s1, const char_type* s2) {
-  int l1 = char_traits::get_length(s1);
-  int l2 = char_traits::get_length(s2);
-  basic_lite_str<char_type, char_traits, alloc> ret;
-  auto buf = ret.create_buffer(l1 + l2);
-  memcpy(buf, s1, l1 * sizeof(char_type));
-  memcpy(buf + l1 * sizeof(char_type), s2, (l2 + 1) * sizeof(char_type));
-  return ret;
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-basic_lite_str<char_type, char_traits, alloc> operator + (const basic_lite_str<char_type, char_traits, alloc>& s1, const basic_lite_str<char_type, char_traits, alloc>& s2) {
-  return concatenate<char_type, char_traits, alloc>(s1.data(), s2.data());
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-basic_lite_str<char_type, char_traits, alloc> operator + (const basic_lite_str<char_type, char_traits, alloc>& s1, const char_type* s2) {
-  return concatenate<char_type, char_traits, alloc>(s1.data(), s2);
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-basic_lite_str<char_type, char_traits, alloc> operator + (const char_type* s1, const basic_lite_str<char_type, char_traits, alloc>& s2) {
-  return concatenate<char_type, char_traits, alloc>(s1, s2.data());
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-basic_lite_str<char_type, char_traits, alloc> operator + (const basic_lite_str<char_type, char_traits, alloc>& s1, char_type s2) {
-  char buf[2];
-  buf[0] = s2;
-  buf[1] = 0;
-  return s1 + buf;
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-basic_lite_str<char_type, char_traits, alloc>& operator += (basic_lite_str<char_type, char_traits, alloc>& s1, const char_type* s2) {
-  s1 = concatenate<char_type, char_traits, alloc>(s1.data(), s2);
-  return s1;
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-basic_lite_str<char_type, char_traits, alloc>& operator += (basic_lite_str<char_type, char_traits, alloc>& s1, const basic_lite_str<char_type, char_traits, alloc>& s2) {
-  s1 = concatenate<char_type, char_traits, alloc>(s1.data(), s2.data());
-  return s1;
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-bool operator == (const basic_lite_str<char_type, char_traits, alloc>& s1, const basic_lite_str<char_type, char_traits, alloc>& s2) {
-  return s1.data() == s2.data() || (s1.size() == s2.size() && memcmp(s1.data(), s2.data(), s1.size()) == 0);
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-bool operator == (const basic_lite_str<char_type, char_traits, alloc>& s1, const char_type* s2) {
-  return s1.data() == s2 || (s1.size() == char_traits::get_length(s2) && memcmp(s1.data(), s2, s1.size()) == 0);
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-bool operator == (const char_type* s1, const basic_lite_str<char_type, char_traits, alloc>& s2) {
-  return s1 == s2.data() || (s2.size() == char_traits::get_length(s1) && memcmp(s2.data(), s1, s2.size()) == 0);
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-bool operator != (const basic_lite_str<char_type, char_traits, alloc>& s1, const basic_lite_str<char_type, char_traits, alloc>& s2) {
-  return !(s1 == s2);
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-bool operator != (const basic_lite_str<char_type, char_traits, alloc>& s1, const char_type* s2) {
-  return !(s1 == s2);
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-bool operator != (const char_type* s1, const basic_lite_str<char_type, char_traits, alloc>& s2) {
-  return !(s1 == s2);
-}
-
-template <typename char_type, typename char_traits, typename alloc>
-bool operator < (const basic_lite_str<char_type, char_traits, alloc>& s1, const basic_lite_str<char_type, char_traits, alloc>& s2) {
-  return s1.data() != s2.data() && (strcmp(s1.data(), s2.data()) < 0);
-}
-
-inline lite_str<> operator "" _lstr(const char* str, size_t) {
-  return lite_str<>::reference(str);
-}

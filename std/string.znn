@@ -91,8 +91,8 @@ export string? replace(string* s, string* pattern, string* by) {
 export [@member]
 extern char operator [](string*, int index);
 
-export char[] slice(string* s) embed {
-  return slice_t<char>{&s->data()[0], &s->data()[s->size()]};
+export byte[] slice(string* s) embed {
+  return slice_t<int8_t>{(int8_t*)&s->data()[0], (int8_t*)&s->data()[s->buffer_size()]};
 }
 
 export int get_hash(string* s) {
@@ -130,30 +130,36 @@ export double? to_double(string* s) {
 }
 
 export struct string_iterator {
-  string* v;
+  string v;
+  int char_index;
   int index;
 };
 
 export string_iterator implicit_copy(string_iterator*) = default;
 
 export string_iterator begin(string* s) {
-  return string_iterator(s, 0);
+  return string_iterator(*s, 0, 0);
 }
 
-export string_iterator end(string* s) {
-  return string_iterator(s, s^.size());
+export string_iterator end(string* s) embed {
+  return string_iterator{*s, s->buffer_size(), 0};
 }
 
-export char operator *(string_iterator* it) {
-  return (*it^.v)[it^.index];
+export char operator *(string_iterator* it) embed {
+  return it->v.char_at_index(it->char_index);
 }
 
-export string_iterator operator ++(string_iterator mutable* it) {
-  ++it^.index;
+export string_iterator operator ++(string_iterator mutable* it) embed {
+  it->char_index = it->v.next_char(it->char_index);
+  ++it->index;
   return *it;
 }
 
 export bool operator == (string_iterator* it1, string_iterator* it2) {
-  return it1^.index == it2^.index;
+  return it1^.char_index == it2^.char_index;
+}
+
+export string substring(string_iterator* begin, string_iterator end) {
+  return begin^.v.substring(begin^.index, end.index - begin^.index);
 }
 
