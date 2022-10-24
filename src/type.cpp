@@ -1381,14 +1381,16 @@ WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context1, Functi
   if (!!constructorParams && type.params.size() > argTypes.size() && (argTypes.empty() || !argNames.empty()) &&
       !constructorParams->names.empty())
     for (int index = 0; index < constructorParams->names.size(); ++index)
-      if ((index >= argNames.size() || argNames[index] != constructorParams->names[index]) &&
-          !!constructorParams->defaultArgs[index]) {
-        auto argContext = constructorParams->defaultArgsContext.getChild();
-        for (int i = 0; i < min(templateArgs.size(), type.templateParams.size()); ++i)
-          argContext.addType(type.templateParams[i]->getName(), templateArgs[i]);
-        argTypes.insert(index, TRY(constructorParams->defaultArgs[index]->deepCopy()->getTypeImpl(argContext)));
-        argLoc.insert(index, constructorParams->defaultArgs[index]->codeLoc);
-        argNames.insert(index, constructorParams->names[index]);
+      if ((index >= argNames.size() || argNames[index] != constructorParams->names[index])) {
+        if (!!constructorParams->defaultArgs[index]) {
+          auto argContext = constructorParams->defaultArgsContext.getChild();
+          for (int i = 0; i < min(templateArgs.size(), type.templateParams.size()); ++i)
+            argContext.addType(type.templateParams[i]->getName(), templateArgs[i]);
+          argTypes.insert(index, TRY(constructorParams->defaultArgs[index]->deepCopy()->getTypeImpl(argContext)));
+          argLoc.insert(index, constructorParams->defaultArgs[index]->codeLoc);
+          argNames.insert(index, constructorParams->names[index]);
+        } else
+          break;
       }
   if (type.params.size() != argTypes.size())
     return codeLoc.getError("Wrong number of function arguments. Expected " +

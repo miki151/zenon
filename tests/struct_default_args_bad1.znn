@@ -1,0 +1,10 @@
+// no_compile
+
+struct X {
+  int a;
+  int b = 1;
+};
+
+void main() {
+  const x = X();
+}
