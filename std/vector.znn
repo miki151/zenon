@@ -133,6 +133,14 @@ export [@member] template <T>
 extern T mutable* operator [](vector<T> mutable* v, int index);
 
 export template <T>
+T operator [](mutable vector<T> v, int index) {
+  while (v.size() > index + 1)
+    discard v.pop_back();
+  const ret = v.pop_back();
+  return move(ret);
+}
+
+export template <T>
 T* back(vector<T>* v) {
   return &(*v)[v^.size() - 1];
 }
