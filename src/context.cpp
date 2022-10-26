@@ -780,21 +780,30 @@ WithErrorLine<Type*> Context::getTypeFromString(IdentifierInfo id, optional<bool
   return ret;
 }
 
-JustError<string> Context::checkNameConflict(const string& name, const string& type) const {
-  TRY(checkNameConflictExcludingFunctions(name, type));
+JustError<ErrorLoc> Context::checkNameConflictIncludingConcepts(const string& name, const CodeLoc& codeLoc,
+    const string& type) const {
+  auto desc = type + " " + quote(name);
+  if (typeRegistry->getConcept(name))
+    return codeLoc.getError(desc + " conflicts with existing concept");
+  return checkNameConflict(name, codeLoc, type);
+}
+
+JustError<ErrorLoc> Context::checkNameConflict(const string& name, const CodeLoc& codeLoc, const string& type) const {
+  TRY(checkNameConflictExcludingFunctions(name, codeLoc, type));
   auto desc = type + " " + quote(name);
   if (!getFunctions(name, true).empty())
-    return desc + " conflicts with existing function";
+    return codeLoc.getError(desc + " conflicts with existing function");
   return success;
 }
 
-JustError<std::string> Context::checkNameConflictExcludingFunctions(const string& name, const string& type) const {
+JustError<ErrorLoc> Context::checkNameConflictExcludingFunctions(const string& name, const CodeLoc& codeLoc,
+    const string& type) const {
   auto desc = type + " " + quote(name);
   if (auto t = getType(name))
     if (isFullyDefined(t))
-      return desc + " conflicts with an existing type";
+      return codeLoc.getError(desc + " conflicts with an existing type");
   if (getVariable(name))
-    return desc + " conflicts with an existing variable or function";
+    return codeLoc.getError(desc + " conflicts with an existing variable or function");
   return success;
 }
 

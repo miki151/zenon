@@ -513,7 +513,7 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
   string oldId = identifier;
   bool shadow = TRY(considerShadowing());
   if (!shadow)
-    TRY(context.checkNameConflictExcludingFunctions(identifier, "Variable").addCodeLoc(codeLoc));
+    TRY(context.checkNameConflictExcludingFunctions(identifier, codeLoc, "Variable"));
   if (!realType)
     realType = TRY(getRealType(context));
   if (!realType->canDeclareVariable())
@@ -546,8 +546,8 @@ WithEvalError<StatementEvalResult> VariableDeclaration::eval(Context& context) {
   string oldId = identifier;
   bool shadow = TRY(considerShadowing().toEvalError());
   if (!shadow)
-    if (auto res = context.checkNameConflictExcludingFunctions(identifier, "Variable"); !res)
-      return EvalError::withError(res.get_error());
+    if (auto res = context.checkNameConflictExcludingFunctions(identifier, codeLoc, "Variable"); !res)
+      return EvalError::withError(res.get_error().error);
   auto actualType = TRY(getRealType(context).toEvalError());
   auto result = TRY(TRY(initExpr->eval(context)).value->convertTo(actualType).addCodeLoc(codeLoc).toEvalError());
   if (isMutable)
@@ -572,7 +572,7 @@ AliasDeclaration::AliasDeclaration(CodeLoc l, string id, unique_ptr<Expression> 
 }
 
 JustError<ErrorLoc> AliasDeclaration::check(Context& context, bool) {
-  TRY(context.checkNameConflictExcludingFunctions(identifier, "Variable").addCodeLoc(codeLoc));
+  TRY(context.checkNameConflictExcludingFunctions(identifier, codeLoc, "Variable"));
   realType = TRY(getType(context, initExpr));
   context.addVariable(identifier, realType->isReference() ? realType : ReferenceType::get(realType), codeLoc);
   if (realType->hasDestructor()) {
@@ -791,7 +791,7 @@ static WithErrorLine<vector<Type*>> getTemplateParams(const TemplateInfo& info, 
       } else
         return param.codeLoc.getError("Type not found: " + quote(*param.type));
     } else {
-      TRY(paramsContext.checkNameConflict(param.name, "template parameter").addCodeLoc(param.codeLoc));
+      TRY(paramsContext.checkNameConflictIncludingConcepts(param.name, param.codeLoc, "template parameter"));
       ret.push_back(new TemplateParameterType(param.name, param.codeLoc));
       paramsContext.addType(param.name, ret.back());
     }
@@ -838,7 +838,7 @@ JustError<ErrorLoc> FunctionDefinition::setFunctionSignature(const Context& cont
     if (!parameters[i].name)
       parameters[i].name = "parameter" + to_string(i);
   if (auto s = name.getReferenceMaybe<string>())
-    TRY(context.checkNameConflictExcludingFunctions(*s, "Function").addCodeLoc(codeLoc));
+    TRY(context.checkNameConflictExcludingFunctions(*s, codeLoc, "Function"));
   else if (auto op = name.getValueMaybe<Operator>()) {
     if (!canOverload(*op, int(parameters.size())))
       return codeLoc.getError("Can't overload operator " + quote(getString(*op)) +
@@ -2049,7 +2049,7 @@ unique_ptr<Statement> UnionDefinition::transformImpl(const StmtTransformFun&, co
 }
 
 JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
-  TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
+  TRY(context.checkNameConflict(name, codeLoc, "type"));
   context.addType(name, type);
   context.setTypeFullyDefined(type);
   for (auto& attr : TRY(getAttributeTypes(context, attributes)))
@@ -2109,7 +2109,7 @@ unique_ptr<Statement> StructDefinition::transformImpl(const StmtTransformFun&, c
 }
 
 JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
-  TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
+  TRY(context.checkNameConflict(name, codeLoc, "type"));
   context.addType(name, type);
   context.setTypeFullyDefined(type);
   for (auto& attr : TRY(getAttributeTypes(context, attributes)))
@@ -2375,7 +2375,7 @@ unique_ptr<Statement> EnumDefinition::transformImpl(const StmtTransformFun&, con
 }
 
 JustError<ErrorLoc> EnumDefinition::addToContext(Context& context) {
-  TRY(context.checkNameConflict(name, "type").addCodeLoc(codeLoc));
+  TRY(context.checkNameConflict(name, codeLoc, "type"));
   auto type = context.typeRegistry->getEnum(name);
   if (elements.empty())
     return codeLoc.getError("Enum requires at least one element");
@@ -2589,7 +2589,7 @@ ExternConstantDeclaration::ExternConstantDeclaration(CodeLoc l, IdentifierInfo t
 }
 
 JustError<ErrorLoc> ExternConstantDeclaration::addToContext(Context& context) {
-  TRY(context.checkNameConflictExcludingFunctions(identifier, "Variable").addCodeLoc(codeLoc));
+  TRY(context.checkNameConflictExcludingFunctions(identifier, codeLoc, "Variable"));
   realType = TRY(context.getTypeFromString(type));
   if (realType == BuiltinType::VOID)
     return codeLoc.getError("Can't declare constant of type " + quote(BuiltinType::VOID->getName()));
@@ -2968,7 +2968,7 @@ AttributeDefinition::AttributeDefinition(CodeLoc l, string name) : Statement(l),
 }
 
 JustError<ErrorLoc> AttributeDefinition::addToContext(Context& context) {
-  TRY(context.checkNameConflictExcludingFunctions(name, "attribute").addCodeLoc(codeLoc));
+  TRY(context.checkNameConflictExcludingFunctions(name, codeLoc, "attribute"));
   auto t = AttributeType::get(name);
   context.addType(name, t);
   context.setTypeFullyDefined(t);
@@ -3144,7 +3144,7 @@ TypeAliasDeclaration::TypeAliasDeclaration(CodeLoc loc, string identifier, Ident
 JustError<ErrorLoc> TypeAliasDeclaration::registerTypes(const Context& primaryContext, TypeRegistry* r) {
   if (!type) {
     type = TRY(primaryContext.getTypeFromString(typeId));
-    TRY(primaryContext.checkNameConflict(identifier, "type alias").addCodeLoc(codeLoc));
+    TRY(primaryContext.checkNameConflict(identifier, codeLoc, "type alias"));
     r->addAlias(identifier, type, codeLoc);
   }
   return success;

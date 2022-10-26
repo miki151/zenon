@@ -1,4 +1,4 @@
-// 6
+// no_compile
 
 concept <T> C1 {
   int a(T*);

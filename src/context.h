@@ -79,8 +79,11 @@ class Context : public owned_object<Context> {
   void addBuiltInFunction(const string& id, Type* returnType, vector<Type*> argTypes, BuiltInFunction);
   vector<FunctionInfo*> getOperatorType(Operator) const;
   FunctionInfo* getBuiltinOperator(Operator, vector<Type*> argTypes) const;
-  NODISCARD JustError<string> checkNameConflict(const string& name, const string& type) const;
-  NODISCARD JustError<string> checkNameConflictExcludingFunctions(const string& name, const string& type) const;
+  NODISCARD JustError<ErrorLoc> checkNameConflictIncludingConcepts(const string& name, const CodeLoc&,
+      const string& type) const;
+  NODISCARD JustError<ErrorLoc> checkNameConflict(const string& name, const CodeLoc&, const string& type) const;
+  NODISCARD JustError<ErrorLoc> checkNameConflictExcludingFunctions(const string& name, const CodeLoc& codeLoc,
+      const string& type) const;
   Concept* getConcept(const string& name, CodeLoc) const;
   void addConcept(const string& name, Concept*);
   void print() const;
