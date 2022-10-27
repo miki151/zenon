@@ -1,0 +1,20 @@
+// 4
+
+template <T> requires (T == int)
+void g(T, bool) {}
+
+template <T> requires (T != int)
+void g(T, int) {}
+
+concept <T, U> C {
+  void g(T, U);
+};
+
+template <T, U> requires C<T, U>
+int f() {
+  return to_string(U).size();
+}
+
+int main() {
+  return f<int>();
+}

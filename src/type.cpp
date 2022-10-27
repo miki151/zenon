@@ -1047,7 +1047,7 @@ WithErrorLine<Type*> StructType::instantiate(const Context& context, vector<Type
 }
 
 struct TypeMapping {
-  const vector<Type*>& templateParams;
+  vector<Type*> templateParams;
   vector<Type*> templateArgs;
   optional<int> getParamIndex(Type* t) {
     for (int i = 0; i < templateParams.size(); ++i)
@@ -1062,13 +1062,18 @@ static MappingError getCantBindError(const Type* from, const Type* to) {
 }
 
 static JustError<MappingError> getDeductionError(TypeMapping& mapping, Type* paramType, Type* argType) {
-  if (auto index = mapping.getParamIndex(paramType)) {
-    auto& arg = mapping.templateArgs[*index];
-    if (arg && arg != argType)
-      return getCantBindError(argType, arg);
-    arg = argType;
+  auto deduce = [&mapping](int index, Type* type) -> JustError<MappingError> {
+    auto& arg = mapping.templateArgs[index];
+    if (arg && arg != type)
+      return getCantBindError(type, arg);
+    arg = type;
     return success;
-  } else
+  };
+  if (auto index = mapping.getParamIndex(paramType))
+    return deduce(*index, argType);
+  else if (auto index = mapping.getParamIndex(argType))
+    return deduce(*index, paramType);
+  else
     return paramType->getMappingError(mapping, argType);
 }
 
@@ -1287,12 +1292,6 @@ static JustError<ErrorLoc> getConversionError(const Context& context, FunctionIn
   return success;
 }
 
-static FunctionInfo* getWithRetval(const FunctionInfo& info) {
-  auto type = info.type;
-  type.params.push_back(type.retVal);
-  return FunctionInfo::getImplicit(info.id, type);
-}
-
 static bool isTemplatedWith(const Context& context, FunctionInfo* function, Type* type) {
   ErrorBuffer errors;
   return replaceInFunction(context, function, type, BuiltinType::INT, errors) != function;
@@ -1316,6 +1315,47 @@ vector<FunctionInfo*> getSpecialOverloads(const FunctionId& id, const vector<Typ
   return ret;
 }
 
+static bool paramsAndRetTypeEqual(FunctionInfo* f1, FunctionInfo* f2) {
+  for (int i = 0; i < f1->type.params.size(); ++i)
+    if (f1->type.params[i] != f2->type.params[i])
+      return false;
+  if (f1->type.retVal != f2->type.retVal)
+    return false;
+  return true;
+}
+
+static optional<TypeMapping> deduceMappingFromRequirementCandidate(const Context& context, FunctionInfo* required,
+    FunctionInfo* candidate) {
+  vector<Type*> params;
+  for (auto t : candidate->type.templateParams)
+    params.push_back(t);
+  for (auto t : required->type.templateParams)
+    params.push_back(t);
+  TypeMapping mapping1{params, vector<Type*>(params.size(), nullptr)};
+  auto replace = [&context, &mapping1, &required, &candidate] {
+    for (int j = 0; j < mapping1.templateParams.size(); ++j)
+      if (!!mapping1.templateArgs[j]) {
+        ErrorBuffer errors;
+        required = replaceInFunction(context, required, mapping1.templateParams[j], mapping1.templateArgs[j], errors);
+        candidate = replaceInFunction(context, candidate, mapping1.templateParams[j], mapping1.templateArgs[j], errors);
+        if (!errors.empty())
+          return false;
+      }
+    return true;
+  };
+  for (int i = 0; i < required->type.params.size(); ++i)
+    if (!getDeductionError(mapping1, required->type.params[i], candidate->type.params[i]) || !replace())
+      return none;
+  if (!getDeductionError(mapping1, required->type.retVal, candidate->type.retVal) || !replace())
+    return none;
+  if (!paramsAndRetTypeEqual(required, candidate))
+    return none;
+  for (int i = 0; i < candidate->type.templateParams.size(); ++i)
+    if (!mapping1.templateArgs[i])
+      return none;
+  return mapping1;
+}
+
 static JustError<MappingError> deduceTemplateArgsFromConcepts(const Context& context,
     TypeMapping& mapping, const vector<TemplateRequirement>& requirements, ErrorBuffer& errors) {
   for (auto& elem : requirements)
@@ -1333,15 +1373,23 @@ static JustError<MappingError> deduceTemplateArgsFromConcepts(const Context& con
         if (funTemplateParams.empty())
           continue;
         function = addTemplateParams(function, funTemplateParams, req->isVariadic());
-        vector<FunctionInfo*> found = getSpecialOverloads(function->id, function->type.params);
+        vector<FunctionInfo*> candidates = getSpecialOverloads(function->id, function->type.params);
         for (auto& candidate : context.getFunctions(function->id, false))
-          if (!candidate->type.concept && context.isGeneralization(getWithRetval(*function), getWithRetval(*candidate)))
-            found.push_back(candidate);
-        if (found.size() == 1) {
-          for (int i = 0; i < function->type.params.size(); ++i)
-            TRY(getDeductionError(mapping, function->type.params[i], found[0]->type.params[i]));
-          TRY(getDeductionError(mapping, function->type.retVal, found[0]->type.retVal));
-        }
+          if (!candidate->type.concept && candidate->type.params.size() == function->type.params.size())
+            candidates.push_back(candidate);
+        optional<TypeMapping> mappingResult;
+        for (auto candidate : candidates)
+          if (auto newMapping = deduceMappingFromRequirementCandidate(context, function, candidate)) {
+            if (!!mappingResult) // we have more than one function matching so return without updating the mapping
+              return success;
+            else
+              mappingResult = std::move(newMapping);
+          }
+        if (mappingResult)
+          for (int i = 0; i < mappingResult->templateParams.size(); ++i)
+            if (!!mappingResult->templateArgs[i])
+              if (auto index = mapping.getParamIndex(mappingResult->templateParams[i]))
+                mapping.templateArgs[*index] = mappingResult->templateArgs[i];
       }
     }
   return success;

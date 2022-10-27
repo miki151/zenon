@@ -266,6 +266,10 @@ void Context::print() const {
     state->print();
 }
 
+Type* Context::getIndexHelperType(int index) const {
+  return *getType("index_helper")->instantiate(*this, {CompileTimeValue::get(index)}, CodeLoc());
+}
+
 Type* Context::getSliceType(Type* underlying) const {
   return *getType("slice_t")->instantiate(*this, {std::move(underlying)}, CodeLoc());
 }
@@ -546,7 +550,16 @@ void Context::setAttribute(Type* t, Type* attr, vector<Type*> templateParams) {
 
 void Context::setStructMembers(Type* t, vector<Type*> members, vector<Type*> templateParams) {
   CHECK(addFunction(FunctionInfo::getImplicit(StructMembersTag{},
-      FunctionSignature(BuiltinType::VOID, concat({std::move(t)}, std::move(members)), std::move(templateParams)))));
+      FunctionSignature(BuiltinType::VOID, concat({std::move(t)}, std::move(members)), templateParams))));
+  for (int i = 0; i < members.size(); ++i)
+    CHECK(addFunction(FunctionInfo::getImplicit(StructMemberTag{},
+        FunctionSignature(BuiltinType::VOID, {t, getIndexHelperType(i), members[i]}, templateParams))));
+}
+
+void Context::setUnionAlternatives(Type* t, vector<Type*> alternatives, vector<Type*> templateParams) {
+  for (int i = 0; i < alternatives.size(); ++i)
+    CHECK(addFunction(FunctionInfo::getImplicit(UnionAlternativeTag{},
+        FunctionSignature(BuiltinType::VOID, {t, getIndexHelperType(i), alternatives[i]}, templateParams))));
 }
 
 WithErrorLine<vector<Type*>> Context::getTypeList(const vector<TemplateParameterInfo>& ids, bool variadic) const {

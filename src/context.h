@@ -65,6 +65,7 @@ class Context : public owned_object<Context> {
   vector<SubstitutionInfo> getSubstitutions() const;
   void setAttribute(Type*, Type*, vector<Type*> templateParams);
   void setStructMembers(Type* structType, vector<Type*> members, vector<Type*> templateParams);
+  void setUnionAlternatives(Type* unionType, vector<Type*> alternatives, vector<Type*> templateParams);
   WithErrorLine<Type*> getTypeFromString(IdentifierInfo, optional<bool> typePack = false) const;
   Type* getType(const string&) const;
   Type* getSliceType(Type* underlying) const;
@@ -158,4 +159,5 @@ class Context : public owned_object<Context> {
   StateContainer getReversedStates() const;
   Type* getVariable(const string&) const;
   vector<FunctionInfo*> getConstructorsFor(Type*) const;
+  Type* getIndexHelperType(int index) const;
 };

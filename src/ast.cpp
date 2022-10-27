@@ -2075,6 +2075,7 @@ JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
       constructor.parentType = type;
       CHECK(type->staticContext.addImplicitFunction(subtype.name, constructor));
     }
+  context.setUnionAlternatives(type, type->alternatives.transform([](auto& elem) { return elem.type; }), type->templateParams);
   return success;
 }
 
@@ -2127,8 +2128,7 @@ JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
     for (int j = i + 1; j < members.size(); ++j)
       if (members[i].name == members[j].name)
         return members[j].codeLoc.getError("Duplicate member: " + quote(members[j].name));
-  context.setStructMembers(type, type->members.transform([](auto& elem) { return elem.type; }),
-      type->templateParams);
+  context.setStructMembers(type, type->members.transform([](auto& elem) { return elem.type; }), type->templateParams);
   return success;
 }
 

@@ -4,18 +4,22 @@ int get_index(T* t) embed {
   return int(t->unionElem);
 }
 
-export template <int Index, T> requires is_union<T>
-$get_alternative_type(T, Index)* get_alternative(T* t) {
+export concept <T, IndexHelper, Alternative> has_alternative {
+  void builtin_has_alternative(T, IndexHelper, Alternative);
+};
+
+export template <int Index, T, Ret> requires is_union<T>, has_alternative<T, index_helper<Index>, Ret> 
+Ret* get_alternative(T* t) {
   mixin "return &t^." + get_alternative_name(T, Index) + ";";
 }
 
-export template <int Index, T> requires is_union<T>
-$get_alternative_type(T, Index) mutable* get_alternative(T mutable* t) {
+export template <int Index, T, Ret> requires is_union<T>, has_alternative<T, index_helper<Index>, Ret>
+Ret mutable* get_alternative(T mutable* t) {
   mixin "return &t^." + get_alternative_name(T, Index) + ";";
 }
 
-export template <int Index, T> requires is_union<T>
-$get_alternative_type(T, Index) get_alternative(T t) {
+export template <int Index, T, Ret> requires is_union<T>, has_alternative<T, index_helper<Index>, Ret>
+Ret get_alternative(T t) {
   mixin "return move(t)." + get_alternative_name(T, Index) + ";";
 }
 

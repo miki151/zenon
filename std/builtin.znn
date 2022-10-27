@@ -14,6 +14,9 @@ T copy(T* b) {
   return *b;
 }
 
+export template <int N>
+struct index_helper {};
+
 export template <Enum> requires is_enum<Enum>
 extern bool operator == (Enum e1, Enum e2);
 

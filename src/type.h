@@ -66,7 +66,7 @@ struct Type : public owned_object<Type> {
     MUTABLE_REFERENCE
   };
   virtual WithError<Type*> getTypeOfMember(const string& name, ArgumentType = ArgumentType::VALUE) const;
-  virtual optional<CodeLoc> getMemberLoc(const string& name) const; 
+  virtual optional<CodeLoc> getMemberLoc(const string& name) const;
   virtual bool hasDestructor() const;
   virtual void codegenDefinition(Buffer*, Sections*);
   virtual ~Type() {}

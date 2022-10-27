@@ -1,0 +1,17 @@
+// no_compile
+
+template <T>
+void g(T) {}
+
+concept <U> C {
+  void g(U);
+};
+
+template <T, U> requires C<U>
+void f() {
+}
+
+int main() {
+  f<int>();
+  return 0;
+}

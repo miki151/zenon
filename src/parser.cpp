@@ -538,6 +538,10 @@ WithErrorLine<unique_ptr<FunctionDefinition>> parseFunctionSignature(IdentifierI
       ret = make_unique<FunctionDefinition>(type.codeLoc, type, AttributeTag{}, token2.codeLoc);
     else if (token2.value == "builtin_has_members")
       ret = make_unique<FunctionDefinition>(type.codeLoc, type, StructMembersTag{}, token2.codeLoc);
+    else if (token2.value == "builtin_has_member")
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, StructMemberTag{}, token2.codeLoc);
+    else if (token2.value == "builtin_has_alternative")
+      ret = make_unique<FunctionDefinition>(type.codeLoc, type, UnionAlternativeTag{}, token2.codeLoc);
     else
       ret = make_unique<FunctionDefinition>(type.codeLoc, type, token2.value, token2.codeLoc);
   }
