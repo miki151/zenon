@@ -56,10 +56,6 @@ struct Type : public owned_object<Type> {
   virtual CompileTimeValue* asCompileTimeValue() { return nullptr; }
   virtual optional<CodeLoc> getDefinition() const { return none; }
 
-  struct MemberInfo {
-    Type* type;
-    string name;
-  };
   enum class ArgumentType {
     VALUE,
     REFERENCE,
