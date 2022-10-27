@@ -130,12 +130,12 @@ T!string read_struct(flag_map* flags) {
     static const name = get_member_name(T, i);
     unused.erase(&name);
     static if (name == "all") {
-      returnStmt = returnStmt + "flags^.all.copy()";    
+      returnStmt = returnStmt + "flags^.all.copy()";
     } else {
       returnStmt = returnStmt + "try parse_member(&\"" + to_string(name) + "\", "
           + "flags^.values.getMaybe(&\"" + to_string(name) + "\"), "
           + "flags^.flags.contains(&\"" + to_string(name) + "\"), "
-          + "dummy_struct<" + to_string(get_member_type(T, i)) + ">())";    
+          + "dummy_struct<" + to_string(get_member_type(T, i)) + ">())";
     }
   }
   for (it : unused)
