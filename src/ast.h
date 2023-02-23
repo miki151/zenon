@@ -597,7 +597,7 @@ struct SwitchStatement : Statement {
   SwitchStatement(CodeLoc, unique_ptr<Expression>);
   struct CaseElem {
     CodeLoc codeloc;
-    vector<string> ids;
+    vector<pair<string, CodeLoc>> ids;
     optional<string> declaredVar;
     unique_ptr<StatementBlock> block;
     CaseElem transform(const StmtTransformFun&, const ExprTransformFun&) const;

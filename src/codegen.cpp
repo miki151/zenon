@@ -783,7 +783,7 @@ void SwitchStatement::codegenEnum(Buffer* buffer, Sections* sections) const {
   ++buffer->indent;
   for (auto& caseElem : caseElems) {
     for (auto& id : caseElem.ids)
-      buffer->newLine("case " + *targetType->getMangledName() + "::" + id + ":");
+      buffer->newLine("case " + *targetType->getMangledName() + "::" + id.first + ":");
     buffer->newLine("{");
     ++buffer->indent;
     buffer->newLine();
@@ -820,7 +820,7 @@ void SwitchStatement::codegenUnion(Buffer* buffer, Sections* sections) const {
   buffer->newLine("switch ("s + unionTmpRef + "."s + unionDiscriminatorName + ") {");
   ++buffer->indent;
   for (auto& caseElem : caseElems) {
-    auto caseId = *getOnlyElement(caseElem.ids);
+    auto caseId = getOnlyElement(caseElem.ids)->first;
     buffer->newLine("case "s + *targetType->getMangledName() + "::" + unionEnumeratorPrefix + caseId + ": {");
     ++buffer->indent;
     if (!!caseElem.declaredVar)

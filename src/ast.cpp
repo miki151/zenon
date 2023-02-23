@@ -1118,7 +1118,7 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
     switchStatement.caseElems.push_back(
         SwitchStatement::CaseElem {
           codeLoc,
-          {alternative.name},
+          {make_pair(alternative.name, codeLoc)},
           alternative.name,
           std::move(block)
         });
@@ -1164,7 +1164,7 @@ JustError<ErrorLoc> FunctionDefinition::checkAndGenerateCopyFunction(const Conte
         topSwitch->caseElems.push_back(
             SwitchStatement::CaseElem {
               codeLoc,
-              {alternative.name},
+              {make_pair(alternative.name, codeLoc)},
               alternative.name,
               std::move(block)
             }

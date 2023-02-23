@@ -811,7 +811,8 @@ WithErrorLine<unique_ptr<SwitchStatement>> parseSwitchStatement(Tokens& tokens) 
       SwitchStatement::CaseElem caseElem;
       caseElem.codeloc = token.codeLoc;
       while (1) {
-        caseElem.ids.push_back(TRY(tokens.eat<IdentifierToken>("Expected union or enum element")).value);
+        auto id = TRY(tokens.eat<IdentifierToken>("Expected union or enum element"));
+        caseElem.ids.push_back(make_pair(id.value, id.codeLoc));
         if (tokens.eatMaybe(Keyword::CLOSE_BRACKET))
           break;
         else

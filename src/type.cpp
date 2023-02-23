@@ -1,6 +1,7 @@
 #include "type.h"
 #include "context.h"
 #include "ast.h"
+#include "language_index.h"
 
 BuiltinType::DefType BuiltinType::INT = new BuiltinType("int", true);
 BuiltinType::DefType BuiltinType::DOUBLE = new BuiltinType("double", true);
@@ -175,13 +176,18 @@ JustError<ErrorLoc> EnumType::handleSwitchStatement(SwitchStatement& statement, 
   statement.targetType = (Type*)this;
   unordered_set<string> handledElems;
   for (auto& caseElem : statement.caseElems) {
-    for (auto& id : caseElem.ids) {
+    for (int i = 0; i < caseElem.ids.size(); ++i) {
+      auto& id = caseElem.ids[i].first;
+      auto& codeLoc = caseElem.ids[i].second;
       if (!contains(elements, id))
         return caseElem.codeloc.getError("Element " + quote(id) + " not present in enum " + quote(name));
       if (handledElems.count(id))
         return caseElem.codeloc.getError("Enum element " + quote(id)
             + " handled more than once in switch statement");
       handledElems.insert(id);
+      for (auto& elem : definition->elements)
+        if (elem.first == id)
+          context.languageIndex->addDefinition(codeLoc, id.size(), elem.second);
     }
     auto caseContext = context.getChild();
     caseContext.setIsInBranch();
@@ -651,17 +657,19 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
   statement.type = SwitchStatement::UNION;
   statement.targetType = (Type*)this;
   unordered_set<string> handledTypes;
-  auto getAlternativeType = [&] (const string& name) -> Type* {
+  auto getAlternativeType = [&] (const string& name) -> const Variable* {
     for (auto& alternative : alternatives)
       if (alternative.name == name)
-        return alternative.type;
+        return &alternative;
     return nullptr;
   };
   for (auto& caseElem : statement.caseElems) {
     if (caseElem.ids.size() > 1)
       return caseElem.codeloc.getError("Multiple case elements not allowed in a union switch");
-    auto caseId = caseElem.ids[0];
-    if (!getAlternativeType(caseId))
+    auto& caseId = caseElem.ids[0].first;
+    auto& idLoc = caseElem.ids[0].second;
+    auto alternative = getAlternativeType(caseId);
+    if (!alternative)
       return caseElem.codeloc.getError("Element " + quote(caseId) +
           " not present in union " + quote(getName()));
     if (handledTypes.count(caseId))
@@ -669,23 +677,24 @@ JustError<ErrorLoc> StructType::handleSwitchStatement(SwitchStatement& statement
         + " handled more than once in switch statement");
     handledTypes.insert(caseId);
     auto caseBodyContext = outsideContext.getChild();
-    auto realType = getAlternativeType(caseId);
+    auto realType = alternative->type;
     caseElem.declaredVar = caseId;
     switch (argumentType) {
       case ArgumentType::VALUE:
-        caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
+        caseBodyContext.addVariable(caseId, ReferenceType::get(realType), idLoc);
         break;
       case ArgumentType::REFERENCE:
-        caseBodyContext.addVariable(caseId, ReferenceType::get(realType), caseElem.codeloc);
+        caseBodyContext.addVariable(caseId, ReferenceType::get(realType), idLoc);
         caseBodyContext.setNonMovable(caseId);
         break;
       case ArgumentType::MUTABLE_REFERENCE:
-        caseBodyContext.addVariable(caseId, MutableReferenceType::get(realType), caseElem.codeloc);
+        caseBodyContext.addVariable(caseId, MutableReferenceType::get(realType), idLoc);
         caseBodyContext.setNonMovable(caseId);
         break;
     }
     caseBodyContext.setIsInBranch();
     TRY(caseElem.block->check(caseBodyContext));
+    outsideContext.languageIndex->addDefinition(idLoc, caseId.size(), alternative->codeLoc);
   }
   if (!statement.defaultBlock) {
     vector<string> unhandled;
