@@ -81,7 +81,7 @@ class lite_str {
     copy_from(other);
   }
 
-  lite_str(lite_str&& other) {
+  lite_str(lite_str&& other) noexcept {
     move_from(std::move(other));
   }
 
