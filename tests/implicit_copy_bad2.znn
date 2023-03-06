@@ -1,0 +1,21 @@
+// no_compile
+
+template <T>
+struct X {};
+
+template <T>
+X<T> implicit_copy(X<T>*) {
+  unchecked return X<int>();
+}
+
+template <T>
+void f(X<T>) {}
+
+template <T>
+void f(X<T>*) {}
+
+int main() {
+  const x = X<string>();
+  x.f();
+  return 0;
+}

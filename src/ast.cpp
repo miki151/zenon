@@ -219,7 +219,7 @@ static WithErrorLine<FunctionInfo*> handleOperatorOverloads(const Context& conte
   filterOverloads(context, overloads, types);
   if (overloads.size() == 1) {
     vector<string> emptyNames;
-    generateConversions(context, overloads[0], types, emptyNames, expr);
+    TRY(generateConversions(context, overloads[0], types, emptyNames, expr));
     return overloads[0];
   } else {
     string error = (overloads.empty() ? "No overload" : "Multiple overloads") + " found for operator: "s +
@@ -236,10 +236,6 @@ static WithErrorLine<FunctionInfo*> handleOperatorOverloads(const Context& conte
 static WithErrorLine<FunctionInfo*> getFunction(const Context&,
     CodeLoc, IdentifierInfo, vector<Type*> templateArgs, const vector<Type*>& argTypes,
     const vector<string>& argNames, const vector<CodeLoc>&, bool compileTimeArgs);
-
-static WithErrorLine<FunctionInfo*> getFunction(const Context&,
-    CodeLoc, IdentifierInfo, vector<Type*> templateArgs, const vector<Type*>& argTypes,
-    vector<string>& argNames, const vector<CodeLoc>&, vector<unique_ptr<Expression>>&, bool compileTimeArgs);
 
 unique_ptr<Expression> BinaryExpression::get(CodeLoc loc, Operator op, vector<unique_ptr<Expression>> expr) {
   return make_unique<BinaryExpression>(Private{}, loc, op, std::move(expr));
@@ -985,15 +981,6 @@ static WithErrorLine<FunctionInfo*> getFunction(const Context& context,
     error.error += res.get_error();
     return error;
   }
-}
-
-static WithErrorLine<FunctionInfo*> getFunction(const Context& context,
-    CodeLoc codeLoc, IdentifierInfo id, vector<Type*> templateArgs, const vector<Type*>& argTypes,
-    vector<string>& argNames, const vector<CodeLoc>& argLoc, vector<unique_ptr<Expression>>& expr, bool compileTimeArgs) {
-  auto fun = TRY(getFunction(context, codeLoc, std::move(id), std::move(templateArgs), argTypes, argNames,
-      std::move(argLoc), compileTimeArgs));
-  generateConversions(context, fun, argTypes, argNames, expr);
-  return fun;
 }
 
 WithErrorLine<FunctionInfo*> getCopyFunction(const Context& context, CodeLoc callLoc, Type* t) {
@@ -1892,10 +1879,12 @@ WithErrorLine<Type*> FunctionCall::getTypeImpl(const Context& callContext) {
         break;
       }
     auto tryMethodCall = [&](MethodCallType thisCallType, Type* origType) -> JustError<ErrorLoc> {
-      auto res = getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argNames, argLocs, arguments,
+      auto res = getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argNames, argLocs,
           compileTimeArgs);
-      if (res)
+      if (res) {
+        TRY(generateConversions(callContext, *res, argTypes, argNames, arguments));
         callType = thisCallType;
+      }
       if (callType == MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER) {
         if (!origType->isReference() && argTypes[0]->removePointer()->hasDestructor()) {
           destructorCall = TRY(getDestructor(callContext, argTypes[0]->removePointer(), codeLoc));
@@ -1916,9 +1905,11 @@ WithErrorLine<Type*> FunctionCall::getTypeImpl(const Context& callContext) {
             : (Type*)PointerType::get(leftType->removeReference());
         TRY(tryMethodCall(MethodCallType::FUNCTION_AS_METHOD_WITH_POINTER, leftType));
       }
-    } else
-      getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argNames, argLocs, arguments, compileTimeArgs)
-          .unpack(functionInfo, error);
+    } else {
+      functionInfo = TRY(getFunction(callContext, codeLoc, identifier, *templateArgs, argTypes, argNames, argLocs,
+          compileTimeArgs));
+      TRY(generateConversions(callContext, functionInfo, argTypes, argNames, arguments));
+    }
   }
   if (functionInfo) {
     if (auto def = functionInfo->getDefinition())

@@ -569,8 +569,8 @@ extern string joinTypeList(const vector<Type*>&);
 extern string joinTemplateParamsCodegen(const vector<Type*>&);
 extern string joinTypeListCodegen(const vector<Type*>&);
 extern string getExpandedParamName(const string& packName, int index);
-void generateConversions(const Context&, FunctionInfo*, vector<Type*> argTypes, vector<string>& argNames,
-    vector<unique_ptr<Expression>>& args);
+JustError<ErrorLoc> generateConversions(const Context&, FunctionInfo*, vector<Type*> argTypes,
+    vector<string>& argNames, vector<unique_ptr<Expression>>& args);
 
 Type* convertPointerToReference(Type*);
 Type* convertReferenceToPointer(Type*);

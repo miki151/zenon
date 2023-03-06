@@ -1234,7 +1234,7 @@ static JustError<ErrorLoc> expandVariadicTemplate(const Context& context, Functi
   return success;
 }
 
-void generateConversions(const Context& context, FunctionInfo* fun, vector<Type*> argTypes,
+JustError<ErrorLoc> generateConversions(const Context& context, FunctionInfo* fun, vector<Type*> argTypes,
     vector<string>& argNames, vector<unique_ptr<Expression>>& expr) {
   auto& paramTypes = fun->type.params;
   unordered_set<int> defaulted;
@@ -1256,8 +1256,9 @@ void generateConversions(const Context& context, FunctionInfo* fun, vector<Type*
     if (!defaulted.count(i)) {
       auto& paramType = paramTypes[i];
       auto& argType = argTypes[i];
-      CHECK(context.canConvert(argType, paramType, expr[i])) << argType->getName() << " " << paramType->getName();
+      TRY(context.canConvert(argType, paramType, expr[i]).addCodeLoc(expr[i]->codeLoc));
     }
+  return success;
 }
 
 static JustError<ErrorLoc> checkImplicitCopies(const Context& context, const vector<Type*>& paramTypes,
