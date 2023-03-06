@@ -515,13 +515,11 @@ static void codegenUnion(Buffer* buffer, Sections* sections, const StructType* t
     typeNames.push_back(subtype.name);
   buffer->add(combine(transform(typeNames, [](const string& e){ return unionEnumeratorPrefix + e;}), ", ") + "} "
       + unionDiscriminatorName + ";");
-  for (auto& alternative : type->alternatives) {
-    string signature = alternative.name + "(";
-    if (alternative.type != BuiltinType::VOID)
-      signature += alternative.type->getCodegenName() + " elem";
-    signature += ")";
-    buffer->newLine("static " + name + " " + signature + ";");
-  }
+  for (auto& alternative : type->alternatives)
+    buffer->newLine("static " + name + " " + alternative.name + "("
+        + alternative.type->getCodegenName() + " elem"
+        + (alternative.type == BuiltinType::VOID ? " = void_value" : "")
+        + ");");
   buffer->newLine("union {");
   ++buffer->indent;
   buffer->newLine("bool dummy;");
@@ -561,11 +559,8 @@ static void codegenUnion(Buffer* buffer, Sections* sections, const StructType* t
   for (auto& alternative : type->alternatives) {
     auto name = *type->getMangledName();
     auto buf2 = sections->newBuffer(Section::DEFINITIONS);
-    string signature = alternative.name + "(";
-    if (alternative.type != BuiltinType::VOID)
-      signature += alternative.type->getCodegenName() + " elem";
-    signature += ")";
-    buf2->add("inline " + name + " " + name + "::" + signature + " {");
+    buf2->add("inline " + name + " " + name + "::" + alternative.name + "("
+        + alternative.type->getCodegenName() + " elem)" + " {");
     ++buf2->indent;
     buf2->newLine(name + " ret;");
     buf2->newLine("ret."s + unionDiscriminatorName + " = " + unionEnumeratorPrefix + alternative.name + ";");

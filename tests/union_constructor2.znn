@@ -1,0 +1,19 @@
+// 4
+
+export template <T, E>
+union X {
+  T value;
+  E error;
+};
+
+export template <T, U> requires implicit_copy<T>, implicit_copy<U>
+X<T, U> implicit_copy(X<T, U>* elem) = default;
+
+int main() {
+  const x = X<void, int>::error(4);
+  const y = x;
+  switch (y) {
+    case (value) { return 1; }
+    case (error) { return error; }
+  }
+}
