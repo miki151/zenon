@@ -516,7 +516,7 @@ JustError<ErrorLoc> VariableDeclaration::check(Context& context, bool) {
     return codeLoc.getError("Can't declare variable of type " + quote(realType->getName()));
   TRY(realType->getSizeError(context).addCodeLoc(codeLoc));
   if (!initExpr)
-    return codeLoc.getError("Variable requires initialization");
+    return codeLoc.getError("Variable " + oldId + " requires initialization");
   auto exprType = TRY(getType(context, initExpr));
   TRY(getVariableInitializationError("initialize variable", context, realType, exprType, initExpr).addCodeLoc(initExpr->codeLoc));
   TRY(getType(context, initExpr));
@@ -1597,6 +1597,18 @@ Context createPrimaryContext(TypeRegistry* typeRegistry, LanguageIndex* language
             }
         fail();
       });
+    context.addBuiltInFunction("member_has_default_value", BuiltinType::BOOL, {(Type*)BuiltinType::STRUCT_TYPE,
+        (Type*)BuiltinType::INT},
+        [](const Context&, vector<Type*> args) -> WithError<Type*> {
+          if (auto structType = dynamic_cast<StructType*>(args[0]))
+            if (auto value = dynamic_cast<CompileTimeValue*>(args[1]))
+              if (auto intValue = value->value.getReferenceMaybe<int>()) {
+                if (*intValue < 0 || *intValue >= structType->members.size())
+                  return "Struct " + quote(structType->getName()) + " member index out of range: "s + to_string(*intValue);
+                return (Type*) CompileTimeValue::get(structType->members[*intValue].hasDefaultValue);
+              }
+          fail();
+        });
   context.addBuiltInFunction("is_const_member", BuiltinType::BOOL, {(Type*)BuiltinType::STRUCT_TYPE,
       (Type*)BuiltinType::INT},
       [](const Context&, vector<Type*> args) -> WithError<Type*> {
@@ -2057,7 +2069,7 @@ JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
         return subtype.codeLoc.getError("Duplicate union member: " + quote(subtype.name));
       subtypeNames.insert(subtype.name);
       type->alternatives.push_back({subtype.name, TRY(membersContext.getTypeFromString(subtype.type)), false,
-          subtype.codeLoc});
+          subtype.codeLoc, false});
       vector<Type*> params;
       auto subtypeInfo = TRY(membersContext.getTypeFromString(subtype.type));
       if (subtypeInfo != BuiltinType::VOID)
@@ -2112,7 +2124,7 @@ JustError<ErrorLoc> StructDefinition::addToContext(Context& context) {
   if (members.size() > type->members.size())
     for (auto& member : members)
       type->members.push_back({member.name, TRY(membersContext.getTypeFromString(member.type)), member.isConst,
-          member.codeLoc});
+          member.codeLoc, !!member.defaultValue});
   for (auto& member : members)
     TRY(type->members.back().type->getSizeError(membersContext).addCodeLoc(member.codeLoc));
   for (int i = 0; i < members.size(); ++i)

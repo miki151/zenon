@@ -349,6 +349,7 @@ struct StructType : public Type {
     Type* type;
     bool isConst;
     CodeLoc codeLoc;
+    bool hasDefaultValue;
   };
   vector<Variable> members;
   vector<Variable> alternatives;
