@@ -516,10 +516,7 @@ static void codegenUnion(Buffer* buffer, Sections* sections, const StructType* t
   buffer->add(combine(transform(typeNames, [](const string& e){ return unionEnumeratorPrefix + e;}), ", ") + "} "
       + unionDiscriminatorName + ";");
   for (auto& alternative : type->alternatives)
-    buffer->newLine("static " + name + " " + alternative.name + "("
-        + alternative.type->getCodegenName() + " elem"
-        + (alternative.type == BuiltinType::VOID ? " = void_value" : "")
-        + ");");
+    buffer->newLine("template <typename... Args> static " + name + " " + alternative.name + "(Args... args);");
   buffer->newLine("union {");
   ++buffer->indent;
   buffer->newLine("bool dummy;");
@@ -559,14 +556,14 @@ static void codegenUnion(Buffer* buffer, Sections* sections, const StructType* t
   for (auto& alternative : type->alternatives) {
     auto name = *type->getMangledName();
     auto buf2 = sections->newBuffer(Section::DEFINITIONS);
-    buf2->add("inline " + name + " " + name + "::" + alternative.name + "("
-        + alternative.type->getCodegenName() + " elem)" + " {");
+    buf2->add("template <typename... Args> " + name + " " + name + "::" + alternative.name +
+        "(Args... args)" + " {");
     ++buf2->indent;
     buf2->newLine(name + " ret;");
     buf2->newLine("ret."s + unionDiscriminatorName + " = " + unionEnumeratorPrefix + alternative.name + ";");
     if (!(alternative.type == BuiltinType::VOID))
       buf2->newLine("new (&ret."s + unionEntryPrefix + alternative.name + ") " +
-          alternative.type->getCodegenName() + "(std::move(elem));");
+          alternative.type->getCodegenName() + "{std::forward<Args>(args)...};");
     buf2->newLine("return ret;");
     --buf2->indent;
     buf2->newLine("}");

@@ -1,0 +1,22 @@
+// no_compile
+
+struct A {
+  int x;
+  string s;
+};
+
+union U {
+  A a;
+  int n;
+};
+
+int get(U u) {
+  switch (u) {
+    case (a) { return a.x; }
+    case (n) { return n; }
+  }
+}
+
+int main() {
+  return get(U::a("pok", 5));
+}

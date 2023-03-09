@@ -1,0 +1,27 @@
+// 9
+
+struct A {
+  int x;
+  string s;
+};
+
+union U {
+  A a;
+  int n;
+  void v;
+};
+
+int get(U u) {
+  switch (u) {
+    case (a) { return a.x; }
+    case (n) { return n; }
+    case (v) { return 1; }
+  }
+}
+
+void f() {
+}
+
+int main() {
+  return get(U::a(5, "pok")) + get(U::n(3)) + get(U::v(f()));
+}

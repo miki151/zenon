@@ -1498,7 +1498,7 @@ Concept::Concept(const string& name, ConceptDefinition* def, Context context, bo
 
 string Concept::getName(bool withTemplateParams) const {
   if (withTemplateParams)
-    return name + joinTemplateParams(params);
+    return name + joinTemplateParams(params, variadic);
   return name;
 }
 
@@ -1507,7 +1507,7 @@ Concept* Concept::translate(vector<Type*> newParams, bool variadicParams, ErrorB
   ret->context.deepCopyFrom(context);
   ret->params = newParams;
   if (!variadic || variadicParams) {
-    CHECK(params.size() == newParams.size());
+    CHECK(params.size() == newParams.size()) << params.size() << " " << newParams.size();
     for (int i = 0; i < params.size(); ++i)
       ret->context.replace(ret->context, params[i], newParams[i], errors);
   } else {

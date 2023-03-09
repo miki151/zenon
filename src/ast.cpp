@@ -1521,6 +1521,9 @@ Context createPrimaryContext(TypeRegistry* typeRegistry, LanguageIndex* language
     context.addType(type->getName(), type);
     context.setTypeFullyDefined(type);
   }
+  auto f = FunctionSignature(BuiltinType::VOID, {}, {});
+  f.generatedConstructor = true;
+  CHECK(context.addImplicitFunction(ConstructorTag{}, std::move(f)));
   CHECK(context.addImplicitFunction(Operator::PLUS, FunctionSignature(BuiltinType::STRING,
       {BuiltinType::STRING, BuiltinType::STRING}, {}).setBuiltin()));
   CHECK(context.addImplicitFunction(Operator::PLUS, FunctionSignature(BuiltinType::STRING,
@@ -2070,12 +2073,20 @@ JustError<ErrorLoc> UnionDefinition::addToContext(Context& context) {
       subtypeNames.insert(subtype.name);
       type->alternatives.push_back({subtype.name, TRY(membersContext.getTypeFromString(subtype.type)), false,
           subtype.codeLoc, false});
-      vector<Type*> params;
-      auto subtypeInfo = TRY(membersContext.getTypeFromString(subtype.type));
-      if (subtypeInfo != BuiltinType::VOID)
-        params.push_back(subtypeInfo);
-      auto constructor = FunctionSignature(type, params, {});
+      auto constructor = FunctionSignature(type, {TRY(membersContext.getTypeFromString(subtype.type))}, {});
       constructor.parentType = type;
+      CHECK(type->staticContext.addImplicitFunction(subtype.name, constructor));
+      auto variadicParam = new TemplateParameterType("UnionConstructorParams", subtype.codeLoc);
+      constructor = FunctionSignature(type, {variadicParam}, {variadicParam});
+      constructor.variadicParams = true;
+      constructor.variadicTemplate = true;
+      constructor.parentType = type;
+      constructor.builtinOperator = true;
+      ErrorBuffer errors;
+      auto c = context.getConcept("construct", subtype.codeLoc)
+          ->translate({type->alternatives.back().type, variadicParam}, true, errors);
+      CHECK(errors.empty()) << errors[0];
+      constructor.requirements.push_back(TemplateRequirement(c, false));
       CHECK(type->staticContext.addImplicitFunction(subtype.name, constructor));
     }
   context.setUnionAlternatives(type, type->alternatives.transform([](auto& elem) { return elem.type; }), type->templateParams);

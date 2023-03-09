@@ -366,18 +366,9 @@ JustError<string> Context::canConvert(Type* from, Type* to, unique_ptr<Expressio
         if (expr) {
           auto codeLoc = expr->codeLoc;
           auto call = [&] () -> unique_ptr<Expression> {
-            if (alternative->type == BuiltinType::VOID) {
-              // This is not needed once there is a generic union constructor for each alternative
-              auto call = make_unique<FunctionCall>(IdentifierInfo("bogus", codeLoc), false);
-              call->functionInfo = structType->staticContext.getFunctions(alternative->name, false).getOnlyElement();
-              return make_unique<StatementExpression>(codeLoc,
-                  makeVec<unique_ptr<Statement>>(make_unique<ExpressionStatement>(std::move(expr))),
-                  cast<Expression>(std::move(call)));
-            } else {
-              auto call = make_unique<FunctionCall>(IdentifierInfo("bogus", codeLoc), std::move(expr), false);
-              call->functionInfo = structType->staticContext.getFunctions(alternative->name, false).getOnlyElement();
-              return call;
-            }
+            auto call = make_unique<FunctionCall>(IdentifierInfo("bogus", codeLoc), std::move(expr), false);
+            call->functionInfo = structType->staticContext.getFunctions(alternative->name, false)[0];
+            return call;
           }();
           expr = std::move(call);
           auto err = expr->getTypeImpl(*this);
