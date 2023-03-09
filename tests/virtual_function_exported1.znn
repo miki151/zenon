@@ -1,0 +1,21 @@
+// 4
+
+export union U {
+  int a;
+  bool b;
+};
+
+int get(int* a) {
+  return *a;
+}
+
+int get(bool* b) {
+  return *b ? 1 : 2;
+}
+
+export int get(virtual U* u);
+
+int main() {
+  const u = U::a(4);
+  return u.get();
+}

@@ -994,7 +994,7 @@ WithErrorLine<FunctionInfo*> getImplicitCopyFunction(const Context& context, Cod
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCallExpr(const Context& context,
     const string& funName, const string& alternativeName, Type* alternativeType, int virtualIndex,
-    bool lvalueParam) {
+    bool lvalueParam) const {
   auto functionCall = make_unique<FunctionCall>(IdentifierInfo(funName, codeLoc), false);
   vector<Type*> args;
   for (int i = 0; i < parameters.size(); ++i)
@@ -1017,7 +1017,7 @@ WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualFunctionCall
 }
 
 WithErrorLine<unique_ptr<Expression>> FunctionDefinition::getVirtualOperatorCallExpr(Context& context,
-    Operator op, const string& alternativeName, Type* alternativeType, int virtualIndex, int lvalueParam) {
+    Operator op, const string& alternativeName, Type* alternativeType, int virtualIndex, int lvalueParam) const {
   vector<unique_ptr<Expression>> arguments;
   vector<Type*> argTypes;
   for (int i = 0; i < parameters.size(); ++i)
@@ -1051,8 +1051,8 @@ JustError<ErrorLoc> FunctionDefinition::generateVirtualDispatchBody(Context& bod
     fail();
   }();
   for (int i = 0; i < parameters.size(); ++i) {
-    parameters[i].isMutable = true;
     if (i != virtualIndex) {
+      parameters[i].isMutable = true;
       // we have to change the parameter names, because they could clash with union member names
       auto newName = "v_param" + *parameters[i].name;
       if (defaultBlock)
@@ -1388,11 +1388,11 @@ static WithError<Type*> getDestructedType(const vector<Type*>& params) {
 }
 
 JustError<ErrorLoc> FunctionDefinition::check(Context& context, bool notInImport) {
-  TRY(generateDefaultBodies(context));
   // if origBody is present then body has already been checked
   // this can happen in exported functions, for example
   // it probably isn't necessary to recheck the body in these cases
-  if (body && !origBody && (!templateInfo.params.empty() || notInImport)) {
+  if ((body || isVirtual || isDefault) && !origBody && (!templateInfo.params.empty() || notInImport)) {
+    TRY(generateDefaultBodies(context));
     // save the original unchecked body to use by template instances
     origBody = cast<StatementBlock>(body->deepCopy());
     Context paramsContext = context.getChild();

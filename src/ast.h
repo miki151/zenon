@@ -657,9 +657,9 @@ struct FunctionDefinition : Statement {
   void addStacktraceGenerator(Buffer*, Sections*, const StatementBlock*) const;
   NODISCARD JustError<ErrorLoc> generateVirtualDispatchBody(Context& bodyContext);
   WithErrorLine<unique_ptr<Expression>> getVirtualFunctionCallExpr(const Context&, const string& funName,
-      const string& alternativeName, Type* alternativeType, int virtualIndex, bool lvalueParam);
+      const string& alternativeName, Type* alternativeType, int virtualIndex, bool lvalueParam) const;
   WithErrorLine<unique_ptr<Expression>> getVirtualOperatorCallExpr(Context&, Operator,
-      const string& alternativeName, Type* alternativeType, int virtualIndex, int lvalueParam);
+      const string& alternativeName, Type* alternativeType, int virtualIndex, int lvalueParam) const;
   NODISCARD JustError<ErrorLoc> checkAndGenerateCopyFunction(const Context&, const string&);
   NODISCARD JustError<ErrorLoc> checkAndGenerateDefaultConstructor(const Context&);
   NODISCARD JustError<ErrorLoc> addInstance(const Context& callContext, FunctionInfo*);
