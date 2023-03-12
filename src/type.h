@@ -358,7 +358,8 @@ struct StructType : public Type {
   optional<CodeLoc> definition;
   void updateInstantations(const Context&);
   struct Private {};
-  StructType(string name, Private);
+  bool isUnion;
+  StructType(string name, bool isUnion, Private);
 };
 
 struct EnumType : public Type {

@@ -766,7 +766,7 @@ StructType* StructType::getInstance(vector<Type*> newTemplateParams) {
     if (type->templateParams == newTemplateParams)
       return type;
   }
-  auto type = new StructType(name, Private{});
+  auto type = new StructType(name, isUnion, Private{});
   type->alternatives = alternatives;
   type->members = members;
   type->parent = this;
@@ -800,10 +800,10 @@ void StructType::updateInstantations(const Context& context) {
 }
 
 Type* StructType::getType() const {
-  return alternatives.empty() ? BuiltinType::STRUCT_TYPE : BuiltinType::UNION_TYPE;
+  return isUnion ? BuiltinType::UNION_TYPE : BuiltinType::STRUCT_TYPE;
 }
 
-StructType::StructType(string name, StructType::Private) : name(std::move(name)) {
+StructType::StructType(string name, bool isUnion, StructType::Private) : name(std::move(name)), isUnion(isUnion) {
 }
 
 Type* Type::replace(const Context& context, Type* from, Type* to, ErrorBuffer& errors) {

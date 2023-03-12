@@ -1564,21 +1564,25 @@ Context createPrimaryContext(TypeRegistry* typeRegistry, LanguageIndex* language
   context.addBuiltInFunction("enum_count", BuiltinType::INT, {(Type*)BuiltinType::ENUM_TYPE},
       [](const Context& context, vector<Type*> args) -> WithError<Type*> {
         if (!context.isFullyDefined(args[0]))
-          return "Enum " + quote(args[0]->getName()) + " is incomplete in this context";
+          return args[0]->getName() + " not fully defined in this context";
         if (auto enumType = dynamic_cast<EnumType*>(args[0]))
           return (Type*) CompileTimeValue::get((int) enumType->elements.size());
         else
           fail();
       });
   context.addBuiltInFunction("struct_count", BuiltinType::INT, {(Type*)BuiltinType::STRUCT_TYPE},
-      [](const Context&, vector<Type*> args) -> WithError<Type*> {
+      [](const Context& context, vector<Type*> args) -> WithError<Type*> {
+        if (!context.isFullyDefined(args[0]))
+          return args[0]->getName() + " not fully defined in this context";
         if (auto structType = dynamic_cast<StructType*>(args[0]))
           return (Type*) CompileTimeValue::get((int) structType->members.size());
         else
           fail();
       });
   context.addBuiltInFunction("union_count", BuiltinType::INT, {(Type*)BuiltinType::UNION_TYPE},
-      [](const Context&, vector<Type*> args) -> WithError<Type*> {
+      [](const Context& context, vector<Type*> args) -> WithError<Type*> {
+        if (!context.isFullyDefined(args[0]))
+          return args[0]->getName() + " not fully defined in this context";
         if (auto structType = dynamic_cast<StructType*>(args[0]))
           return (Type*) CompileTimeValue::get((int) structType->alternatives.size());
         else
@@ -1590,7 +1594,9 @@ Context createPrimaryContext(TypeRegistry* typeRegistry, LanguageIndex* language
       });
   context.addBuiltInFunction("get_member_name", BuiltinType::STRING, {(Type*)BuiltinType::STRUCT_TYPE,
       (Type*)BuiltinType::INT},
-      [](const Context&, vector<Type*> args) -> WithError<Type*> {
+      [](const Context& context, vector<Type*> args) -> WithError<Type*> {
+        if (!context.isFullyDefined(args[0]))
+          return args[0]->getName() + " not fully defined in this context";
         if (auto structType = dynamic_cast<StructType*>(args[0]))
           if (auto value = dynamic_cast<CompileTimeValue*>(args[1]))
             if (auto intValue = value->value.getReferenceMaybe<int>()) {
@@ -1600,21 +1606,25 @@ Context createPrimaryContext(TypeRegistry* typeRegistry, LanguageIndex* language
             }
         fail();
       });
-    context.addBuiltInFunction("member_has_default_value", BuiltinType::BOOL, {(Type*)BuiltinType::STRUCT_TYPE,
-        (Type*)BuiltinType::INT},
-        [](const Context&, vector<Type*> args) -> WithError<Type*> {
-          if (auto structType = dynamic_cast<StructType*>(args[0]))
-            if (auto value = dynamic_cast<CompileTimeValue*>(args[1]))
-              if (auto intValue = value->value.getReferenceMaybe<int>()) {
-                if (*intValue < 0 || *intValue >= structType->members.size())
-                  return "Struct " + quote(structType->getName()) + " member index out of range: "s + to_string(*intValue);
-                return (Type*) CompileTimeValue::get(structType->members[*intValue].hasDefaultValue);
-              }
-          fail();
-        });
+  context.addBuiltInFunction("member_has_default_value", BuiltinType::BOOL, {(Type*)BuiltinType::STRUCT_TYPE,
+      (Type*)BuiltinType::INT},
+      [](const Context& context, vector<Type*> args) -> WithError<Type*> {
+        if (!context.isFullyDefined(args[0]))
+          return args[0]->getName() + " not fully defined in this context";
+        if (auto structType = dynamic_cast<StructType*>(args[0]))
+          if (auto value = dynamic_cast<CompileTimeValue*>(args[1]))
+            if (auto intValue = value->value.getReferenceMaybe<int>()) {
+              if (*intValue < 0 || *intValue >= structType->members.size())
+                return "Struct " + quote(structType->getName()) + " member index out of range: "s + to_string(*intValue);
+              return (Type*) CompileTimeValue::get(structType->members[*intValue].hasDefaultValue);
+            }
+        fail();
+      });
   context.addBuiltInFunction("is_const_member", BuiltinType::BOOL, {(Type*)BuiltinType::STRUCT_TYPE,
       (Type*)BuiltinType::INT},
-      [](const Context&, vector<Type*> args) -> WithError<Type*> {
+      [](const Context& context, vector<Type*> args) -> WithError<Type*> {
+        if (!context.isFullyDefined(args[0]))
+          return args[0]->getName() + " not fully defined in this context";
         if (auto structType = dynamic_cast<StructType*>(args[0]))
           if (auto value = dynamic_cast<CompileTimeValue*>(args[1]))
             if (auto intValue = value->value.getReferenceMaybe<int>()) {
@@ -1626,7 +1636,9 @@ Context createPrimaryContext(TypeRegistry* typeRegistry, LanguageIndex* language
       });
   context.addBuiltInFunction("get_member_type", BuiltinType::ANY_TYPE, {(Type*)BuiltinType::STRUCT_TYPE,
       (Type*)BuiltinType::INT},
-      [](const Context&, vector<Type*> args) -> WithError<Type*> {
+      [](const Context& context, vector<Type*> args) -> WithError<Type*> {
+        if (!context.isFullyDefined(args[0]))
+          return args[0]->getName() + " not fully defined in this context";
         if (auto structType = dynamic_cast<StructType*>(args[0]))
           if (auto value = dynamic_cast<CompileTimeValue*>(args[1]))
             if (auto intValue = value->value.getReferenceMaybe<int>()) {
@@ -1638,7 +1650,9 @@ Context createPrimaryContext(TypeRegistry* typeRegistry, LanguageIndex* language
       });
   context.addBuiltInFunction("get_alternative_name", BuiltinType::STRING, {(Type*)BuiltinType::UNION_TYPE,
       (Type*)BuiltinType::INT},
-      [](const Context&, vector<Type*> args) -> WithError<Type*> {
+      [](const Context& context, vector<Type*> args) -> WithError<Type*> {
+        if (!context.isFullyDefined(args[0]))
+          return args[0]->getName() + " not fully defined in this context";
         if (auto structType = dynamic_cast<StructType*>(args[0]))
           if (auto value = dynamic_cast<CompileTimeValue*>(args[1]))
             if (auto intValue = value->value.getReferenceMaybe<int>()) {
@@ -1650,7 +1664,9 @@ Context createPrimaryContext(TypeRegistry* typeRegistry, LanguageIndex* language
       });
   context.addBuiltInFunction("get_alternative_type", BuiltinType::ANY_TYPE, {(Type*)BuiltinType::UNION_TYPE,
       (Type*)BuiltinType::INT},
-      [](const Context&, vector<Type*> args) -> WithError<Type*> {
+      [](const Context& context, vector<Type*> args) -> WithError<Type*> {
+        if (!context.isFullyDefined(args[0]))
+          return args[0]->getName() + " not fully defined in this context";
         if (auto structType = dynamic_cast<StructType*>(args[0]))
           if (auto value = dynamic_cast<CompileTimeValue*>(args[1]))
             if (auto intValue = value->value.getReferenceMaybe<int>()) {
@@ -2040,7 +2056,7 @@ UnionDefinition::UnionDefinition(CodeLoc l, string n) : Statement(l), name(n) {
 
 JustError<ErrorLoc> UnionDefinition::registerTypes(const Context& primaryContext, TypeRegistry* r) {
   if (!type) {
-    auto ret = r->addStruct(name, false, codeLoc).addCodeLoc(codeLoc);
+    auto ret = r->addStruct(name, false, true, codeLoc).addCodeLoc(codeLoc);
     if (ret) {
       type = r->getStruct(name);
       type->templateParams = TRY(getTemplateParams(templateInfo, primaryContext));
@@ -2109,7 +2125,7 @@ JustError<ErrorLoc> UnionDefinition::check(Context& context, bool) {
 
 JustError<ErrorLoc> StructDefinition::registerTypes(const Context& primaryContext, TypeRegistry* r) {
   if (!type) {
-    auto ret = r->addStruct(name, external, codeLoc).addCodeLoc(codeLoc);
+    auto ret = r->addStruct(name, external, false, codeLoc).addCodeLoc(codeLoc);
     if (ret) {
       type = r->getStruct(name);
       type->templateParams = TRY(getTemplateParams(templateInfo, primaryContext));

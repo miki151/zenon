@@ -12,7 +12,7 @@ struct EnumDefinition;
 
 class TypeRegistry {
   public:
-  JustError<string> addStruct(const string& name, bool external, CodeLoc definition);
+  JustError<string> addStruct(const string& name, bool external, bool isUnion, CodeLoc definition);
   JustError<string> addEnum(const string& name, bool external, EnumDefinition*);
   void addAlias(const string& name, Type*, CodeLoc);
   void addConcept(const string& name, Concept*);
@@ -23,7 +23,7 @@ class TypeRegistry {
   vector<StructType*> getAllStructs() const;
   vector<EnumType*> getAllEnums() const;
   optional<CodeLoc> getAliasCodeLoc(const string& name) const;
-  
+
   private:
   JustError<string> checkNameConflict(const string& name) const;
   map<string, StructType*> structs;

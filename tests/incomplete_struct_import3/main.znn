@@ -1,0 +1,17 @@
+// 2
+
+import "input2.znn";
+
+template <T> requires is_struct<T>
+int get() {
+  return 1;
+}
+
+template <T> requires is_union<T>
+int get() {
+  return 2;
+}
+
+int main() {
+  return get<X>();
+}

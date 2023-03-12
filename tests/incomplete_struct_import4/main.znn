@@ -1,0 +1,17 @@
+// no_compile
+
+import "input2.znn";
+
+template <T> requires is_struct<T>
+int get() {
+  return struct_count(T);
+}
+
+template <T> requires is_union<T>
+int get() {
+  return union_count(T);
+}
+
+int main() {
+  return get<X>();
+}

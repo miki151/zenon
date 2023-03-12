@@ -3,9 +3,9 @@
 #include "type.h"
 #include "ast.h"
 
-JustError<string> TypeRegistry::addStruct(const string& name, bool external, CodeLoc definition) {
+JustError<string> TypeRegistry::addStruct(const string& name, bool external, bool isUnion, CodeLoc definition) {
   TRY(checkNameConflict(name));
-  auto s = new StructType(name, StructType::Private{});
+  auto s = new StructType(name, isUnion, StructType::Private{});
   s->parent = s;
   s->external = external;
   s->definition = definition;

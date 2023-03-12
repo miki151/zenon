@@ -1,0 +1,2 @@
+
+union X { void a; };
