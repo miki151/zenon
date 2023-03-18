@@ -277,6 +277,13 @@ static CompileTimeValue* evalNonTemplate(Operator op, vector<CompileTimeValue*> 
     case Operator::DECREMENT_BY:
       return tryReferenceBinary(args, [](auto value1, auto value2) { return value1 - value2; });
     case Operator::INCREMENT_BY:
+      if (auto ref = args[0]->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>()) {
+        if (auto value = dynamic_cast<CompileTimeValue*>(ref->value))
+          if (auto res = tryTypes<string, string>({value, args[1]},  [](auto v1, auto v2) { return v1 + v2; })) {
+            ref->value = res;
+            return res;
+          }
+      }
       return tryReferenceBinary(args, [](auto value1, auto value2) { return value1 + value2; });
     case Operator::DECREMENT:
       return tryReferenceUnary(args, [](auto value) { return value - 1; });

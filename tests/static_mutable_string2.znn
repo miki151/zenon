@@ -1,4 +1,4 @@
-// 18
+// 20
 
 template <string S>
 int size() {
@@ -9,5 +9,6 @@ int main() {
   static mutable stmt = "abc";
   static for (i = 0; i < 5; ++i)
     stmt = stmt + "pak";
+  stmt += "po";
   return size<stmt>();
 }
