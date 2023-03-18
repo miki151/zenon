@@ -117,6 +117,6 @@ export double abs(double value) embed {
 }
 export extern double cos(double value);
 export extern double sin(double value);
-export extern double atan2(double x, double y);
+export extern double atan2(double y, double x);
 export extern double ceil(double x);
 export extern double floor(double x);
