@@ -135,6 +135,8 @@ class lite_str {
   char32_t char_at_index(int index) const {
     if (index >= length)
       throw std::runtime_error("lite_str index out of bounds");
+    if (isascii(ptr[index]))
+      return ptr[index];
     std::setlocale(LC_ALL, "en_US.utf8");
     char32_t c32{};
     std::mbstate_t mbstate {};
@@ -238,10 +240,14 @@ inline lite_str operator + (const lite_str::char_type* s1, const lite_str& s2) {
 }
 
 inline lite_str operator + (const lite_str& s1, char32_t s2) {
-  std::setlocale(LC_ALL, "en_US.utf8");
   char buf[5] = {0};
-  std::mbstate_t state{};
-  std::c32rtomb(buf, s2, &state);
+  if (isascii(s2))
+    buf[0] = s2;
+  else {
+    std::setlocale(LC_ALL, "en_US.utf8");
+    std::mbstate_t state{};
+    std::c32rtomb(buf, s2, &state);
+  }
   return s1 + buf;
 }
 
