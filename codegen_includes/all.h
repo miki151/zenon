@@ -18,6 +18,23 @@ using null_type = tl::nullopt_t;
 using std::int64_t;
 
 template <typename T>
+struct slice_t {
+  T const* begin;
+  T const* end;
+};
+
+template <typename T>
+struct mutable_slice_t {
+  T* begin;
+  T* end;
+  operator slice_t<T>() const {
+    return slice_t<T> {
+      begin, end
+    };
+  }
+};
+
+template <typename T>
 const T* op_get_address(const T& t) {
   return &t;
 }

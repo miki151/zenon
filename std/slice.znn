@@ -4,25 +4,6 @@ export import "std/concepts.znn";
 export import "std/operator_helpers.znn";
 export import "std/panic.znn";
 
-export embed {
-template <typename T>
-struct slice_t {
-  T const* begin;
-  T const* end;
-};
-
-template <typename T>
-struct mutable_slice_t {
-  T* begin;
-  T* end;
-  operator slice_t<T>() const {
-    return slice_t<T> {
-      begin, end
-    };
-  }
-};
-}
-
 export template <T>
 extern struct slice_t;
 
