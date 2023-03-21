@@ -1,0 +1,18 @@
+// 3
+
+concept <T> C {
+  int get(T*);
+};
+
+int get(int?* i) {
+  return *i ?? 3;
+}
+
+template <T> requires C<T>
+int get2(T t) {
+  return get(&t);
+}
+
+int main() {
+  return get2<int?>(null);
+}

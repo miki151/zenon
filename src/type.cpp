@@ -1428,12 +1428,30 @@ static WithError<vector<Type*>> deduceTemplateArgs(const Context& context,
   return ret;
 }
 
+JustError<string> applyTemplateArgs(Context& reqContext, FunctionSignature& type, const vector<Type*>& templateArgs,
+    int from, int to) {
+  ErrorBuffer errors;
+  for (int i = from; i < to; ++i)
+    reqContext.addType(type.templateParams[i]->getName(), templateArgs[i]);
+  for (int i = from; i < to; ++i) {
+    if (!type.templateParams[i]->canReplaceBy(templateArgs[i]))
+      return getCantSubstituteError(type.templateParams[i], templateArgs[i]);
+    type = replaceInFunction(reqContext, type, type.templateParams[i], templateArgs[i], errors,
+        type.templateParams);
+    type.templateParams[i] = templateArgs[i];
+  }
+  if (!errors.empty())
+    return errors[0];
+  return success;
+};
+
 WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context1, FunctionInfo* input, CodeLoc codeLoc,
     vector<Type*> templateArgs, vector<Type*> argTypes, vector<string> argNames, vector<CodeLoc> argLoc,
     vector<FunctionSignature> existing) {
   FunctionSignature type = input->type;
   auto context = context1.getTopLevel();
   auto origParams = type.templateParams;
+  int numOrigTemplateArgs = templateArgs.size();
   TRY(expandVariadicTemplate(context, type, codeLoc, templateArgs, argTypes));
   auto& constructorParams = input->getConstructorParams();
   if (!!constructorParams && type.params.size() > argTypes.size() && (argTypes.empty() || !argNames.empty()) &&
@@ -1459,19 +1477,13 @@ WithErrorLine<FunctionInfo*> instantiateFunction(const Context& context1, Functi
   TypeMapping mapping { type.templateParams, vector<Type*>(type.templateParams.size()) };
   for (int i = 0; i < templateArgs.size(); ++i)
     mapping.templateArgs[i] = templateArgs[i];
+  auto reqContext = context.getChild();
+  TRY(applyTemplateArgs(reqContext, type, templateArgs, 0, numOrigTemplateArgs).addCodeLoc(codeLoc));
   TRY(getConversionError(context, input, argTypes, argLoc, type.params, mapping));
   ErrorBuffer errors;
   templateArgs = TRY(deduceTemplateArgs(context, mapping, type.requirements, errors).addCodeLoc(codeLoc));
-  auto reqContext = context.getChild();
-  for (int i = 0; i < type.templateParams.size(); ++i)
-    reqContext.addType(type.templateParams[i]->getName(), templateArgs[i]);
-  for (int i = 0; i < type.templateParams.size(); ++i) {
-    if (!type.templateParams[i]->canReplaceBy(templateArgs[i]))
-      return codeLoc.getError(getCantSubstituteError(type.templateParams[i], templateArgs[i]));
-    type = replaceInFunction(reqContext, type, type.templateParams[i], templateArgs[i], errors,
-        input->type.templateParams);
-    type.templateParams[i] = templateArgs[i];
-  }
+  TRY(applyTemplateArgs(reqContext, type, templateArgs, numOrigTemplateArgs, type.templateParams.size())
+      .addCodeLoc(codeLoc));
   for (int i = 0; i < argTypes.size(); ++i)
     TRY(context.canConvert(argTypes[i], type.params[i]).addCodeLoc(argLoc[i]));
   if (errors.empty())
