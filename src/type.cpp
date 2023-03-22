@@ -436,9 +436,9 @@ bool Type::isReference() {
 }
 
 Type* Type::removeValueReference() {
-  auto type = getType();
-  if (type->isReference())
-    return *convertTo(type->removeReference());
+  if (auto v = asCompileTimeValue())
+    if (auto ref = v->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
+      return ref->value;
   return this;
 }
 
@@ -1731,7 +1731,7 @@ Type* CompileTimeValue::getType() const {
       [](double)-> Type* {  return BuiltinType::DOUBLE; },
       [](bool)-> Type* {  return BuiltinType::BOOL; },
       [](CharLiteral)-> Type* {  return BuiltinType::CHAR; },
-      [](const ReferenceValue& ref)-> Type* { return MutableReferenceType::get(ref.value->getType()); },
+      [](const ReferenceValue& ref)-> Type* { return ref.value->getType(); },
       [](NullValue)-> Type* {  return BuiltinType::NULL_TYPE; },
       [](VoidValue)-> Type* {  return BuiltinType::VOID; },
       [](const string&)-> Type* {  return BuiltinType::STRING; },

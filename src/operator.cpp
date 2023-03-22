@@ -242,7 +242,7 @@ CompileTimeValue* tryReferenceUnary(const vector<CompileTimeValue*>& args, Opera
     if (auto value = dynamic_cast<CompileTimeValue*>(ref->value))
       if (auto res = tryArithmeticUnary({value}, operation)) {
         ref->value = res;
-        return res;
+        return CompileTimeValue::get(CompileTimeValue::VoidValue{});
       }
   }
   return nullptr;
@@ -254,7 +254,7 @@ CompileTimeValue* tryReferenceBinary(const vector<CompileTimeValue*>& args, Oper
     if (auto value = dynamic_cast<CompileTimeValue*>(ref->value))
       if (auto res = tryArithmetic({value, args[1]}, operation)) {
         ref->value = res;
-        return res;
+        return CompileTimeValue::get(CompileTimeValue::VoidValue{});
       }
   }
   return nullptr;
@@ -267,7 +267,7 @@ static CompileTimeValue* evalNonTemplate(Operator op, vector<CompileTimeValue*> 
       if (auto ref = args[0]->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
         if (auto value = dynamic_cast<CompileTimeValue*>(ref->value)) {
           ref->value = args[1];
-          return args[1];
+          return CompileTimeValue::get(CompileTimeValue::VoidValue{});
         }
       return nullptr;
     case Operator::MULTIPLY_BY:
@@ -281,7 +281,7 @@ static CompileTimeValue* evalNonTemplate(Operator op, vector<CompileTimeValue*> 
         if (auto value = dynamic_cast<CompileTimeValue*>(ref->value))
           if (auto res = tryTypes<string, string>({value, args[1]},  [](auto v1, auto v2) { return v1 + v2; })) {
             ref->value = res;
-            return res;
+            return CompileTimeValue::get(CompileTimeValue::VoidValue{});
           }
       }
       return tryReferenceBinary(args, [](auto value1, auto value2) { return value1 + value2; });
@@ -338,22 +338,17 @@ static CompileTimeValue* getExampleValue(Type* type) {
     return CompileTimeValue::get(""s);
   if (BuiltinType::CHAR == type)
     return CompileTimeValue::get(CompileTimeValue::CharLiteral{"a"});
-  if (auto ref = dynamic_cast<MutableReferenceType*>(type))
-    return CompileTimeValue::getReference(getExampleValue(ref->removeReference()));
   FATAL << "Can't provide an example value for type " << type->getName();
   fail();
 }
 
 WithEvalError<Type*> eval(Operator op, vector<Type*> args1) {
-  if (op == Operator::EQUALS && args1.size() == 2) {
+  if ((op == Operator::EQUALS || op == Operator::NOT_EQUAL) && args1.size() == 2) {
+    if ((args1[0]->asCompileTimeValue() || args1[1]->asCompileTimeValue()) &&
+        args1[0]->getType() != args1[1]->getType())
+      return EvalError::noEval();
     auto result = args1[0]->getMangledName() && args1[1]->getMangledName()
-        ? CompileTimeValue::get(args1[0] == args1[1])
-        : CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, args1, BuiltinType::BOOL});
-    return std::move(result);
-  } 
-  else if (op == Operator::NOT_EQUAL && args1.size() == 2) {
-    auto result = args1[0]->getMangledName() && args1[1]->getMangledName()
-        ? CompileTimeValue::get(args1[0] != args1[1])
+        ? CompileTimeValue::get((args1[0] == args1[1]) == (op == Operator::EQUALS))
         : CompileTimeValue::get(CompileTimeValue::TemplateExpression{op, args1, BuiltinType::BOOL});
     return std::move(result);
   }
@@ -369,7 +364,10 @@ WithEvalError<Type*> eval(Operator op, vector<Type*> args1) {
   for (auto& arg : args)
     if (!arg->getMangledName()) {
       wasTemplate = true;
-      arg = getExampleValue(arg->getType());
+      if (auto ref = arg->value.getReferenceMaybe<CompileTimeValue::ReferenceValue>())
+        arg = CompileTimeValue::getReference(getExampleValue(ref->value->getType()));
+      else
+        arg = getExampleValue(arg->getType());
     }
   auto ret = evalNonTemplate(op, args);
   if (!ret)

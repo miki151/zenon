@@ -2589,7 +2589,6 @@ JustError<ErrorLoc> ArrayLiteral::checkMoves(MoveChecker& checker) const {
 }
 
 WithErrorLine<Type*> getType(const Context& context, unique_ptr<Expression>& expr, bool evaluateAtCompileTime) {
-  auto type = TRY(expr->getTypeImpl(context));
   if (evaluateAtCompileTime) {
     if (auto type = expr->eval(context)) {
       if (type->isConstant) {
@@ -2603,7 +2602,7 @@ WithErrorLine<Type*> getType(const Context& context, unique_ptr<Expression>& exp
     if (type.get_error().canEval)
       return expr->codeLoc.getError(type.get_error().error);
   }
-  return type;
+  return TRY(expr->getTypeImpl(context));
 }
 
 SwitchStatement::CaseElem SwitchStatement::CaseElem::transform(const StmtTransformFun& fun, const ExprTransformFun&) const {
