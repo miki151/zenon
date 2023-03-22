@@ -1420,7 +1420,7 @@ static WithError<vector<Type*>> deduceTemplateArgs(const Context& context,
       if (ret.back()->asCompileTimeValue() &&
           !ret.back()->getType()->removeReference()->canBeValueTemplateParam())
         return "Value template parameter cannot have type " + quote(ret.back()->getType()->getName());
-    } else if (dynamic_cast<TemplateParameterType*>(mapping.templateParams[i]))
+    } else if (!mapping.templateParams[i]->getMangledName())
       return "Couldn't deduce template argument " + quote(mapping.templateParams[i]->getName());
     else
       ret.push_back(mapping.templateParams[i]);

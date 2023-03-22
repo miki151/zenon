@@ -1,0 +1,8 @@
+// no_compile
+
+template <T, int N>
+void f(T) {}
+
+void main() {
+  f("a");
+}
