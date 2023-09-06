@@ -20,8 +20,17 @@ void is_member_params(hash_map<Key, Value>, Key, Value) {}
 export template<Key, Value> requires hash_key<Key>
 extern hash_map();
 
+export template <Key, Value>
+void destruct(hash_map<Key, Value>* v) {
+  for (it : *v) {
+    it.key()^.destruct();
+    it.value()^.destruct();
+  }
+}
+
 export template <Key, Value> requires hash_key<Key>
 void insert(hash_map<Key, Value> mutable* m, Key key, Value value) {
+  m^.erase(&key);
   embed {
     (*m)[key] = std::move(value);
   }
@@ -43,6 +52,12 @@ bool contains(hash_map<Key, Value>* m, Key* key) {
 
 export template <Key, Value> requires hash_key<Key>
 void erase(hash_map<Key, Value> mutable* m, Key* key) {
+  if (m^.contains(key))
+    const value = [m, key] -> Value {
+      embed {
+        return std::move((*m)[*key]);
+      }
+    }();
   embed {
     return m->erase(*key);
   }
@@ -91,6 +106,9 @@ Value mutable*? get_maybe(hash_map<Key, Value> mutable* m, Key* key) {
 
 export [@member] template <Key, Value> requires hash_key<Key>
 extern int size(hash_map<Key, Value>* m);
+
+export [@member] template <Key, Value> requires hash_key<Key>
+extern bool empty(hash_map<Key, Value>* m);
 
 export template <Key, Value>
 extern struct hash_map_iterator;
