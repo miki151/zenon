@@ -20,6 +20,6 @@ int main() {
   mutable res = 0;
   for (e : enum_range<E>())
     if (s.contains(*e))
-      res += 1 + asInt(*e);
+      res += 1 + to_int(*e);
   return res + 11 * s.size();
 }

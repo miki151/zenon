@@ -12,5 +12,5 @@ int main() {
   const x = E::E3;
   const E? s = x;
   const u = s;
-  return u^.asInt();
+  return u^.to_int();
 }

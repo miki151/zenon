@@ -33,27 +33,27 @@ bool operator ==(enum_iterator<Enum>* e1, enum_iterator<Enum>* e2) {
 }
 
 export template <Enum> requires is_enum<Enum>
-Enum fromInt(int i) embed {
+Enum from_int(int i) embed {
   return Enum(i);
 }
 
 export template <Enum> requires is_enum<Enum>
-int asInt(Enum e) embed {
+int to_int(Enum e) embed {
   return int(e);
 }
 
 export template <Enum> requires is_enum<Enum>
-string asString(Enum e) embed { 
+string to_string(Enum e) embed {
   return zenon_string::reference(EnumInfo<Enum>::getString(e));
 }
 
 export template <Enum> requires is_enum<Enum>
 Enum operator *(enum_iterator<Enum>* e) {
-  return fromInt<Enum>(e^.index);
+  return from_int<Enum>(e^.index);
 }
 
 export template <Enum> requires is_enum<Enum>
 int get_hash(Enum* t) {
-  return t^.asInt();
+  return t^.to_int();
 }
 

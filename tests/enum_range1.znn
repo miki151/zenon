@@ -9,7 +9,7 @@ enum E {
 int main() {
   mutable i = 0;
   for (e : enum_range<E>()) {
-    i += e^.asInt();
+    i += e^.to_int();
   }
   return i;
 }

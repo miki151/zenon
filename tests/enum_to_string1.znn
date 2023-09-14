@@ -13,7 +13,7 @@ template <T> requires is_enum<T>
 int get_res() {
   mutable res = 0;
   for (e : enum_range<T>())
-    res += e^.asString().size();
+    res += e^.to_string().size();
   return res;
 }
 
