@@ -15,6 +15,9 @@ export template <Key>
 extern struct hash_set;
 
 export template <Key>
+void is_member_params(hash_set<Key>, Key) {}
+
+export template <Key>
 extern struct hash_set_iterator;
 
 export template<Key> requires hash_key<Key>
@@ -31,6 +34,11 @@ hash_set() {
   discard hash_adapter<Key>().invoke(key, key);
 }
 
+// IMPLEMENT
+/*export template <Key>
+void destruct(hash_set<Key>* v) {
+}
+*/
 export template <T>
 T* getNullPointer() embed {
   return nullptr;
@@ -47,9 +55,9 @@ hash_set<T> copy(hash_set<T>* v) {
   discard hash_adapter<T>().invoke(key, key);
 }
 
-
 export template <Key> requires hash_key<Key>
 void insert(hash_set<Key> mutable* m, Key key) {
+  m^.erase(&key);
   embed {
     m->insert(std::move(key));
   }
@@ -69,6 +77,13 @@ void erase(hash_set<Key> mutable* m, Key* key) {
 }
 
 export template <Key> requires hash_key<Key>
+void clear(hash_set<Key> mutable* m) {
+  embed {
+    m->clear();
+  }
+}
+
+export template <Key> requires hash_key<Key>
 bool contains(hash_set<Key>* m, Key* key) {
   embed {
     return m->count(*key);
@@ -78,13 +93,18 @@ bool contains(hash_set<Key>* m, Key* key) {
 }
 
 export template <Key> requires hash_key<Key>
-int size(hash_set<Key> mutable* m) {
+int size(hash_set<Key>* m) {
   embed {
     return m->size();
   }
   const key = getNullPointer<Key>();
   discard hash_adapter<Key>().invoke(key);
   discard hash_adapter<Key>().invoke(key, key);
+}
+
+export template <Key> requires hash_key<Key>
+bool empty(hash_set<Key>* m) {
+  return m^.size() == 0;
 }
 
 export template <T> requires hash_key<T>

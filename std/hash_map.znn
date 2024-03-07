@@ -97,6 +97,13 @@ Value mutable* get_or_init(hash_map<Key, Value> mutable* m, Key* key, Value valu
   return m^.get(key);
 }
 
+export template <Key, Value> requires hash_key<Key>, copy<Key>, construct<Value>
+Value mutable* get_or_init(hash_map<Key, Value> mutable* m, Key* key) {
+  if (!m^.contains(key))
+    m^.insert(key^.copy(), Value());
+  return m^.get(key);
+}
+
 export template <Key, Value> requires hash_key<Key>
 Value mutable*? get_maybe(hash_map<Key, Value> mutable* m, Key* key) {
   if (m^.contains(key))

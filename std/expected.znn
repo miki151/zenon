@@ -8,7 +8,7 @@ union expected {
   E error;
 };
 
-export template <T, E> 
+export template <T, E>
 bool operator !(expected<T, E>* v) {
   switch (*v) {
     case (value) {

@@ -137,6 +137,11 @@ T[] singleton_slice(T* elem) embed {
 }
 
 export template <T>
+T[] empty_slice() embed {
+  return slice_t<T>{nullptr, nullptr};
+}
+
+export template <T>
 int size(T mutable[]* s) embed {
   return s->end - s->begin;
 }
