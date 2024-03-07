@@ -38,7 +38,7 @@ Enum fromInt(int i) embed {
 }
 
 export template <Enum> requires is_enum<Enum>
-int asInt(Enum e) embed {
+int to_int(Enum e) embed {
   return int(e);
 }
 
@@ -54,6 +54,6 @@ Enum operator *(enum_iterator<Enum>* e) {
 
 export template <Enum> requires is_enum<Enum>
 int get_hash(Enum* t) {
-  return t^.asInt();
+  return t^.to_int();
 }
 
