@@ -46,6 +46,15 @@ export bool ends_with(string* s, string* suffix) {
   return true;
 }
 
+export bool contains(string* s, int start, string* substring) {
+  if (substring^.size() + start > s^.size())
+    return false;
+  for (c : *substring)
+    if (*c != s^[start + c.index])
+      return false;
+  return true;
+}
+
 export string insert(string* s, int start, string content) {
   return s^.substring(0, start) + move(content) + s^.substring(start, s^.size() - start);
 }
