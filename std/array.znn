@@ -79,7 +79,7 @@ array_iterator<T> begin(T[Size]* array) embed {
 
 export template <int Size, T>
 array_iterator<T> end(T[Size]* array) embed {
-  return {&(*array)[array->size()], array->size()};
+  return {&(*array)[array->size()], (int)array->size()};
 }
 
 export template <T>
@@ -110,7 +110,7 @@ array_mut_iterator<T> begin(T[Size] mutable* array) embed {
 
 export template <int Size, T>
 array_mut_iterator<T> end(T[Size] mutable* array) embed {
-  return {&(*array)[array->size()], array->size()};
+  return {&(*array)[array->size()], (int)array->size()};
 }
 
 export template <T>
