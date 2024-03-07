@@ -4,7 +4,7 @@ embed {
   #include <ctime>
 }
 
-import "std/range.znn";
+export import "std/range.znn";
 import "std/math.znn";
 import "std/panic.znn";
 
@@ -39,4 +39,13 @@ T get_random() {
 export template <T>
 T* get_random(T[] elems) {
   return &elems[get_random(elems.size())];
+}
+
+export template <T>
+void shuffle(T mutable[] elems) {
+  for (i : range(0, elems.size())) {
+    const j = get_random(i + 1);
+    if (j != i)
+      swap(&elems[i], &elems[j]);
+  }
 }

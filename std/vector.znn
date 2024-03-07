@@ -237,6 +237,9 @@ T mutable[] slice(vector<T> mutable* v) embed {
 export [@member] template<T>
 extern void reserve(vector<T> mutable* v, int cnt);
 
+export [@member] template<T>
+extern void resize(vector<T> mutable* v, int cnt);
+
 export template <U, T, Fun> requires invoke<Fun, U, T*>
 vector<U> transform(vector<T>* v, Fun f) {
   mutable ret = vector<U>();

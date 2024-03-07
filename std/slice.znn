@@ -23,6 +23,14 @@ bool empty(T[]* s) {
   return s^.size() == 0;
 }
 
+export template <T> requires equality<T>
+bool contains(T[]* s, T* elem) {
+  for (e : *s)
+    if (*e == *elem)
+      return true;
+  return false;
+}
+
 export template <T>
 T[] implicit_copy(T[]* s) embed {
   return *s;
@@ -138,6 +146,14 @@ bool empty(T mutable[]* s) {
   return s^.size() == 0;
 }
 
+export template <T> requires equality<T>
+bool contains(T[] mutable* s, T* elem) {
+  for (e : *s)
+    if (*e == *elem)
+      return true;
+  return false;
+}
+
 export template <T>
 T mutable[] implicit_copy(T mutable[]* s) embed {
   return *s;
@@ -231,4 +247,3 @@ export template <T>
 T mutable[] singleton_slice(T mutable* elem) embed {
   return mutable_slice_t<T>{elem, elem + 1};
 }
-
