@@ -2,7 +2,7 @@
 
 Zenon is a statically typed language inspired by C++. Its mission is to offer safer and easier application development thanks to high-level features and fast compile times, while keeping C++’s performance and familiar syntax. It’s also massively simpler than C++.
 
-Visit https://zenon-lang.org for an overview of the language.
+Visit the [documentation](https://github.com/miki151/zenon/blob/master/docs/index.rst) for an overview of the language.
 
 ### Compiling
 
